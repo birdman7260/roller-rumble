@@ -1,0 +1,16 @@
+node_modules
+dist
+dist-electron
+.vite
+coverage
+release
+out
+.goldsprints-dev
+.pnpm-store
+.tanstack
+.DS_Store
+*.log
+pnpm-debug.log*
+.env
+.env.*
+!.env.example

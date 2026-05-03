@@ -1,0 +1,8 @@
+dist
+node_modules
+coverage
+.goldsprints-dev
+package-lock.json
+pnpm-lock.yaml
+tools/db-studio/pnpm-lock.yaml
+src/renderer/routeTree.gen.ts

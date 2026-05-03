@@ -1,0 +1,26 @@
+{
+  "version": "0.2.0",
+  "compounds": [
+    {
+      "name": "Attach Electron + Renderer",
+      "configurations": ["Attach Electron Main", "Attach Electron Renderer"]
+    }
+  ],
+  "configurations": [
+    {
+      "name": "Attach Electron Main",
+      "type": "pwa-node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Attach Electron Renderer",
+      "type": "pwa-chrome",
+      "request": "attach",
+      "port": 9223,
+      "webRoot": "${workspaceFolder}/src/renderer"
+    }
+  ]
+}

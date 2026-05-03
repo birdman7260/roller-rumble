@@ -1,0 +1,12 @@
+{
+  "name": "@goldsprints/db-studio",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "studio": "drizzle-kit studio --config=../../drizzle.config.ts"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "drizzle-kit": "^0.31.10"
+  }
+}

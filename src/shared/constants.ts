@@ -1,0 +1,52 @@
+export const APP_NAME = "GoldSprints";
+export const API_PREFIX = "/api";
+export const WS_PATH = "/ws";
+export const DEFAULT_TARGET_DISTANCE_METERS = 250;
+export const COUNTDOWN_SECONDS = 3;
+export const DEFAULT_WHEEL_CIRCUMFERENCE_METERS = 2.1;
+export const DEFAULT_OS2L_PORT = 9996;
+export const DEFAULT_SERVER_PORT = 3187;
+export const DEFAULT_PUBLIC_HOST = "127.0.0.1";
+export const DEFAULT_THEME_ID = "neon-night";
+export const DEFAULT_EVENT_NAME = "Main Event";
+export const SUPPORTED_TOURNAMENT_PRESETS = [
+  "open-time-trial",
+  "single-elimination",
+  "double-elimination",
+  "round-robin",
+  "groups-to-single-elimination"
+] as const;
+export const TOURNAMENT_BRACKET_SIZES = [2, 4, 8, 16, 32] as const;
+export const TOURNAMENT_BRACKET_LAYOUT_MODES = ["auto", "standard", "center-converging"] as const;
+
+export const RACE_STATES = [
+  "scheduled",
+  "staging",
+  "countdown",
+  "active",
+  "finished",
+  "interrupted",
+  "cancelled"
+] as const;
+
+export const APP_MODES = SUPPORTED_TOURNAMENT_PRESETS;
+export const IDENTITY_TYPES = ["email", "phone", "anonymous"] as const;
+export const QUEUE_ENTRY_TYPES = ["solo", "match"] as const;
+export const QUEUE_ENTRY_REQUESTED_TYPES = ["solo", "match", "auto-match"] as const;
+export const QUEUE_ENTRY_STATUSES = [
+  "queued",
+  "staging",
+  "racing",
+  "completed",
+  "removed"
+] as const;
+export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
+export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;
+export const THEME_ORIENTATIONS = ["horizontal", "vertical"] as const;
+export const THEME_CONFETTI_EFFECTS = ["burst"] as const;
+export const THEME_SPRITE_SHEET_IDS = [
+  "neon-rider",
+  "summit-rider",
+  "frontier-wagon",
+  "oregon-wagon"
+] as const;

@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 128" role="img" aria-label="Frontier wagon sprite sheet">
+  <g stroke-linecap="round" stroke-linejoin="round">
+    <g transform="translate(0 0)">
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 29c4-12 28-12 34 0v14H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 34h34v12H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="44" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M22 42v12M16 48h12M44 42v12M38 48h12" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(64 0)">
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 29c4-12 28-12 34 0v14H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 34h34v12H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="44" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M18 44 26 52M26 44l-8 8M40 44l8 8M48 44l-8 8" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(128 0)">
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 29c4-12 28-12 34 0v14H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 34h34v12H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="44" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M22 42v12M16 48h12M44 42v12M38 48h12" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(192 0)">
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 29c4-12 28-12 34 0v14H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 34h34v12H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="44" cy="48" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M18 44 26 52M26 44l-8 8M40 44l8 8M48 44l-8 8" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(0 64)">
+      <path d="M4 31h12M2 39h14M7 47h9" stroke="#f2c572" stroke-width="2" opacity=".7" />
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 27c4-13 29-13 35 0v15H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 33h35v13H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="45" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M18 45 26 53M26 45l-8 8M41 45l8 8M49 45l-8 8" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(64 64)">
+      <path d="M5 29h11M2 37h14M8 45h8" stroke="#f2c572" stroke-width="2" opacity=".7" />
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 27c4-13 29-13 35 0v15H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 33h35v13H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="45" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M22 43v12M16 49h12M45 43v12M39 49h12" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(128 64)">
+      <path d="M4 31h12M2 39h14M7 47h9" stroke="#f2c572" stroke-width="2" opacity=".7" />
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 27c4-13 29-13 35 0v15H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 33h35v13H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="45" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M18 45 26 53M26 45l-8 8M41 45l8 8M49 45l-8 8" stroke="#d8a15d" stroke-width="2" />
+    </g>
+    <g transform="translate(192 64)">
+      <path d="M5 29h11M2 37h14M8 45h8" stroke="#f2c572" stroke-width="2" opacity=".7" />
+      <path d="M11 44h42" stroke="#8f5a32" stroke-width="6" />
+      <path d="M15 27c4-13 29-13 35 0v15H15Z" fill="#fff4de" stroke="#3d281b" stroke-width="3" />
+      <path d="M15 33h35v13H15Z" fill="#d8a15d" stroke="#3d281b" stroke-width="3" />
+      <circle cx="22" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <circle cx="45" cy="49" r="6" fill="#1b120d" stroke="#fff4de" stroke-width="3" />
+      <path d="M22 43v12M16 49h12M45 43v12M39 49h12" stroke="#d8a15d" stroke-width="2" />
+    </g>
+  </g>
+</svg>
