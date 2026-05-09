@@ -370,7 +370,7 @@ Flow:
 3. The booth scans the QR, turns WLED photo lights white, starts a slow umbrella spin, and shows the
    touchscreen photo controls.
 4. The racer can choose a predetermined LED look from an iOS-style visual wheel picker and either
-   keep the umbrella spinning or hold a chosen umbrella panel.
+   keep the umbrella spinning or choose an umbrella panel from the right-edge wheel picker.
 5. The capture button starts a countdown, freezes the umbrella for the DSLR shot, keeps the selected
    LED look active, captures with the Sony, and shows a preview.
 6. The racer accepts, retakes, or cancels.
@@ -395,6 +395,15 @@ messages, and tests. Use
 `GOLDSPRINTS_WLED_DEFAULT_LOOK=<look-id>` if a booth should idle back to a non-white default look.
 Built-in look ids are `solid-white`, `solid-red`, `solid-blue`, `kaleidoscope-rainbow`,
 `chasing-rainbow`, `sparkle`, and `pride`.
+
+Umbrella panel selection uses a custom right-edge wheel picker. The picker renders a full circular
+umbrella wheel, clips it so only the left half is visible, and rotates the full wheel with
+touch/mouse drag plus mousewheel or trackpad input. Each panel is a pie-shaped slice whose point
+converges at the wheel center and whose artwork comes from a JPG manifest in
+`tools/photo-booth-agent/src/umbrella-panels.ts`. Put the matching image files in
+`tools/photo-booth-agent/public/umbrella-panels/`; by default the expected files are
+`panel-01.jpg` through `panel-08.jpg`. As the selected slice changes, the booth sends panel commands
+through the existing stepper endpoint so the motor follows the picker.
 
 Manual fake QR testing is supported for development only. Type `fake:Your Name` into the kiosk's
 manual QR input to enter photo mode without a signed racer QR or running main app resolver. Fake QR

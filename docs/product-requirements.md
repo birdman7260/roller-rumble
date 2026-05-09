@@ -439,7 +439,7 @@ Requirements:
   - turn lights on
   - start umbrella spin
   - choose a predetermined LED look from a visual-only iOS-style wheel picker
-  - choose umbrella panel or resume spin
+  - choose an umbrella panel from the right-edge wheel picker or resume spin
   - take photo
   - review
   - accept
@@ -466,6 +466,12 @@ Requirements:
 - Umbrella control must happen behind an `UmbrellaAdapter`, with a Python GPIO helper process and
   simulator implementation. The helper owns STEP/DIR/ENABLE timing and hall-sensor homing.
   `Implemented`
+- Booth umbrella panel choices must use a custom right-edge wheel picker that renders a full
+  circular umbrella wheel while clipping the UI so only the left half is visible. Panel slices must
+  be pie-shaped triangles with points converging at the wheel center, use JPG artwork from a
+  code-defined manifest, keep hidden accessibility labels, support touch/mouse drag plus
+  mousewheel/trackpad input, highlight the centered slice, snap to panel positions, and send panel
+  commands while interaction changes the centered panel. `Implemented`
 - The booth must expose local diagnostics for scanner, camera, lights, umbrella, hall sensor, and
   queue status. `Implemented`
 - The booth must support an explicit development-only fake QR path so a host can type

@@ -15,3 +15,16 @@ You can override the path with:
 ```text
 GOLDSPRINTS_BOOTH_SIMULATOR_PHOTO_PATH=/absolute/path/to/sample.jpg
 ```
+
+Umbrella panel picker images are served as kiosk public assets, not simulator capture assets. Place
+those `.jpg` files in:
+
+```text
+tools/photo-booth-agent/public/umbrella-panels/
+```
+
+Then configure the count and image mapping in:
+
+```text
+tools/photo-booth-agent/src/umbrella-panels.ts
+```

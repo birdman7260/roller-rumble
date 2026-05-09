@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { loadBoothDotenv } from "./env";
 import { resolveDefaultLightSelection } from "./light-looks";
 import type { LightSelection } from "./types";
+import { UMBRELLA_PANEL_COUNT } from "./umbrella-panels";
 
 loadBoothDotenv();
 
@@ -190,7 +191,7 @@ export function getConfig(): BoothAgentConfig {
       directionPin: readOptionalNumber("GOLDSPRINTS_UMBRELLA_DIR_PIN"),
       enablePin: readOptionalNumber("GOLDSPRINTS_UMBRELLA_ENABLE_PIN"),
       hallPin: readOptionalNumber("GOLDSPRINTS_UMBRELLA_HALL_PIN"),
-      panelCount: readNumber("GOLDSPRINTS_UMBRELLA_PANEL_COUNT", 8),
+      panelCount: readNumber("GOLDSPRINTS_UMBRELLA_PANEL_COUNT", UMBRELLA_PANEL_COUNT),
       stepsPerRevolution: readNumber("GOLDSPRINTS_UMBRELLA_STEPS_PER_REVOLUTION", 200),
       microsteps: readNumber("GOLDSPRINTS_UMBRELLA_MICROSTEPS", 16),
       homeDirection: readDirection("GOLDSPRINTS_UMBRELLA_HOME_DIRECTION", -1),
