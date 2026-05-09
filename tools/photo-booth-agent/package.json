@@ -1,0 +1,34 @@
+{
+  "name": "@goldsprints/photo-booth-agent",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "type": "module",
+  "scripts": {
+    "agent": "pnpm kiosk:build && tsx src/agent.ts",
+    "doctor": "tsx src/doctor.ts",
+    "kiosk:build": "vite build --config vite.config.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "better-sqlite3": "^11.10.0",
+    "dotenv": "^17.4.2",
+    "express": "^4.21.2",
+    "nanoid": "^5.1.5",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "serialport": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/express": "^5.0.1",
+    "@types/node": "^22.15.3",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^6.0.1",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3",
+    "vite": "^8.0.11",
+    "vitest": "^3.1.3"
+  }
+}

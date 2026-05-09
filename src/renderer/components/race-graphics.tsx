@@ -22,6 +22,7 @@ function resolveMetric(
 
 export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: RaceGraphicProps) {
   const prefersReducedMotion = useReducedMotion();
+  const { raceGraphic } = theme;
   // Keep one shared motion profile across themes so each graphic can style itself
   // differently without feeling like a completely different timing system.
   const progressTransition = prefersReducedMotion
@@ -33,9 +34,9 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
         mass: 0.8
       };
 
-  if (theme.graphicId === "summit-climb") {
+  if (theme.orientation === "vertical") {
     return (
-      <div className="race-graphic race-graphic--vertical">
+      <div className={`race-graphic race-graphic--vertical race-graphic--${raceGraphic.variant}`}>
         {racers.map((entry) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
@@ -72,8 +73,8 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
     );
   }
 
-  if (theme.graphicId === "trail-ledger") {
-    // The DOS-inspired theme leans into a trail ledger/map readout instead of a modern progress bar.
+  if (raceGraphic.variant === "ledger") {
+    // Ledger-style themes present the race as a map readout while reusing the same live metrics.
     return (
       <div className="race-graphic race-graphic--ledger">
         {racers.map((entry, index) => {
@@ -81,7 +82,11 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
           const trailRole =
-            racers.length === 1 ? "Lead wagon" : index === 0 ? "Trail party A" : "Trail party B";
+            racers.length === 1
+              ? (raceGraphic.laneLabels?.solo ?? "Lead")
+              : index === 0
+                ? (raceGraphic.laneLabels?.laneA ?? "Lane A")
+                : (raceGraphic.laneLabels?.laneB ?? "Lane B");
 
           return (
             <div key={entry.racer.id} className="ledger-lane">
@@ -112,9 +117,9 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
                 <div className="ledger-lane__terrain" aria-hidden="true" />
                 <div className="ledger-lane__route" aria-hidden="true" />
                 <div className="ledger-lane__mileposts" aria-hidden="true">
-                  <span>INDEP.</span>
-                  <span>FORT</span>
-                  <span>OREGON</span>
+                  <span>{raceGraphic.markers?.start ?? "Start"}</span>
+                  <span>{raceGraphic.markers?.middle ?? "Mid"}</span>
+                  <span>{raceGraphic.markers?.finish ?? "Finish"}</span>
                 </div>
                 <motion.div
                   className="ledger-lane__marker"
@@ -134,7 +139,7 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
     );
   }
 
-  if (theme.graphicId === "wagon-trail") {
+  if (raceGraphic.variant === "trail") {
     return (
       <div className="race-graphic race-graphic--wagon">
         {racers.map((entry) => {
@@ -158,7 +163,7 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
                   )}
                   <div className="wagon-lane__copy">
                     <strong>{entry.racer.displayName}</strong>
-                    <span>Heading west</span>
+                    <span>{raceGraphic.laneLabels?.default ?? "Racing"}</span>
                   </div>
                 </div>
                 <strong>
@@ -167,8 +172,8 @@ export function RaceGraphic({ theme, racers, metrics, targetDistanceMeters }: Ra
               </div>
               <div className="wagon-lane__track">
                 <div className="wagon-lane__route" />
-                <div className="wagon-lane__start">Camp</div>
-                <div className="wagon-lane__finish">Fort</div>
+                <div className="wagon-lane__start">{raceGraphic.markers?.start ?? "Start"}</div>
+                <div className="wagon-lane__finish">{raceGraphic.markers?.finish ?? "Finish"}</div>
                 <div className="wagon-lane__milestones" aria-hidden="true">
                   <span />
                   <span />

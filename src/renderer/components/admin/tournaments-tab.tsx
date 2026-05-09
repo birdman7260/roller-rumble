@@ -79,6 +79,8 @@ export function TournamentsTab({
   const showTournamentHistory = showSupportingCards && !activeTournament;
   const showTournamentMatches =
     showSupportingCards && Boolean(activeTournament?.groupMatches.length);
+  // The idle setup state has no bracket yet, so the start controls and history can share a row.
+  const useSetupLayout = showSupportingCards && !activeTournament;
   const supportingCardMotion = reduceMotion
     ? {
         animate: { opacity: 1 },
@@ -104,7 +106,7 @@ export function TournamentsTab({
       <div
         className={`page-grid tournaments-tab${
           bracketExpanded ? " tournaments-tab--bracket-expanded" : ""
-        }`}
+        }${useSetupLayout ? " tournaments-tab--setup" : ""}`}
       >
         <AnimatePresence initial={false} mode="popLayout">
           {showSupportingCards ? (

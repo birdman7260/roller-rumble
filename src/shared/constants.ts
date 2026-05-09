@@ -43,6 +43,10 @@ export const QUEUE_ENTRY_STATUSES = [
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
 export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;
 export const THEME_ORIENTATIONS = ["horizontal", "vertical"] as const;
+export const THEME_SURFACE_STYLES = ["default", "frontier", "black"] as const;
+export const THEME_UI_STYLES = ["rounded", "pixel"] as const;
+export const THEME_CONNECTOR_STYLES = ["glow", "shadow", "trail", "pixel"] as const;
+export const THEME_RACE_GRAPHIC_VARIANTS = ["track", "climb", "trail", "ledger"] as const;
 export const THEME_CONFETTI_EFFECTS = ["burst"] as const;
 export const THEME_SPRITE_SHEET_IDS = [
   "neon-rider",

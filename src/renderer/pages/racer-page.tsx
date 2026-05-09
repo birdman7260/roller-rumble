@@ -1,13 +1,98 @@
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
+import type { PhotoBoothTokenResponse } from "@shared/types";
 import { EliminationBracketView } from "../components/elimination-bracket-view";
 import { TournamentBracketBoard } from "../components/admin/tournament-board";
 import { EmptyState, Panel, SearchableSelect } from "../components/ui";
-import { registerRacer, signUpQueue, uploadAvatar } from "../lib/api";
+import { createPhotoBoothToken, registerRacer, signUpQueue, uploadAvatar } from "../lib/api";
 import { describeQueueEntry, resolveRacerName } from "../lib/snapshot-display";
 import { fireAndForget } from "../lib/ui-actions";
 import { useSnapshotQuery } from "../lib/query";
+
+function PhotoBoothQr({ racerId }: { racerId: string }) {
+  const [tokenResponse, setTokenResponse] = useState<PhotoBoothTokenResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    let refreshTimer: number | null = null;
+
+    async function refreshToken(): Promise<void> {
+      try {
+        const nextToken = await createPhotoBoothToken(racerId);
+        if (cancelled) {
+          return;
+        }
+
+        setTokenResponse(nextToken);
+        setErrorMessage(null);
+        const refreshInMs = Math.max(
+          15_000,
+          new Date(nextToken.expiresAt).getTime() - Date.now() - 30_000
+        );
+        refreshTimer = window.setTimeout(() => {
+          fireAndForget(refreshToken(), "refresh photo booth QR");
+        }, refreshInMs);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setErrorMessage(error instanceof Error ? error.message : "Could not load booth QR");
+      }
+    }
+
+    fireAndForget(refreshToken(), "load photo booth QR");
+    return () => {
+      cancelled = true;
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+    };
+  }, [racerId]);
+
+  return (
+    <div className="photo-booth-qr">
+      <div className="racer-section-heading">
+        <strong>Kaleidoscope Photo Booth</strong>
+        <p>Show this QR to the booth scanner to take or retake your event avatar.</p>
+      </div>
+      {tokenResponse ? (
+        <img
+          className="photo-booth-qr__image"
+          src={tokenResponse.qrCodeDataUrl}
+          alt="Photo booth QR code"
+        />
+      ) : (
+        <div className="photo-booth-qr__placeholder">Preparing your booth QR…</div>
+      )}
+      <div className="photo-booth-qr__footer">
+        <span>
+          {tokenResponse
+            ? `Refreshes automatically · expires ${new Date(
+                tokenResponse.expiresAt
+              ).toLocaleTimeString()}`
+            : "Keep this page open while you walk up to the booth."}
+        </span>
+        <button
+          className="button button--ghost"
+          onClick={() => {
+            fireAndForget(
+              createPhotoBoothToken(racerId).then((nextToken) => {
+                setTokenResponse(nextToken);
+                setErrorMessage(null);
+              }),
+              "manual photo booth QR refresh"
+            );
+          }}
+        >
+          Refresh QR
+        </button>
+      </div>
+      {errorMessage ? <p className="form-error">{errorMessage}</p> : null}
+    </div>
+  );
+}
 
 export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const snapshotQuery = useSnapshotQuery();
@@ -165,6 +250,7 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                         }}
                       />
                     </label>
+                    <PhotoBoothQr racerId={selectedRacerId} />
                     <div className="stack-sm">
                       <div className="racer-section-heading">
                         <strong>Quick Queue</strong>

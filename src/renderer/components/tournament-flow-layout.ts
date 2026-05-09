@@ -26,7 +26,6 @@ export interface BracketFlowParticipant {
 export interface BracketFlowNodeData extends Record<string, unknown> {
   appNodeId: string;
   canStage: boolean;
-  footer: string;
   highlighted: boolean;
   label: string;
   onStageMatch?: (nodeId: string) => void;
@@ -101,24 +100,6 @@ function getRoundLabel(node: BracketNode): string {
     return `Losers ${node.roundNumber}`;
   }
   return `Winners ${node.roundNumber}`;
-}
-
-function getMatchFooter(
-  snapshot: AppSnapshot,
-  bundle: TournamentBundle,
-  node: BracketNode,
-  interactive: boolean
-): string {
-  if (node.state === "finished" && node.winnerRacerId) {
-    return `Winner: ${resolveTournamentRacerName(snapshot, bundle, node.winnerRacerId)}`;
-  }
-  if (node.state === "bye" && node.winnerRacerId) {
-    return `${resolveTournamentRacerName(snapshot, bundle, node.winnerRacerId)} advances by bye`;
-  }
-  if (node.state === "ready") {
-    return interactive ? "Click to stage this matchup" : "Ready to race";
-  }
-  return "Waiting for previous results";
 }
 
 function getParticipantResult(node: BracketNode, racerId?: string | null): string | null {
@@ -388,7 +369,6 @@ export function buildBracketFlow(
       data: {
         appNodeId: node.id,
         canStage: interactive && node.state === "ready" && Boolean(node.racerAId && node.racerBId),
-        footer: getMatchFooter(snapshot, bundle, node, interactive),
         highlighted: effectiveHighlightedNodeId === node.id,
         label: node.slotLabel,
         onStageMatch: undefined,

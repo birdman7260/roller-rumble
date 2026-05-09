@@ -19,6 +19,7 @@ import {
 } from "../components/elimination-bracket-view";
 import { StatPill } from "../components/ui";
 import { getBracketLayoutLabel } from "../lib/admin-competition";
+import { applyThemeToDocument } from "../lib/apply-theme";
 
 type LabPhase = "overview" | "hidden" | "source" | "advance" | "hold" | "zoom-out";
 
@@ -351,36 +352,18 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     settings,
     themes,
     tournaments: [bundle],
+    photoBooth: {
+      boothId: "lab-booth",
+      status: "idle",
+      lastSeenAt: null,
+      lastCaptureAt: null,
+      pendingUploadCount: 0,
+      message: null
+    },
     tunnel: {
       status: "idle"
     }
   };
-}
-
-function getLabTargetParticipantIndex(
-  bundle: TournamentBundle,
-  targetNodeId: string,
-  winnerRacerId: string
-): 0 | 1 {
-  const targetNode = bundle.bracketNodes.find((node) => node.id === targetNodeId) ?? null;
-  return targetNode?.racerBId === winnerRacerId ? 1 : 0;
-}
-
-function applyTheme(theme: ThemeDefinition): void {
-  const root = document.documentElement;
-  root.style.setProperty("--theme-font-family", theme.fontFamily);
-  root.style.setProperty("--theme-surface", theme.tokens.surface);
-  root.style.setProperty("--theme-surface-alt", theme.tokens.surfaceAlt);
-  root.style.setProperty("--theme-accent", theme.tokens.accent);
-  root.style.setProperty("--theme-accent-soft", theme.tokens.accentSoft);
-  root.style.setProperty("--theme-text", theme.tokens.text);
-  root.style.setProperty("--theme-text-muted", theme.tokens.textMuted);
-  root.style.setProperty("--theme-success", theme.tokens.success);
-  root.style.setProperty("--theme-warning", theme.tokens.warning);
-  root.style.setProperty("--theme-danger", theme.tokens.danger);
-  root.style.setProperty("--theme-lane-a", theme.tokens.laneA);
-  root.style.setProperty("--theme-lane-b", theme.tokens.laneB);
-  root.dataset.theme = theme.id;
 }
 
 function getPresentationRequest(input: {
@@ -458,27 +441,18 @@ export function BracketAnimationLabPage() {
       ? (scenario.targetNodeId ?? scenario.sourceNodeId)
       : scenario.sourceNodeId;
   const presentationRequest = getPresentationRequest({ phase, runKey, scenario });
-  const winner = labRacers.find((entry) => entry.racer.id === scenario.winnerRacerId)?.racer;
   const winnerAdvance: BracketWinnerAdvance | null =
-    phase === "advance" && scenario.targetNodeId && winner
+    phase === "advance" && scenario.targetNodeId
       ? {
           durationMs: labWinnerAdvanceMs,
           fromNodeId: scenario.sourceNodeId,
           key: `${scenario.id}:winner-advance:${runKey}`,
-          racerAvatarUrl: winner.avatarUrl,
-          racerId: winner.id,
-          racerLabel: winner.displayName,
-          targetParticipantIndex: getLabTargetParticipantIndex(
-            afterBundle,
-            scenario.targetNodeId,
-            winner.id
-          ),
           toNodeId: scenario.targetNodeId
         }
       : null;
 
   useEffect(() => {
-    applyTheme(selectedTheme);
+    applyThemeToDocument(selectedTheme);
   }, [selectedTheme]);
 
   useEffect(() => {
@@ -547,8 +521,8 @@ export function BracketAnimationLabPage() {
           <p className="eyebrow">Developer Test Page</p>
           <h1>Bracket Animation Lab</h1>
           <p>
-            Replay the same tournament bracket camera, connector, and winner-advance animations used
-            by the projector without mutating live event data.
+            Replay the same tournament bracket camera and connector handoff animations used by the
+            projector without mutating live event data.
           </p>
         </div>
         <div className="stat-grid">

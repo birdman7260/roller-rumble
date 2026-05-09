@@ -6,11 +6,15 @@ import type {
   QUEUE_ENTRY_TYPES,
   RACE_STATES,
   SUPPORTED_TOURNAMENT_PRESETS,
+  THEME_CONNECTOR_STYLES,
   THEME_CONFETTI_EFFECTS,
+  THEME_RACE_GRAPHIC_VARIANTS,
   THEME_SPRITE_SHEET_IDS,
   TOURNAMENT_BRACKET_LAYOUT_MODES,
   TOURNAMENT_BRACKET_SIZES,
   THEME_ORIENTATIONS,
+  THEME_SURFACE_STYLES,
+  THEME_UI_STYLES,
   TOURNAMENT_STAGE_KINDS,
   TOURNAMENT_STATUSES
 } from "./constants";
@@ -21,9 +25,13 @@ export type QueueEntryType = (typeof QUEUE_ENTRY_TYPES)[number];
 export type QueueEntryRequestedType = (typeof QUEUE_ENTRY_REQUESTED_TYPES)[number];
 export type QueueEntryStatus = (typeof QUEUE_ENTRY_STATUSES)[number];
 export type RaceState = (typeof RACE_STATES)[number];
+export type ThemeConnectorStyle = (typeof THEME_CONNECTOR_STYLES)[number];
 export type ThemeConfettiEffect = (typeof THEME_CONFETTI_EFFECTS)[number];
 export type ThemeOrientation = (typeof THEME_ORIENTATIONS)[number];
+export type ThemeRaceGraphicVariant = (typeof THEME_RACE_GRAPHIC_VARIANTS)[number];
 export type ThemeSpriteSheetId = (typeof THEME_SPRITE_SHEET_IDS)[number];
+export type ThemeSurfaceStyle = (typeof THEME_SURFACE_STYLES)[number];
+export type ThemeUiStyle = (typeof THEME_UI_STYLES)[number];
 export type TournamentPreset = (typeof SUPPORTED_TOURNAMENT_PRESETS)[number];
 export type TournamentBracketSize = (typeof TOURNAMENT_BRACKET_SIZES)[number];
 export type TournamentBracketLayoutMode = (typeof TOURNAMENT_BRACKET_LAYOUT_MODES)[number];
@@ -45,6 +53,69 @@ export interface Racer {
   createdAt: string;
   updatedAt: string;
   identities: Identity[];
+}
+
+export type PhotoBoothHardwareStatus = "unknown" | "online" | "offline" | "simulated" | "error";
+
+export interface PhotoBoothHardwareComponentHealth {
+  status: PhotoBoothHardwareStatus;
+  message?: string | null;
+  updatedAt?: string | null;
+}
+
+export interface PhotoBoothHardwareHealth {
+  scanner?: PhotoBoothHardwareComponentHealth;
+  camera?: PhotoBoothHardwareComponentHealth;
+  lights?: PhotoBoothHardwareComponentHealth;
+  umbrella?: PhotoBoothHardwareComponentHealth;
+  hallSensor?: PhotoBoothHardwareComponentHealth;
+}
+
+export interface PhotoBoothStatus {
+  boothId: string;
+  status: "idle" | "online" | "capturing" | "syncing" | "error";
+  lastSeenAt?: string | null;
+  lastCaptureAt?: string | null;
+  pendingUploadCount: number;
+  message?: string | null;
+  hardware?: PhotoBoothHardwareHealth;
+}
+
+export interface PhotoBoothAdminStatus {
+  status: PhotoBoothStatus;
+  serverBaseUrl: string;
+  pairingSecret: string;
+  pairingQrCodeDataUrl: string;
+}
+
+export interface PhotoBoothTokenResponse {
+  token: string;
+  expiresAt: string;
+  qrPayload: string;
+  qrCodeDataUrl: string;
+  racer: Pick<Racer, "id" | "displayName" | "avatarUrl">;
+  event: Pick<EventRecord, "id" | "name">;
+}
+
+export interface PhotoBoothSession {
+  eventId: string;
+  eventName: string;
+  racerId: string;
+  racerName: string;
+  racerAvatarUrl?: string | null;
+  expiresAt: string;
+}
+
+export interface PhotoBoothCapture {
+  id: string;
+  eventId: string;
+  racerId: string;
+  boothId: string;
+  originalUrl: string;
+  avatarUrl: string;
+  capturedAt: string;
+  uploadedAt: string;
+  createdAt: string;
 }
 
 export interface EventRecord {
@@ -239,13 +310,31 @@ export interface ThemeSpriteSheetDefinition {
   fastAnimation: ThemeSpriteAnimationDefinition;
 }
 
+export interface ThemeRaceGraphicDefinition {
+  variant: ThemeRaceGraphicVariant;
+  laneLabels?: {
+    default?: string;
+    laneA?: string;
+    laneB?: string;
+    solo?: string;
+  };
+  markers?: {
+    finish?: string;
+    middle?: string;
+    start?: string;
+  };
+}
+
 export interface ThemeDefinition {
   id: string;
   label: string;
   description: string;
   orientation: ThemeOrientation;
+  surfaceStyle: ThemeSurfaceStyle;
+  uiStyle: ThemeUiStyle;
+  connectorStyle: ThemeConnectorStyle;
   fontFamily: string;
-  graphicId: string;
+  raceGraphic: ThemeRaceGraphicDefinition;
   confettiEffectId: ThemeConfettiEffect;
   spriteSheet: ThemeSpriteSheetDefinition;
   tokens: ThemeTokens;
@@ -309,6 +398,7 @@ export interface AppSnapshot {
   tournaments: TournamentBundle[];
   themes: ThemeDefinition[];
   tunnel: TunnelState;
+  photoBooth: PhotoBoothStatus;
 }
 
 export interface CreateRacerInput {
@@ -329,4 +419,22 @@ export interface StartTournamentInput {
   preset: TournamentPreset;
   bracketSize?: TournamentBracketSize;
   bracketLayout?: TournamentBracketLayoutMode;
+}
+
+export interface CreatePhotoBoothTokenInput {
+  racerId: string;
+}
+
+export interface ResolvePhotoBoothSessionInput {
+  token: string;
+  boothId?: string;
+}
+
+export interface UpdatePhotoBoothStatusInput {
+  boothId: string;
+  status: PhotoBoothStatus["status"];
+  pendingUploadCount?: number;
+  lastCaptureAt?: string | null;
+  message?: string | null;
+  hardware?: PhotoBoothHardwareHealth;
 }

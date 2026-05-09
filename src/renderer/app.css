@@ -62,13 +62,13 @@ body {
   font-family: var(--theme-font-family);
 }
 
-body[data-theme="frontier-trail"] {
+:root[data-theme-surface="frontier"] body {
   background:
     radial-gradient(circle at 18% 16%, rgba(242, 197, 114, 0.12), transparent 26%),
     linear-gradient(180deg, #5a371f, #24150d 42%, #1b120d);
 }
 
-body[data-theme="oregon-trail-90"] {
+:root[data-theme-surface="black"] body {
   background: #000;
 }
 
@@ -94,13 +94,13 @@ a {
     linear-gradient(140deg, var(--theme-surface), var(--theme-surface-alt));
 }
 
-:root[data-theme="frontier-trail"] .app-shell {
+:root[data-theme-surface="frontier"] .app-shell {
   background:
     radial-gradient(circle at 14% 10%, rgba(242, 197, 114, 0.14), transparent 24%),
     linear-gradient(180deg, #5a371f, #24150d 38%, #1b120d);
 }
 
-:root[data-theme="oregon-trail-90"] .app-shell {
+:root[data-theme-surface="black"] .app-shell {
   background: #000;
 }
 
@@ -531,6 +531,51 @@ p {
   min-width: 0;
 }
 
+.photo-booth-qr {
+  display: grid;
+  gap: 0.75rem;
+  padding: 0.9rem;
+  border: 1px solid var(--theme-accent-soft);
+  border-radius: 1.1rem;
+  background:
+    radial-gradient(circle at 12% 12%, var(--theme-accent-soft), transparent 38%),
+    color-mix(in srgb, var(--theme-surface-alt) 58%, transparent);
+}
+
+.photo-booth-qr__image,
+.photo-booth-qr__placeholder {
+  justify-self: center;
+  width: min(15rem, 100%);
+  aspect-ratio: 1;
+  border-radius: 1rem;
+  background: white;
+}
+
+.photo-booth-qr__image {
+  padding: 0.75rem;
+}
+
+.photo-booth-qr__placeholder {
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  color: #0f172a;
+  text-align: center;
+}
+
+.photo-booth-qr__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--theme-text-muted);
+  font-size: 0.9rem;
+}
+
+.form-error {
+  color: var(--theme-danger);
+}
+
 input,
 select {
   border: 1px solid var(--theme-accent-soft);
@@ -656,6 +701,75 @@ select {
   padding: 0.75rem;
 }
 
+.photo-booth-admin {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.photo-booth-admin__hardware {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.65rem;
+}
+
+.photo-booth-hardware {
+  display: grid;
+  gap: 0.18rem;
+  min-width: 0;
+  padding: 0.75rem;
+  border: 1px solid var(--theme-accent-soft);
+  border-radius: 0.9rem;
+  background: color-mix(in srgb, var(--theme-surface) 84%, transparent);
+}
+
+.photo-booth-hardware strong {
+  font-size: 0.82rem;
+}
+
+.photo-booth-hardware span {
+  color: var(--theme-text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+}
+
+.photo-booth-hardware small {
+  overflow-wrap: anywhere;
+  color: var(--theme-text-muted);
+}
+
+.photo-booth-hardware--online,
+.photo-booth-hardware--simulated {
+  border-color: color-mix(in srgb, var(--theme-success) 56%, transparent);
+}
+
+.photo-booth-hardware--error {
+  border-color: color-mix(in srgb, var(--theme-danger) 64%, transparent);
+}
+
+.photo-booth-admin__pairing {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1rem;
+  align-items: start;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--theme-accent-soft);
+}
+
+.photo-booth-admin__pairing div {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.photo-booth-admin code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 0.45rem 0.55rem;
+  border-radius: 0.65rem;
+  color: var(--theme-text);
+  background: var(--theme-surface);
+}
+
 .race-page {
   min-height: 100vh;
   padding: 2rem;
@@ -670,70 +784,70 @@ select {
   overflow: hidden;
 }
 
-:root[data-theme="frontier-trail"] .race-page {
+:root[data-theme-surface="frontier"] .race-page {
   background:
     radial-gradient(circle at 16% 18%, rgba(242, 197, 114, 0.18), transparent 18%),
     linear-gradient(180deg, #7a4b2a, #342014 34%, #1b120d 70%);
 }
 
-:root[data-theme="oregon-trail-90"] .app-shell__nav,
-:root[data-theme="oregon-trail-90"] .panel,
-:root[data-theme="oregon-trail-90"] .admin-race-tray,
-:root[data-theme="oregon-trail-90"] .admin-tab,
-:root[data-theme="oregon-trail-90"] .app-nav a,
-:root[data-theme="oregon-trail-90"] .button,
-:root[data-theme="oregon-trail-90"] input,
-:root[data-theme="oregon-trail-90"] select,
-:root[data-theme="oregon-trail-90"] .stat-pill,
-:root[data-theme="oregon-trail-90"] .standing-row,
-:root[data-theme="oregon-trail-90"] .bracket-node,
-:root[data-theme="oregon-trail-90"] .race-graphic,
-:root[data-theme="oregon-trail-90"] .track-lane__bar,
-:root[data-theme="oregon-trail-90"] .climb-lane__track {
+:root[data-theme-ui="pixel"] .app-shell__nav,
+:root[data-theme-ui="pixel"] .panel,
+:root[data-theme-ui="pixel"] .admin-race-tray,
+:root[data-theme-ui="pixel"] .admin-tab,
+:root[data-theme-ui="pixel"] .app-nav a,
+:root[data-theme-ui="pixel"] .button,
+:root[data-theme-ui="pixel"] input,
+:root[data-theme-ui="pixel"] select,
+:root[data-theme-ui="pixel"] .stat-pill,
+:root[data-theme-ui="pixel"] .standing-row,
+:root[data-theme-ui="pixel"] .bracket-node,
+:root[data-theme-ui="pixel"] .race-graphic,
+:root[data-theme-ui="pixel"] .track-lane__bar,
+:root[data-theme-ui="pixel"] .climb-lane__track {
   border-radius: 0.35rem;
 }
 
-:root[data-theme="oregon-trail-90"] .app-shell__nav,
-:root[data-theme="oregon-trail-90"] .panel,
-:root[data-theme="oregon-trail-90"] .admin-race-tray,
-:root[data-theme="oregon-trail-90"] .admin-tab,
-:root[data-theme="oregon-trail-90"] .app-nav a,
-:root[data-theme="oregon-trail-90"] input,
-:root[data-theme="oregon-trail-90"] select,
-:root[data-theme="oregon-trail-90"] .stat-pill,
-:root[data-theme="oregon-trail-90"] .standing-row,
-:root[data-theme="oregon-trail-90"] .bracket-node,
-:root[data-theme="oregon-trail-90"] .race-graphic {
+:root[data-theme-ui="pixel"] .app-shell__nav,
+:root[data-theme-ui="pixel"] .panel,
+:root[data-theme-ui="pixel"] .admin-race-tray,
+:root[data-theme-ui="pixel"] .admin-tab,
+:root[data-theme-ui="pixel"] .app-nav a,
+:root[data-theme-ui="pixel"] input,
+:root[data-theme-ui="pixel"] select,
+:root[data-theme-ui="pixel"] .stat-pill,
+:root[data-theme-ui="pixel"] .standing-row,
+:root[data-theme-ui="pixel"] .bracket-node,
+:root[data-theme-ui="pixel"] .race-graphic {
   border-color: rgba(111, 165, 179, 0.5);
   box-shadow:
     inset 0 0 0 1px rgba(243, 225, 183, 0.08),
     0 0 0 1px rgba(14, 18, 22, 0.35);
 }
 
-:root[data-theme="oregon-trail-90"] .panel,
-:root[data-theme="oregon-trail-90"] .admin-race-tray,
-:root[data-theme="oregon-trail-90"] .admin-tab,
-:root[data-theme="oregon-trail-90"] .app-nav a,
-:root[data-theme="oregon-trail-90"] .app-shell__nav {
+:root[data-theme-ui="pixel"] .panel,
+:root[data-theme-ui="pixel"] .admin-race-tray,
+:root[data-theme-ui="pixel"] .admin-tab,
+:root[data-theme-ui="pixel"] .app-nav a,
+:root[data-theme-ui="pixel"] .app-shell__nav {
   background: #000;
 }
 
-:root[data-theme="oregon-trail-90"] .app-nav a {
+:root[data-theme-ui="pixel"] .app-nav a {
   border: 1px solid rgba(111, 165, 179, 0.5);
 }
 
-:root[data-theme="oregon-trail-90"] .admin-tab:hover,
-:root[data-theme="oregon-trail-90"] .admin-tab.active,
-:root[data-theme="oregon-trail-90"] .app-nav a:hover,
-:root[data-theme="oregon-trail-90"] .app-nav a.active {
+:root[data-theme-ui="pixel"] .admin-tab:hover,
+:root[data-theme-ui="pixel"] .admin-tab.active,
+:root[data-theme-ui="pixel"] .app-nav a:hover,
+:root[data-theme-ui="pixel"] .app-nav a.active {
   transform: none;
   border-color: var(--theme-accent);
   color: var(--theme-text);
   background: rgba(212, 176, 106, 0.12);
 }
 
-:root[data-theme="oregon-trail-90"] .admin-tab:active,
-:root[data-theme="oregon-trail-90"] .app-nav a:active {
+:root[data-theme-ui="pixel"] .admin-tab:active,
+:root[data-theme-ui="pixel"] .app-nav a:active {
   transform: none;
   box-shadow:
     inset 1px 1px 0 rgba(243, 225, 183, 0.08),
@@ -741,7 +855,7 @@ select {
   background: rgba(212, 176, 106, 0.18);
 }
 
-:root[data-theme="oregon-trail-90"] .button {
+:root[data-theme-ui="pixel"] .button {
   border: 1px solid rgba(111, 165, 179, 0.48);
   box-shadow:
     inset 1px 1px 0 rgba(243, 225, 183, 0.2),
@@ -749,20 +863,20 @@ select {
   background: var(--theme-accent);
 }
 
-:root[data-theme="oregon-trail-90"] .button,
-:root[data-theme="oregon-trail-90"] .button--ghost {
+:root[data-theme-ui="pixel"] .button,
+:root[data-theme-ui="pixel"] .button--ghost {
   color: #15110d;
 }
 
-:root[data-theme="oregon-trail-90"] .button--ghost {
+:root[data-theme-ui="pixel"] .button--ghost {
   background: rgba(93, 151, 164, 0.85);
 }
 
-:root[data-theme="oregon-trail-90"] .button--accent {
+:root[data-theme-ui="pixel"] .button--accent {
   color: #15110d;
 }
 
-:root[data-theme="oregon-trail-90"] .button:hover:not(:disabled) {
+:root[data-theme-ui="pixel"] .button:hover:not(:disabled) {
   transform: translate(-1px, -1px);
   box-shadow:
     inset 1px 1px 0 rgba(243, 225, 183, 0.24),
@@ -771,7 +885,7 @@ select {
   filter: brightness(1.04);
 }
 
-:root[data-theme="oregon-trail-90"] .button:active:not(:disabled) {
+:root[data-theme-ui="pixel"] .button:active:not(:disabled) {
   transform: translate(1px, 1px);
   box-shadow:
     inset 1px 1px 0 rgba(21, 17, 13, 0.38),
@@ -779,21 +893,21 @@ select {
   filter: brightness(0.96);
 }
 
-:root[data-theme="oregon-trail-90"] input,
-:root[data-theme="oregon-trail-90"] select {
+:root[data-theme-ui="pixel"] input,
+:root[data-theme-ui="pixel"] select {
   background: #000;
 }
 
-:root[data-theme="oregon-trail-90"] .racer-avatar {
+:root[data-theme-ui="pixel"] .racer-avatar {
   border-radius: 0.35rem;
   border: 1px solid rgba(111, 165, 179, 0.48);
 }
 
-:root[data-theme="oregon-trail-90"] .race-page {
+:root[data-theme-surface="black"] .race-page {
   background: #000;
 }
 
-:root[data-theme="oregon-trail-90"] .countdown-overlay {
+:root[data-theme-ui="pixel"] .countdown-overlay {
   background: rgba(11, 13, 15, 0.78);
   text-shadow:
     0 0 0 rgba(0, 0, 0, 0),
@@ -1125,6 +1239,10 @@ select {
   grid-template-columns: 1fr;
 }
 
+.tournaments-tab--setup {
+  grid-template-columns: minmax(0, 1.15fr) minmax(20rem, 0.85fr);
+}
+
 .tournaments-tab--bracket-expanded {
   grid-template-columns: 1fr;
   grid-auto-rows: minmax(0, 1fr);
@@ -1136,6 +1254,10 @@ select {
 .tournaments-tab__card {
   grid-column: 1 / -1;
   min-width: 0;
+}
+
+.tournaments-tab--setup .tournaments-tab__card--supporting {
+  grid-column: auto;
 }
 
 .tournaments-tab__card--supporting {
@@ -1268,45 +1390,6 @@ select {
 .tournament-flow__viewport-panel .button-row {
   flex-wrap: wrap;
   justify-content: end;
-}
-
-.tournament-flow__winner-advance {
-  position: absolute;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.65rem;
-  padding: 0.5rem 0.75rem 0.5rem 0.5rem;
-  border: 1px solid color-mix(in srgb, var(--theme-success) 52%, transparent);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--theme-surface-alt) 86%, transparent);
-  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.22);
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-  z-index: 7;
-}
-
-.tournament-flow__winner-advance-avatar {
-  width: 2.4rem;
-  height: 2.4rem;
-  border-radius: 999px;
-  object-fit: cover;
-  border: 1px solid color-mix(in srgb, var(--theme-accent-soft) 72%, transparent);
-  background: color-mix(in srgb, var(--theme-surface-alt) 78%, transparent);
-}
-
-.tournament-flow__winner-advance-avatar--placeholder {
-  display: grid;
-  place-items: center;
-  font-size: 0.8rem;
-  font-weight: 800;
-  color: var(--theme-text);
-}
-
-.tournament-flow__winner-advance-label {
-  color: var(--theme-text);
-  font-size: 0.84rem;
-  font-weight: 700;
-  white-space: nowrap;
 }
 
 .tournament-flow__handle {
@@ -1496,12 +1579,6 @@ button.tournament-match-node:active {
   flex: 0 0 auto;
 }
 
-.tournament-match-node__footer {
-  margin-top: auto;
-  color: var(--theme-text-muted);
-  font-size: 0.74rem;
-}
-
 .tournament-match-node--ready .tournament-match-node__status {
   background: rgba(255, 202, 87, 0.18);
   color: var(--theme-warning);
@@ -1517,49 +1594,49 @@ button.tournament-match-node:active {
   background: rgba(184, 214, 232, 0.12);
 }
 
-:root[data-theme="neon-night"] .tournament-connector-edge__progress,
-:root[data-theme="neon-night"] .tournament-connector-edge__draw {
+:root[data-theme-connector="glow"] .tournament-connector-edge__progress,
+:root[data-theme-connector="glow"] .tournament-connector-edge__draw {
   stroke: var(--theme-accent);
   filter: drop-shadow(0 0 0.55rem color-mix(in srgb, var(--theme-accent) 82%, transparent))
     drop-shadow(0 0 0.16rem color-mix(in srgb, var(--theme-lane-b) 74%, transparent));
 }
 
-:root[data-theme="summit-sprint"] .tournament-connector-edge__progress,
-:root[data-theme="summit-sprint"] .tournament-connector-edge__draw {
+:root[data-theme-connector="shadow"] .tournament-connector-edge__progress,
+:root[data-theme-connector="shadow"] .tournament-connector-edge__draw {
   stroke: var(--theme-warning);
   filter: drop-shadow(0 0.2rem 0.3rem rgba(32, 20, 15, 0.55));
 }
 
-:root[data-theme="frontier-trail"] .tournament-connector-edge__progress {
+:root[data-theme-connector="trail"] .tournament-connector-edge__progress {
   stroke: var(--theme-accent);
   stroke-dasharray: 14 7;
   filter: drop-shadow(0 0.18rem 0.16rem rgba(27, 18, 13, 0.62));
 }
 
-:root[data-theme="frontier-trail"] .tournament-connector-edge__draw {
+:root[data-theme-connector="trail"] .tournament-connector-edge__draw {
   stroke: var(--theme-accent);
   filter: drop-shadow(0 0.25rem 0.24rem rgba(27, 18, 13, 0.7));
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-flow,
-:root[data-theme="oregon-trail-90"] .tournament-match-node {
+:root[data-theme-ui="pixel"] .tournament-flow,
+:root[data-theme-ui="pixel"] .tournament-match-node {
   border-radius: 0.35rem;
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-flow-shell--expanded {
+:root[data-theme-ui="pixel"] .tournament-flow-shell--expanded {
   background: rgba(0, 0, 0, 0.88);
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-flow {
+:root[data-theme-ui="pixel"] .tournament-flow {
   background: #000;
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-flow__canvas .react-flow__background path {
+:root[data-theme-ui="pixel"] .tournament-flow__canvas .react-flow__background path {
   stroke: rgba(93, 151, 164, 0.28);
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-flow__canvas .react-flow__controls,
-:root[data-theme="oregon-trail-90"] .tournament-match-node {
+:root[data-theme-ui="pixel"] .tournament-flow__canvas .react-flow__controls,
+:root[data-theme-ui="pixel"] .tournament-match-node {
   border-color: rgba(111, 165, 179, 0.5);
   background: #000;
   box-shadow:
@@ -1567,47 +1644,46 @@ button.tournament-match-node:active {
     0 0 0 1px rgba(14, 18, 22, 0.35);
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-match-node__participant {
+:root[data-theme-ui="pixel"] .tournament-match-node__participant {
   background: rgba(93, 151, 164, 0.08);
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-match-node__participant.winner {
+:root[data-theme-ui="pixel"] .tournament-match-node__participant.winner {
   color: #15110d;
   background: var(--theme-success);
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-connector-edge__base {
+:root[data-theme-connector="pixel"] .tournament-connector-edge__base {
   stroke: rgba(93, 151, 164, 0.82);
   stroke-width: 2.2;
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-connector-edge__progress {
+:root[data-theme-connector="pixel"] .tournament-connector-edge__progress {
   stroke: #d4b06a;
   stroke-width: 3;
   stroke-dasharray: 6 4;
   filter: none;
 }
 
-:root[data-theme="oregon-trail-90"] .tournament-connector-edge__draw {
+:root[data-theme-connector="pixel"] .tournament-connector-edge__draw {
   stroke: #f3e1b7;
   stroke-width: 3.4;
   filter: none;
 }
 
-:root[data-theme="oregon-trail-90"] button.tournament-match-node:hover {
+:root[data-theme-ui="pixel"] button.tournament-match-node:hover {
   transform: translate(-1px, -1px);
   box-shadow:
     inset 0 0 0 1px rgba(243, 225, 183, 0.08),
     2px 2px 0 rgba(111, 165, 179, 0.35);
 }
 
-:root[data-theme="oregon-trail-90"] button.tournament-match-node:active {
+:root[data-theme-ui="pixel"] button.tournament-match-node:active {
   transform: translate(1px, 1px);
   box-shadow: inset 0 0 0 1px rgba(243, 225, 183, 0.08);
 }
 
-:root[data-theme="oregon-trail-90"] .race-page__bracket-stage,
-:root[data-theme="oregon-trail-90"] .tournament-flow__winner-advance {
+:root[data-theme-ui="pixel"] .race-page__bracket-stage {
   background: #000;
   border-radius: 0.35rem;
   border-color: rgba(111, 165, 179, 0.5);
@@ -2012,5 +2088,14 @@ button.tournament-match-node:active {
   .racer-action-grid,
   .racer-challenge-controls {
     grid-template-columns: 1fr;
+  }
+
+  .photo-booth-qr__footer,
+  .photo-booth-admin__pairing {
+    grid-template-columns: 1fr;
+  }
+
+  .photo-booth-qr__footer {
+    display: grid;
   }
 }

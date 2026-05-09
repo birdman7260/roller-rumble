@@ -1,7 +1,17 @@
+import { useQueryClient } from "@tanstack/react-query";
 import type { AppSnapshot } from "@shared/types";
 import { Panel } from "../ui";
-import { startTunnel, stopTunnel, updateSettings } from "../../lib/api";
+import { rotatePhotoBoothPairing, startTunnel, stopTunnel, updateSettings } from "../../lib/api";
+import { photoBoothStatusQueryKey, usePhotoBoothStatusQuery } from "../../lib/query";
 import { fireAndForget } from "../../lib/ui-actions";
+
+const boothHardwareLabels = {
+  scanner: "QR Scanner",
+  camera: "Sony Camera",
+  lights: "WLED Lights",
+  umbrella: "Umbrella",
+  hallSensor: "Hall Sensor"
+} as const;
 
 export function SettingsTab({
   snapshot,
@@ -10,6 +20,11 @@ export function SettingsTab({
   snapshot: AppSnapshot;
   meta?: { localBaseUrl: string; qrCodeDataUrl: string };
 }) {
+  const photoBoothStatusQuery = usePhotoBoothStatusQuery();
+  const queryClient = useQueryClient();
+  const photoBoothAdminStatus = photoBoothStatusQuery.data;
+  const photoBoothStatus = photoBoothAdminStatus?.status ?? snapshot.photoBooth;
+
   return (
     <div className="page-grid">
       <Panel title="Settings">
@@ -93,6 +108,80 @@ export function SettingsTab({
           {meta?.qrCodeDataUrl ? (
             <img className="qr-code" src={meta.qrCodeDataUrl} alt="QR code for racer page" />
           ) : null}
+        </div>
+      </Panel>
+
+      <Panel
+        title="Kaleidoscope Photo Booth"
+        actions={
+          <button
+            className="button button--ghost"
+            onClick={() => {
+              fireAndForget(
+                rotatePhotoBoothPairing().then(() =>
+                  queryClient.invalidateQueries({ queryKey: photoBoothStatusQueryKey })
+                ),
+                "rotate photo booth pairing"
+              );
+            }}
+          >
+            Rotate Pairing
+          </button>
+        }
+      >
+        <div className="photo-booth-admin">
+          <div className="stat-pill">
+            <span className="stat-pill__label">Booth Status</span>
+            <strong className="stat-pill__value">{photoBoothStatus.status}</strong>
+          </div>
+          <div className="stat-pill">
+            <span className="stat-pill__label">Pending Sync</span>
+            <strong className="stat-pill__value">{photoBoothStatus.pendingUploadCount}</strong>
+          </div>
+          <div className="stat-pill">
+            <span className="stat-pill__label">Last Seen</span>
+            <strong className="stat-pill__value">
+              {photoBoothStatus.lastSeenAt
+                ? new Date(photoBoothStatus.lastSeenAt).toLocaleTimeString()
+                : "Not yet"}
+            </strong>
+          </div>
+          <div className="photo-booth-admin__hardware">
+            {Object.entries(boothHardwareLabels).map(([key, label]) => {
+              const health =
+                photoBoothStatus.hardware?.[key as keyof typeof boothHardwareLabels] ?? null;
+              return (
+                <div
+                  key={key}
+                  className={`photo-booth-hardware photo-booth-hardware--${health?.status ?? "unknown"}`}
+                >
+                  <strong>{label}</strong>
+                  <span>{health?.status ?? "unknown"}</span>
+                  {health?.message ? <small>{health.message}</small> : null}
+                </div>
+              );
+            })}
+          </div>
+          <div className="photo-booth-admin__pairing">
+            <div>
+              <strong>Pairing Config</strong>
+              <p>
+                Scan this from the Raspberry Pi setup flow, or copy the values into the booth agent
+                environment.
+              </p>
+              <code>Server: {photoBoothAdminStatus?.serverBaseUrl ?? meta?.localBaseUrl}</code>
+              <code>Booth: {photoBoothStatus.boothId}</code>
+              <code>Secret: {photoBoothAdminStatus?.pairingSecret ?? "Loading…"}</code>
+            </div>
+            {photoBoothAdminStatus?.pairingQrCodeDataUrl ? (
+              <img
+                className="qr-code"
+                src={photoBoothAdminStatus.pairingQrCodeDataUrl}
+                alt="QR code for photo booth pairing"
+              />
+            ) : null}
+          </div>
+          {photoBoothStatus.message ? <p>{photoBoothStatus.message}</p> : null}
         </div>
       </Panel>
     </div>

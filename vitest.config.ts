@@ -1,4 +1,4 @@
-import { defineConfig } from "vitest/config";
+import { configDefaults, defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
@@ -13,6 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    exclude: [...configDefaults.exclude, "tools/photo-booth-agent/**"],
     globals: true,
     setupFiles: ["./src/renderer/test/setup.ts"]
   }

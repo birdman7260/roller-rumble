@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { queryOptions, QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppSnapshot } from "@shared/types";
-import { createWebSocketUrl, fetchMeta, fetchSnapshot } from "./api";
+import { createWebSocketUrl, fetchMeta, fetchPhotoBoothStatus, fetchSnapshot } from "./api";
 
 export const snapshotQueryKey = ["snapshot"];
 export const metaQueryKey = ["meta"];
+export const photoBoothStatusQueryKey = ["photo-booth-status"];
 const snapshotQueryOptions = queryOptions({
   queryKey: snapshotQueryKey,
   queryFn: fetchSnapshot
@@ -12,6 +13,10 @@ const snapshotQueryOptions = queryOptions({
 const metaQueryOptions = queryOptions({
   queryKey: metaQueryKey,
   queryFn: fetchMeta
+});
+const photoBoothStatusQueryOptions = queryOptions({
+  queryKey: photoBoothStatusQueryKey,
+  queryFn: fetchPhotoBoothStatus
 });
 
 export const queryClient = new QueryClient({
@@ -29,6 +34,10 @@ export function useSnapshotQuery() {
 
 export function useMetaQuery() {
   return useQuery(metaQueryOptions);
+}
+
+export function usePhotoBoothStatusQuery() {
+  return useQuery(photoBoothStatusQueryOptions);
 }
 
 function isSnapshotMessage(value: unknown): value is {
@@ -69,6 +78,7 @@ export function useSnapshotStream(): void {
       }
       if (message.type === "snapshot") {
         client.setQueryData(snapshotQueryKey, message.payload);
+        void client.invalidateQueries({ queryKey: photoBoothStatusQueryKey });
       }
     };
     return () => {

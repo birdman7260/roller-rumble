@@ -1,6 +1,7 @@
 import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type {
   BracketNode,
+  PhotoBoothCapture,
   QueueEntry,
   RaceMetricsSnapshot,
   RaceParticipant,
@@ -185,6 +186,22 @@ export const groupMatches = sqliteTable("group_matches", {
   scoreLabel: text("score_label"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
+});
+
+export const boothCaptures = sqliteTable("booth_captures", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id")
+    .notNull()
+    .references(() => events.id, { onDelete: "cascade" }),
+  racerId: text("racer_id")
+    .notNull()
+    .references(() => racers.id, { onDelete: "cascade" }),
+  boothId: text("booth_id").notNull(),
+  originalUrl: text("original_url").notNull(),
+  avatarUrl: text("avatar_url").notNull(),
+  capturedAt: text("captured_at").$type<PhotoBoothCapture["capturedAt"]>().notNull(),
+  uploadedAt: text("uploaded_at").$type<PhotoBoothCapture["uploadedAt"]>().notNull(),
+  createdAt: text("created_at").notNull()
 });
 
 // Settings rows are heterogeneous JSON blobs keyed by name, so callers narrow the

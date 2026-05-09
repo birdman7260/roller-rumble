@@ -1,7 +1,10 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, screen } from "electron";
+import { loadDotenvFiles } from "../backend/env";
 import { createBackendServer, type BackendServer } from "../backend/server";
+
+loadDotenvFiles();
 
 let backend: BackendServer | null = null;
 let adminWindow: BrowserWindow | null = null;
@@ -33,6 +36,10 @@ function resolveRuntimeDataDir(): string {
   if (override) {
     // Dev mode can pin data into the repo so resets are predictable and don't touch real app data.
     return path.resolve(process.cwd(), override);
+  }
+
+  if (isDev()) {
+    return path.resolve(process.cwd(), ".goldsprints-dev/runtime");
   }
 
   return path.join(app.getPath("userData"), "runtime");

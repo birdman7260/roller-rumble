@@ -9,14 +9,17 @@ import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "../shared/constants";
 import type { AppSnapshot } from "../shared/types";
 import {
   createEventSchema,
+  createPhotoBoothTokenSchema,
   createRacerSchema,
   queueSignupSchema,
   removeRacerSchema,
+  resolvePhotoBoothSessionSchema,
   settingUpdateSchema,
   startTournamentSchema,
   tournamentBracketMatchSchema,
   tournamentGroupMatchSchema,
-  tournamentIdSchema
+  tournamentIdSchema,
+  updatePhotoBoothStatusSchema
 } from "../shared/validation";
 import { GoldsprintsApp } from "./services/app";
 
@@ -68,9 +71,8 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     },
     filename: (req, file, callback) => {
       const extension = path.extname(file.originalname) || ".jpg";
-      const racerId = Array.isArray(req.params.racerId)
-        ? req.params.racerId[0]
-        : req.params.racerId;
+      const rawRacerId = (req.params as Record<string, string | string[] | undefined>).racerId;
+      const racerId = Array.isArray(rawRacerId) ? rawRacerId[0] : (rawRacerId ?? "booth-upload");
       callback(null, `${racerId}-${String(Date.now())}${extension}`);
     }
   });
@@ -127,6 +129,56 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
       localBaseUrl: service.getLocalBaseUrl(),
       qrCodeDataUrl: await service.getQrCodeDataUrl()
     });
+  });
+
+  app.get(`${API_PREFIX}/booth/status`, async (_req, res) => {
+    res.json(await service.getPhotoBoothAdminStatus());
+  });
+
+  app.post(`${API_PREFIX}/booth/pairing/rotate`, async (_req, res) => {
+    res.json(await service.rotatePhotoBoothPairing());
+  });
+
+  app.post(`${API_PREFIX}/booth/status`, (req, res) => {
+    const input = updatePhotoBoothStatusSchema.parse(req.body);
+    service.assertPhotoBoothSecret(input.boothId, req.get("x-goldsprints-booth-secret"));
+    res.json(service.updatePhotoBoothStatus(input));
+  });
+
+  app.post(`${API_PREFIX}/booth/tokens`, async (req, res) => {
+    const input = createPhotoBoothTokenSchema.parse(req.body);
+    res.json(await service.createPhotoBoothToken(input.racerId));
+  });
+
+  app.post(`${API_PREFIX}/booth/sessions/resolve`, (req, res) => {
+    const input = resolvePhotoBoothSessionSchema.parse(req.body);
+    if (input.boothId) {
+      service.assertPhotoBoothSecret(input.boothId, req.get("x-goldsprints-booth-secret"));
+    }
+    res.json(service.resolvePhotoBoothSession(input));
+  });
+
+  app.post(`${API_PREFIX}/booth/avatar-originals`, upload.single("photo"), (req, res) => {
+    if (!req.file) {
+      res.status(400).json({ message: "Missing booth photo file" });
+      return;
+    }
+
+    const body = req.body as Record<string, unknown>;
+    const boothId = typeof body.boothId === "string" ? body.boothId : "";
+    const token = typeof body.token === "string" ? body.token : "";
+    const capturedAt =
+      typeof body.capturedAt === "string" ? body.capturedAt : new Date().toISOString();
+    service.assertPhotoBoothSecret(boothId, req.get("x-goldsprints-booth-secret"));
+    res.json(
+      service.acceptPhotoBoothAvatarOriginal({
+        boothId,
+        token,
+        capturedAt,
+        originalTempPath: req.file.path,
+        originalFileName: req.file.originalname
+      })
+    );
   });
 
   app.get(`${API_PREFIX}/racers`, (req, res) => {

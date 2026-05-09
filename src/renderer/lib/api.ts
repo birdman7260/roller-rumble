@@ -1,5 +1,7 @@
 import type {
   AppSnapshot,
+  PhotoBoothAdminStatus,
+  PhotoBoothTokenResponse,
   CreateRacerInput,
   QueueSignupInput,
   Racer,
@@ -40,6 +42,30 @@ export async function fetchSnapshot(): Promise<AppSnapshot> {
 
 export async function fetchMeta(): Promise<{ localBaseUrl: string; qrCodeDataUrl: string }> {
   return parseJson(await fetch(buildUrl("/api/meta")));
+}
+
+export async function fetchPhotoBoothStatus(): Promise<PhotoBoothAdminStatus> {
+  return parseJson(await fetch(buildUrl("/api/booth/status")));
+}
+
+export async function rotatePhotoBoothPairing(): Promise<PhotoBoothAdminStatus> {
+  return parseJson(
+    await fetch(buildUrl("/api/booth/pairing/rotate"), {
+      method: "POST"
+    })
+  );
+}
+
+export async function createPhotoBoothToken(racerId: string): Promise<PhotoBoothTokenResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/booth/tokens"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ racerId })
+    })
+  );
 }
 
 export async function registerRacer(

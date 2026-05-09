@@ -1,4 +1,5 @@
 import { EventEmitter } from "node:events";
+import fs from "node:fs";
 import path from "node:path";
 import QRCode from "qrcode";
 import { nanoid } from "nanoid";
@@ -13,6 +14,10 @@ import type {
   BracketNode,
   AdminSettings,
   AppSnapshot,
+  PhotoBoothAdminStatus,
+  PhotoBoothSession,
+  PhotoBoothStatus,
+  PhotoBoothTokenResponse,
   RaceMetricsSnapshot,
   RaceRecord,
   Racer,
@@ -49,6 +54,12 @@ import {
   removeRacerFromSpecificQueueEntry
 } from "./queue";
 import { TournamentService } from "./tournaments";
+import {
+  createSignedPhotoBoothToken,
+  PHOTO_BOOTH_TOKEN_TTL_MS,
+  verifySignedPhotoBoothToken,
+  type PhotoBoothTokenPayload
+} from "./photo-booth";
 
 interface CurrentRaceRuntime {
   // High-frequency telemetry stays in memory while the DB stores UI-ready snapshots.
@@ -64,6 +75,13 @@ interface CurrentRaceRuntime {
 interface AppServiceOptions {
   dataDir: string;
   serverPort?: number;
+}
+
+interface PhotoBoothPairing {
+  boothId: string;
+  pairingSecret: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 function sameParticipantSet(left: string[], right: string[]): boolean {
@@ -105,6 +123,31 @@ function findGroupMatchForParticipants(
         !match.winnerRacerId && sameParticipantSet([match.racerAId, match.racerBId], participantIds)
     ) ?? null
   );
+}
+
+function buildPublicUploadUrl(uploadsDir: string, filePath: string): string {
+  const relativePath = path.relative(uploadsDir, filePath).split(path.sep).join("/");
+  return `/uploads/${relativePath}`;
+}
+
+function getSafeImageExtension(fileName: string): string {
+  const extension = path.extname(fileName).toLowerCase();
+  return [".jpg", ".jpeg", ".png", ".webp"].includes(extension) ? extension : ".jpg";
+}
+
+function moveFile(sourcePath: string, destinationPath: string): void {
+  fs.mkdirSync(path.dirname(destinationPath), { recursive: true });
+  try {
+    fs.renameSync(sourcePath, destinationPath);
+  } catch (error) {
+    const nodeError = error as NodeJS.ErrnoException;
+    if (nodeError.code !== "EXDEV") {
+      throw error;
+    }
+
+    fs.copyFileSync(sourcePath, destinationPath);
+    fs.unlinkSync(sourcePath);
+  }
 }
 
 export class GoldsprintsApp extends EventEmitter {
@@ -216,6 +259,7 @@ export class GoldsprintsApp extends EventEmitter {
       queue,
       tournaments: tournamentBundles,
       tunnel,
+      photoBooth: this.getPhotoBoothStatus(),
       themes,
       raceProjection: {
         race: currentRace,
@@ -420,6 +464,249 @@ export class GoldsprintsApp extends EventEmitter {
       margin: 1,
       width: 220
     });
+  }
+
+  private getPhotoBoothPairing(): PhotoBoothPairing {
+    const existing = this.db.getSetting<PhotoBoothPairing | null>("photoBoothPairing", null).value;
+    if (existing) {
+      return existing;
+    }
+
+    const timestamp = nowIso();
+    const pairing: PhotoBoothPairing = {
+      boothId: `booth-${nanoid(8)}`,
+      pairingSecret: nanoid(48),
+      createdAt: timestamp,
+      updatedAt: timestamp
+    };
+    this.db.setSetting("photoBoothPairing", pairing);
+    return pairing;
+  }
+
+  getPhotoBoothStatus(): PhotoBoothStatus {
+    const pairing = this.getPhotoBoothPairing();
+    const stored = this.db.getSetting<Partial<PhotoBoothStatus>>("photoBoothStatus", {}).value;
+
+    return {
+      boothId: pairing.boothId,
+      status: stored.status ?? "idle",
+      lastSeenAt: stored.lastSeenAt ?? null,
+      lastCaptureAt: stored.lastCaptureAt ?? null,
+      pendingUploadCount: stored.pendingUploadCount ?? 0,
+      message: stored.message ?? null,
+      hardware: stored.hardware ?? {}
+    };
+  }
+
+  async getPhotoBoothAdminStatus(): Promise<PhotoBoothAdminStatus> {
+    const pairing = this.getPhotoBoothPairing();
+    const payload = {
+      type: "goldsprints.photo-booth.pairing",
+      version: 1,
+      serverBaseUrl: this.getLocalBaseUrl(),
+      boothId: pairing.boothId,
+      pairingSecret: pairing.pairingSecret
+    };
+
+    return {
+      status: this.getPhotoBoothStatus(),
+      serverBaseUrl: this.getLocalBaseUrl(),
+      pairingSecret: pairing.pairingSecret,
+      pairingQrCodeDataUrl: await QRCode.toDataURL(JSON.stringify(payload), {
+        margin: 1,
+        width: 220
+      })
+    };
+  }
+
+  async rotatePhotoBoothPairing(): Promise<PhotoBoothAdminStatus> {
+    const timestamp = nowIso();
+    this.db.setSetting<PhotoBoothPairing>("photoBoothPairing", {
+      boothId: `booth-${nanoid(8)}`,
+      pairingSecret: nanoid(48),
+      createdAt: timestamp,
+      updatedAt: timestamp
+    });
+    this.db.setSetting<Partial<PhotoBoothStatus>>("photoBoothStatus", {
+      status: "idle",
+      pendingUploadCount: 0,
+      message: "Photo booth pairing was rotated. Re-pair the Raspberry Pi booth."
+    });
+    this.emitSnapshot();
+    return this.getPhotoBoothAdminStatus();
+  }
+
+  assertPhotoBoothSecret(boothId: string, pairingSecret: string | undefined): void {
+    const pairing = this.getPhotoBoothPairing();
+    if (boothId !== pairing.boothId || pairingSecret !== pairing.pairingSecret) {
+      throw new Error("Invalid photo booth pairing.");
+    }
+  }
+
+  updatePhotoBoothStatus(input: {
+    boothId: string;
+    status: PhotoBoothStatus["status"];
+    pendingUploadCount?: number;
+    lastCaptureAt?: string | null;
+    message?: string | null;
+    hardware?: PhotoBoothStatus["hardware"];
+  }): PhotoBoothStatus {
+    const current = this.getPhotoBoothStatus();
+    const next: PhotoBoothStatus = {
+      boothId: input.boothId,
+      status: input.status,
+      lastSeenAt: nowIso(),
+      lastCaptureAt: input.lastCaptureAt ?? current.lastCaptureAt,
+      pendingUploadCount: input.pendingUploadCount ?? current.pendingUploadCount,
+      message: input.message ?? null,
+      hardware: input.hardware ?? current.hardware ?? {}
+    };
+    this.db.setSetting("photoBoothStatus", next);
+    this.emitSnapshot();
+    return next;
+  }
+
+  async createPhotoBoothToken(racerId: string): Promise<PhotoBoothTokenResponse> {
+    const activeEvent = this.db.getActiveEvent()!;
+    const racer = this.db.getRacer(racerId);
+    if (!racer) {
+      throw new Error("Cannot create a photo booth QR for an unknown racer.");
+    }
+
+    this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    const issuedAtMs = Date.now();
+    const payload: PhotoBoothTokenPayload = {
+      version: 1,
+      purpose: "photo-booth-avatar",
+      eventId: activeEvent.id,
+      eventName: activeEvent.name,
+      racerId: racer.id,
+      racerName: racer.displayName,
+      racerAvatarUrl: racer.avatarUrl ?? null,
+      issuedAt: new Date(issuedAtMs).toISOString(),
+      expiresAt: new Date(issuedAtMs + PHOTO_BOOTH_TOKEN_TTL_MS).toISOString(),
+      nonce: nanoid()
+    };
+    const token = createSignedPhotoBoothToken(payload, this.getPhotoBoothPairing().pairingSecret);
+    const qrPayload = JSON.stringify({
+      type: "goldsprints.photo-booth.token",
+      version: 1,
+      token
+    });
+
+    return {
+      token,
+      expiresAt: payload.expiresAt,
+      qrPayload,
+      qrCodeDataUrl: await QRCode.toDataURL(qrPayload, {
+        margin: 1,
+        width: 260
+      }),
+      racer: {
+        id: racer.id,
+        displayName: racer.displayName,
+        avatarUrl: racer.avatarUrl ?? null
+      },
+      event: {
+        id: activeEvent.id,
+        name: activeEvent.name
+      }
+    };
+  }
+
+  resolvePhotoBoothSession(input: { token: string; boothId?: string }): PhotoBoothSession {
+    const payload = verifySignedPhotoBoothToken(
+      input.token,
+      this.getPhotoBoothPairing().pairingSecret
+    );
+
+    if (input.boothId) {
+      this.updatePhotoBoothStatus({
+        boothId: input.boothId,
+        status: "online",
+        message: `Ready for ${payload.racerName}`
+      });
+    }
+
+    return {
+      eventId: payload.eventId,
+      eventName: payload.eventName,
+      racerId: payload.racerId,
+      racerName: payload.racerName,
+      racerAvatarUrl: payload.racerAvatarUrl ?? null,
+      expiresAt: payload.expiresAt
+    };
+  }
+
+  acceptPhotoBoothAvatarOriginal(input: {
+    boothId: string;
+    token: string;
+    capturedAt: string;
+    originalTempPath: string;
+    originalFileName: string;
+  }): AppSnapshot {
+    const capturedAtMs = new Date(input.capturedAt).getTime();
+    if (!Number.isFinite(capturedAtMs)) {
+      throw new Error("Photo booth capture is missing a valid capture timestamp.");
+    }
+
+    const payload = verifySignedPhotoBoothToken(
+      input.token,
+      this.getPhotoBoothPairing().pairingSecret,
+      capturedAtMs
+    );
+    const racer = this.db.getRacer(payload.racerId);
+    if (!racer) {
+      throw new Error("Cannot attach a photo booth capture to an unknown racer.");
+    }
+
+    const captureId = nanoid();
+    const extension = getSafeImageExtension(input.originalFileName);
+    const originalPath = path.join(
+      this.uploadsDir,
+      "avatar-originals",
+      payload.eventId,
+      payload.racerId,
+      `${captureId}${extension}`
+    );
+    const avatarPath = path.join(
+      this.uploadsDir,
+      "avatars",
+      payload.eventId,
+      payload.racerId,
+      `${captureId}${extension}`
+    );
+
+    moveFile(input.originalTempPath, originalPath);
+    fs.mkdirSync(path.dirname(avatarPath), { recursive: true });
+    // This derivative boundary lets the UI use a stable avatar asset while preserving the DSLR
+    // original separately. A crop/resize processor can replace this copy without changing APIs.
+    fs.copyFileSync(originalPath, avatarPath);
+
+    const uploadedAt = nowIso();
+    const avatarUrl = buildPublicUploadUrl(this.uploadsDir, avatarPath);
+    this.db.createBoothCapture({
+      id: captureId,
+      eventId: payload.eventId,
+      racerId: payload.racerId,
+      boothId: input.boothId,
+      originalUrl: buildPublicUploadUrl(this.uploadsDir, originalPath),
+      avatarUrl,
+      capturedAt: input.capturedAt,
+      uploadedAt
+    });
+    this.db.updateRacerAvatar(payload.racerId, avatarUrl);
+    this.db.setSetting<PhotoBoothStatus>("photoBoothStatus", {
+      ...this.getPhotoBoothStatus(),
+      boothId: input.boothId,
+      status: "online",
+      lastSeenAt: uploadedAt,
+      lastCaptureAt: input.capturedAt,
+      pendingUploadCount: 0,
+      message: `Accepted avatar for ${payload.racerName}`
+    });
+    this.emitSnapshot();
+    return this.getSnapshot();
   }
 
   createEvent(name: string): AppSnapshot {

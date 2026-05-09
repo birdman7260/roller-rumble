@@ -15,6 +15,7 @@ import type {
   AppSetting,
   BracketNode,
   EventRecord,
+  PhotoBoothCapture,
   QueueEntry,
   RaceParticipant,
   RaceRecord,
@@ -30,6 +31,7 @@ import { nowIso } from "../../shared/utils";
 import { computeRoundRobinStandings } from "../services/competition";
 import { applyMigrations } from "./migrations";
 import {
+  boothCaptures,
   bracketNodes,
   eventRacers,
   events,
@@ -56,6 +58,7 @@ type TournamentRow = typeof tournaments.$inferSelect;
 type TournamentStageRow = typeof tournamentStages.$inferSelect;
 type BracketNodeRow = typeof bracketNodes.$inferSelect;
 type GroupMatchRow = typeof groupMatches.$inferSelect;
+type BoothCaptureRow = typeof boothCaptures.$inferSelect;
 type RacerIdentity = Racer["identities"][number];
 
 const CURRENT_RACE_STATES: RaceRecord["state"][] = [
@@ -234,6 +237,20 @@ function mapGroupMatch(row: GroupMatchRow): RoundRobinMatch {
   };
 }
 
+function mapBoothCapture(row: BoothCaptureRow): PhotoBoothCapture {
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    racerId: row.racerId,
+    boothId: row.boothId,
+    originalUrl: row.originalUrl,
+    avatarUrl: row.avatarUrl,
+    capturedAt: row.capturedAt,
+    uploadedAt: row.uploadedAt,
+    createdAt: row.createdAt
+  };
+}
+
 export class AppDatabase {
   private readonly db: Database.Database;
   private readonly orm: OrmDatabase;
@@ -311,6 +328,31 @@ export class AppDatabase {
       key,
       value: row ? (row.valueJson as T) : fallback,
       updatedAt: row?.updatedAt ?? nowIso()
+    };
+  }
+
+  setSetting<T>(key: string, value: T): AppSetting<T> {
+    const timestamp = nowIso();
+    this.orm
+      .insert(settings)
+      .values({
+        key,
+        valueJson: value,
+        updatedAt: timestamp
+      })
+      .onConflictDoUpdate({
+        target: settings.key,
+        set: {
+          valueJson: value,
+          updatedAt: timestamp
+        }
+      })
+      .run();
+
+    return {
+      key,
+      value,
+      updatedAt: timestamp
     };
   }
 
@@ -495,6 +537,43 @@ export class AppDatabase {
       .run();
 
     return this.getRacer(racerId);
+  }
+
+  createBoothCapture(input: Omit<PhotoBoothCapture, "createdAt">): PhotoBoothCapture {
+    const createdAt = nowIso();
+    this.orm
+      .insert(boothCaptures)
+      .values({
+        ...input,
+        createdAt
+      })
+      .run();
+
+    return this.getBoothCapture(input.id)!;
+  }
+
+  getBoothCapture(captureId: string): PhotoBoothCapture | null {
+    const row = this.orm.select().from(boothCaptures).where(eq(boothCaptures.id, captureId)).get();
+
+    return row ? mapBoothCapture(row) : null;
+  }
+
+  listBoothCaptures(eventId: string, racerId?: string): PhotoBoothCapture[] {
+    const rows = racerId
+      ? this.orm
+          .select()
+          .from(boothCaptures)
+          .where(and(eq(boothCaptures.eventId, eventId), eq(boothCaptures.racerId, racerId)))
+          .orderBy(desc(boothCaptures.capturedAt))
+          .all()
+      : this.orm
+          .select()
+          .from(boothCaptures)
+          .where(eq(boothCaptures.eventId, eventId))
+          .orderBy(desc(boothCaptures.capturedAt))
+          .all();
+
+    return rows.map(mapBoothCapture);
   }
 
   ensureEventRegistration(eventId: string, racerId: string): void {

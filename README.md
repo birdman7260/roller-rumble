@@ -16,6 +16,8 @@ presentation, persistent event data, theme support, and live tournament operatio
 - Turns the racer identity card into `Your Race Card` after signup instead of leaving a separate
   register card on screen
 - Lets racers upload avatars
+- Lets racers generate a short-lived kaleidoscope photo booth QR after registration so a paired
+  Raspberry Pi booth can capture a DSLR avatar for them
 - Manages an open time trial queue with solo and head-to-head entries
 - Uses filter-as-you-type racer pickers when admins or racers choose matchup participants
 - Reflows the racer-page queue and challenge controls for narrow phone screens so buttons and the
@@ -66,6 +68,8 @@ The app is intentionally local-first. Everything important runs on the host mach
   routing, and viewport camera behavior.
 - `SQLite` is the source of truth for events, racers, queue entries, races, results, tournaments, and settings.
 - `Drizzle ORM` provides the typed query layer over `better-sqlite3`, while checked-in SQL files remain the migration source of truth.
+- A separate Raspberry Pi photo booth agent can run from this repo and pair back to the embedded
+  backend for DSLR avatar capture, WLED light control, and offline upload queueing.
 
 ## Runtime Model
 
@@ -94,8 +98,10 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
   - tournament creation
   - interactive elimination bracket / tournament board
   - bracket size and layout selection for direct elimination formats
-  - full-width active tournament summary followed by the full-width bracket board
+  - side-by-side tournament setup and history when no tournament is active
+  - full-width active tournament summary followed by the full-width bracket board while active
   - settings and tunnel controls
+  - photo booth pairing/status controls
 - `/race`
   - countdown
   - live race visualization
@@ -103,12 +109,13 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
   - winner state
   - next-up teaser
   - tournament bracket takeover during active elimination events, including staged-match zoom, live
-    race slide-away, and post-finish winner-advance choreography with a drawn advancement connector
-    after the source matchup is marked advanced and before the bracket commits the winner into the
-    next slot
+    race slide-away, and post-finish handoff choreography where only the advancement connector
+    draws after the source matchup is marked advanced and before the bracket commits the winner
+    into the next slot
 - `/racer`
   - self-registration
   - avatar upload
+  - short-lived photo booth QR for DSLR avatar capture after registration
   - queue signup
   - challenge signup
   - upcoming races
@@ -116,8 +123,8 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
   - the active tournament, or the most recent completed tournament when none is active
   - in-place live tournament brackets and standings
 - `/bracket-lab`
-  - developer test page for replaying tournament bracket camera, connector, and winner-advance
-    animations against mocked bracket data
+  - developer test page for replaying tournament bracket camera and connector handoff animations
+    against mocked bracket data
 
 ## Project Layout
 
@@ -134,6 +141,9 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
   - generated TanStack route tree lives in `src/renderer/routeTree.gen.ts`
 - `src/shared`
   - shared constants, types, validation, presets, and themes
+- `tools/photo-booth-agent`
+  - isolated Raspberry Pi kiosk agent package with its own Node-built native dependencies
+  - camera/light adapters, local SQLite upload queue, and booth state machine
 
 Important files:
 
@@ -148,6 +158,7 @@ Important files:
 - [src/renderer/components/elimination-bracket-view.tsx](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/src/renderer/components/elimination-bracket-view.tsx)
 - [src/renderer/components/tournament-flow-layout.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/src/renderer/components/tournament-flow-layout.ts)
 - [src/shared/themes.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/src/shared/themes.ts)
+- [tools/photo-booth-agent/src/agent.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/tools/photo-booth-agent/src/agent.ts)
 
 ## Stack
 
@@ -179,13 +190,19 @@ Important files:
 corepack pnpm install
 ```
 
-2. Start the app in development:
+2. Optional: copy the example environment file if you want persistent local defaults:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Start the app in development:
 
 ```bash
 corepack pnpm dev
 ```
 
-3. Use the admin window to create an event and stage races.
+4. Use the admin window to create an event and stage races.
 
 Development mode starts:
 
@@ -196,6 +213,32 @@ Development mode starts:
 - dev runtime data inside `.goldsprints-dev/runtime`
 
 The racer page is available through the backend route at `/racer`.
+
+## Environment Configuration
+
+The Electron main process and embedded backend load dotenv files at startup. The standard order is:
+
+1. `.env`
+2. `.env.local`
+
+Shell-provided environment variables always win. Values from `.env.local` can override values from
+`.env`, which keeps checked-in examples boring and local machine overrides easy.
+
+The photo booth runner loads the same root files plus booth-specific files before launching the
+isolated Raspberry Pi package:
+
+1. `.env`
+2. `.env.local`
+3. `.env.photo-booth`
+4. `.env.photo-booth.local`
+
+Use `.env.example` for shared app defaults and `.env.photo-booth.example` for Pi-specific booth
+setup. The booth agent also loads those files directly when started from
+`tools/photo-booth-agent`, so Raspberry Pi deployments still work if you run the package script
+without the root launcher.
+
+Only variables prefixed with `VITE_` are exposed to browser renderer code by Vite. Keep secrets such
+as `GOLDSPRINTS_BOOTH_SECRET` in backend/agent dotenv files, not in `VITE_*` variables.
 
 ## Scripts
 
@@ -243,13 +286,52 @@ The racer page is available through the backend route at `/racer`.
   - Optional overrides can be passed through npm, for example:
     - `pnpm os2l:cue -- --event play`
     - `pnpm os2l:cue -- --message '{"evt":"cue","action":"start","id":"race-start"}'`
+- `pnpm photo-booth:agent`
+  - Starts the Raspberry Pi photo booth kiosk server.
+  - Builds and serves the package-local React touchscreen kiosk before starting the booth agent.
+  - Defaults to simulator camera, scanner, lights, and umbrella hardware so the flow can be tested
+    without the Raspberry Pi.
+  - Runs from the isolated `tools/photo-booth-agent` pnpm package, so its Node-built
+    `better-sqlite3` never collides with the Electron-built root app dependency.
+  - Loads `.env`, `.env.local`, `.env.photo-booth`, and `.env.photo-booth.local` before launching
+    the isolated package.
+  - Stores accepted photos waiting to sync in `GOLDSPRINTS_BOOTH_DATA_DIR/photo-booth.sqlite`.
+  - For local fake-token testing, open the kiosk and type `fake:Test Rider` into the manual QR
+    input. Fake QR is enabled automatically when the booth camera is in simulator mode or the
+    scanner is manual/simulated. Set `GOLDSPRINTS_BOOTH_ALLOW_FAKE_QR=1` to force-enable it for
+    hardware tests, or `GOLDSPRINTS_BOOTH_ALLOW_FAKE_QR=0` to force-disable it.
+  - To make simulator capture/review look real, put your sample image at
+    `tools/photo-booth-agent/assets/simulated-dslr-photo.jpg`. Simulator camera captures copy that
+    file into the temporary capture folder. Override with `GOLDSPRINTS_BOOTH_SIMULATOR_PHOTO_PATH`
+    if you want a different location; relative paths are resolved from the repo root first and the
+    booth package directory second.
+  - Configure the real booth with environment variables:
+    - `GOLDSPRINTS_BOOTH_SERVER_URL=http://<admin-laptop-ip>:3187`
+    - `GOLDSPRINTS_BOOTH_ID=<value from admin settings>`
+    - `GOLDSPRINTS_BOOTH_SECRET=<value from admin settings>`
+    - `GOLDSPRINTS_BOOTH_CAMERA=gphoto2`
+    - `GOLDSPRINTS_BOOTH_SCANNER_MODE=serial`
+    - `GOLDSPRINTS_BOOTH_SCANNER_SERIAL_PORT=/dev/serial0`
+    - `GOLDSPRINTS_WLED_SERIAL_PORT=/dev/ttyUSB0`
+    - `GOLDSPRINTS_UMBRELLA_MODE=process`
+    - `GOLDSPRINTS_UMBRELLA_STEP_PIN=17`
+    - `GOLDSPRINTS_UMBRELLA_DIR_PIN=27`
+    - `GOLDSPRINTS_UMBRELLA_ENABLE_PIN=22`
+    - `GOLDSPRINTS_UMBRELLA_HALL_PIN=23`
+    - `GOLDSPRINTS_BOOTH_DATA_DIR=/home/pi/goldsprints-booth`
+- `pnpm photo-booth:doctor`
+  - Runs booth hardware diagnostics without starting a racer session.
+  - Checks the scanner, camera, WLED serial control, umbrella helper, hall sensor status, and local
+    queue wiring using the same `.env.photo-booth` config as the agent.
 - `pnpm quality`
   - Runs the formatting and lint gate used before handoff: `format:check` then `lint`.
 - `pnpm typecheck`
-  - Runs TypeScript in no-emit mode for both the renderer config and the backend/node config.
+  - Runs TypeScript in no-emit mode for the renderer config, backend/node config, and isolated
+    photo booth agent package.
 - `pnpm test`
   - Runs the Vitest suite once.
-  - Current coverage focuses on race metrics, queue behavior, theme validation, and tournament logic.
+  - Current coverage focuses on race metrics, queue behavior, theme validation, tournament logic,
+    and photo booth queue/state behavior.
 - `pnpm test:watch`
   - Runs Vitest in watch mode for local development.
 - `pnpm rebuild:native`
@@ -265,10 +347,71 @@ Runtime data is stored under Electron's user-data directory in a `runtime` folde
 
 - `goldsprints.sqlite`
 - uploaded racer avatars
+- photo booth DSLR originals and generated avatar display assets
 
-When running `pnpm dev`, runtime data is intentionally redirected into `.goldsprints-dev/runtime` so local resets are easy and safe.
+When running `pnpm dev`, runtime data defaults to `.goldsprints-dev/runtime` so local resets are easy
+and safe. Set `GOLDSPRINTS_DATA_DIR` in `.env.local` if you need a different local database/upload
+folder.
 
 The app is designed to recover from restarts. If shutdown happens during countdown or an active race, that race is restored as interrupted and can be resumed, restarted, or finalized from the admin UI.
+
+## Kaleidoscope Photo Booth
+
+The photo booth is designed as a Raspberry Pi 5 appliance rather than as part of the admin laptop
+UI. The Pi runs `pnpm photo-booth:agent`, serves a local React touchscreen kiosk page, reads the
+mounted 2D QR scanner over serial/GPIO, controls the Sony Alpha 7 through `gphoto2`, sends WLED JSON
+commands to the ESP32 over USB serial, and controls the umbrella stepper/hall sensor through a small
+Python GPIO helper process.
+
+Flow:
+
+1. A racer registers on `/racer`.
+2. Their `Your Race Card` shows a short-lived photo booth QR.
+3. The booth scans the QR, turns WLED photo lights white, starts a slow umbrella spin, and shows the
+   touchscreen photo controls.
+4. The racer can choose a predetermined LED look from an iOS-style visual wheel picker and either
+   keep the umbrella spinning or hold a chosen umbrella panel.
+5. The capture button starts a countdown, freezes the umbrella for the DSLR shot, keeps the selected
+   LED look active, captures with the Sony, and shows a preview.
+6. The racer accepts, retakes, or cancels.
+7. Accepted originals upload to the main GoldSprints backend. If the backend is unavailable, the Pi
+   stores the accepted capture in a local SQLite queue and syncs it later.
+8. The main backend stores the DSLR original separately from the app avatar URL and updates the
+   racer avatar across admin, racer, and race displays.
+
+Admin pairing/status lives in `Settings -> Kaleidoscope Photo Booth`. The pairing secret is shown
+only on the admin settings API, not in the general live snapshot sent to racer phones. The same card
+also shows hardware health for scanner, camera, lights, umbrella, hall sensor, and pending uploads.
+
+The TMC2209 driver needs separate motor power and current limiting; the Raspberry Pi GPIO pins only
+send STEP/DIR/ENABLE logic. Run `pnpm photo-booth:doctor` before events to verify `gphoto2
+--auto-detect`, scanner serial reads, WLED serial JSON, hall sensor trigger, homing direction, and
+panel indexing.
+
+LED looks are defined in the booth package as a TypeScript manifest. The kiosk intentionally shows
+visual-only picker items and supports infinite direct touch/mouse drag scrolling plus mousewheel or
+trackpad input without visible recentering, while labels remain available for accessibility, status
+messages, and tests. Use
+`GOLDSPRINTS_WLED_DEFAULT_LOOK=<look-id>` if a booth should idle back to a non-white default look.
+Built-in look ids are `solid-white`, `solid-red`, `solid-blue`, `kaleidoscope-rainbow`,
+`chasing-rainbow`, `sparkle`, and `pride`.
+
+Manual fake QR testing is supported for development only. Type `fake:Your Name` into the kiosk's
+manual QR input to enter photo mode without a signed racer QR or running main app resolver. Fake QR
+is enabled automatically for simulator/manual booth runs; use `GOLDSPRINTS_BOOTH_ALLOW_FAKE_QR=1`
+to force-enable it with real hardware, or `GOLDSPRINTS_BOOTH_ALLOW_FAKE_QR=0` to force-disable it.
+This lets you test lights, umbrella controls, capture, retry, and keep with simulator or real booth
+hardware.
+
+For full fake-mode photo review, add a sample image named `simulated-dslr-photo.jpg` in
+`tools/photo-booth-agent/assets`. The simulator DSLR adapter copies that file for each fake capture
+instead of showing a transparent placeholder. If you configure
+`GOLDSPRINTS_BOOTH_SIMULATOR_PHOTO_PATH`, relative paths are resolved from the repo root first and
+the booth package directory second.
+
+The booth agent intentionally lives in `tools/photo-booth-agent` instead of the root runtime. That
+gives the Pi process its own Node-flavored `better-sqlite3` build while Electron keeps using the
+root Electron-flavored native build.
 
 ## Database Schema
 
@@ -338,10 +481,13 @@ Themes are manifest-driven. Each theme defines:
 - color tokens
 - font family
 - race orientation
-- a race graphic component contract that supports both solo and dual-rider layouts
+- semantic surface, UI, connector, and race-graphic variants
+- optional race-graphic labels and map markers
 - a bundled race-avatar sprite sheet, including separate slow and fast animation rows
 
-The selected theme is applied globally through CSS variables so the admin screen, racer page, and race display stay visually aligned.
+The selected theme is applied globally through CSS variables and semantic DOM attributes. Renderer
+components and CSS should branch on manifest attributes such as `orientation`, `uiStyle`,
+`surfaceStyle`, `connectorStyle`, and `raceGraphic.variant`, not on concrete theme IDs.
 
 Moving race avatars are resolved in the renderer from the theme's sprite-sheet id. To replace a
 theme sprite, keep the declared frame grid in [src/shared/themes.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/src/shared/themes.ts) aligned with the asset in [src/renderer/assets/sprites](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/src/renderer/assets/sprites): row `0` is the slower animation and row `1` is the faster animation by default.

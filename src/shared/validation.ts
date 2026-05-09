@@ -77,3 +77,35 @@ export const settingUpdateSchema = z.object({
 export const removeRacerSchema = z.object({
   racerId: z.string().trim().min(1)
 });
+
+export const createPhotoBoothTokenSchema = z.object({
+  racerId: z.string().trim().min(1)
+});
+
+export const resolvePhotoBoothSessionSchema = z.object({
+  token: z.string().trim().min(1),
+  boothId: z.string().trim().min(1).optional()
+});
+
+const photoBoothHardwareComponentSchema = z.object({
+  status: z.enum(["unknown", "online", "offline", "simulated", "error"]),
+  message: z.string().trim().max(240).nullable().optional(),
+  updatedAt: z.string().trim().max(80).nullable().optional()
+});
+
+export const updatePhotoBoothStatusSchema = z.object({
+  boothId: z.string().trim().min(1),
+  status: z.enum(["idle", "online", "capturing", "syncing", "error"]),
+  pendingUploadCount: z.number().int().min(0).optional(),
+  lastCaptureAt: z.string().trim().max(80).nullable().optional(),
+  message: z.string().trim().max(240).nullable().optional(),
+  hardware: z
+    .object({
+      scanner: photoBoothHardwareComponentSchema.optional(),
+      camera: photoBoothHardwareComponentSchema.optional(),
+      lights: photoBoothHardwareComponentSchema.optional(),
+      umbrella: photoBoothHardwareComponentSchema.optional(),
+      hallSensor: photoBoothHardwareComponentSchema.optional()
+    })
+    .optional()
+});

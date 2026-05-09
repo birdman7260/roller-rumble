@@ -36,6 +36,7 @@ The app manages:
 - `Tournament stages`
 - `Bracket nodes`
 - `Round-robin / group matches`
+- `Photo booth captures`
 - `Themes`
 - `Admin settings`
 
@@ -163,8 +164,10 @@ Requirements:
   the tournament. `Implemented`
 - For bracket-based tournaments, the admin must be able to choose a board layout mode when
   starting the tournament. `Implemented`
-- The `Tournaments` tab should place the `Active Tournament` / `Start Tournament` card full-width
-  at the top of the panel. `Implemented`
+- The `Tournaments` tab should place the `Active Tournament` card full-width at the top of the
+  panel when a tournament is active. `Implemented`
+- When no tournament is active, the tournament setup controls and tournament history should be
+  displayed side-by-side on desktop-width admin screens. `Implemented`
 - When a bracket exists, the `Bracket Board` card should be full-width directly below the active
   tournament summary. `Implemented`
 - Tournament history should only be displayed when there is no currently active tournament.
@@ -189,6 +192,7 @@ Requirements:
   matches are completed. The current implementation uses a custom React Flow board rather than a
   fixed bracket widget so nodes, theming, and camera behavior can evolve with the product.
   `Implemented`
+- Bracket matchup cards should not display any footer text below the matchup body. `Implemented`
 - As racers advance through elimination brackets, their completed advancement paths should remain
   visually highlighted using theme-appropriate line styling. `Implemented`
 - The admin must be able to stage tournament matches directly from the tournament board.
@@ -209,6 +213,7 @@ Requirements:
 - Auto-stage-next-race toggle for open time trial. `Implemented`
 - Event-only vs all-time race-data toggle. `Implemented`
 - Tunnel start/stop controls. `Implemented`
+- Kaleidoscope photo booth pairing/status controls. `Implemented`
 
 Requirement removed by product decision:
 
@@ -250,15 +255,15 @@ Requirements:
 - When tournament race countdown or live racing begins, the bracket should slide out of the main
   projector view so the race presentation takes over. `Implemented`
 - After a tournament race finishes, the projector should wait for the confetti beat to end, bring
-  the bracket back focused on the finished matchup, animate the winner advancing into the next
+  the bracket back focused on the finished matchup, draw the advancement connector toward the next
   bracket slot, hold that state briefly, and then zoom back out. `Implemented`
 - The projector must not flash the already-updated bracket between race completion and the
   post-race bracket choreography. The bracket should stay hidden until the handoff sequence owns
   the display. `Implemented`
-- During the projector winner-advance sequence, the advancement connector should draw/highlight
-  along its length while the bracket camera pans toward the next matchup, with the source matchup
-  already marked as advanced and the destination slot not committed until that movement completes.
-  `Implemented`
+- During the projector advancement handoff, only the advancement connector should draw/highlight
+  along its length while the bracket camera pans toward the next matchup. The winner name/avatar
+  should not float to the next stage; the source matchup should already be marked as advanced and
+  the destination slot should not commit until that movement completes. `Implemented`
 
 ## Themes
 
@@ -267,12 +272,18 @@ Requirements:
 - A theme must define:
   - colors/tokens
   - font family
-  - race graphic variant
   - orientation
+  - surface style
+  - UI style
+  - connector style
+  - race graphic variant and optional race-graphic labels / markers
   - confetti effect choice
   - race-avatar sprite sheet with separate slow and fast animation rows
     `Implemented`
 - Theme selection must apply across the entire app, not just the projector view. `Implemented`
+- Renderer code and CSS must not branch on concrete theme IDs for visual behavior. They should use
+  manifest-provided attributes such as orientation, surface style, UI style, connector style, and
+  race graphic variant. `Implemented`
 - It must be straightforward to add theme-specific race graphics behind a shared component contract.
   `Implemented`
 - Each theme must be able to provide a bundled sprite sheet asset for the moving race avatars, and
@@ -312,6 +323,8 @@ Requirements:
   card visible. `Implemented`
 - Anonymous identity must be stored locally for reuse. `Implemented`
 - Racers must be able to upload an avatar. `Implemented`
+- After registration, racers must see a short-lived photo booth QR that can be scanned by the
+  kaleidoscope booth to capture or retake their avatar with the event DSLR. `Implemented`
 - Racers must be able to:
   - join the default head-to-head queue
   - queue an explicit solo run
@@ -410,6 +423,79 @@ Requirements:
 - The admin must be able to start/stop the tunnel and see the resulting URL and QR code.
   `Implemented`
 
+## Kaleidoscope Photo Booth
+
+Requirements:
+
+- The photo booth should be a dedicated Raspberry Pi appliance so the admin laptop can remain free
+  for race operations. `Implemented`
+- The Raspberry Pi booth agent must pair with the main GoldSprints backend using a booth id and
+  shared secret from admin settings. `Implemented`
+- The booth should use a mounted USB 2D scanner to read racer photo booth QR codes. `Implemented`
+- Racer photo booth QR codes must be signed and short-lived, containing racer/event/session data
+  without exposing the booth pairing secret. `Implemented`
+- The Pi booth agent must expose a touchscreen kiosk flow:
+  - scan QR
+  - turn lights on
+  - start umbrella spin
+  - choose a predetermined LED look from a visual-only iOS-style wheel picker
+  - choose umbrella panel or resume spin
+  - take photo
+  - review
+  - accept
+  - retake
+  - cancel
+    `Implemented`
+- The booth kiosk must be a package-local React/Vite touchscreen UI rather than inline HTML so
+  diagnostics, wheels, and preview interactions can evolve independently. `Implemented`
+- DSLR capture must happen behind a `CameraAdapter`, with a `gphoto2` implementation and simulator
+  implementation. `Implemented`
+- The simulator camera must be able to copy a local sample image for realistic fake-mode review;
+  configured relative sample paths should resolve from the repo root first and the isolated booth
+  package directory second. `Implemented`
+- QR scanning must happen behind a `ScannerAdapter`, with serial and simulator/manual
+  implementations. `Implemented`
+- LED control must happen behind a `LightAdapter`, with WLED-over-USB-serial and simulator
+  implementations. The adapter must support ambient idle, photo white, selected look, success,
+  error, and off states. `Implemented`
+- Booth LED choices must come from a code-defined preset manifest. Picker items must render the
+  look itself, such as solid color, animated gradient, sparkle, or chasing rainbow, without visible
+  text inside the selection items. The picker must feel infinite, support direct touch/mouse drag
+  scrolling and mousewheel/trackpad input, and snap to the centered look without separate arrow
+  buttons or visible recentering. `Implemented`
+- Umbrella control must happen behind an `UmbrellaAdapter`, with a Python GPIO helper process and
+  simulator implementation. The helper owns STEP/DIR/ENABLE timing and hall-sensor homing.
+  `Implemented`
+- The booth must expose local diagnostics for scanner, camera, lights, umbrella, hall sensor, and
+  queue status. `Implemented`
+- The booth must support an explicit development-only fake QR path so a host can type
+  `fake:Test Rider` into the kiosk manual QR input and test photo mode without a signed racer QR.
+  Fake QR testing is automatically enabled for simulator/manual booth configurations and can be
+  forced on or off with `GOLDSPRINTS_BOOTH_ALLOW_FAKE_QR`. Fake sessions must not upload or leave
+  invalid captures in the sync queue. `Implemented`
+- The admin photo booth card must show richer hardware health for the scanner, camera, lights,
+  umbrella, and hall sensor. `Implemented`
+- Accepted photo originals must upload to the main backend and update the racer's avatar across all
+  app surfaces. `Implemented`
+- If the main backend is unavailable, accepted booth photos must be queued locally on the Pi in a
+  SQLite queue at `GOLDSPRINTS_BOOTH_DATA_DIR/photo-booth.sqlite` and synced later. `Implemented`
+- The main backend must store full DSLR originals separately from the avatar display asset so
+  originals can be exported later. `Implemented`
+- Avatar display assets are currently generated as original-backed derivative copies; true
+  crop/resize variants remain a future processing upgrade. `Partial`
+
+Current delivery notes:
+
+- The real DSLR path depends on the event camera being validated with `gphoto2` on Raspberry
+  Pi/Linux. `Partial`
+- WLED serial commands are isolated behind an adapter because the exact serial behavior must still
+  be field-validated with the chosen WLED firmware/configuration. `Partial`
+- Stepper homing, hall sensor polarity, panel count, TMC2209 current limit, and motor power must be
+  field-validated on the physical umbrella rig. `Partial`
+- The booth agent must run from an isolated pnpm package with its own Node-built `better-sqlite3`
+  dependency so it can use SQLite without colliding with the root Electron-native build.
+  `Implemented`
+
 Current delivery notes:
 
 - Tunnel lifecycle support exists, but depends on `cloudflared` being installed on the machine.
@@ -431,8 +517,8 @@ Requirements:
 - Developers must have an easy dev-data reset path. `Implemented`
 - Developers must have a supported debug flow for Electron main, backend, and renderer code.
   `Implemented`
-- Developers must have a manual visual test page for tournament bracket camera, connector, and
-  winner-advance animations without needing to mutate real event data. `Implemented`
+- Developers must have a manual visual test page for tournament bracket camera and connector
+  handoff animations without needing to mutate real event data. `Implemented`
 
 Current tooling requirements now include:
 
@@ -440,12 +526,19 @@ Current tooling requirements now include:
 - a typed Drizzle schema mirror in `src/backend/db/schema.ts`
 - an isolated pnpm package for Node-based Drizzle Studio tooling so it does not share a native
   `better-sqlite3` build with the Electron app
+- an isolated pnpm package for the Raspberry Pi photo booth agent so its local SQLite queue uses a
+  Node-built `better-sqlite3` instead of the Electron-built root dependency
+- dotenv-based configuration for the Electron/backend runtime and the isolated photo booth agent,
+  including booth-specific `.env.photo-booth` overrides while keeping shell variables highest
+  priority
 - a root `pnpm db:studio` launcher that bootstraps the isolated Studio package on demand
 - strict ESLint + Prettier
 - `pnpm dev:reset-data`
 - `pnpm dev:debug`
 - `pnpm dev:debug:break`
 - `/bracket-lab` for manual bracket animation testing
+- `pnpm photo-booth:agent` for running the Raspberry Pi booth kiosk/agent
+- `pnpm photo-booth:doctor` for booth hardware diagnostics
 
 ## Current Major Gaps
 
@@ -455,3 +548,5 @@ These are still part of the broader product direction, but are not complete in t
 - field-validated OS2L / VirtualDJ start integration
 - full tournament racer-replacement workflow
 - fully polished production tunnel / network discovery experience across all environments
+- field-validated DSLR camera model and WLED serial setup for the kaleidoscope booth
+- true avatar crop/resize derivative generation from booth DSLR originals

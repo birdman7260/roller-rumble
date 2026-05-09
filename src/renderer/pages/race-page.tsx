@@ -90,15 +90,6 @@ function getTournamentRaceBundle(
   return snapshot.tournaments.find((bundle) => bundle.tournament.id === race.tournamentId) ?? null;
 }
 
-function getTargetParticipantIndex(
-  bundle: TournamentBundle,
-  targetNodeId: string,
-  winnerRacerId: string
-): 0 | 1 {
-  const targetNode = bundle.bracketNodes.find((node) => node.id === targetNodeId) ?? null;
-  return targetNode?.racerBId === winnerRacerId ? 1 : 0;
-}
-
 function getRaceDisplayHeaderTitle(input: {
   bracketBundle: TournamentBundle | null;
   displayRace: RaceRecord | null;
@@ -385,11 +376,7 @@ export function RacePage() {
   })();
 
   const winnerAdvance: BracketWinnerAdvance | null = (() => {
-    if (
-      postRaceSequence?.phase !== "advance" ||
-      postRaceSequence.targetNodeId == null ||
-      displayWinner == null
-    ) {
+    if (postRaceSequence?.phase !== "advance" || postRaceSequence.targetNodeId == null) {
       return null;
     }
 
@@ -397,14 +384,6 @@ export function RacePage() {
       durationMs: WINNER_ADVANCE_ANIMATION_MS,
       fromNodeId: postRaceSequence.sourceNodeId,
       key: `${postRaceSequence.raceId}:winner-advance`,
-      racerAvatarUrl: displayWinner.racer.avatarUrl,
-      racerId: displayWinner.racer.id,
-      racerLabel: displayWinner.racer.displayName,
-      targetParticipantIndex: getTargetParticipantIndex(
-        postRaceSequence.afterBundle,
-        postRaceSequence.targetNodeId,
-        displayWinner.racer.id
-      ),
       toNodeId: postRaceSequence.targetNodeId
     };
   })();

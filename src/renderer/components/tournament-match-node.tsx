@@ -79,8 +79,6 @@ export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNod
           </div>
         ))}
       </div>
-
-      <div className="tournament-match-node__footer">{data.footer}</div>
     </Root>
   );
 }

@@ -1,4 +1,12 @@
-import { DEFAULT_THEME_ID, THEME_CONFETTI_EFFECTS, THEME_SPRITE_SHEET_IDS } from "./constants";
+import {
+  DEFAULT_THEME_ID,
+  THEME_CONNECTOR_STYLES,
+  THEME_CONFETTI_EFFECTS,
+  THEME_RACE_GRAPHIC_VARIANTS,
+  THEME_SPRITE_SHEET_IDS,
+  THEME_SURFACE_STYLES,
+  THEME_UI_STYLES
+} from "./constants";
 import type { ThemeDefinition } from "./types";
 
 const raceAvatarSpriteDefaults = {
@@ -25,8 +33,13 @@ export const themes: ThemeDefinition[] = [
     label: "Neon Night",
     description: "Fast, horizontal race lanes with arcade energy.",
     orientation: "horizontal",
+    surfaceStyle: "default",
+    uiStyle: "rounded",
+    connectorStyle: "glow",
     fontFamily: '"Space Grotesk", "Avenir Next", sans-serif',
-    graphicId: "neon-track",
+    raceGraphic: {
+      variant: "track"
+    },
     confettiEffectId: "burst",
     spriteSheet: {
       id: "neon-rider",
@@ -51,8 +64,13 @@ export const themes: ThemeDefinition[] = [
     label: "Summit Sprint",
     description: "Vertical hill-climb presentation with warm mountain tones.",
     orientation: "vertical",
+    surfaceStyle: "default",
+    uiStyle: "rounded",
+    connectorStyle: "shadow",
     fontFamily: '"Sora", "Avenir Next", sans-serif',
-    graphicId: "summit-climb",
+    raceGraphic: {
+      variant: "climb"
+    },
     confettiEffectId: "burst",
     spriteSheet: {
       id: "summit-rider",
@@ -77,8 +95,20 @@ export const themes: ThemeDefinition[] = [
     label: "Frontier Trail",
     description: "Dusty wagon-route presentation with rustic frontier colors.",
     orientation: "horizontal",
+    surfaceStyle: "frontier",
+    uiStyle: "rounded",
+    connectorStyle: "trail",
     fontFamily: '"Rockwell", "Georgia", serif',
-    graphicId: "wagon-trail",
+    raceGraphic: {
+      variant: "trail",
+      laneLabels: {
+        default: "Heading west"
+      },
+      markers: {
+        start: "Camp",
+        finish: "Fort"
+      }
+    },
     confettiEffectId: "burst",
     spriteSheet: {
       id: "frontier-wagon",
@@ -104,10 +134,25 @@ export const themes: ThemeDefinition[] = [
     description:
       "DOS-era classroom trail sim styling with a mostly black screen, VGA lettering, and CGA-inspired accents.",
     orientation: "horizontal",
+    surfaceStyle: "black",
+    uiStyle: "pixel",
+    connectorStyle: "pixel",
     // The 1990 DOS release reads like an IBM PC classroom game, so this theme uses a VGA bitmap
     // recreation instead of the later Deluxe era's more illustrated western UI treatment.
     fontFamily: '"WebPlus IBM VGA 8x16", "Courier New", monospace',
-    graphicId: "trail-ledger",
+    raceGraphic: {
+      variant: "ledger",
+      laneLabels: {
+        solo: "Lead wagon",
+        laneA: "Trail party A",
+        laneB: "Trail party B"
+      },
+      markers: {
+        start: "INDEP.",
+        middle: "FORT",
+        finish: "OREGON"
+      }
+    },
     confettiEffectId: "burst",
     spriteSheet: {
       id: "oregon-wagon",
@@ -143,8 +188,28 @@ export function validateThemes(definitions: ThemeDefinition[]): string[] {
     }
     ids.add(theme.id);
 
-    if (!theme.graphicId) {
-      problems.push(`Theme ${theme.id} is missing a graphic id`);
+    if (!THEME_SURFACE_STYLES.includes(theme.surfaceStyle)) {
+      problems.push(`Theme ${theme.id} has an unsupported surface style`);
+    }
+
+    if (!THEME_UI_STYLES.includes(theme.uiStyle)) {
+      problems.push(`Theme ${theme.id} has an unsupported UI style`);
+    }
+
+    if (!THEME_CONNECTOR_STYLES.includes(theme.connectorStyle)) {
+      problems.push(`Theme ${theme.id} has an unsupported connector style`);
+    }
+
+    if (!THEME_RACE_GRAPHIC_VARIANTS.includes(theme.raceGraphic.variant)) {
+      problems.push(`Theme ${theme.id} has an unsupported race graphic variant`);
+    }
+
+    if (theme.orientation === "vertical" && theme.raceGraphic.variant !== "climb") {
+      problems.push(`Theme ${theme.id} must use the climb variant for vertical race graphics`);
+    }
+
+    if (theme.orientation === "horizontal" && theme.raceGraphic.variant === "climb") {
+      problems.push(`Theme ${theme.id} cannot use the climb variant for horizontal race graphics`);
     }
 
     if (!THEME_CONFETTI_EFFECTS.includes(theme.confettiEffectId)) {

@@ -7,7 +7,15 @@ import reactRefresh from "eslint-plugin-react-refresh";
 import unusedImports from "eslint-plugin-unused-imports";
 import tseslint from "typescript-eslint";
 
-const typedFiles = ["src/**/*.{ts,tsx}", "vite.config.ts", "vitest.config.ts", "drizzle.config.ts"];
+const typedFiles = [
+  "src/**/*.{ts,tsx}",
+  "tools/photo-booth-agent/src/**/*.{ts,tsx}",
+  "tools/photo-booth-agent/vite.config.ts",
+  "tools/photo-booth-agent/vitest.config.ts",
+  "vite.config.ts",
+  "vitest.config.ts",
+  "drizzle.config.ts"
+];
 const scopeToFiles = (configs, files) =>
   configs.map((config) => ({
     ...config,
@@ -18,6 +26,7 @@ export default tseslint.config(
   {
     ignores: [
       "dist/**",
+      "**/dist/**",
       "node_modules/**",
       "coverage/**",
       ".vite/**",
@@ -39,7 +48,11 @@ export default tseslint.config(
       ecmaVersion: "latest",
       sourceType: "module",
       parserOptions: {
-        project: ["./tsconfig.json", "./tsconfig.node.json"],
+        project: [
+          "./tsconfig.json",
+          "./tsconfig.node.json",
+          "./tools/photo-booth-agent/tsconfig.json"
+        ],
         tsconfigRootDir: import.meta.dirname
       }
     },
@@ -120,7 +133,15 @@ export default tseslint.config(
     }
   },
   {
-    files: ["src/backend/**/*.ts", "src/electron/**/*.ts", "scripts/**/*.mjs", "drizzle.config.ts"],
+    files: [
+      "src/backend/**/*.ts",
+      "src/electron/**/*.ts",
+      "tools/photo-booth-agent/src/**/*.ts",
+      "tools/photo-booth-agent/vitest.config.ts",
+      "tools/photo-booth-agent/vite.config.ts",
+      "scripts/**/*.mjs",
+      "drizzle.config.ts"
+    ],
     languageOptions: {
       globals: {
         ...globals.node
@@ -128,6 +149,17 @@ export default tseslint.config(
     },
     rules: {
       "no-console": "off"
+    }
+  },
+  {
+    files: ["tools/photo-booth-agent/src/kiosk/**/*.tsx"],
+    languageOptions: {
+      globals: {
+        ...globals.browser
+      }
+    },
+    rules: {
+      "react-refresh/only-export-components": "off"
     }
   },
   {

@@ -5,21 +5,17 @@ import {
   Panel,
   ReactFlow,
   ReactFlowProvider,
-  ViewportPortal,
   useReactFlow,
   useUpdateNodeInternals
 } from "@xyflow/react";
 import type { NodeTypes, EdgeTypes } from "@xyflow/react";
 import type { AppSnapshot, TournamentBundle } from "@shared/types";
-import { motion } from "framer-motion";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { TournamentConnectorEdge } from "./tournament-connector-edge";
 import { TournamentMatchNode } from "./tournament-match-node";
 import {
   buildBracketFlow,
   FLOW_NODE_ORIGIN,
-  NODE_HEIGHT,
-  NODE_WIDTH,
   withStageCallbacks,
   type BracketFlowEdge,
   type BracketFlowNode
@@ -49,10 +45,6 @@ export interface BracketWinnerAdvance {
   durationMs?: number;
   fromNodeId: string;
   key: string;
-  racerAvatarUrl?: string | null;
-  racerId: string;
-  racerLabel: string;
-  targetParticipantIndex?: 0 | 1;
   toNodeId?: string | null;
 }
 
@@ -99,101 +91,6 @@ function TournamentViewportDirector({
   }, [fitView, presentationRequest]);
 
   return null;
-}
-
-function getParticipantAnchor(
-  node: BracketFlowNode,
-  racerId: string,
-  fallbackParticipantIndex: 0 | 1 = 0
-): {
-  x: number;
-  y: number;
-} {
-  const participantIndex =
-    node.data.participants[1].id === racerId
-      ? 1
-      : node.data.participants[0].id === racerId
-        ? 0
-        : fallbackParticipantIndex;
-  const slotX = node.position.x - NODE_WIDTH / 2 + 38;
-  const slotY = node.position.y - NODE_HEIGHT / 2 + 82 + participantIndex * 38;
-
-  return {
-    x: slotX,
-    y: slotY
-  };
-}
-
-function WinnerAdvanceOverlay({ winnerAdvance }: { winnerAdvance?: BracketWinnerAdvance | null }) {
-  const { getNode } = useReactFlow<BracketFlowNode, BracketFlowEdge>();
-
-  const anchors = useMemo(() => {
-    if (!winnerAdvance?.toNodeId) {
-      return null;
-    }
-
-    const sourceNode = getNode(winnerAdvance.fromNodeId);
-    const targetNode = getNode(winnerAdvance.toNodeId);
-    if (!sourceNode || !targetNode) {
-      return null;
-    }
-
-    return {
-      source: getParticipantAnchor(sourceNode, winnerAdvance.racerId),
-      target: getParticipantAnchor(
-        targetNode,
-        winnerAdvance.racerId,
-        winnerAdvance.targetParticipantIndex
-      )
-    };
-  }, [getNode, winnerAdvance]);
-
-  if (!winnerAdvance?.toNodeId || !anchors) {
-    return null;
-  }
-
-  return (
-    <ViewportPortal>
-      <motion.div
-        key={winnerAdvance.key}
-        className="tournament-flow__winner-advance"
-        style={{
-          left: anchors.source.x,
-          top: anchors.source.y
-        }}
-        initial={{
-          opacity: 0,
-          scale: 0.86,
-          x: 0,
-          y: 0
-        }}
-        animate={{
-          opacity: [0, 1, 1, 0],
-          scale: [0.86, 1, 1, 0.92],
-          x: anchors.target.x - anchors.source.x,
-          y: anchors.target.y - anchors.source.y
-        }}
-        transition={{
-          duration: (winnerAdvance.durationMs ?? 1150) / 1000,
-          ease: [0.24, 0.84, 0.22, 1],
-          times: [0, 0.12, 0.82, 1]
-        }}
-      >
-        {winnerAdvance.racerAvatarUrl ? (
-          <img
-            className="tournament-flow__winner-advance-avatar"
-            src={winnerAdvance.racerAvatarUrl}
-            alt={winnerAdvance.racerLabel}
-          />
-        ) : (
-          <span className="tournament-flow__winner-advance-avatar tournament-flow__winner-advance-avatar--placeholder">
-            {winnerAdvance.racerLabel.slice(0, 1).toUpperCase()}
-          </span>
-        )}
-        <span className="tournament-flow__winner-advance-label">{winnerAdvance.racerLabel}</span>
-      </motion.div>
-    </ViewportPortal>
-  );
 }
 
 function TournamentViewportPanel({
@@ -413,7 +310,6 @@ function BracketCanvas({
         >
           <Background variant={BackgroundVariant.Dots} gap={24} size={1.4} />
           <TournamentViewportDirector presentationRequest={presentationRequest} />
-          <WinnerAdvanceOverlay winnerAdvance={winnerAdvance} />
           {showViewportControls ? (
             <Controls showInteractive={false} position="bottom-right" />
           ) : null}

@@ -1,5 +1,6 @@
 import { Link, Outlet, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
+import { applyThemeToDocument } from "../lib/apply-theme";
 import { useSnapshotQuery, useSnapshotStream } from "../lib/query";
 
 export function AppLayout() {
@@ -15,21 +16,7 @@ export function AppLayout() {
       return;
     }
 
-    const root = document.documentElement;
-    // Theme tokens are pushed to CSS variables once so every route stays visually in lockstep.
-    root.style.setProperty("--theme-font-family", selectedTheme.fontFamily);
-    root.style.setProperty("--theme-surface", selectedTheme.tokens.surface);
-    root.style.setProperty("--theme-surface-alt", selectedTheme.tokens.surfaceAlt);
-    root.style.setProperty("--theme-accent", selectedTheme.tokens.accent);
-    root.style.setProperty("--theme-accent-soft", selectedTheme.tokens.accentSoft);
-    root.style.setProperty("--theme-text", selectedTheme.tokens.text);
-    root.style.setProperty("--theme-text-muted", selectedTheme.tokens.textMuted);
-    root.style.setProperty("--theme-success", selectedTheme.tokens.success);
-    root.style.setProperty("--theme-warning", selectedTheme.tokens.warning);
-    root.style.setProperty("--theme-danger", selectedTheme.tokens.danger);
-    root.style.setProperty("--theme-lane-a", selectedTheme.tokens.laneA);
-    root.style.setProperty("--theme-lane-b", selectedTheme.tokens.laneB);
-    root.dataset.theme = selectedTheme.id;
+    applyThemeToDocument(selectedTheme);
   }, [selectedTheme]);
 
   if (raceMode || adminMode) {
