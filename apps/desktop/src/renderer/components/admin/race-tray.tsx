@@ -1,6 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { AppSnapshot, TournamentBundle } from "@goldsprints/shared/types";
 import {
+  dismissRaceResultPresentation,
   finalizeCurrentRace,
   finalizeInterruptedRace,
   restartInterruptedRace,
@@ -27,14 +28,15 @@ export function AdminRaceTray({
   setActiveTab: Dispatch<SetStateAction<AdminTabId>>;
 }) {
   const currentRace = snapshot.raceProjection.race;
-  const nextQueueEntry = !activeTournament ? (snapshot.queue[0] ?? null) : null;
+  const resultPresentation = snapshot.raceProjection.resultPresentation;
+  const nextQueueEntry = !activeTournament ? snapshot.raceProjection.nextQueueEntry : null;
   const currentTournamentRace =
     activeTournament && currentRace?.tournamentId === activeTournament.tournament.id
       ? currentRace
       : null;
 
   // The tray only appears when there is an actual race workflow to act on from any tab.
-  const showTray = Boolean(currentRace ?? activeTournament ?? nextQueueEntry);
+  const showTray = Boolean(resultPresentation ?? currentRace ?? activeTournament ?? nextQueueEntry);
   if (!showTray) {
     return null;
   }
@@ -44,7 +46,17 @@ export function AdminRaceTray({
   return (
     <aside className="admin-race-tray" aria-label="Race controls">
       <div className="admin-race-tray__meta">
-        {currentRace ? (
+        {resultPresentation ? (
+          <>
+            <p className="eyebrow">Race Results Showing</p>
+            <div className="stack-sm">
+              <strong>Winner modal is live on the projector</strong>
+              <span className="admin-race-tray__detail">
+                It will move on automatically after 15 seconds.
+              </span>
+            </div>
+          </>
+        ) : currentRace ? (
           <>
             <p className="eyebrow">
               {currentTournamentRace ? "Tournament Race Ready" : "Race Controls Live"}
@@ -80,7 +92,7 @@ export function AdminRaceTray({
       </div>
 
       <div className="admin-race-tray__actions">
-        {activeTournament && !currentRace && activeTab !== "tournaments" ? (
+        {activeTournament && !resultPresentation && !currentRace && activeTab !== "tournaments" ? (
           <Button
             variant="ghost"
             onClick={() => {
@@ -91,52 +103,65 @@ export function AdminRaceTray({
           </Button>
         ) : null}
 
-        <CurrentRaceActionRows
-          currentRace={currentRace}
-          showStageNextRaceButton={showOpenTimeTrialStageAction}
-          onStageNextRace={() => {
-            fireAndForget(stageNextRace(), "stage next race");
-          }}
-          onStartCountdown={() => {
-            fireAndForget(
-              startCurrentRace(),
-              currentTournamentRace ? "start tournament race" : "start race"
-            );
-          }}
-          onUnstageCurrent={() => {
-            fireAndForget(unstageCurrentTournamentRace(), "unstage tournament race");
-          }}
-          onFinalizeCurrent={() => {
-            fireAndForget(
-              finalizeCurrentRace(),
-              currentTournamentRace ? "finalize tournament race" : "finalize race"
-            );
-          }}
-          onResumeInterrupted={() => {
-            fireAndForget(
-              resumeInterruptedRace(),
-              currentTournamentRace
-                ? "resume interrupted tournament race"
-                : "resume interrupted race"
-            );
-          }}
-          onRestartInterrupted={() => {
-            fireAndForget(
-              restartInterruptedRace(),
-              currentTournamentRace
-                ? "restart interrupted tournament race"
-                : "restart interrupted race"
-            );
-          }}
-          onFinalizeInterrupted={() => {
-            fireAndForget(
-              finalizeInterruptedRace(),
-              currentTournamentRace
-                ? "finalize interrupted tournament race"
-                : "finalize interrupted race"
-            );
-          }}
-        />
+        {resultPresentation ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(dismissRaceResultPresentation(), "dismiss race results");
+            }}
+          >
+            Move On
+          </Button>
+        ) : null}
+
+        {!resultPresentation ? (
+          <CurrentRaceActionRows
+            currentRace={currentRace}
+            showStageNextRaceButton={showOpenTimeTrialStageAction}
+            onStageNextRace={() => {
+              fireAndForget(stageNextRace(), "stage next race");
+            }}
+            onStartCountdown={() => {
+              fireAndForget(
+                startCurrentRace(),
+                currentTournamentRace ? "start tournament race" : "start race"
+              );
+            }}
+            onUnstageCurrent={() => {
+              fireAndForget(unstageCurrentTournamentRace(), "unstage tournament race");
+            }}
+            onFinalizeCurrent={() => {
+              fireAndForget(
+                finalizeCurrentRace(),
+                currentTournamentRace ? "finalize tournament race" : "finalize race"
+              );
+            }}
+            onResumeInterrupted={() => {
+              fireAndForget(
+                resumeInterruptedRace(),
+                currentTournamentRace
+                  ? "resume interrupted tournament race"
+                  : "resume interrupted race"
+              );
+            }}
+            onRestartInterrupted={() => {
+              fireAndForget(
+                restartInterruptedRace(),
+                currentTournamentRace
+                  ? "restart interrupted tournament race"
+                  : "restart interrupted race"
+              );
+            }}
+            onFinalizeInterrupted={() => {
+              fireAndForget(
+                finalizeInterruptedRace(),
+                currentTournamentRace
+                  ? "finalize interrupted tournament race"
+                  : "finalize interrupted race"
+              );
+            }}
+          />
+        ) : null}
       </div>
     </aside>
   );

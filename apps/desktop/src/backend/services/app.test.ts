@@ -4,6 +4,8 @@ import { GoldsprintsApp } from "./app";
 
 type CountdownInvoker = (this: unknown, source: "manual" | "os2l") => AppSnapshot;
 type AutoStageInvoker = (this: unknown) => boolean;
+type ClearResultPresentationInvoker = (this: unknown) => void;
+type ReconcileQueueRaceStatusesInvoker = (this: unknown, eventId: string) => void;
 type UnstageOpenRaceInvoker = (this: unknown, eventId: string) => void;
 type UnstageTournamentRaceInvoker = (this: unknown) => AppSnapshot;
 
@@ -23,6 +25,24 @@ function getAutoStageInvoker(): AutoStageInvoker {
   }
 
   return candidate as AutoStageInvoker;
+}
+
+function getClearResultPresentationInvoker(): ClearResultPresentationInvoker {
+  const candidate: unknown = Reflect.get(GoldsprintsApp.prototype, "clearRaceResultPresentation");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing race result presentation clearing implementation");
+  }
+
+  return candidate as ClearResultPresentationInvoker;
+}
+
+function getReconcileQueueRaceStatusesInvoker(): ReconcileQueueRaceStatusesInvoker {
+  const candidate: unknown = Reflect.get(GoldsprintsApp.prototype, "reconcileQueueRaceStatuses");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing queue race status reconciliation implementation");
+  }
+
+  return candidate as ReconcileQueueRaceStatusesInvoker;
 }
 
 function getUnstageOpenRaceInvoker(): UnstageOpenRaceInvoker {
@@ -117,6 +137,67 @@ describe("app service countdown flow", () => {
 
     expect(result).toBe(false);
     expect(stageNextRace).not.toHaveBeenCalled();
+  });
+
+  it("auto-stages the next race when the winner modal clears", () => {
+    const markQueueEntryStatus = vi.fn();
+    const emitSnapshot = vi.fn();
+    const maybeAutoStageNextRace = vi.fn(() => true);
+    const reconcileQueueRaceStatuses = vi.fn();
+    const invoker = getClearResultPresentationInvoker();
+
+    invoker.call({
+      db: {
+        markQueueEntryStatus
+      },
+      emitSnapshot,
+      maybeAutoStageNextRace,
+      reconcileQueueRaceStatuses,
+      resultPresentation: {
+        expiresAt: "later",
+        race: { eventId: "event-1", id: "race-1", queueEntryId: "queue-1" } as RaceRecord,
+        winnerRacerId: "racer-1"
+      },
+      resultPresentationTimer: null
+    });
+
+    expect(markQueueEntryStatus).toHaveBeenCalledWith("queue-1", "completed");
+    expect(reconcileQueueRaceStatuses).toHaveBeenCalledWith("event-1");
+    expect(maybeAutoStageNextRace).toHaveBeenCalledTimes(1);
+    expect(emitSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("completes stale racing queue entries when their linked race is finished", () => {
+    const markQueueEntryStatus = vi.fn();
+    const invoker = getReconcileQueueRaceStatusesInvoker();
+
+    invoker.call(
+      {
+        db: {
+          listQueueEntries: () => [
+            {
+              id: "queue-1",
+              status: "racing"
+            },
+            {
+              id: "queue-2",
+              status: "queued"
+            }
+          ],
+          listRaces: () => [
+            {
+              id: "race-1",
+              queueEntryId: "queue-1",
+              state: "finished"
+            }
+          ],
+          markQueueEntryStatus
+        }
+      },
+      "event-1"
+    );
+
+    expect(markQueueEntryStatus).toHaveBeenCalledWith("queue-1", "completed");
   });
 });
 

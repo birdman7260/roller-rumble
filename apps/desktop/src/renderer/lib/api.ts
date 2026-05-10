@@ -134,6 +134,12 @@ export async function finalizeInterruptedRace(): Promise<AppSnapshot> {
   );
 }
 
+export async function dismissRaceResultPresentation(): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl("/api/races/result-presentation/dismiss"), { method: "POST" })
+  );
+}
+
 export async function updateSettings(
   input: Partial<AppSnapshot["settings"]>
 ): Promise<AppSnapshot> {

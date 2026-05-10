@@ -14,6 +14,7 @@ import {
   EliminationBracketView
 } from "../components/elimination-bracket-view";
 import { RaceGraphic } from "../components/race-graphics";
+import { RaceResultsOverlay } from "../components/race-results-overlay";
 import { EmptyState, Panel } from "@goldsprints/shared-ui";
 import { WinnerConfetti } from "../components/winner-confetti";
 import { findBracketNodeByParticipantIds } from "../components/tournament-flow-layout";
@@ -363,21 +364,6 @@ function ProjectorRacerCards({
   );
 }
 
-function WinnerBanner({ winnerName }: { winnerName: string }) {
-  return (
-    <motion.div
-      className="race-page__winner-banner"
-      initial={{ opacity: 0, scale: 0.94, y: 20 }}
-      animate={{ opacity: 1, scale: 1, y: 0 }}
-      exit={{ opacity: 0, scale: 0.98, y: -12 }}
-      transition={{ duration: 0.3, ease: "easeOut" }}
-    >
-      <span>Winner</span>
-      <strong>{winnerName}</strong>
-    </motion.div>
-  );
-}
-
 export function RacePage() {
   const snapshotQuery = useSnapshotQuery();
   const metaQuery = useMetaQuery();
@@ -409,6 +395,7 @@ export function RacePage() {
           { includeFinished: true }
         )
       : null;
+  const resultPresentation = projection?.resultPresentation ?? null;
 
   useEffect(() => {
     if (!currentTournamentRace || !currentTournamentBundle) {
@@ -440,7 +427,7 @@ export function RacePage() {
   }, [currentTournamentRace, postRaceSequence]);
 
   useLayoutEffect(() => {
-    if (snapshot == null || currentTournamentRace || postRaceSequence) {
+    if (snapshot == null || currentTournamentRace || postRaceSequence || resultPresentation) {
       return;
     }
 
@@ -476,13 +463,13 @@ export function RacePage() {
       afterBundle,
       beforeBundle: previousBundle,
       finishedRace: previousRace,
-      phase: "confetti",
+      phase: "source",
       raceId: previousRace.id,
       sourceNodeId: sourceNode.id,
       targetNodeId: sourceNode.winnerToNodeId ?? null,
       winnerRacerId
     });
-  }, [currentTournamentRace, postRaceSequence, snapshot]);
+  }, [currentTournamentRace, postRaceSequence, resultPresentation, snapshot]);
 
   useEffect(() => {
     if (!postRaceSequence || projection == null) {
@@ -546,14 +533,13 @@ export function RacePage() {
   }
 
   const displayRace =
-    race ?? (postRaceSequence?.phase === "confetti" ? postRaceSequence.finishedRace : null) ?? null;
-  const displayWinnerId = projection.winnerRacerId ?? postRaceSequence?.winnerRacerId ?? null;
-  const displayWinner =
-    displayWinnerId == null
-      ? null
-      : (snapshot.racers.find((entry) => entry.racer.id === displayWinnerId) ?? null);
-  const winnerKey =
-    displayRace && displayWinner ? `${displayRace.id}:${displayWinner.racer.id}` : null;
+    resultPresentation?.race ??
+    race ??
+    (postRaceSequence?.phase === "confetti" ? postRaceSequence.finishedRace : null) ??
+    null;
+  const winnerKey = resultPresentation
+    ? `${resultPresentation.race.id}:${resultPresentation.winnerRacerId}`
+    : null;
 
   const sourceMarkedBundle = postRaceSequence ? markSourceWinnerInBundle(postRaceSequence) : null;
   const bracketBundle =
@@ -645,9 +631,11 @@ export function RacePage() {
 
   const showTournamentBracket =
     bracketBundle != null &&
+    resultPresentation == null &&
     !(currentTournamentRace && TOURNAMENT_LIVE_STATES.includes(currentTournamentRace.state)) &&
     postRaceSequence?.phase !== "confetti";
   const showRacePanel =
+    resultPresentation != null ||
     (race != null && (race.tournamentId == null || TOURNAMENT_LIVE_STATES.includes(race.state))) ||
     (postRaceSequence?.phase === "confetti" && displayRace != null);
   const racers = buildParticipantEntries(snapshot, displayRace);
@@ -766,7 +754,13 @@ export function RacePage() {
       ) : null}
 
       <AnimatePresence>
-        {displayWinner ? <WinnerBanner winnerName={displayWinner.racer.displayName} /> : null}
+        {resultPresentation ? (
+          <RaceResultsOverlay
+            race={resultPresentation.race}
+            racers={snapshot.racers}
+            winnerRacerId={resultPresentation.winnerRacerId}
+          />
+        ) : null}
       </AnimatePresence>
 
       <RaceTicker

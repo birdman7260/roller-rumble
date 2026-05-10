@@ -20,6 +20,7 @@ import type {
   PhotoBoothTokenResponse,
   RaceMetricsSnapshot,
   RaceRecord,
+  RaceResultPresentation,
   Racer,
   RacerStats,
   RacerSummary,
@@ -50,6 +51,7 @@ import {
 import {
   addQueueSignup,
   findNextQueuedEntry,
+  reindexQueue,
   removeRacerFromQueue,
   removeRacerFromSpecificQueueEntry
 } from "./queue";
@@ -60,6 +62,8 @@ import {
   verifySignedPhotoBoothToken,
   type PhotoBoothTokenPayload
 } from "./photo-booth";
+
+const RESULT_MODAL_DURATION_MS = 15000;
 
 interface CurrentRaceRuntime {
   // High-frequency telemetry stays in memory while the DB stores UI-ready snapshots.
@@ -166,6 +170,8 @@ export class GoldsprintsApp extends EventEmitter {
   private readonly tournaments = new TournamentService();
   private countdownTicker: NodeJS.Timeout | null = null;
   private currentRuntime: CurrentRaceRuntime | null = null;
+  private resultPresentation: RaceResultPresentation | null = null;
+  private resultPresentationTimer: NodeJS.Timeout | null = null;
   private serverPort: number;
 
   constructor(options: AppServiceOptions) {
@@ -203,6 +209,10 @@ export class GoldsprintsApp extends EventEmitter {
     if (this.currentRuntime?.finalizeTimer) {
       clearTimeout(this.currentRuntime.finalizeTimer);
     }
+    if (this.resultPresentationTimer) {
+      clearTimeout(this.resultPresentationTimer);
+      this.resultPresentationTimer = null;
+    }
     this.db.close();
   }
 
@@ -218,13 +228,17 @@ export class GoldsprintsApp extends EventEmitter {
   getSnapshot(): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     const settings = this.db.getAdminSettings();
+    this.reconcileQueueRaceStatuses(activeEvent.id);
+    const allResults = this.db.listResults();
     const results = settings.includeAllRaceData
-      ? this.db.listResults()
-      : this.db.listResults(activeEvent.id);
-    const racers = this.buildRacerSummaries(activeEvent.id, results);
-    const queue = this.db
-      .listQueueEntries(activeEvent.id)
-      .filter((entry) => ["queued", "staging", "racing"].includes(entry.status));
+      ? allResults
+      : allResults.filter((result) => result.eventId === activeEvent.id);
+    const racers = this.buildRacerSummaries(activeEvent.id, results, allResults);
+    const queue = reindexQueue(
+      this.db
+        .listQueueEntries(activeEvent.id)
+        .filter((entry) => ["queued", "staging"].includes(entry.status))
+    );
     const currentRace = this.db.getCurrentRace(activeEvent.id);
     const nextQueueEntry = findNextQueuedEntry(queue);
     // Snapshot tournament state is intentionally scoped to the active event so the racer page and
@@ -267,22 +281,79 @@ export class GoldsprintsApp extends EventEmitter {
         metricsByRacerId,
         winnerRacerId: currentRace?.winnerRacerId ?? null,
         nextQueueEntry,
+        resultPresentation: this.resultPresentation,
         theme: selectedTheme
       }
     };
   }
 
+  private showRaceResultPresentation(race: RaceRecord, winnerRacerId: string | null): void {
+    if (!winnerRacerId) {
+      return;
+    }
+
+    if (this.resultPresentationTimer) {
+      clearTimeout(this.resultPresentationTimer);
+    }
+
+    this.resultPresentation = {
+      race,
+      winnerRacerId,
+      expiresAt: new Date(Date.now() + RESULT_MODAL_DURATION_MS).toISOString()
+    };
+    this.resultPresentationTimer = setTimeout(() => {
+      if (this.resultPresentation?.race.id !== race.id) {
+        return;
+      }
+      this.clearRaceResultPresentation();
+    }, RESULT_MODAL_DURATION_MS);
+  }
+
+  private clearRaceResultPresentation(): void {
+    if (this.resultPresentationTimer) {
+      clearTimeout(this.resultPresentationTimer);
+      this.resultPresentationTimer = null;
+    }
+    if (!this.resultPresentation) {
+      return;
+    }
+    if (this.resultPresentation.race.queueEntryId) {
+      this.db.markQueueEntryStatus(this.resultPresentation.race.queueEntryId, "completed");
+    }
+    this.reconcileQueueRaceStatuses(this.resultPresentation.race.eventId);
+    this.resultPresentation = null;
+    // Auto-stage waits until the audience result beat is finished so the projector and admin
+    // workflow both move forward at the same deliberate moment.
+    if (!this.maybeAutoStageNextRace()) {
+      this.emitSnapshot();
+    }
+  }
+
+  dismissRaceResultPresentation(): AppSnapshot {
+    this.clearRaceResultPresentation();
+    return this.getSnapshot();
+  }
+
   private buildRacerSummaries(
     eventId: string,
-    results: ReturnType<AppDatabase["listResults"]>
+    results: ReturnType<AppDatabase["listResults"]>,
+    allResults: ReturnType<AppDatabase["listResults"]>
   ): RacerSummary[] {
     const racers = this.db.listEventRacers(eventId);
 
     return racers.map((racer) => {
       const racerResults = results.filter((result) => result.racerId === racer.id);
+      const eventResults = allResults.filter(
+        (result) => result.racerId === racer.id && result.eventId === eventId
+      );
+      const careerResults = allResults.filter((result) => result.racerId === racer.id);
       const stats: RacerStats = {
         races: racerResults.length,
         wins: racerResults.filter((result) => result.placement === 1).length,
+        eventRaces: eventResults.length,
+        eventWins: eventResults.filter((result) => result.placement === 1).length,
+        careerRaces: careerResults.length,
+        careerEventCount: new Set(careerResults.map((result) => result.eventId)).size,
         bestFinishTimeMs:
           racerResults
             .map((result) => result.finishTimeMs)
@@ -765,6 +836,12 @@ export class GoldsprintsApp extends EventEmitter {
       return false;
     }
 
+    if (this.resultPresentation) {
+      return false;
+    }
+
+    this.reconcileQueueRaceStatuses(activeEvent.id);
+
     const settings = this.db.getAdminSettings();
     // Auto-stage is only for the open queue flow; tournament match staging stays explicit.
     if (!settings.autoStageNextRace || settings.mode !== "open-time-trial") {
@@ -776,6 +853,47 @@ export class GoldsprintsApp extends EventEmitter {
     }
 
     return Boolean(findNextQueuedEntry(this.db.listQueueEntries(activeEvent.id)));
+  }
+
+  private reconcileQueueRaceStatuses(eventId: string): void {
+    const activeQueueEntries = this.db
+      .listQueueEntries(eventId)
+      .filter((entry) => entry.status === "staging" || entry.status === "racing");
+
+    if (activeQueueEntries.length === 0) {
+      return;
+    }
+
+    const activeQueueEntryIds = new Set(activeQueueEntries.map((entry) => entry.id));
+    const latestRaceByQueueEntryId = new Map<string, RaceRecord>();
+
+    for (const race of this.db.listRaces(eventId)) {
+      if (!race.queueEntryId || !activeQueueEntryIds.has(race.queueEntryId)) {
+        continue;
+      }
+
+      if (!latestRaceByQueueEntryId.has(race.queueEntryId)) {
+        latestRaceByQueueEntryId.set(race.queueEntryId, race);
+      }
+    }
+
+    for (const entry of activeQueueEntries) {
+      const linkedRace = latestRaceByQueueEntryId.get(entry.id);
+
+      if (!linkedRace) {
+        this.db.markQueueEntryStatus(entry.id, "queued");
+        continue;
+      }
+
+      if (linkedRace.state === "finished") {
+        this.db.markQueueEntryStatus(entry.id, "completed");
+        continue;
+      }
+
+      if (linkedRace.state === "cancelled") {
+        this.db.markQueueEntryStatus(entry.id, "queued");
+      }
+    }
   }
 
   private maybeAutoStageNextRace(): boolean {
@@ -997,7 +1115,9 @@ export class GoldsprintsApp extends EventEmitter {
       finalizeTimer: null
     };
 
-    this.db.markQueueEntryStatus(activeRace.queueEntryId ?? "", "racing");
+    if (activeRace.queueEntryId) {
+      this.db.markQueueEntryStatus(activeRace.queueEntryId, "racing");
+    }
     this.sensorAdapter.beginRace(activeRace.participants);
     this.emitSnapshot();
   }
@@ -1117,7 +1237,7 @@ export class GoldsprintsApp extends EventEmitter {
     });
 
     const winnerRacerId = runtime.winnerRacerId ?? (ordered.length > 0 ? ordered[0].racerId : null);
-    this.db.updateRace(runtime.raceId, {
+    const finishedRace = this.db.updateRace(runtime.raceId, {
       state: "finished",
       metrics: finalizedMetrics,
       winnerRacerId,
@@ -1143,7 +1263,8 @@ export class GoldsprintsApp extends EventEmitter {
       }))
     );
 
-    this.applyTournamentRaceOutcome(race, winnerRacerId);
+    this.applyTournamentRaceOutcome(finishedRace, winnerRacerId);
+    this.showRaceResultPresentation(finishedRace, winnerRacerId);
 
     this.currentRuntime = null;
     if (!this.maybeAutoStageNextRace()) {

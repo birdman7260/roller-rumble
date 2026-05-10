@@ -3,6 +3,7 @@ import type {
   AppSnapshot,
   BracketNode,
   EventRecord,
+  RaceRecord,
   Racer,
   RacerStats,
   ThemeDefinition,
@@ -17,9 +18,11 @@ import {
   type BracketWinnerAdvance,
   EliminationBracketView
 } from "../components/elimination-bracket-view";
+import { AnimatePresence } from "framer-motion";
 import { Button, StatPill } from "@goldsprints/shared-ui";
 import { applyThemeToDocument } from "@goldsprints/shared-ui/theme";
 import { getBracketLayoutLabel } from "../lib/admin-competition";
+import { RaceResultsOverlay } from "../components/race-results-overlay";
 
 type LabPhase = "overview" | "hidden" | "source" | "advance" | "hold" | "zoom-out";
 
@@ -86,6 +89,10 @@ const labRacers = ["Ada", "Ben", "Cleo", "Dax", "Etta", "Finn", "Gia", "Hank"].m
 function makeRacerSummary(id: string, displayName: string): AppSnapshot["racers"][number] {
   const stats: RacerStats = {
     averageSpeedKph: 31 + displayName.length,
+    careerEventCount: 1,
+    careerRaces: 3,
+    eventRaces: 3,
+    eventWins: 1,
     maxWattage: 680 + displayName.length * 11,
     races: 3,
     topSpeedKph: 48 + displayName.length,
@@ -101,6 +108,20 @@ function makeRacerSummary(id: string, displayName: string): AppSnapshot["racers"
 
   return { racer, stats };
 }
+
+const labModalRacers: AppSnapshot["racers"] = [
+  makeRacerSummary("lab-modal-left", "Mackenzie Thunder-Hill Sprint Captain"),
+  makeRacerSummary("lab-modal-right", "Jo Rivera-Santos Long-Haul Flyer")
+].map((entry, index) => ({
+  ...entry,
+  stats: {
+    ...entry.stats,
+    careerEventCount: index === 0 ? 4 : 2,
+    careerRaces: index === 0 ? 22 : 11,
+    eventRaces: index === 0 ? 5 : 4,
+    eventWins: index === 0 ? 4 : 1
+  }
+}));
 
 function makeNode(input: {
   id: string;
@@ -349,6 +370,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
       metricsByRacerId: {},
       nextQueueEntry: null,
       race: null,
+      resultPresentation: null,
       theme
     },
     racers: labRacers,
@@ -419,12 +441,71 @@ function getPresentationRequest(input: {
   }
 }
 
+function buildLabWinnerRace(themeId: string): RaceRecord {
+  return {
+    createdAt: labCreatedAt,
+    eventId: labEventId,
+    finishedAt: labCreatedAt,
+    format: "match",
+    id: "lab-winner-modal-race",
+    metrics: [
+      {
+        averageSpeedKph: 36.8,
+        currentSpeedKph: 0,
+        distanceMeters: 250,
+        elapsedMs: 24320,
+        finishedAtMs: 24320,
+        lane: "left",
+        maxWattage: 742,
+        racerId: "lab-modal-left",
+        rotationCount: 119,
+        topSpeedKph: 54.7,
+        wattage: 0
+      },
+      {
+        averageSpeedKph: 34.9,
+        currentSpeedKph: 0,
+        distanceMeters: 242.4,
+        elapsedMs: 24320,
+        finishedAtMs: null,
+        lane: "right",
+        maxWattage: 691,
+        racerId: "lab-modal-right",
+        rotationCount: 115,
+        topSpeedKph: 51.2,
+        wattage: 0
+      }
+    ],
+    mode: "single-elimination",
+    participants: [
+      {
+        lane: "left",
+        racerId: "lab-modal-left"
+      },
+      {
+        lane: "right",
+        racerId: "lab-modal-right"
+      }
+    ],
+    queueEntryId: null,
+    stageId: labStageId,
+    startedAt: labCreatedAt,
+    state: "finished",
+    targetDistanceMeters: 250,
+    themeId,
+    tournamentId: labTournamentId,
+    updatedAt: labCreatedAt,
+    winnerRacerId: "lab-modal-left"
+  };
+}
+
 export function BracketAnimationLabPage() {
   const [themeId, setThemeId] = useState(themes[0].id);
   const [layout, setLayout] = useState<TournamentBracketLayoutMode>("center-converging");
   const [scenarioId, setScenarioId] = useState<LabScenario["id"]>("round-one");
   const [phase, setPhase] = useState<LabPhase>("overview");
   const [runKey, setRunKey] = useState(0);
+  const [showDummyWinnerModal, setShowDummyWinnerModal] = useState(false);
   const timersRef = useRef<number[]>([]);
   const selectedTheme = getTheme(themeId);
   const scenario = labScenarios.find((candidate) => candidate.id === scenarioId) ?? labScenarios[0];
@@ -453,6 +534,7 @@ export function BracketAnimationLabPage() {
           toNodeId: scenario.targetNodeId
         }
       : null;
+  const dummyWinnerRace = buildLabWinnerRace(selectedTheme.id);
 
   useEffect(() => {
     applyThemeToDocument(selectedTheme);
@@ -589,6 +671,15 @@ export function BracketAnimationLabPage() {
         <Button variant="accent" onClick={playSequence}>
           Play Full Handoff
         </Button>
+
+        <Button
+          variant="ghost"
+          onClick={() => {
+            setShowDummyWinnerModal((current) => !current);
+          }}
+        >
+          {showDummyWinnerModal ? "Hide Dummy Winner Modal" : "Show Dummy Winner Modal"}
+        </Button>
       </section>
 
       <section className="bracket-lab__phase-panel panel">
@@ -635,6 +726,15 @@ export function BracketAnimationLabPage() {
             winnerAdvance={winnerAdvance}
           />
         </div>
+        <AnimatePresence>
+          {showDummyWinnerModal ? (
+            <RaceResultsOverlay
+              race={dummyWinnerRace}
+              racers={labModalRacers}
+              winnerRacerId="lab-modal-left"
+            />
+          ) : null}
+        </AnimatePresence>
       </section>
     </div>
   );

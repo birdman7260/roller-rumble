@@ -357,6 +357,10 @@ export interface RacerSummary {
 export interface RacerStats {
   races: number;
   wins: number;
+  eventRaces: number;
+  eventWins: number;
+  careerRaces: number;
+  careerEventCount: number;
   bestFinishTimeMs?: number | null;
   topSpeedKph: number;
   averageSpeedKph: number;
@@ -369,7 +373,14 @@ export interface RaceProjectionModel {
   metricsByRacerId: Record<string, RaceMetricsSnapshot>;
   winnerRacerId?: string | null;
   nextQueueEntry: QueueEntry | null;
+  resultPresentation: RaceResultPresentation | null;
   theme: ThemeDefinition;
+}
+
+export interface RaceResultPresentation {
+  race: RaceRecord;
+  winnerRacerId: string;
+  expiresAt: string;
 }
 
 export interface TunnelState {

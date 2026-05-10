@@ -275,6 +275,20 @@ Requirements:
 - Winner confetti must cover the full screen. `Implemented`
 - Confetti behavior must be theme-controlled so future themes can choose different celebration
   effects. `Implemented`
+- When a race result is shown on the projector, the result overlay should be a full modal with a
+  centered `WINNER!` title and lane-ordered vertical racer cards instead of a simple winner banner.
+  Each card should show the racer name, avatar when present, top speed, average speed, puke factor,
+  wattage, races today, wins today, and career race count when the racer has history in more than
+  one event. The winning card should be highlighted and slightly larger. The modal should remain up
+  for 15 seconds by default, and the admin should be able to choose `Move On` to dismiss it early.
+  While the modal is active, the completed race should remain frozen behind it and the app should
+  not transition to the next race or tournament bracket handoff until the modal clears.
+  If open-time-trial auto-stage is enabled, the next race should stage when this modal clears, not
+  when the previous race first finalizes. Clearing the modal should also ensure the completed race's
+  queue entry is marked complete before choosing the next auto-staged race. If a queue entry is left
+  in a stale `staging` or `racing` status after its linked race is already finished, the backend
+  should reconcile that entry to `completed` before showing or staging more queue items.
+  `Implemented`
 - The race display should stay focused on the active race rather than showing a generic tournament
   summary panel. `Implemented`
 - When an elimination tournament is active and no race is currently live, the projector should
@@ -289,6 +303,9 @@ Requirements:
 - The projector must not flash the already-updated bracket between race completion and the
   post-race bracket choreography. The bracket should stay hidden until the handoff sequence owns
   the display. `Implemented`
+- The bracket animation lab should include a dummy winner modal trigger so the result overlay,
+  typography wrapping, and post-race handoff timing can be tested without live race data.
+  `Implemented`
 - During the projector advancement handoff, only the advancement connector should draw/highlight
   along its length while the bracket camera pans toward the next matchup. The winner name/avatar
   should not float to the next stage; the source matchup should already be marked as advanced and

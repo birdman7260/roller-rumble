@@ -252,6 +252,10 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.finalizeInterruptedRace());
   });
 
+  app.post(`${API_PREFIX}/races/result-presentation/dismiss`, (_req, res) => {
+    res.json(service.dismissRaceResultPresentation());
+  });
+
   app.post(`${API_PREFIX}/settings`, (req, res) => {
     const input = settingUpdateSchema.parse(req.body);
     res.json(service.updateSettings(input));
