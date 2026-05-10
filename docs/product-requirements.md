@@ -205,6 +205,9 @@ Requirements:
   without switching to `Race Desk`. `Implemented`
 - Once a tournament matchup is staged, countdown/finalize/recovery controls must stay available in
   the shared bottom tray even when the admin moves to a different tab. `Implemented`
+- When a tournament matchup is staged but countdown has not started, the shared bottom tray must
+  show an `Unstage Match` action so the admin can clear that selection and choose a different
+  matchup. `Implemented`
 - Tournament race controls must not use countdown start as an implicit staging shortcut.
   `Implemented`
 

@@ -5,6 +5,7 @@ import { GoldsprintsApp } from "./app";
 type CountdownInvoker = (this: unknown, source: "manual" | "os2l") => AppSnapshot;
 type AutoStageInvoker = (this: unknown) => boolean;
 type UnstageOpenRaceInvoker = (this: unknown, eventId: string) => void;
+type UnstageTournamentRaceInvoker = (this: unknown) => AppSnapshot;
 
 function getCountdownInvoker(): CountdownInvoker {
   const candidate: unknown = Reflect.get(GoldsprintsApp.prototype, "startCountdown");
@@ -34,6 +35,15 @@ function getUnstageOpenRaceInvoker(): UnstageOpenRaceInvoker {
   }
 
   return candidate as UnstageOpenRaceInvoker;
+}
+
+function getUnstageTournamentRaceInvoker(): UnstageTournamentRaceInvoker {
+  const candidate: unknown = Reflect.get(GoldsprintsApp.prototype, "unstageCurrentTournamentRace");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing tournament race unstaging implementation");
+  }
+
+  return candidate as UnstageTournamentRaceInvoker;
 }
 
 const invokeStartCountdown = (
@@ -194,5 +204,91 @@ describe("app service tournament start flow", () => {
 
     expect(updateRace).not.toHaveBeenCalled();
     expect(markQueueEntryStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe("app service tournament staging flow", () => {
+  const stagedTournamentRace: RaceRecord = {
+    createdAt: "now",
+    eventId: "event-1",
+    finishedAt: null,
+    format: "match",
+    id: "race-1",
+    metrics: [],
+    mode: "single-elimination",
+    participants: [
+      { lane: "left", racerId: "racer-1" },
+      { lane: "right", racerId: "racer-2" }
+    ],
+    queueEntryId: null,
+    stageId: "stage-1",
+    startedAt: null,
+    state: "staging",
+    targetDistanceMeters: 250,
+    themeId: "neon-night",
+    tournamentId: "tournament-1",
+    updatedAt: "now",
+    winnerRacerId: null
+  };
+
+  it("unstages a tournament race before countdown starts", () => {
+    const snapshot = { generatedAt: "now" } as AppSnapshot;
+    const updateRace = vi.fn();
+    const disarmRace = vi.fn();
+    const emitSnapshot = vi.fn();
+    const getSnapshot = vi.fn(() => snapshot);
+    const invoker = getUnstageTournamentRaceInvoker();
+
+    const result = invoker.call({
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        getCurrentRace: () => stagedTournamentRace,
+        updateRace
+      },
+      emitSnapshot,
+      getSnapshot,
+      os2lTrigger: {
+        disarmRace
+      }
+    });
+
+    expect(updateRace).toHaveBeenCalledWith(
+      "race-1",
+      expect.objectContaining({
+        countdownStartedAt: null,
+        metrics: [],
+        state: "cancelled",
+        winnerRacerId: null
+      })
+    );
+    expect(disarmRace).toHaveBeenCalledTimes(1);
+    expect(emitSnapshot).toHaveBeenCalledTimes(1);
+    expect(result).toBe(snapshot);
+  });
+
+  it("does not unstage a tournament race after countdown starts", () => {
+    const updateRace = vi.fn();
+    const disarmRace = vi.fn();
+    const invoker = getUnstageTournamentRaceInvoker();
+
+    expect(() =>
+      invoker.call({
+        db: {
+          getActiveEvent: () => ({ id: "event-1" }),
+          getCurrentRace: () =>
+            ({
+              ...stagedTournamentRace,
+              state: "countdown"
+            }) satisfies RaceRecord,
+          updateRace
+        },
+        os2lTrigger: {
+          disarmRace
+        }
+      })
+    ).toThrow("before countdown starts");
+
+    expect(updateRace).not.toHaveBeenCalled();
+    expect(disarmRace).not.toHaveBeenCalled();
   });
 });

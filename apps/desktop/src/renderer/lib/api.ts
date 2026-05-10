@@ -110,6 +110,12 @@ export async function startCurrentRace(): Promise<AppSnapshot> {
   return parseJson(await fetch(buildUrl("/api/races/current/start"), { method: "POST" }));
 }
 
+export async function unstageCurrentTournamentRace(): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl("/api/races/current/unstage-tournament"), { method: "POST" })
+  );
+}
+
 export async function finalizeCurrentRace(): Promise<AppSnapshot> {
   return parseJson(await fetch(buildUrl("/api/races/current/finalize"), { method: "POST" }));
 }

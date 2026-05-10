@@ -232,6 +232,10 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.startManualCountdown());
   });
 
+  app.post(`${API_PREFIX}/races/current/unstage-tournament`, (_req, res) => {
+    res.json(service.unstageCurrentTournamentRace());
+  });
+
   app.post(`${API_PREFIX}/races/current/finalize`, (_req, res) => {
     res.json(service.finalizeCurrentRace());
   });

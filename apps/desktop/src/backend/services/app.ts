@@ -1321,6 +1321,34 @@ export class GoldsprintsApp extends EventEmitter {
     this.os2lTrigger.disarmRace();
   }
 
+  unstageCurrentTournamentRace(): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    const currentRace = this.db.getCurrentRace(activeEvent.id);
+    if (!currentRace) {
+      return this.getSnapshot();
+    }
+
+    if (currentRace.tournamentId == null) {
+      throw new Error("Only staged tournament races can be unstaged from tournament controls.");
+    }
+
+    if (!["scheduled", "staging"].includes(currentRace.state)) {
+      throw new Error("Tournament races can only be unstaged before countdown starts.");
+    }
+
+    this.db.updateRace(currentRace.id, {
+      countdownStartedAt: null,
+      finishedAt: null,
+      metrics: [],
+      startedAt: null,
+      state: "cancelled",
+      winnerRacerId: null
+    });
+    this.os2lTrigger.disarmRace();
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
   createTournament(input: {
     name: string;
     preset: AdminSettings["mode"];

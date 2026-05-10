@@ -39,7 +39,7 @@ export function TournamentBracketBoard({
         {hintText ??
           (canStageMatches
             ? "Click any ready matchup in the bracket to stage it."
-            : "A tournament race is already staged. Finish or clear it before staging another matchup.")}
+            : "A tournament race is already staged. Start it or unstage it before picking another matchup.")}
       </p>
       <EliminationBracketView
         snapshot={snapshot}

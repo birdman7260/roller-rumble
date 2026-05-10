@@ -7,6 +7,7 @@ export function CurrentRaceActionRows({
   showStageNextRaceButton,
   disableStageNextRaceButton,
   onStageNextRace,
+  onUnstageCurrent,
   onStartCountdown,
   onFinalizeCurrent,
   onResumeInterrupted,
@@ -17,6 +18,7 @@ export function CurrentRaceActionRows({
   showStageNextRaceButton?: boolean;
   disableStageNextRaceButton?: boolean;
   onStageNextRace?: () => void;
+  onUnstageCurrent?: () => void;
   onStartCountdown: () => void;
   onFinalizeCurrent: () => void;
   onResumeInterrupted: () => void;
@@ -27,6 +29,8 @@ export function CurrentRaceActionRows({
   const showStageAction = showStageNextRaceButton && !currentRace;
   const showStartAction =
     currentRace != null && ["scheduled", "staging"].includes(currentRace.state);
+  const showUnstageTournamentAction =
+    currentRace?.tournamentId != null && ["scheduled", "staging"].includes(currentRace.state);
   const showFinalizeAction = currentRace?.state === "active";
 
   if (raceIsInterrupted) {
@@ -59,7 +63,7 @@ export function CurrentRaceActionRows({
     );
   }
 
-  if (!showStageAction && !showStartAction && !showFinalizeAction) {
+  if (!showStageAction && !showStartAction && !showUnstageTournamentAction && !showFinalizeAction) {
     return null;
   }
 
@@ -84,6 +88,16 @@ export function CurrentRaceActionRows({
             }}
           >
             Start Countdown
+          </Button>
+        ) : null}
+        {showUnstageTournamentAction ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onUnstageCurrent?.();
+            }}
+          >
+            Unstage Match
           </Button>
         ) : null}
         {showFinalizeAction ? (
