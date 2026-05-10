@@ -831,6 +831,12 @@ p {
   height: 100%;
 }
 
+.race-page--signup-prompt.race-page--vertical .race-page__stage {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  height: 100%;
+}
+
 .race-page__bracket-layer,
 .race-page__race-layer {
   position: absolute;
@@ -881,8 +887,91 @@ p {
   align-items: center;
 }
 
+.race-page__race-layer--signup-prompt {
+  place-items: center;
+  padding: clamp(0.6rem, 1.4vw, 1.5rem);
+}
+
 .race-page__race-layer .panel {
   align-self: center;
+}
+
+.race-page__signup-prompt {
+  --ui-panel-padding: clamp(1.4rem, 3vw, 3rem);
+  justify-self: center;
+  width: min(84rem, 100%);
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+  gap: clamp(1.4rem, 3vw, 3rem);
+  align-items: center;
+  border-width: 0.14rem;
+  box-shadow: 0 2rem 4.5rem rgba(0, 0, 0, 0.34);
+}
+
+.race-page__signup-copy {
+  display: grid;
+  gap: clamp(0.45rem, 1.2vh, 0.9rem);
+  min-width: 0;
+}
+
+.race-page__signup-copy span {
+  color: var(--theme-accent);
+  font-size: clamp(1rem, 1.8vw, 1.8rem);
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.race-page__signup-copy strong {
+  font-size: clamp(4.2rem, 9vw, 9rem);
+  line-height: 0.82;
+  letter-spacing: -0.08em;
+  text-transform: uppercase;
+}
+
+.race-page__signup-copy p {
+  max-width: 48rem;
+  color: var(--theme-text-muted);
+  font-size: clamp(1.35rem, 2.5vw, 2.6rem);
+  font-weight: 750;
+  line-height: 1.12;
+}
+
+.race-page__signup-qr-wrap {
+  display: grid;
+  justify-items: center;
+  gap: 0.9rem;
+}
+
+.race-page__signup-qr {
+  width: min(24rem, 100%);
+  aspect-ratio: 1;
+  padding: clamp(0.7rem, 1.3vw, 1.1rem);
+  border-radius: 1.2rem;
+  background: #fff;
+  box-shadow:
+    0 0 0 0.16rem color-mix(in srgb, var(--theme-accent) 58%, transparent),
+    0 1.4rem 2.8rem rgba(0, 0, 0, 0.28);
+}
+
+.race-page__signup-qr--loading {
+  display: grid;
+  place-items: center;
+  color: #0f172a;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+}
+
+.race-page__signup-url {
+  grid-column: 1 / -1;
+  overflow-wrap: anywhere;
+  color: var(--theme-text-muted);
+  font-size: clamp(0.9rem, 1.4vw, 1.4rem);
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-align: center;
 }
 
 .countdown-overlay {

@@ -245,6 +245,11 @@ Requirements:
   `Later`, and may mix admin-configured announcement messages between those races. If there are no
   upcoming races, it must show `Sign up to race!` while still rotating through admin-configured
   announcement messages. `Implemented`
+- When no race is staged, no tournament bracket is being shown, and there are no upcoming races
+  available to stage, the projector display should show a large racer-page QR code with audience
+  messaging that encourages people to scan, register, and sign up. This prompt should be centered
+  in a wide full-stage layout even when the selected theme normally uses a vertical race
+  visualization. `Implemented`
 - The race visualizer components must animate live racer progress with Framer Motion rather than
   only snapping through layout/CSS updates. `Implemented`
 - The display must show:

@@ -19,7 +19,7 @@ import { WinnerConfetti } from "../components/winner-confetti";
 import { findBracketNodeByParticipantIds } from "../components/tournament-flow-layout";
 import { getActiveTournament } from "../lib/admin-competition";
 import { getConfettiEffectDurationMs } from "../lib/confetti-effects";
-import { useSnapshotQuery } from "../lib/query";
+import { useMetaQuery, useSnapshotQuery } from "../lib/query";
 import { buildParticipantEntries, resolveRacerName } from "../lib/snapshot-display";
 
 const TOURNAMENT_PRE_RACE_STATES: RaceRecord["state"][] = ["scheduled", "staging", "interrupted"];
@@ -203,6 +203,32 @@ function RaceTicker({ items }: { items: string[] }) {
   );
 }
 
+function RacerSignupPrompt({
+  qrCodeDataUrl,
+  racerPageUrl
+}: {
+  qrCodeDataUrl?: string;
+  racerPageUrl: string;
+}) {
+  return (
+    <Panel className="panel--glass race-page__signup-prompt">
+      <div className="race-page__signup-copy">
+        <span>Race queue is open</span>
+        <strong>Scan to race</strong>
+        <p>Register on your phone, pick your matchup, and jump into the next Gold Sprints run.</p>
+      </div>
+      <div className="race-page__signup-qr-wrap">
+        {qrCodeDataUrl ? (
+          <img className="race-page__signup-qr" src={qrCodeDataUrl} alt="QR code for racer page" />
+        ) : (
+          <div className="race-page__signup-qr race-page__signup-qr--loading">Preparing QR</div>
+        )}
+      </div>
+      <div className="race-page__signup-url">{racerPageUrl}</div>
+    </Panel>
+  );
+}
+
 function ProjectorRacerCards({
   displayRace,
   metrics,
@@ -280,7 +306,9 @@ function WinnerBanner({ winnerName }: { winnerName: string }) {
 
 export function RacePage() {
   const snapshotQuery = useSnapshotQuery();
+  const metaQuery = useMetaQuery();
   const snapshot = snapshotQuery.data ?? null;
+  const meta = metaQuery.data ?? null;
   const [postRaceSequence, setPostRaceSequence] = useState<PostRaceSequence | null>(null);
   const previousTournamentRaceRef = useRef<RaceRecord | null>(null);
   const previousTournamentBundleRef = useRef<TournamentBundle | null>(null);
@@ -552,9 +580,21 @@ export function RacePage() {
   const metrics = displayRace?.metrics ?? [];
   const orientation = projection.theme.orientation;
   const tickerItems = buildTickerItems(snapshot);
+  const hasRaceToStage = snapshot.queue.some(
+    (entry) => entry.status === "queued" || entry.status === "staging"
+  );
+  // The empty queue prompt is an audience call-to-action, so it should use a full-width projector
+  // layout instead of inheriting the current theme's horizontal/vertical race-track geometry.
+  const showSignupPrompt = !bracketBundle && !hasRaceToStage && displayRace == null;
+  const racerPageUrl =
+    snapshot.tunnel.publicUrl ?? (meta ? `${meta.localBaseUrl}/racer` : "/racer");
 
   return (
-    <div className={`race-page race-page--${orientation}`}>
+    <div
+      className={`race-page race-page--${orientation} ${
+        showSignupPrompt ? "race-page--signup-prompt" : ""
+      }`}
+    >
       <WinnerConfetti
         winnerKey={winnerKey}
         effectId={projection.theme.confettiEffectId}
@@ -609,11 +649,13 @@ export function RacePage() {
         ) : null}
 
         <motion.div
-          className="race-page__race-layer"
+          className={`race-page__race-layer ${
+            showSignupPrompt ? "race-page__race-layer--signup-prompt" : ""
+          }`}
           initial={false}
           animate={{
             opacity: showRacePanel ? 1 : bracketBundle ? 0 : 1,
-            x: showRacePanel ? "0%" : "12%"
+            x: showRacePanel || showSignupPrompt ? "0%" : "12%"
           }}
           transition={{
             duration: showRacePanel ? 0.42 : 0.32,
@@ -627,6 +669,8 @@ export function RacePage() {
               metrics={metrics}
               targetDistanceMeters={displayRace.targetDistanceMeters}
             />
+          ) : showSignupPrompt ? (
+            <RacerSignupPrompt qrCodeDataUrl={meta?.qrCodeDataUrl} racerPageUrl={racerPageUrl} />
           ) : !bracketBundle ? (
             <Panel className="panel--glass">
               <EmptyState

@@ -77,7 +77,15 @@ export function useSnapshotStream(): void {
         return;
       }
       if (message.type === "snapshot") {
+        const previousSnapshot = client.getQueryData<AppSnapshot>(snapshotQueryKey);
+        const tunnelChanged =
+          previousSnapshot?.tunnel.publicUrl !== message.payload.tunnel.publicUrl ||
+          previousSnapshot?.tunnel.status !== message.payload.tunnel.status;
+
         client.setQueryData(snapshotQueryKey, message.payload);
+        if (tunnelChanged) {
+          void client.invalidateQueries({ queryKey: metaQueryKey });
+        }
         void client.invalidateQueries({ queryKey: photoBoothStatusQueryKey });
       }
     };
