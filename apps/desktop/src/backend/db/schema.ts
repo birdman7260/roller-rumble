@@ -2,6 +2,7 @@ import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlit
 import type {
   BracketNode,
   EventPaymentStatus,
+  PaymentRecordStatus,
   PhotoBoothCapture,
   QueueEntry,
   QueueOccurrence,
@@ -46,6 +47,11 @@ export const events = sqliteTable("events", {
   includeAllRaceData: integer("include_all_race_data", { mode: "boolean" })
     .notNull()
     .default(false),
+  paymentRequiredForQueue: integer("payment_required_for_queue", { mode: "boolean" })
+    .notNull()
+    .default(false),
+  paymentAmountCents: integer("payment_amount_cents"),
+  paymentCurrency: text("payment_currency").notNull().default("usd"),
   active: integer("active", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
@@ -84,6 +90,44 @@ export const passkeyCredentials = sqliteTable("passkey_credentials", {
   backedUp: integer("backed_up", { mode: "boolean" }).notNull().default(false),
   createdAt: text("created_at").notNull(),
   lastUsedAt: text("last_used_at")
+});
+
+export const payments = sqliteTable(
+  "payments",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id")
+      .notNull()
+      .references(() => events.id, { onDelete: "cascade" }),
+    racerId: text("racer_id")
+      .notNull()
+      .references(() => racers.id, { onDelete: "cascade" }),
+    provider: text("provider").$type<"stripe">().notNull(),
+    status: text("status").$type<PaymentRecordStatus>().notNull(),
+    amountCents: integer("amount_cents").notNull(),
+    currency: text("currency").notNull(),
+    stripeCheckoutSessionId: text("stripe_checkout_session_id"),
+    stripePaymentIntentId: text("stripe_payment_intent_id"),
+    checkoutUrl: text("checkout_url"),
+    queueIntentJson: text("queue_intent_json", { mode: "json" })
+      .$type<{ opponentRacerId?: string; requestedType?: "solo" | "auto-match" }>()
+      .notNull(),
+    failureCode: text("failure_code"),
+    failureMessage: text("failure_message"),
+    completedAt: text("completed_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => [
+    uniqueIndex("payments_stripe_checkout_session_unique").on(table.stripeCheckoutSessionId)
+  ]
+);
+
+export const processedWebhookEvents = sqliteTable("processed_webhook_events", {
+  id: text("id").primaryKey(),
+  provider: text("provider").$type<"stripe">().notNull(),
+  eventType: text("event_type").notNull(),
+  processedAt: text("processed_at").notNull()
 });
 
 export const queueEntries = sqliteTable("queue_entries", {

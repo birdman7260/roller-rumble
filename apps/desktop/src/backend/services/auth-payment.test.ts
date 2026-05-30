@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
-import type { AppSnapshot, Racer } from "@goldsprints/shared/types";
+import type {
+  AppSnapshot,
+  EventRecord,
+  Racer,
+  RacerQueueSignupResponse
+} from "@goldsprints/shared/types";
 import { AppHttpError, GoldsprintsApp } from "./app";
 
 vi.mock("@simplewebauthn/server", () => ({
@@ -66,11 +71,21 @@ interface FakeTarget {
     setSetting: ReturnType<typeof vi.fn>;
     getAdminSettings: ReturnType<typeof vi.fn>;
     getEventRacerPayment: ReturnType<typeof vi.fn>;
+    createPaymentRecord: ReturnType<typeof vi.fn>;
+    updatePaymentRecord: ReturnType<typeof vi.fn>;
+    getPaymentRecord: ReturnType<typeof vi.fn>;
+    getPaymentByStripeCheckoutSessionId: ReturnType<typeof vi.fn>;
+    updateEventRacerPayment: ReturnType<typeof vi.fn>;
+    updateEventPaymentConfig: ReturnType<typeof vi.fn>;
+    hasProcessedWebhookEvent: ReturnType<typeof vi.fn>;
+    markWebhookEventProcessed: ReturnType<typeof vi.fn>;
   };
   passkeyChallenges: Map<string, { expiresAt: number }>;
   emitSnapshot: ReturnType<typeof vi.fn>;
   getSnapshot: ReturnType<typeof vi.fn>;
   signUpQueue: ReturnType<typeof vi.fn>;
+  getStripeConfig: ReturnType<typeof vi.fn>;
+  getStripeClient: ReturnType<typeof vi.fn>;
 }
 
 type SignInStart = (
@@ -95,6 +110,19 @@ type QueueAsRacer = (
   this: FakeTarget,
   racerId: string,
   input: { opponentRacerId?: string; requestedType?: "solo" | "auto-match" }
+) => Promise<RacerQueueSignupResponse>;
+type StripeWebhookHandler = (
+  this: FakeTarget,
+  rawBody: Buffer,
+  signature?: string
+) => { received: true };
+type EventPaymentConfigUpdate = (
+  this: FakeTarget,
+  input: {
+    paymentRequiredForQueue: boolean;
+    paymentAmountCents?: number | null;
+    paymentCurrency?: string;
+  }
 ) => AppSnapshot;
 
 const passkeyContext = {
@@ -136,24 +164,59 @@ function getPrototypeMethod(name: string): unknown {
 function makeFakeTarget(): FakeTarget & {
   racers: Map<string, Racer>;
   credentials: Map<string, FakeCredential>;
-  settings: { paymentRequiredForQueue: boolean };
+  activeEvent: EventRecord;
   payments: Map<string, { status: "unpaid" | "paid" | "waived" }>;
+  paymentRecords: Map<string, Record<string, unknown>>;
 } {
   const racers = new Map<string, Racer>();
   const credentials = new Map<string, FakeCredential>();
-  const settings = { paymentRequiredForQueue: false };
   const payments = new Map<string, { status: "unpaid" | "paid" | "waived" }>();
+  const paymentRecords = new Map<string, Record<string, unknown>>();
+  const activeEvent: EventRecord = {
+    id: "event-1",
+    name: "Test Event",
+    includeAllRaceData: false,
+    paymentRequiredForQueue: false,
+    paymentAmountCents: null,
+    paymentCurrency: "usd",
+    active: true,
+    createdAt: timestamp,
+    updatedAt: timestamp
+  };
   let sessionSecret: string | null = null;
 
   const target = {
     racers,
     credentials,
-    settings,
+    activeEvent,
     payments,
+    paymentRecords,
     passkeyChallenges: new Map<string, { expiresAt: number }>(),
     emitSnapshot: vi.fn(),
     getSnapshot: vi.fn(() => snapshot),
     signUpQueue: vi.fn(() => snapshot),
+    getStripeConfig: vi.fn(() => ({
+      configured: true,
+      hasSecretKey: true,
+      hasWebhookSecret: true,
+      secretKey: "sk_test_fake",
+      webhookSecret: "whsec_fake",
+      publicRacerUrl: "https://goldsprints.example",
+      message: "Stripe Checkout is ready."
+    })),
+    getStripeClient: vi.fn(() => ({
+      checkout: {
+        sessions: {
+          create: vi.fn(async () => ({
+            id: "cs_test_fake",
+            url: "https://checkout.stripe.test/session"
+          }))
+        }
+      },
+      webhooks: {
+        constructEvent: vi.fn()
+      }
+    })),
     db: {
       findRacerByIdentity: vi.fn((type: string, value: string) => {
         for (const racer of racers.values()) {
@@ -203,7 +266,7 @@ function makeFakeTarget(): FakeTarget & {
         }
       ),
       getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
-      getActiveEvent: vi.fn(() => ({ id: "event-1" })),
+      getActiveEvent: vi.fn(() => activeEvent),
       ensureEventRegistration: vi.fn(),
       getSetting: vi.fn((_key: string, fallback: string | null) => ({
         value: sessionSecret ?? fallback
@@ -212,13 +275,60 @@ function makeFakeTarget(): FakeTarget & {
         sessionSecret = value;
       }),
       getAdminSettings: vi.fn(() => ({
-        paymentRequiredForQueue: settings.paymentRequiredForQueue,
         maxActiveQueueEntriesPerRacer: 3,
         mode: "open-time-trial"
       })),
       getEventRacerPayment: vi.fn(
         (_eventId: string, racerId: string) => payments.get(racerId) ?? { status: "unpaid" }
-      )
+      ),
+      createPaymentRecord: vi.fn((input: Record<string, unknown>) => {
+        const record = {
+          ...input,
+          id: `payment-${paymentRecords.size + 1}`,
+          provider: "stripe",
+          status: "checkout_created",
+          stripeCheckoutSessionId: null,
+          stripePaymentIntentId: null,
+          checkoutUrl: null,
+          failureCode: null,
+          failureMessage: null,
+          completedAt: null,
+          createdAt: timestamp,
+          updatedAt: timestamp
+        };
+        paymentRecords.set(record.id, record);
+        return record;
+      }),
+      updatePaymentRecord: vi.fn((paymentId: string, patch: Record<string, unknown>) => {
+        const existing = paymentRecords.get(paymentId);
+        if (!existing) {
+          throw new Error("missing payment");
+        }
+        const next = { ...existing, ...patch, updatedAt: timestamp };
+        paymentRecords.set(paymentId, next);
+        return next;
+      }),
+      getPaymentRecord: vi.fn((paymentId: string) => paymentRecords.get(paymentId) ?? null),
+      getPaymentByStripeCheckoutSessionId: vi.fn((sessionId: string) => {
+        for (const record of paymentRecords.values()) {
+          if (record.stripeCheckoutSessionId === sessionId) {
+            return record;
+          }
+        }
+        return null;
+      }),
+      updateEventRacerPayment: vi.fn(
+        (_eventId: string, racerId: string, input: { status: "unpaid" | "paid" | "waived" }) => {
+          payments.set(racerId, { status: input.status });
+          return payments.get(racerId);
+        }
+      ),
+      updateEventPaymentConfig: vi.fn((_eventId: string, input: Partial<EventRecord>) => {
+        Object.assign(activeEvent, input);
+        return activeEvent;
+      }),
+      hasProcessedWebhookEvent: vi.fn(() => false),
+      markWebhookEventProcessed: vi.fn()
     }
   };
 
@@ -239,10 +349,36 @@ const getRacerFromSessionToken = getPrototypeMethod(
   "getRacerFromSessionToken"
 ) as SessionTokenResolve;
 const signUpQueueForRacer = getPrototypeMethod("signUpQueueForRacer") as QueueAsRacer;
+const handleStripeWebhook = getPrototypeMethod("handleStripeWebhook") as StripeWebhookHandler;
+const updateActiveEventPaymentConfig = getPrototypeMethod(
+  "updateActiveEventPaymentConfig"
+) as EventPaymentConfigUpdate;
 
 describe("passkey racer auth and payment gating", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+  });
+
+  it("requires a valid current-event amount before enabling payment", () => {
+    const target = makeFakeTarget();
+
+    expect(() => {
+      updateActiveEventPaymentConfig.call(target, {
+        paymentRequiredForQueue: true,
+        paymentAmountCents: 49,
+        paymentCurrency: "usd"
+      });
+    }).toThrow(AppHttpError);
+
+    expect(
+      updateActiveEventPaymentConfig.call(target, {
+        paymentRequiredForQueue: true,
+        paymentAmountCents: 1000,
+        paymentCurrency: "usd"
+      })
+    ).toBe(snapshot);
+    expect(target.activeEvent.paymentRequiredForQueue).toBe(true);
+    expect(target.activeEvent.paymentAmountCents).toBe(1000);
   });
 
   it("starts registration when no racer exists for the email", async () => {
@@ -366,32 +502,124 @@ describe("passkey racer auth and payment gating", () => {
     expect(getRacerFromSessionToken.call(target, `${token}tampered`)).toBeNull();
   });
 
-  it("blocks unpaid racer-page queue signup only when payment is required", () => {
+  it("creates Stripe Checkout for unpaid racer-page queue signup when event payment is required", async () => {
     const target = makeFakeTarget();
     const racer = makeRacer("racer-1", "Payment Racer", "pay@example.com");
     target.racers.set(racer.id, racer);
 
-    expect(() => {
-      signUpQueueForRacer.call(target, racer.id, { requestedType: "solo" });
-    }).not.toThrow();
+    await expect(
+      signUpQueueForRacer.call(target, racer.id, { requestedType: "solo" })
+    ).resolves.toMatchObject({ status: "queued" });
 
-    target.settings.paymentRequiredForQueue = true;
+    target.activeEvent.paymentRequiredForQueue = true;
+    target.activeEvent.paymentAmountCents = 1000;
 
-    expect(() => {
-      signUpQueueForRacer.call(target, racer.id, { requestedType: "solo" });
-    }).toThrow(AppHttpError);
+    await expect(
+      signUpQueueForRacer.call(target, racer.id, { requestedType: "solo" })
+    ).resolves.toMatchObject({
+      status: "checkout_required",
+      checkoutUrl: "https://checkout.stripe.test/session"
+    });
   });
 
-  it("allows paid or admin-queued racers when payment is required", () => {
+  it("allows paid or admin-queued racers when payment is required", async () => {
     const target = makeFakeTarget();
-    target.settings.paymentRequiredForQueue = true;
+    target.activeEvent.paymentRequiredForQueue = true;
+    target.activeEvent.paymentAmountCents = 1000;
+    target.racers.set("paid-racer", makeRacer("paid-racer", "Paid Racer", "paid@example.com"));
     target.payments.set("paid-racer", { status: "paid" });
 
-    expect(() => {
-      signUpQueueForRacer.call(target, "paid-racer", { requestedType: "solo" });
-    }).not.toThrow();
+    await expect(
+      signUpQueueForRacer.call(target, "paid-racer", { requestedType: "solo" })
+    ).resolves.toMatchObject({ status: "queued" });
     expect(() => {
       target.signUpQueue({ racerId: "unpaid-racer", requestedType: "solo" });
     }).not.toThrow();
+  });
+
+  it("blocks challenge checkout when the selected opponent has not paid", async () => {
+    const target = makeFakeTarget();
+    target.activeEvent.paymentRequiredForQueue = true;
+    target.activeEvent.paymentAmountCents = 1000;
+    target.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
+    target.racers.set("racer-2", makeRacer("racer-2", "Opponent Racer", "opponent@example.com"));
+
+    await expect(
+      signUpQueueForRacer.call(target, "racer-1", { opponentRacerId: "racer-2" })
+    ).rejects.toThrow(AppHttpError);
+    expect(target.db.createPaymentRecord).not.toHaveBeenCalled();
+  });
+
+  it("marks Stripe checkout paid and queues the stored intent from the webhook", () => {
+    const target = makeFakeTarget();
+    target.activeEvent.paymentRequiredForQueue = true;
+    target.activeEvent.paymentAmountCents = 1000;
+    target.racers.set("racer-1", makeRacer("racer-1", "Webhook Racer", "webhook@example.com"));
+    const paymentId = "payment-1";
+    target.db.createPaymentRecord({
+      eventId: "event-1",
+      racerId: "racer-1",
+      amountCents: 1000,
+      currency: "usd",
+      queueIntent: { requestedType: "solo" }
+    });
+    target.db.updatePaymentRecord(paymentId, {
+      stripeCheckoutSessionId: "cs_test_webhook"
+    });
+    target.getStripeClient.mockReturnValue({
+      webhooks: {
+        constructEvent: vi.fn(() => ({
+          id: "evt_1",
+          type: "checkout.session.completed",
+          data: {
+            object: {
+              id: "cs_test_webhook",
+              metadata: { paymentId },
+              payment_intent: "pi_1"
+            }
+          }
+        }))
+      }
+    });
+
+    expect(handleStripeWebhook.call(target, Buffer.from("{}"), "signature")).toEqual({
+      received: true
+    });
+    expect(target.db.updateEventRacerPayment).toHaveBeenCalledWith("event-1", "racer-1", {
+      status: "paid",
+      note: "Stripe Checkout",
+      providerReference: "pi_1"
+    });
+    expect(target.signUpQueue).toHaveBeenCalledWith({
+      racerId: "racer-1",
+      requestedType: "solo",
+      opponentRacerId: undefined
+    });
+    expect(target.db.markWebhookEventProcessed).toHaveBeenCalledWith(
+      "stripe",
+      "evt_1",
+      "checkout.session.completed"
+    );
+  });
+
+  it("ignores duplicate Stripe webhook deliveries", () => {
+    const target = makeFakeTarget();
+    target.db.hasProcessedWebhookEvent.mockReturnValue(true);
+    target.getStripeClient.mockReturnValue({
+      webhooks: {
+        constructEvent: vi.fn(() => ({
+          id: "evt_duplicate",
+          type: "checkout.session.completed",
+          data: { object: { id: "cs_duplicate" } }
+        }))
+      }
+    });
+
+    expect(handleStripeWebhook.call(target, Buffer.from("{}"), "signature")).toEqual({
+      received: true
+    });
+    expect(target.db.updateEventRacerPayment).not.toHaveBeenCalled();
+    expect(target.signUpQueue).not.toHaveBeenCalled();
+    expect(target.db.markWebhookEventProcessed).not.toHaveBeenCalled();
   });
 });

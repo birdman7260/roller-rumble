@@ -534,6 +534,10 @@ p {
   color: var(--theme-danger);
 }
 
+.form-success {
+  color: var(--theme-accent);
+}
+
 .toggle {
   grid-auto-flow: column;
   justify-content: start;

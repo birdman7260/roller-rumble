@@ -354,6 +354,9 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     id: labEventId,
     includeAllRaceData: false,
     name: "Animation Lab Event",
+    paymentAmountCents: null,
+    paymentCurrency: "usd",
+    paymentRequiredForQueue: false,
     updatedAt: labCreatedAt
   };
   const settings: AdminSettings = {
@@ -362,7 +365,6 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     includeAllRaceData: false,
     mode: "single-elimination",
     os2lEnabled: false,
-    paymentRequiredForQueue: false,
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: [],
     raceDisplayTickerSpeed: 72,
@@ -388,6 +390,15 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     settings,
     themes,
     tournaments: [bundle],
+    paymentProvider: {
+      stripe: {
+        configured: false,
+        hasSecretKey: false,
+        hasWebhookSecret: false,
+        publicRacerUrl: null,
+        message: "Stripe Checkout is not configured."
+      }
+    },
     photoBooth: {
       boothId: "lab-booth",
       status: "idle",

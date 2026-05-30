@@ -10,6 +10,8 @@ export const DEFAULT_SERVER_PORT = 3187;
 export const DEFAULT_PUBLIC_HOST = "127.0.0.1";
 export const DEFAULT_THEME_ID = "neon-night";
 export const DEFAULT_EVENT_NAME = "Main Event";
+export const DEFAULT_PAYMENT_CURRENCY = "usd";
+export const STRIPE_MIN_PAYMENT_AMOUNT_CENTS = 50;
 export const SUPPORTED_TOURNAMENT_PRESETS = [
   "open-time-trial",
   "single-elimination",
@@ -44,6 +46,14 @@ export const QUEUE_ENTRY_STATUSES = [
 ] as const;
 export const QUEUE_OCCURRENCE_INTENTS = ["auto-match", "solo", "challenge"] as const;
 export const EVENT_PAYMENT_STATUSES = ["unpaid", "paid", "waived"] as const;
+export const PAYMENT_RECORD_STATUSES = [
+  "checkout_created",
+  "paid",
+  "cancelled",
+  "expired",
+  "failed",
+  "queue_failed"
+] as const;
 export const PASSKEY_AUTH_STATUSES = ["passkey", "register_required", "host_assist"] as const;
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
 export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;

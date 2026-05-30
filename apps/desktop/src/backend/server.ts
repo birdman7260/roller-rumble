@@ -27,6 +27,7 @@ import {
   tournamentBracketMatchSchema,
   tournamentGroupMatchSchema,
   tournamentIdSchema,
+  updateEventPaymentConfigSchema,
   updateRacerPaymentSchema,
   updatePhotoBoothStatusSchema
 } from "@goldsprints/shared/validation";
@@ -246,6 +247,18 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   });
 
   app.use(cors({ origin: true, credentials: true }));
+  app.post(
+    `${API_PREFIX}/webhooks/stripe`,
+    express.raw({ type: "application/json", limit: "2mb" }),
+    (req, res, next) => {
+      try {
+        const rawBody = Buffer.isBuffer(req.body) ? req.body : Buffer.from(String(req.body ?? ""));
+        res.json(service.handleStripeWebhook(rawBody, req.get("stripe-signature")));
+      } catch (error) {
+        next(error);
+      }
+    }
+  );
   app.use(express.json({ limit: "2mb" }));
   app.use("/uploads", express.static(uploadsDir));
 
@@ -432,10 +445,24 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.createEvent(input.name));
   });
 
-  app.post(`${API_PREFIX}/queue`, (req, res) => {
+  app.post(`${API_PREFIX}/events/current/payment`, (req, res) => {
+    const input = updateEventPaymentConfigSchema.parse(req.body);
+    res.json(service.updateActiveEventPaymentConfig(input));
+  });
+
+  app.post(`${API_PREFIX}/queue`, async (req, res, next) => {
+    try {
+      const racer = requireRacerSession(req, service);
+      const input = racerQueueSignupSchema.parse(req.body);
+      res.json(await service.signUpQueueForRacer(racer.id, input));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/racer/payments/:paymentId/cancel`, (req, res) => {
     const racer = requireRacerSession(req, service);
-    const input = racerQueueSignupSchema.parse(req.body);
-    res.json(service.signUpQueueForRacer(racer.id, input));
+    res.json(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId));
   });
 
   app.post(`${API_PREFIX}/admin/queue`, (req, res) => {

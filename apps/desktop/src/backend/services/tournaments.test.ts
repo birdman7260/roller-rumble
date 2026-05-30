@@ -6,6 +6,9 @@ const event: EventRecord = {
   id: "event-1",
   name: "Bracket Night",
   includeAllRaceData: false,
+  paymentAmountCents: null,
+  paymentCurrency: "usd",
+  paymentRequiredForQueue: false,
   active: true,
   createdAt: "x",
   updatedAt: "x"

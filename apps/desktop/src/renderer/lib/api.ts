@@ -12,9 +12,11 @@ import type {
   RacerAuthSessionResponse,
   RacerAuthSuccessResponse,
   RacerQueueSignupInput,
+  RacerQueueSignupResponse,
   Racer,
   StartTournamentInput,
   TunnelDiagnostics,
+  UpdateEventPaymentConfigInput,
   UpdateRacerPaymentInput
 } from "@goldsprints/shared/types";
 
@@ -263,13 +265,37 @@ export async function signUpQueue(input: QueueSignupInput): Promise<AppSnapshot>
   );
 }
 
-export async function signUpRacerQueue(input: RacerQueueSignupInput): Promise<AppSnapshot> {
+export async function signUpRacerQueue(
+  input: RacerQueueSignupInput
+): Promise<RacerQueueSignupResponse> {
   return parseJson(
     await fetch(buildUrl("/api/queue"), {
       method: "POST",
       headers: buildJsonHeaders(getRacerSessionHeaders()),
       credentials: "include",
       body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function updateEventPaymentConfig(
+  input: UpdateEventPaymentConfigInput
+): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl("/api/events/current/payment"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function cancelRacerCheckoutPayment(paymentId: string): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/racer/payments/${paymentId}/cancel`), {
+      method: "POST",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
     })
   );
 }

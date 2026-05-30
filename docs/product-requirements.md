@@ -30,7 +30,8 @@ The app manages:
 - `Passkey credentials`
 - `Events`
 - `Event-specific racer registrations`
-- `Event-specific payment status`
+- `Event-specific payment config and status`
+- `Stripe payment records`
 - `Queue entries`
 - `Races`
 - `Race results`
@@ -57,8 +58,10 @@ Requirements:
 - Accountless racer signup must only be available when admins enable it, must require a display
   name, and accountless racers must be able to attach an email/passkey later without losing their
   profile. `Implemented`
-- Entrance-fee status must be tracked per active event as `unpaid`, `paid`, or `waived`.
+- Entrance-fee requirement, amount, currency, and racer status must be tracked per active event.
   `Implemented`
+- Stripe Checkout must be available for racer-page self-service payment, with Stripe webhooks
+  marking the event racer `paid` and auto-queueing the stored join/challenge intent. `Implemented`
 
 ## Race Input And Metrics
 
@@ -169,6 +172,8 @@ Requirements:
 - Remove a racer from all upcoming races. `Implemented`
 - When payment requirement is enabled, show each racer's active-event payment status and allow
   admins to mark racers `paid`, `waived`, or `unpaid`. `Implemented`
+- Admins must be able to set the active event's required entrance-fee amount and see Stripe setup
+  health from the Event tab. `Implemented`
 
 ### Tournaments Tab
 
@@ -233,7 +238,6 @@ Requirements:
 - Auto-stage-next-race toggle for open time trial. `Implemented`
 - Event-only vs all-time race-data toggle. `Implemented`
 - Allow-accountless-racer-signup toggle, disabled by default. `Implemented`
-- Require-entrance-fee-before-racer-queue-signup toggle, disabled by default. `Implemented`
 - Tunnel start/stop controls. `Implemented`
 - Kaleidoscope photo booth pairing/status controls. `Implemented`
 
@@ -406,8 +410,11 @@ Requirements:
   - queue an explicit solo run
   - challenge a specific opponent
     `Implemented`
-- When the payment requirement setting is on, racer-page queue attempts must be blocked until the
-  racer is marked `paid` or `waived` for the current event. `Implemented`
+- When the active event requires payment, racer-page queue attempts must redirect unpaid racers to
+  Stripe Checkout, then mark them `paid` and auto-queue them after webhook confirmation.
+  `Implemented`
+- If a racer challenges an unpaid opponent, checkout must not start and the racer should see that
+  the opponent needs to pay first. `Implemented`
 - Admin queue actions must be allowed to add racers even when they are unpaid. `Implemented`
 - Racer-facing opponent selection must support typing to filter the available racer list.
   `Implemented`

@@ -9,6 +9,7 @@ import { TournamentBracketBoard } from "../components/admin/tournament-board";
 import { Button, EmptyState, Panel, SearchableSelect, TextInput } from "@goldsprints/shared-ui";
 import {
   ApiError,
+  cancelRacerCheckoutPayment,
   createAccountlessRacerSession,
   createRacerPhotoBoothToken,
   fetchRacerAuthSession,
@@ -28,6 +29,17 @@ import { snapshotQueryKey, useSnapshotQuery } from "../lib/query";
 
 type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJSON"];
 type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
+
+function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
+  if (typeof amountCents !== "number") {
+    return "fee not set";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency.toUpperCase()
+  }).format(amountCents / 100);
+}
 
 function PhotoBoothQr() {
   const [tokenResponse, setTokenResponse] = useState<PhotoBoothTokenResponse | null>(null);
@@ -135,6 +147,8 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const [selectedRacerId, setSelectedRacerId] = useState(
     localStorage.getItem("goldsprints.racerId") ?? ""
   );
+  const paymentReturnState = new URLSearchParams(window.location.search).get("payment");
+  const paymentReturnId = new URLSearchParams(window.location.search).get("payment_id");
   const [accountlessId] = useState(() => {
     const existing =
       localStorage.getItem("goldsprints.accountlessId") ??
@@ -172,6 +186,14 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
       cancelled = true;
     };
   }, [queryClient]);
+
+  useEffect(() => {
+    if (paymentReturnState !== "cancelled" || !paymentReturnId) {
+      return;
+    }
+
+    fireAndForget(cancelRacerCheckoutPayment(paymentReturnId), "cancel checkout payment");
+  }, [paymentReturnId, paymentReturnState]);
 
   function rememberSignedInRacer(result: {
     racer: { id: string; displayName: string };
@@ -268,7 +290,12 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
     requestedType?: "solo" | "auto-match";
   }): Promise<void> {
     try {
-      await signUpRacerQueue(input);
+      const result = await signUpRacerQueue(input);
+      if (result.status === "checkout_required") {
+        setQueueMessage("Opening secure Stripe Checkout...");
+        window.location.assign(result.checkoutUrl);
+        return;
+      }
       setQueueMessage(null);
     } catch (error) {
       if (error instanceof ApiError && error.code === "payment_required") {
@@ -383,8 +410,14 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                         <p>
                           {selectedRacer.stats.races} races · {selectedRacer.stats.wins} wins
                         </p>
-                        {snapshot.settings.paymentRequiredForQueue ? (
-                          <p>Entrance fee: {selectedRacer.payment.status}</p>
+                        {snapshot.activeEvent.paymentRequiredForQueue ? (
+                          <p>
+                            Entrance fee: {selectedRacer.payment.status} ·{" "}
+                            {formatPaymentAmount(
+                              snapshot.activeEvent.paymentAmountCents,
+                              snapshot.activeEvent.paymentCurrency
+                            )}
+                          </p>
                         ) : null}
                       </div>
                     </div>
@@ -456,8 +489,25 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                     <div className="stack-sm">
                       <div className="racer-section-heading">
                         <strong>Quick Queue</strong>
-                        <p>Jump into the next open time trial race with one tap.</p>
+                        <p>
+                          {snapshot.activeEvent.paymentRequiredForQueue
+                            ? `Entry is ${formatPaymentAmount(
+                                snapshot.activeEvent.paymentAmountCents,
+                                snapshot.activeEvent.paymentCurrency
+                              )}. Checkout will open if you have not paid yet.`
+                            : "Jump into the next open time trial race with one tap."}
+                        </p>
                       </div>
+                      {paymentReturnState === "success" ? (
+                        <p className="form-success">
+                          {selectedRacer.payment.status === "paid"
+                            ? "Payment confirmed. You are ready to race."
+                            : "Payment is processing. This card will update as soon as Stripe confirms it."}
+                        </p>
+                      ) : null}
+                      {paymentReturnState === "cancelled" ? (
+                        <p className="form-error">Checkout was cancelled. You can try again.</p>
+                      ) : null}
                       {queueMessage ? <p className="form-error">{queueMessage}</p> : null}
                       <div className="racer-action-grid">
                         <Button

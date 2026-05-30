@@ -1,9 +1,127 @@
 import type { Dispatch, SetStateAction } from "react";
+import { useState } from "react";
 import type { AppSnapshot, RaceRecord, TournamentBundle } from "@goldsprints/shared/types";
 import { Button, EmptyState, Panel, StatPill, TextInput } from "@goldsprints/shared-ui";
-import { createEvent } from "../../lib/api";
+import { STRIPE_MIN_PAYMENT_AMOUNT_CENTS } from "@goldsprints/shared/constants";
+import { createEvent, updateEventPaymentConfig } from "../../lib/api";
 import { formatRacerNames } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
+
+function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
+  if (typeof amountCents !== "number") {
+    return "Not set";
+  }
+
+  return new Intl.NumberFormat(undefined, {
+    style: "currency",
+    currency: currency.toUpperCase()
+  }).format(amountCents / 100);
+}
+
+function parseDollarAmountToCents(value: string): number | null {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return Math.round(parsed * 100);
+}
+
+function formatPaymentInput(amountCents: number | null | undefined): string {
+  return typeof amountCents === "number" ? (amountCents / 100).toFixed(2) : "";
+}
+
+function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
+  const [paymentAmountInput, setPaymentAmountInput] = useState(
+    formatPaymentInput(snapshot.activeEvent.paymentAmountCents)
+  );
+  const [paymentRequiredInput, setPaymentRequiredInput] = useState(
+    snapshot.activeEvent.paymentRequiredForQueue
+  );
+  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const paymentAmountCents = parseDollarAmountToCents(paymentAmountInput);
+  const paymentAmountIsValid =
+    !paymentRequiredInput ||
+    (paymentAmountCents !== null && paymentAmountCents >= STRIPE_MIN_PAYMENT_AMOUNT_CENTS);
+
+  async function savePaymentSettings(): Promise<void> {
+    if (!paymentAmountIsValid) {
+      setPaymentMessage("Set an entrance fee of at least $0.50 before requiring payment.");
+      return;
+    }
+
+    await updateEventPaymentConfig({
+      paymentRequiredForQueue: paymentRequiredInput,
+      paymentAmountCents: paymentAmountCents,
+      paymentCurrency: snapshot.activeEvent.paymentCurrency
+    });
+    setPaymentMessage("Payment settings saved.");
+  }
+
+  return (
+    <Panel title="Event Payments">
+      <div className="form-grid">
+        <label>
+          Entrance fee
+          <TextInput
+            value={paymentAmountInput}
+            onChange={(event) => {
+              setPaymentAmountInput(event.target.value);
+              setPaymentMessage(null);
+            }}
+            placeholder="10.00"
+          />
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={paymentRequiredInput}
+            onChange={(event) => {
+              setPaymentRequiredInput(event.target.checked);
+              setPaymentMessage(null);
+            }}
+          />
+          Require entrance fee before racer queue signup
+        </label>
+        <div className="stat-grid">
+          <StatPill
+            label="Current Fee"
+            value={formatPaymentAmount(
+              snapshot.activeEvent.paymentAmountCents,
+              snapshot.activeEvent.paymentCurrency
+            )}
+          />
+          <StatPill
+            label="Stripe"
+            value={snapshot.paymentProvider.stripe.configured ? "Ready" : "Needs Setup"}
+          />
+          <StatPill
+            label="Stripe Secret"
+            value={snapshot.paymentProvider.stripe.hasSecretKey ? "Set" : "Missing"}
+          />
+          <StatPill
+            label="Webhook Secret"
+            value={snapshot.paymentProvider.stripe.hasWebhookSecret ? "Set" : "Missing"}
+          />
+        </div>
+        <p>{snapshot.paymentProvider.stripe.message}</p>
+        {snapshot.paymentProvider.stripe.publicRacerUrl ? (
+          <p>Checkout return URL: {snapshot.paymentProvider.stripe.publicRacerUrl}/racer</p>
+        ) : null}
+        {paymentMessage ? (
+          <p className={paymentAmountIsValid ? "form-success" : "form-error"}>{paymentMessage}</p>
+        ) : null}
+        <Button
+          disabled={!paymentAmountIsValid}
+          onClick={() => {
+            fireAndForget(savePaymentSettings(), "save event payment settings");
+          }}
+        >
+          Save Payment Settings
+        </Button>
+      </div>
+    </Panel>
+  );
+}
 
 export function EventTab({
   snapshot,
@@ -61,6 +179,8 @@ export function EventTab({
           <StatPill label="Upcoming" value={snapshot.queue.length} />
         </div>
       </Panel>
+
+      <EventPaymentsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 
       <Panel title="Session Snapshot">
         <div className="stat-grid">

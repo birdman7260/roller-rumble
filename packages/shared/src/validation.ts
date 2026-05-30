@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   EVENT_PAYMENT_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
+  STRIPE_MIN_PAYMENT_AMOUNT_CENTS,
   SUPPORTED_TOURNAMENT_PRESETS,
   TOURNAMENT_BRACKET_LAYOUT_MODES,
   TOURNAMENT_BRACKET_SIZES
@@ -76,6 +77,18 @@ export const updateRacerPaymentSchema = z.object({
   providerReference: z.string().trim().max(120).optional()
 });
 
+export const updateEventPaymentConfigSchema = z.object({
+  paymentRequiredForQueue: z.boolean(),
+  paymentAmountCents: z
+    .number()
+    .int()
+    .min(STRIPE_MIN_PAYMENT_AMOUNT_CENTS)
+    .max(100_000)
+    .nullable()
+    .optional(),
+  paymentCurrency: z.string().trim().toLowerCase().length(3).optional()
+});
+
 export const startTournamentSchema = z.object({
   name: z.string().trim().min(1).max(120),
   preset: z.enum(SUPPORTED_TOURNAMENT_PRESETS),
@@ -104,7 +117,6 @@ export const settingUpdateSchema = z.object({
   autoStageNextRace: z.boolean().optional(),
   includeAllRaceData: z.boolean().optional(),
   allowAccountlessRacerSignup: z.boolean().optional(),
-  paymentRequiredForQueue: z.boolean().optional(),
   raceDisplayShowEventName: z.boolean().optional(),
   raceDisplayTickerMessages: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
   raceDisplayTickerSpeed: z.number().finite().min(24).max(180).optional(),

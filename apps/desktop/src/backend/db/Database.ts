@@ -6,6 +6,7 @@ import { type BetterSQLite3Database, drizzle } from "drizzle-orm/better-sqlite3"
 import { nanoid } from "nanoid";
 import {
   DEFAULT_EVENT_NAME,
+  DEFAULT_PAYMENT_CURRENCY,
   DEFAULT_SERVER_PORT,
   DEFAULT_TARGET_DISTANCE_METERS,
   DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
@@ -18,7 +19,9 @@ import type {
   EventPaymentStatus,
   EventRacerPayment,
   EventRecord,
+  PaymentRecordStatus,
   PhotoBoothCapture,
+  RacerQueueSignupInput,
   QueueEntry,
   QueueOccurrence,
   RaceParticipant,
@@ -42,6 +45,8 @@ import {
   groupMatches,
   identities,
   passkeyCredentials,
+  payments,
+  processedWebhookEvents,
   queueEntries,
   queueOccurrences,
   racers,
@@ -57,6 +62,7 @@ type OrmDatabase = BetterSQLite3Database<typeof schema>;
 type EventRow = typeof events.$inferSelect;
 type IdentityRow = typeof identities.$inferSelect;
 type PasskeyCredentialRow = typeof passkeyCredentials.$inferSelect;
+type PaymentRow = typeof payments.$inferSelect;
 type RacerRow = typeof racers.$inferSelect;
 type QueueEntryRow = typeof queueEntries.$inferSelect;
 type QueueOccurrenceRow = typeof queueOccurrences.$inferSelect;
@@ -82,6 +88,25 @@ export interface StoredPasskeyCredential {
   lastUsedAt?: string | null;
 }
 
+export interface StoredPaymentRecord {
+  id: string;
+  eventId: string;
+  racerId: string;
+  provider: "stripe";
+  status: PaymentRecordStatus;
+  amountCents: number;
+  currency: string;
+  stripeCheckoutSessionId?: string | null;
+  stripePaymentIntentId?: string | null;
+  checkoutUrl?: string | null;
+  queueIntent: RacerQueueSignupInput;
+  failureCode?: string | null;
+  failureMessage?: string | null;
+  completedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 const CURRENT_RACE_STATES: RaceRecord["state"][] = [
   "scheduled",
   "staging",
@@ -105,7 +130,6 @@ function getDefaultAdminSettings(): AdminSettings {
     autoStageNextRace: false,
     includeAllRaceData: false,
     allowAccountlessRacerSignup: false,
-    paymentRequiredForQueue: false,
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Fiercely local racing all night"],
     raceDisplayTickerSpeed: DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
@@ -124,7 +148,31 @@ function mapEvent(row: EventRow): EventRecord {
     id: row.id,
     name: row.name,
     includeAllRaceData: row.includeAllRaceData,
+    paymentRequiredForQueue: row.paymentRequiredForQueue,
+    paymentAmountCents: row.paymentAmountCents,
+    paymentCurrency: row.paymentCurrency,
     active: row.active,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+function mapPayment(row: PaymentRow): StoredPaymentRecord {
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    racerId: row.racerId,
+    provider: row.provider,
+    status: row.status,
+    amountCents: row.amountCents,
+    currency: row.currency,
+    stripeCheckoutSessionId: row.stripeCheckoutSessionId,
+    stripePaymentIntentId: row.stripePaymentIntentId,
+    checkoutUrl: row.checkoutUrl,
+    queueIntent: row.queueIntentJson,
+    failureCode: row.failureCode,
+    failureMessage: row.failureMessage,
+    completedAt: row.completedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -550,6 +598,9 @@ export class AppDatabase {
           id,
           name,
           includeAllRaceData: false,
+          paymentRequiredForQueue: false,
+          paymentAmountCents: null,
+          paymentCurrency: DEFAULT_PAYMENT_CURRENCY,
           active: true,
           createdAt: timestamp,
           updatedAt: timestamp
@@ -573,6 +624,29 @@ export class AppDatabase {
 
   listEvents(): EventRecord[] {
     return this.orm.select().from(events).orderBy(desc(events.createdAt)).all().map(mapEvent);
+  }
+
+  updateEventPaymentConfig(
+    eventId: string,
+    input: {
+      paymentRequiredForQueue: boolean;
+      paymentAmountCents?: number | null;
+      paymentCurrency?: string;
+    }
+  ): EventRecord {
+    const timestamp = nowIso();
+    this.orm
+      .update(events)
+      .set({
+        paymentRequiredForQueue: input.paymentRequiredForQueue,
+        paymentAmountCents: input.paymentAmountCents ?? null,
+        paymentCurrency: input.paymentCurrency ?? DEFAULT_PAYMENT_CURRENCY,
+        updatedAt: timestamp
+      })
+      .where(eq(events.id, eventId))
+      .run();
+
+    return this.getActiveEvent()!;
   }
 
   private listIdentities(racerId: string): RacerIdentity[] {
@@ -870,6 +944,106 @@ export class AppDatabase {
       .run();
 
     return this.getEventRacerPayment(eventId, racerId);
+  }
+
+  createPaymentRecord(input: {
+    eventId: string;
+    racerId: string;
+    amountCents: number;
+    currency: string;
+    queueIntent: RacerQueueSignupInput;
+  }): StoredPaymentRecord {
+    const timestamp = nowIso();
+    const id = nanoid();
+    this.orm
+      .insert(payments)
+      .values({
+        id,
+        eventId: input.eventId,
+        racerId: input.racerId,
+        provider: "stripe",
+        status: "checkout_created",
+        amountCents: input.amountCents,
+        currency: input.currency,
+        stripeCheckoutSessionId: null,
+        stripePaymentIntentId: null,
+        checkoutUrl: null,
+        queueIntentJson: input.queueIntent,
+        failureCode: null,
+        failureMessage: null,
+        completedAt: null,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      })
+      .run();
+
+    return this.getPaymentRecord(id)!;
+  }
+
+  getPaymentRecord(paymentId: string): StoredPaymentRecord | null {
+    const row = this.orm.select().from(payments).where(eq(payments.id, paymentId)).get();
+    return row ? mapPayment(row) : null;
+  }
+
+  getPaymentByStripeCheckoutSessionId(sessionId: string): StoredPaymentRecord | null {
+    const row = this.orm
+      .select()
+      .from(payments)
+      .where(eq(payments.stripeCheckoutSessionId, sessionId))
+      .get();
+    return row ? mapPayment(row) : null;
+  }
+
+  updatePaymentRecord(
+    paymentId: string,
+    patch: Partial<{
+      status: PaymentRecordStatus;
+      stripeCheckoutSessionId: string | null;
+      stripePaymentIntentId: string | null;
+      checkoutUrl: string | null;
+      failureCode: string | null;
+      failureMessage: string | null;
+      completedAt: string | null;
+    }>
+  ): StoredPaymentRecord {
+    this.orm
+      .update(payments)
+      .set({
+        ...patch,
+        updatedAt: nowIso()
+      })
+      .where(eq(payments.id, paymentId))
+      .run();
+
+    const next = this.getPaymentRecord(paymentId);
+    if (!next) {
+      throw new Error(`Payment record ${paymentId} was not found after update.`);
+    }
+    return next;
+  }
+
+  hasProcessedWebhookEvent(provider: "stripe", eventId: string): boolean {
+    const row = this.orm
+      .select({ id: processedWebhookEvents.id })
+      .from(processedWebhookEvents)
+      .where(
+        and(eq(processedWebhookEvents.provider, provider), eq(processedWebhookEvents.id, eventId))
+      )
+      .get();
+    return Boolean(row);
+  }
+
+  markWebhookEventProcessed(provider: "stripe", eventId: string, eventType: string): void {
+    this.orm
+      .insert(processedWebhookEvents)
+      .values({
+        id: eventId,
+        provider,
+        eventType,
+        processedAt: nowIso()
+      })
+      .onConflictDoNothing()
+      .run();
   }
 
   listRacers(search?: string): Racer[] {

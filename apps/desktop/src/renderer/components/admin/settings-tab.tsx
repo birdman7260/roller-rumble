@@ -136,16 +136,6 @@ export function SettingsTab({
             />
             Allow accountless racer signup
           </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.paymentRequiredForQueue}
-              onChange={(event) => {
-                fireAndForget(updateSettings({ paymentRequiredForQueue: event.target.checked }));
-              }}
-            />
-            Require entrance fee before racer queue signup
-          </label>
           <label>
             Max active queue entries per racer
             <input

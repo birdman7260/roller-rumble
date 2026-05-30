@@ -2,6 +2,7 @@ import type {
   APP_MODES,
   EVENT_PAYMENT_STATUSES,
   IDENTITY_TYPES,
+  PAYMENT_RECORD_STATUSES,
   PASSKEY_AUTH_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
   QUEUE_ENTRY_LOCK_TYPES,
@@ -25,6 +26,7 @@ import type {
 
 export type IdentityType = (typeof IDENTITY_TYPES)[number];
 export type EventPaymentStatus = (typeof EVENT_PAYMENT_STATUSES)[number];
+export type PaymentRecordStatus = (typeof PAYMENT_RECORD_STATUSES)[number];
 export type PasskeyAuthStatus = (typeof PASSKEY_AUTH_STATUSES)[number];
 export type AppMode = (typeof APP_MODES)[number];
 export type QueueEntryType = (typeof QUEUE_ENTRY_TYPES)[number];
@@ -138,6 +140,9 @@ export interface EventRecord {
   id: string;
   name: string;
   includeAllRaceData: boolean;
+  paymentRequiredForQueue: boolean;
+  paymentAmountCents?: number | null;
+  paymentCurrency: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;
@@ -451,13 +456,24 @@ export interface AdminSettings {
   autoStageNextRace: boolean;
   includeAllRaceData: boolean;
   allowAccountlessRacerSignup: boolean;
-  paymentRequiredForQueue: boolean;
   raceDisplayShowEventName: boolean;
   raceDisplayTickerMessages: string[];
   raceDisplayTickerSpeed: number;
   maxActiveQueueEntriesPerRacer: number;
   targetDistanceMeters: number;
   serverPort: number;
+}
+
+export interface StripeSetupStatus {
+  configured: boolean;
+  hasSecretKey: boolean;
+  hasWebhookSecret: boolean;
+  publicRacerUrl?: string | null;
+  message: string;
+}
+
+export interface PaymentProviderStatus {
+  stripe: StripeSetupStatus;
 }
 
 export interface AppSnapshot {
@@ -471,6 +487,7 @@ export interface AppSnapshot {
   themes: ThemeDefinition[];
   tunnel: TunnelState;
   photoBooth: PhotoBoothStatus;
+  paymentProvider: PaymentProviderStatus;
 }
 
 export interface CreateRacerInput {
@@ -490,6 +507,18 @@ export interface RacerQueueSignupInput {
   opponentRacerId?: string;
   requestedType?: "solo" | "auto-match";
 }
+
+export type RacerQueueSignupResponse =
+  | {
+      status: "queued";
+      snapshot: AppSnapshot;
+    }
+  | {
+      status: "checkout_required";
+      checkoutUrl: string;
+      paymentId: string;
+      snapshot: AppSnapshot;
+    };
 
 export interface PasskeyEmailInput {
   email: string;
@@ -557,6 +586,12 @@ export interface UpdateRacerPaymentInput {
   status: EventPaymentStatus;
   note?: string;
   providerReference?: string;
+}
+
+export interface UpdateEventPaymentConfigInput {
+  paymentRequiredForQueue: boolean;
+  paymentAmountCents?: number | null;
+  paymentCurrency?: string;
 }
 
 export interface StartTournamentInput {

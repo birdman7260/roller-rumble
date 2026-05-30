@@ -17,8 +17,8 @@ presentation, persistent event data, theme support, and live tournament operatio
 - Keeps accountless racer signup available only when admins explicitly enable it, requires a
   display name, and lets accountless racers later attach an email/passkey to preserve the same
   profile
-- Tracks event-scoped entrance-fee status (`unpaid`, `paid`, or `waived`) and can require payment
-  before racers add themselves to the queue; host/admin queue actions can still bypass payment
+- Tracks event-scoped entrance-fee amount/status and can require Stripe Checkout payment before
+  racers add themselves to the queue; host/admin queue actions can still bypass payment
 - Turns the racer identity card into `Your Race Card` after signup instead of leaving a separate
   register card on screen
 - Lets racers upload avatars
@@ -81,7 +81,7 @@ The app is intentionally local-first. Everything important runs on the host mach
 - `Framer Motion` drives the live race-visualizer animation layer so rider markers and progress fills move smoothly with incoming telemetry.
 - `React Flow` powers the custom elimination-bracket board so the app can own node styling, edge
   routing, and viewport camera behavior.
-- `SQLite` is the source of truth for events, racers, passkey credentials, event payment status,
+- `SQLite` is the source of truth for events, racers, passkey credentials, event payment config/status,
   queue entries, races, results, tournaments, and settings.
 - `Drizzle ORM` provides the typed query layer over `better-sqlite3`, while checked-in SQL files remain the migration source of truth.
 - A separate Raspberry Pi photo booth agent can run from this repo and pair back to the embedded
@@ -116,11 +116,22 @@ If an email exists but has no passkey credential yet, the racer page tells the r
 host instead of allowing an unsafe self-claim. Admins can still create racers from the admin
 console.
 
-Payment enforcement is manual for now. When `Require entrance fee before racer queue signup` is
-enabled, racer-page queue attempts are blocked until the active event marks that racer as `paid` or
-`waived`. Admin queue controls intentionally bypass that gate so hosts can resolve edge cases at the
-desk. Stripe or another checkout provider can plug into the existing event-scoped payment status
-fields later.
+Payment enforcement is event-scoped. The Event tab lets hosts set the current event's entrance fee
+and whether payment is required before racer-page queue signup. If payment is required and the racer
+has not been marked `paid` or `waived` for that event, the Racer Page starts Stripe Checkout and
+returns to `/racer` after payment. Stripe webhooks mark the event racer `paid` and automatically
+queue the stored join/challenge intent. Admin queue controls intentionally bypass the gate so hosts
+can resolve cash, comp, or edge-case desk flows.
+
+Stripe is enabled with:
+
+- `GOLDSPRINTS_STRIPE_SECRET_KEY`
+- `GOLDSPRINTS_STRIPE_WEBHOOK_SECRET`
+- `GOLDSPRINTS_PUBLIC_RACER_URL`
+
+Apple Pay, Google Pay, Link, and cards are handled by Stripe-hosted Checkout and the payment methods
+enabled in the Stripe Dashboard. In local development, use the Stripe CLI to forward webhooks to
+`/api/webhooks/stripe`.
 
 ## Routes And Surfaces
 

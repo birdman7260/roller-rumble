@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import QRCode from "qrcode";
 import { nanoid } from "nanoid";
+import Stripe from "stripe";
 import {
   generateAuthenticationOptions,
   generateRegistrationOptions,
@@ -19,7 +20,9 @@ import type {
 import {
   COUNTDOWN_SECONDS,
   DEFAULT_OS2L_PORT,
-  DEFAULT_SERVER_PORT
+  DEFAULT_PAYMENT_CURRENCY,
+  DEFAULT_SERVER_PORT,
+  STRIPE_MIN_PAYMENT_AMOUNT_CENTS
 } from "@goldsprints/shared/constants";
 import { themes, getTheme } from "@goldsprints/shared/themes";
 import type {
@@ -37,6 +40,7 @@ import type {
   Racer,
   RacerAuthSuccessResponse,
   RacerQueueSignupInput,
+  RacerQueueSignupResponse,
   RacerStats,
   RacerSummary,
   PasskeyRegistrationStartInput,
@@ -48,10 +52,15 @@ import type {
   TournamentBracketSize,
   TournamentPreset,
   TunnelDiagnostics,
-  TunnelState
+  TunnelState,
+  UpdateEventPaymentConfigInput
 } from "@goldsprints/shared/types";
 import { nowIso } from "@goldsprints/shared/utils";
-import { AppDatabase, type StoredPasskeyCredential } from "../db/Database";
+import {
+  AppDatabase,
+  type StoredPasskeyCredential,
+  type StoredPaymentRecord
+} from "../db/Database";
 import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
 import { SimulatorSensorAdapter } from "../adapters/sensor-simulator";
@@ -83,6 +92,13 @@ import {
   type PhotoBoothTokenPayload
 } from "./photo-booth";
 import { getLocalNetworkBaseUrl } from "./network";
+import {
+  assertEventPaymentConfig,
+  buildStripeCheckoutSessionParams,
+  getStripeRuntimeConfig,
+  normalizePaymentCurrency,
+  type StripeRuntimeConfig
+} from "./stripe-payments";
 
 const RESULT_MODAL_DURATION_MS = 15000;
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -250,6 +266,8 @@ export class GoldsprintsApp extends EventEmitter {
   private resultPresentation: RaceResultPresentation | null = null;
   private resultPresentationTimer: NodeJS.Timeout | null = null;
   private readonly passkeyChallenges = new Map<string, PasskeyChallenge>();
+  private stripeClient: Stripe | null = null;
+  private stripeSecretKey: string | null = null;
   private serverPort: number;
 
   constructor(options: AppServiceOptions) {
@@ -304,6 +322,43 @@ export class GoldsprintsApp extends EventEmitter {
     this.emit("snapshot", this.getSnapshot());
   }
 
+  private getStripeConfig(): StripeRuntimeConfig {
+    return getStripeRuntimeConfig();
+  }
+
+  private getStripeSetupStatus(): StripeRuntimeConfig {
+    const config = this.getStripeConfig();
+    return {
+      configured: config.configured,
+      hasSecretKey: config.hasSecretKey,
+      hasWebhookSecret: config.hasWebhookSecret,
+      publicRacerUrl: config.publicRacerUrl,
+      message: config.message
+    };
+  }
+
+  private getStripeClient(): Stripe {
+    const config = this.getStripeConfig();
+    if (!config.secretKey) {
+      throw new AppHttpError(
+        "Stripe Checkout is not configured yet. Please see the host.",
+        503,
+        "stripe_not_configured"
+      );
+    }
+
+    if (!this.stripeClient || this.stripeSecretKey !== config.secretKey) {
+      this.stripeClient = new Stripe(config.secretKey, {
+        appInfo: {
+          name: "GoldSprints"
+        }
+      });
+      this.stripeSecretKey = config.secretKey;
+    }
+
+    return this.stripeClient;
+  }
+
   getSnapshot(): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     const settings = this.db.getAdminSettings();
@@ -353,6 +408,9 @@ export class GoldsprintsApp extends EventEmitter {
       tournaments: tournamentBundles,
       tunnel,
       photoBooth: this.getPhotoBoothStatus(),
+      paymentProvider: {
+        stripe: this.getStripeSetupStatus()
+      },
       themes,
       raceProjection: {
         race: currentRace,
@@ -1195,6 +1253,29 @@ export class GoldsprintsApp extends EventEmitter {
     return this.getSnapshot();
   }
 
+  updateActiveEventPaymentConfig(input: UpdateEventPaymentConfigInput): AppSnapshot {
+    const amountCents = input.paymentAmountCents ?? null;
+    if (
+      input.paymentRequiredForQueue &&
+      (amountCents === null || amountCents < STRIPE_MIN_PAYMENT_AMOUNT_CENTS)
+    ) {
+      throw new AppHttpError(
+        "Set an entrance fee of at least $0.50 before requiring payment.",
+        400,
+        "payment_amount_required"
+      );
+    }
+
+    const activeEvent = this.db.getActiveEvent()!;
+    this.db.updateEventPaymentConfig(activeEvent.id, {
+      paymentRequiredForQueue: input.paymentRequiredForQueue,
+      paymentAmountCents: amountCents,
+      paymentCurrency: normalizePaymentCurrency(input.paymentCurrency ?? DEFAULT_PAYMENT_CURRENCY)
+    });
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
   registerRacer(input: {
     displayName: string;
     email?: string;
@@ -1392,35 +1473,251 @@ export class GoldsprintsApp extends EventEmitter {
     return this.getSnapshot();
   }
 
-  signUpQueueForRacer(racerId: string, input: RacerQueueSignupInput): AppSnapshot {
+  private assertPaidForEvent(eventId: string, racerId: string, message: string): void {
+    const payment = this.db.getEventRacerPayment(eventId, racerId);
+    if (!["paid", "waived"].includes(payment.status)) {
+      throw new AppHttpError(message, 402, "payment_required");
+    }
+  }
+
+  private async createStripeCheckoutForQueue(
+    racer: Racer,
+    input: RacerQueueSignupInput
+  ): Promise<RacerQueueSignupResponse> {
     const activeEvent = this.db.getActiveEvent()!;
-    this.db.ensureEventRegistration(activeEvent.id, racerId);
-    const settings = this.db.getAdminSettings();
-    const payment = this.db.getEventRacerPayment(activeEvent.id, racerId);
-    if (settings.paymentRequiredForQueue && !["paid", "waived"].includes(payment.status)) {
+    const config = this.getStripeConfig();
+    if (!config.configured || !config.publicRacerUrl) {
       throw new AppHttpError(
-        "Please see the host to pay the entrance fee before joining the race queue.",
-        402,
-        "payment_required"
+        "Stripe Checkout is not configured yet. Please see the host.",
+        503,
+        "stripe_not_configured"
       );
     }
-    if (settings.paymentRequiredForQueue && input.opponentRacerId) {
+
+    let paymentConfig: { amountCents: number; currency: string };
+    try {
+      paymentConfig = assertEventPaymentConfig(activeEvent);
+    } catch (error) {
+      throw new AppHttpError(
+        error instanceof Error ? error.message : "Payment amount is not configured.",
+        400,
+        "payment_amount_required"
+      );
+    }
+    const { amountCents, currency } = paymentConfig;
+    const payment = this.db.createPaymentRecord({
+      eventId: activeEvent.id,
+      racerId: racer.id,
+      amountCents,
+      currency,
+      queueIntent: input
+    });
+    const session = await this.getStripeClient().checkout.sessions.create(
+      buildStripeCheckoutSessionParams({
+        event: activeEvent,
+        racer,
+        paymentId: payment.id,
+        amountCents,
+        currency,
+        publicRacerUrl: config.publicRacerUrl,
+        queueIntent: input
+      })
+    );
+
+    if (!session.url) {
+      this.db.updatePaymentRecord(payment.id, {
+        status: "failed",
+        failureCode: "missing_checkout_url",
+        failureMessage: "Stripe did not return a Checkout URL."
+      });
+      throw new AppHttpError("Could not start Stripe Checkout.", 502, "stripe_checkout_failed");
+    }
+
+    const updatedPayment = this.db.updatePaymentRecord(payment.id, {
+      stripeCheckoutSessionId: session.id,
+      checkoutUrl: session.url
+    });
+    return {
+      status: "checkout_required",
+      paymentId: updatedPayment.id,
+      checkoutUrl: session.url,
+      snapshot: this.getSnapshot()
+    };
+  }
+
+  async signUpQueueForRacer(
+    racerId: string,
+    input: RacerQueueSignupInput
+  ): Promise<RacerQueueSignupResponse> {
+    const activeEvent = this.db.getActiveEvent()!;
+    this.db.ensureEventRegistration(activeEvent.id, racerId);
+    const racer = this.db.getRacer(racerId);
+    if (!racer) {
+      throw new AppHttpError("Racer not found.", 404, "racer_not_found");
+    }
+
+    if (activeEvent.paymentRequiredForQueue && input.opponentRacerId) {
       this.db.ensureEventRegistration(activeEvent.id, input.opponentRacerId);
-      const opponentPayment = this.db.getEventRacerPayment(activeEvent.id, input.opponentRacerId);
-      if (!["paid", "waived"].includes(opponentPayment.status)) {
-        throw new AppHttpError(
-          "That racer needs to see the host to pay before they can be added to a challenge.",
-          402,
-          "payment_required"
-        );
+      this.assertPaidForEvent(
+        activeEvent.id,
+        input.opponentRacerId,
+        "That racer needs to see the host to pay before they can be added to a challenge."
+      );
+    }
+
+    if (activeEvent.paymentRequiredForQueue) {
+      const payment = this.db.getEventRacerPayment(activeEvent.id, racerId);
+      if (!["paid", "waived"].includes(payment.status)) {
+        return this.createStripeCheckoutForQueue(racer, input);
       }
     }
 
-    return this.signUpQueue({
-      racerId,
-      opponentRacerId: input.opponentRacerId,
-      requestedType: input.requestedType
+    return {
+      status: "queued",
+      snapshot: this.signUpQueue({
+        racerId,
+        opponentRacerId: input.opponentRacerId,
+        requestedType: input.requestedType
+      })
+    };
+  }
+
+  private assertStripeWebhookConfig(): string {
+    const config = this.getStripeConfig();
+    if (!config.webhookSecret) {
+      throw new AppHttpError(
+        "Stripe webhook secret is not configured.",
+        503,
+        "stripe_webhook_not_configured"
+      );
+    }
+    return config.webhookSecret;
+  }
+
+  private resolvePaymentForStripeSession(
+    session: Stripe.Checkout.Session
+  ): StoredPaymentRecord | null {
+    const paymentId =
+      typeof session.metadata?.paymentId === "string" ? session.metadata.paymentId : null;
+    return paymentId
+      ? this.db.getPaymentRecord(paymentId)
+      : this.db.getPaymentByStripeCheckoutSessionId(session.id);
+  }
+
+  private queuePaidStripePayment(payment: StoredPaymentRecord): void {
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent?.id !== payment.eventId) {
+      throw new Error("The paid event is no longer active.");
+    }
+
+    if (activeEvent.paymentRequiredForQueue && payment.queueIntent.opponentRacerId) {
+      this.assertPaidForEvent(
+        activeEvent.id,
+        payment.queueIntent.opponentRacerId,
+        "That racer needs to see the host to pay before they can be added to a challenge."
+      );
+    }
+
+    this.signUpQueue({
+      racerId: payment.racerId,
+      opponentRacerId: payment.queueIntent.opponentRacerId,
+      requestedType: payment.queueIntent.requestedType
     });
+  }
+
+  private completeStripeCheckoutSession(session: Stripe.Checkout.Session): void {
+    const payment = this.resolvePaymentForStripeSession(session);
+    if (!payment) {
+      return;
+    }
+
+    const providerReference =
+      typeof session.payment_intent === "string" ? session.payment_intent : session.id;
+    this.db.updatePaymentRecord(payment.id, {
+      status: "paid",
+      stripeCheckoutSessionId: session.id,
+      stripePaymentIntentId:
+        typeof session.payment_intent === "string" ? session.payment_intent : null,
+      completedAt: nowIso(),
+      failureCode: null,
+      failureMessage: null
+    });
+    this.db.updateEventRacerPayment(payment.eventId, payment.racerId, {
+      status: "paid",
+      note: "Stripe Checkout",
+      providerReference
+    });
+
+    try {
+      this.queuePaidStripePayment(payment);
+    } catch (error) {
+      this.db.updatePaymentRecord(payment.id, {
+        status: "queue_failed",
+        failureCode:
+          error instanceof AppHttpError ? (error.code ?? "queue_failed") : "queue_failed",
+        failureMessage:
+          error instanceof Error
+            ? error.message
+            : "Payment succeeded, but the racer could not be queued automatically."
+      });
+    }
+  }
+
+  private expireStripeCheckoutSession(session: Stripe.Checkout.Session): void {
+    const payment = this.resolvePaymentForStripeSession(session);
+    if (!payment || payment.status === "paid") {
+      return;
+    }
+
+    this.db.updatePaymentRecord(payment.id, {
+      status: session.status === "expired" ? "expired" : "cancelled",
+      stripeCheckoutSessionId: session.id,
+      failureCode: session.status ?? "checkout_not_completed",
+      failureMessage: "Stripe Checkout did not complete."
+    });
+  }
+
+  handleStripeWebhook(rawBody: Buffer, signature?: string): { received: true } {
+    if (!signature) {
+      throw new AppHttpError("Missing Stripe signature.", 400, "stripe_signature_missing");
+    }
+
+    const event = this.getStripeClient().webhooks.constructEvent(
+      rawBody,
+      signature,
+      this.assertStripeWebhookConfig()
+    );
+    if (this.db.hasProcessedWebhookEvent("stripe", event.id)) {
+      return { received: true };
+    }
+
+    if (event.type === "checkout.session.completed") {
+      this.completeStripeCheckoutSession(event.data.object);
+    } else if (event.type === "checkout.session.expired") {
+      this.expireStripeCheckoutSession(event.data.object);
+    }
+
+    this.db.markWebhookEventProcessed("stripe", event.id, event.type);
+    this.emitSnapshot();
+    return { received: true };
+  }
+
+  cancelRacerCheckoutPayment(racerId: string, paymentId: string): AppSnapshot {
+    const payment = this.db.getPaymentRecord(paymentId);
+    if (payment?.racerId !== racerId) {
+      throw new AppHttpError("Payment record not found.", 404, "payment_not_found");
+    }
+
+    if (payment.status === "checkout_created") {
+      this.db.updatePaymentRecord(payment.id, {
+        status: "cancelled",
+        failureCode: "checkout_cancelled",
+        failureMessage: "The racer cancelled Stripe Checkout."
+      });
+      this.emitSnapshot();
+    }
+
+    return this.getSnapshot();
   }
 
   signUpQueue(input: {

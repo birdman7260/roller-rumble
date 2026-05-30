@@ -97,39 +97,45 @@ export function RacersTab({
               <div className="button-row">
                 {paymentRequiredForQueue ? (
                   <>
-                    <Button
-                      variant={entry.payment.status === "paid" ? "accent" : "ghost"}
-                      onClick={() => {
-                        fireAndForget(
-                          updateRacerPayment(entry.racer.id, { status: "paid" }),
-                          "mark racer paid"
-                        );
-                      }}
-                    >
-                      Mark Paid
-                    </Button>
-                    <Button
-                      variant={entry.payment.status === "waived" ? "accent" : "ghost"}
-                      onClick={() => {
-                        fireAndForget(
-                          updateRacerPayment(entry.racer.id, { status: "waived" }),
-                          "waive racer payment"
-                        );
-                      }}
-                    >
-                      Waive
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        fireAndForget(
-                          updateRacerPayment(entry.racer.id, { status: "unpaid" }),
-                          "mark racer unpaid"
-                        );
-                      }}
-                    >
-                      Unpaid
-                    </Button>
+                    {entry.payment.status === "unpaid" ? (
+                      <>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            fireAndForget(
+                              updateRacerPayment(entry.racer.id, { status: "paid" }),
+                              "mark racer paid"
+                            );
+                          }}
+                        >
+                          Mark Paid
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            fireAndForget(
+                              updateRacerPayment(entry.racer.id, { status: "waived" }),
+                              "waive racer payment"
+                            );
+                          }}
+                        >
+                          Waive
+                        </Button>
+                      </>
+                    ) : null}
+                    {entry.payment.status === "paid" ? (
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          fireAndForget(
+                            updateRacerPayment(entry.racer.id, { status: "unpaid" }),
+                            "mark racer unpaid"
+                          );
+                        }}
+                      >
+                        Unpaid
+                      </Button>
+                    ) : null}
                   </>
                 ) : null}
                 <Button
