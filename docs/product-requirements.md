@@ -26,9 +26,11 @@ race results, and racer identities across restarts.
 The app manages:
 
 - `Racers`
-- `Identities` for email, phone, and anonymous local identities
+- `Identities` for email, phone, and optional accountless local identities
+- `Passkey credentials`
 - `Events`
 - `Event-specific racer registrations`
+- `Event-specific payment status`
 - `Queue entries`
 - `Races`
 - `Race results`
@@ -47,6 +49,15 @@ Requirements:
 - Admin can toggle between event-only race data and all-time race data for seeding/stat views.
   `Implemented`
 - More than one tournament can exist for a single event, but only one can be active at a time.
+  `Implemented`
+- Racer self-registration must use email plus a passkey, with passkey credentials stored locally
+  and a signed session used for racer-owned actions. The session should prefer an HTTP-only cookie
+  and also keep a signed local-storage fallback so refreshes remain logged in across dev/tunnel
+  origin edge cases. `Implemented`
+- Accountless racer signup must only be available when admins enable it, must require a display
+  name, and accountless racers must be able to attach an email/passkey later without losing their
+  profile. `Implemented`
+- Entrance-fee status must be tracked per active event as `unpaid`, `paid`, or `waived`.
   `Implemented`
 
 ## Race Input And Metrics
@@ -156,6 +167,8 @@ Requirements:
 - Add a racer directly to the queue from the racer list. `Implemented`
 - Add a racer as an explicit solo run from the racer list. `Implemented`
 - Remove a racer from all upcoming races. `Implemented`
+- When payment requirement is enabled, show each racer's active-event payment status and allow
+  admins to mark racers `paid`, `waived`, or `unpaid`. `Implemented`
 
 ### Tournaments Tab
 
@@ -219,6 +232,8 @@ Requirements:
 - Cue-start toggle. `Implemented`
 - Auto-stage-next-race toggle for open time trial. `Implemented`
 - Event-only vs all-time race-data toggle. `Implemented`
+- Allow-accountless-racer-signup toggle, disabled by default. `Implemented`
+- Require-entrance-fee-before-racer-queue-signup toggle, disabled by default. `Implemented`
 - Tunnel start/stop controls. `Implemented`
 - Kaleidoscope photo booth pairing/status controls. `Implemented`
 
@@ -368,15 +383,21 @@ Requirements:
 
 Requirements:
 
-- Racers must be able to register with:
-  - email
-  - phone number
-  - anonymous local identity
-    `Implemented`
+- Racers must register with email plus a passkey by default. `Implemented`
+- The initial racer identity flow must show only email and `Sign in`; if no account exists for the
+  email, the remaining registration fields appear and the primary action becomes `Register {name}`.
+  `Implemented`
+- Registration fields must be manifest-like/extensible so additional fields can be added later
+  without rewriting the flow. `Implemented`
+- If an existing email has no passkey credential, the racer page must show host-assisted recovery
+  guidance instead of allowing an unsafe self-claim. `Implemented`
+- Accountless local identity remains available only when an admin setting enables it. `Implemented`
 - The racer page's primary identity card must show registration controls before signup and then
   change into the racer's own race card after registration instead of keeping a separate register
   card visible. `Implemented`
-- Anonymous identity must be stored locally for reuse. `Implemented`
+- Accountless identity must be stored locally for reuse. `Implemented`
+- Accountless racers must be able to attach email plus a passkey later and keep the same racer
+  profile. `Implemented`
 - Racers must be able to upload an avatar. `Implemented`
 - After registration, racers must see a short-lived photo booth QR that can be scanned by the
   kaleidoscope booth to capture or retake their avatar with the event DSLR. `Implemented`
@@ -385,6 +406,9 @@ Requirements:
   - queue an explicit solo run
   - challenge a specific opponent
     `Implemented`
+- When the payment requirement setting is on, racer-page queue attempts must be blocked until the
+  racer is marked `paid` or `waived` for the current event. `Implemented`
+- Admin queue actions must be allowed to add racers even when they are unpaid. `Implemented`
 - Racer-facing opponent selection must support typing to filter the available racer list.
   `Implemented`
 - The racer page queue and challenge controls must reflow cleanly on narrow mobile screens so
@@ -613,6 +637,9 @@ Current delivery notes:
 - Browser API/WebSocket routing must ignore localhost `VITE_API_BASE` overrides when loaded from a
   public tunnel hostname, so racer phones connect to the Cloudflare origin rather than
   `127.0.0.1` on their own device. `Implemented`
+- Passkey registration and sign-in require a secure browser origin, so production racer phones
+  should use the stable HTTPS Cloudflare tunnel; localhost remains acceptable for development.
+  `Implemented`
 - In dev mode, the embedded backend must proxy Vite hot-reload websocket upgrades while still owning
   the app snapshot websocket at `/ws`, so public tunnel testing does not show misleading websocket
   failures. `Implemented`

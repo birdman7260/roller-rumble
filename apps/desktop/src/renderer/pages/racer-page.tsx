@@ -1,16 +1,35 @@
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
 import { useEffect, useState } from "react";
 import type { ChangeEvent } from "react";
+import { useQueryClient } from "@tanstack/react-query";
+import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import type { PhotoBoothTokenResponse } from "@goldsprints/shared/types";
 import { EliminationBracketView } from "../components/elimination-bracket-view";
 import { TournamentBracketBoard } from "../components/admin/tournament-board";
 import { Button, EmptyState, Panel, SearchableSelect, TextInput } from "@goldsprints/shared-ui";
-import { createPhotoBoothToken, registerRacer, signUpQueue, uploadAvatar } from "../lib/api";
+import {
+  ApiError,
+  createAccountlessRacerSession,
+  createRacerPhotoBoothToken,
+  fetchRacerAuthSession,
+  finishPasskeyRegistration,
+  finishPasskeySignIn,
+  forgetRacerSessionToken,
+  rememberRacerSessionToken,
+  signOutRacer,
+  signUpRacerQueue,
+  startPasskeyRegistration,
+  startPasskeySignIn,
+  uploadAvatar
+} from "../lib/api";
 import { describeQueueEntry, resolveRacerName } from "../lib/snapshot-display";
 import { fireAndForget } from "../lib/ui-actions";
-import { useSnapshotQuery } from "../lib/query";
+import { snapshotQueryKey, useSnapshotQuery } from "../lib/query";
 
-function PhotoBoothQr({ racerId }: { racerId: string }) {
+type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJSON"];
+type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
+
+function PhotoBoothQr() {
   const [tokenResponse, setTokenResponse] = useState<PhotoBoothTokenResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -20,7 +39,7 @@ function PhotoBoothQr({ racerId }: { racerId: string }) {
 
     async function refreshToken(): Promise<void> {
       try {
-        const nextToken = await createPhotoBoothToken(racerId);
+        const nextToken = await createRacerPhotoBoothToken();
         if (cancelled) {
           return;
         }
@@ -49,7 +68,7 @@ function PhotoBoothQr({ racerId }: { racerId: string }) {
         window.clearTimeout(refreshTimer);
       }
     };
-  }, [racerId]);
+  }, []);
 
   return (
     <div className="photo-booth-qr">
@@ -78,7 +97,7 @@ function PhotoBoothQr({ racerId }: { racerId: string }) {
           variant="ghost"
           onClick={() => {
             fireAndForget(
-              createPhotoBoothToken(racerId).then((nextToken) => {
+              createRacerPhotoBoothToken().then((nextToken) => {
                 setTokenResponse(nextToken);
                 setErrorMessage(null);
               }),
@@ -96,10 +115,18 @@ function PhotoBoothQr({ racerId }: { racerId: string }) {
 
 export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const snapshotQuery = useSnapshotQuery();
+  const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
   const [displayName, setDisplayName] = useState("");
+  const [accountlessDisplayName, setAccountlessDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [authMode, setAuthMode] = useState<"email" | "register" | "host-assist">("email");
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [queueMessage, setQueueMessage] = useState<string | null>(null);
+  const [upgradeEmail, setUpgradeEmail] = useState("");
+  const [upgradeDisplayName, setUpgradeDisplayName] = useState("");
   const reduceMotion = useReducedMotion();
   const [selectedOpponent, setSelectedOpponent] = useState("");
   const [expandedBracketTournamentId, setExpandedBracketTournamentId] = useState<string | null>(
@@ -108,34 +135,148 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const [selectedRacerId, setSelectedRacerId] = useState(
     localStorage.getItem("goldsprints.racerId") ?? ""
   );
-  const [anonymousId] = useState(() => {
-    const existing = localStorage.getItem("goldsprints.anonymousId");
+  const [accountlessId] = useState(() => {
+    const existing =
+      localStorage.getItem("goldsprints.accountlessId") ??
+      localStorage.getItem("goldsprints.anonymousId");
     if (existing) {
+      localStorage.setItem("goldsprints.accountlessId", existing);
       return existing;
     }
 
     const created = crypto.randomUUID();
-    localStorage.setItem("goldsprints.anonymousId", created);
+    localStorage.setItem("goldsprints.accountlessId", created);
     return created;
   });
 
-  async function handleRegisterRacer(): Promise<void> {
-    const result = await registerRacer({
-      displayName,
-      email: email || undefined,
-      phone: phone || undefined
-    });
+  useEffect(() => {
+    let cancelled = false;
+    async function hydrateSession(): Promise<void> {
+      const result = await fetchRacerAuthSession();
+      if (cancelled) {
+        return;
+      }
+      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+      if (result.racer) {
+        rememberRacerSessionToken(result.sessionToken);
+        localStorage.setItem("goldsprints.racerId", result.racer.id);
+        setSelectedRacerId(result.racer.id);
+      } else {
+        forgetRacerSessionToken();
+        localStorage.removeItem("goldsprints.racerId");
+        setSelectedRacerId("");
+      }
+    }
+    fireAndForget(hydrateSession(), "hydrate racer session");
+    return () => {
+      cancelled = true;
+    };
+  }, [queryClient]);
+
+  function rememberSignedInRacer(result: {
+    racer: { id: string; displayName: string };
+    sessionToken?: string | null;
+  }): void {
+    rememberRacerSessionToken(result.sessionToken);
     localStorage.setItem("goldsprints.racerId", result.racer.id);
     setSelectedRacerId(result.racer.id);
+    setAuthMessage(null);
+    setQueueMessage(null);
   }
 
-  async function handleContinueAnonymously(): Promise<void> {
-    const result = await registerRacer({
-      displayName: displayName || "Anonymous Racer",
-      anonymousId
+  async function handleEmailSignIn(): Promise<void> {
+    setAuthBusy(true);
+    setAuthMessage(null);
+    try {
+      const result = await startPasskeySignIn(email);
+      if (result.status === "register_required") {
+        setAuthMode("register");
+        setDisplayName("");
+        return;
+      }
+      if (result.status === "host_assist") {
+        setAuthMode("host-assist");
+        setAuthMessage(result.message);
+        return;
+      }
+
+      const credential = await startAuthentication({
+        optionsJSON: result.options as AuthenticationOptionsJSON
+      });
+      const signedIn = await finishPasskeySignIn({
+        challengeId: result.challengeId,
+        response: credential
+      });
+      rememberSignedInRacer(signedIn);
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "Could not sign in.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handlePasskeyRegistration(input: {
+    email: string;
+    displayName: string;
+    phone?: string;
+  }): Promise<void> {
+    setAuthBusy(true);
+    setAuthMessage(null);
+    try {
+      const result = await startPasskeyRegistration(input);
+      if (result.status === "host_assist") {
+        setAuthMode("host-assist");
+        setAuthMessage(result.message);
+        return;
+      }
+
+      const credential = await startRegistration({
+        optionsJSON: result.options as RegistrationOptionsJSON
+      });
+      const registered = await finishPasskeyRegistration({
+        challengeId: result.challengeId,
+        response: credential
+      });
+      rememberSignedInRacer(registered);
+      setAuthMode("email");
+      setUpgradeEmail("");
+      setUpgradeDisplayName("");
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "Could not register passkey.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  async function handleContinueAccountless(): Promise<void> {
+    const result = await createAccountlessRacerSession({
+      displayName: accountlessDisplayName.trim(),
+      accountlessId
     });
-    localStorage.setItem("goldsprints.racerId", result.racer.id);
-    setSelectedRacerId(result.racer.id);
+    rememberSignedInRacer(result);
+  }
+
+  async function handleSignOut(): Promise<void> {
+    await signOutRacer();
+    forgetRacerSessionToken();
+    localStorage.removeItem("goldsprints.racerId");
+    setSelectedRacerId("");
+  }
+
+  async function handleQueueSignup(input: {
+    opponentRacerId?: string;
+    requestedType?: "solo" | "auto-match";
+  }): Promise<void> {
+    try {
+      await signUpRacerQueue(input);
+      setQueueMessage(null);
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "payment_required") {
+        setQueueMessage(error.message);
+        return;
+      }
+      throw error;
+    }
   }
 
   async function handleAvatarUpload(event: ChangeEvent<HTMLInputElement>): Promise<void> {
@@ -152,6 +293,10 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   }
 
   const selectedRacer = snapshot.racers.find((entry) => entry.racer.id === selectedRacerId);
+  const selectedRacerHasEmail = Boolean(
+    selectedRacer?.racer.identities.some((identity) => identity.type === "email")
+  );
+  const canContinueAccountless = snapshot.settings.allowAccountlessRacerSignup;
   const upcoming = focusEventId
     ? snapshot.queue.filter((entry) => entry.eventId === focusEventId)
     : snapshot.queue;
@@ -238,7 +383,20 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                         <p>
                           {selectedRacer.stats.races} races · {selectedRacer.stats.wins} wins
                         </p>
+                        {snapshot.settings.paymentRequiredForQueue ? (
+                          <p>Entrance fee: {selectedRacer.payment.status}</p>
+                        ) : null}
                       </div>
+                    </div>
+                    <div className="button-row">
+                      <Button
+                        variant="ghost"
+                        onClick={() => {
+                          fireAndForget(handleSignOut(), "sign out racer");
+                        }}
+                      >
+                        Sign out
+                      </Button>
                     </div>
                     <label>
                       Upload avatar
@@ -250,20 +408,65 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                         }}
                       />
                     </label>
-                    <PhotoBoothQr racerId={selectedRacerId} />
+                    <PhotoBoothQr />
+                    {!selectedRacerHasEmail ? (
+                      <div className="stack-sm">
+                        <div className="racer-section-heading">
+                          <strong>Secure This Account</strong>
+                          <p>Add an email and passkey so this racer profile can come with you.</p>
+                        </div>
+                        <label>
+                          Email
+                          <TextInput
+                            value={upgradeEmail}
+                            onChange={(event) => {
+                              setUpgradeEmail(event.target.value);
+                            }}
+                            placeholder="email@example.com"
+                          />
+                        </label>
+                        <label>
+                          Display name
+                          <TextInput
+                            value={upgradeDisplayName}
+                            onChange={(event) => {
+                              setUpgradeDisplayName(event.target.value);
+                            }}
+                            placeholder={selectedRacer.racer.displayName}
+                          />
+                        </label>
+                        <Button
+                          disabled={!upgradeEmail || authBusy}
+                          onClick={() => {
+                            fireAndForget(
+                              handlePasskeyRegistration({
+                                email: upgradeEmail,
+                                displayName:
+                                  upgradeDisplayName.trim() || selectedRacer.racer.displayName
+                              }),
+                              "upgrade accountless racer"
+                            );
+                          }}
+                        >
+                          Create Passkey
+                        </Button>
+                        {authMessage ? <p className="form-error">{authMessage}</p> : null}
+                      </div>
+                    ) : null}
                     <div className="stack-sm">
                       <div className="racer-section-heading">
                         <strong>Quick Queue</strong>
                         <p>Jump into the next open time trial race with one tap.</p>
                       </div>
+                      {queueMessage ? <p className="form-error">{queueMessage}</p> : null}
                       <div className="racer-action-grid">
                         <Button
                           onClick={() => {
                             fireAndForget(
-                              signUpQueue({
-                                racerId: selectedRacerId,
+                              handleQueueSignup({
                                 requestedType: "auto-match"
-                              })
+                              }),
+                              "join queue"
                             );
                           }}
                         >
@@ -273,7 +476,8 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                           variant="ghost"
                           onClick={() => {
                             fireAndForget(
-                              signUpQueue({ racerId: selectedRacerId, requestedType: "solo" })
+                              handleQueueSignup({ requestedType: "solo" }),
+                              "join solo queue"
                             );
                           }}
                         >
@@ -309,10 +513,10 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                           disabled={!selectedOpponent}
                           onClick={() => {
                             fireAndForget(
-                              signUpQueue({
-                                racerId: selectedRacerId,
+                              handleQueueSignup({
                                 opponentRacerId: selectedOpponent
-                              })
+                              }),
+                              "challenge racer"
                             );
                           }}
                         >
@@ -324,51 +528,118 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                 ) : (
                   <div className="form-grid">
                     <label>
-                      Display name
-                      <TextInput
-                        value={displayName}
-                        onChange={(event) => {
-                          setDisplayName(event.target.value);
-                        }}
-                        placeholder="Racer name"
-                      />
-                    </label>
-                    <label>
                       Email
                       <TextInput
                         value={email}
                         onChange={(event) => {
                           setEmail(event.target.value);
+                          setAuthMode("email");
+                          setAuthMessage(null);
                         }}
                         placeholder="email@example.com"
                       />
                     </label>
-                    <label>
-                      Phone
-                      <TextInput
-                        value={phone}
-                        onChange={(event) => {
-                          setPhone(event.target.value);
-                        }}
-                        placeholder="555-0100"
+                    {authMode === "register" ? (
+                      <>
+                        <label>
+                          Display name
+                          <TextInput
+                            value={displayName}
+                            onChange={(event) => {
+                              setDisplayName(event.target.value);
+                            }}
+                            placeholder="Racer name"
+                          />
+                        </label>
+                        <label>
+                          Phone
+                          <TextInput
+                            value={phone}
+                            onChange={(event) => {
+                              setPhone(event.target.value);
+                            }}
+                            placeholder="555-0100"
+                          />
+                        </label>
+                      </>
+                    ) : null}
+                    {authMessage ? <p className="form-error">{authMessage}</p> : null}
+                    {authMode === "host-assist" ? (
+                      <EmptyState
+                        title="See the host"
+                        body="This email is already registered, but it does not have a passkey yet. A host can help attach one safely."
                       />
-                    </label>
+                    ) : null}
+                    {canContinueAccountless ? (
+                      <div className="accountless-racer-signup stack-sm">
+                        <div className="racer-section-heading">
+                          <strong>Continue without an account</strong>
+                          <p>
+                            Enter the name people should see on the race display. You can add email
+                            and a passkey later.
+                          </p>
+                        </div>
+                        <label>
+                          Display name
+                          <TextInput
+                            value={accountlessDisplayName}
+                            onChange={(event) => {
+                              setAccountlessDisplayName(event.target.value);
+                            }}
+                            placeholder="Racer name"
+                          />
+                        </label>
+                      </div>
+                    ) : null}
                     <div className="button-row">
-                      <Button
-                        onClick={() => {
-                          fireAndForget(handleRegisterRacer());
-                        }}
-                      >
-                        Register
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        onClick={() => {
-                          fireAndForget(handleContinueAnonymously());
-                        }}
-                      >
-                        Continue anonymously
-                      </Button>
+                      {authMode === "register" ? (
+                        <Button
+                          disabled={!email || !displayName || authBusy}
+                          onClick={() => {
+                            fireAndForget(
+                              handlePasskeyRegistration({
+                                email,
+                                displayName,
+                                phone: phone || undefined
+                              }),
+                              "register passkey"
+                            );
+                          }}
+                        >
+                          {displayName ? `Register ${displayName}` : "Register"}
+                        </Button>
+                      ) : (
+                        <Button
+                          disabled={!email || authBusy}
+                          onClick={() => {
+                            fireAndForget(handleEmailSignIn(), "passkey sign in");
+                          }}
+                        >
+                          Sign in
+                        </Button>
+                      )}
+                      {authMode !== "email" ? (
+                        <Button
+                          variant="ghost"
+                          onClick={() => {
+                            setAuthMode("email");
+                            setAuthMessage(null);
+                          }}
+                        >
+                          Back
+                        </Button>
+                      ) : null}
+                      {canContinueAccountless ? (
+                        <Button
+                          variant="ghost"
+                          disabled={!accountlessDisplayName.trim() || authBusy}
+                          onClick={() => {
+                            fireAndForget(handleContinueAccountless(), "accountless racer session");
+                          }}
+                        >
+                          Continue accountless
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 )}

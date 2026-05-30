@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  EVENT_PAYMENT_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
   SUPPORTED_TOURNAMENT_PRESETS,
   TOURNAMENT_BRACKET_LAYOUT_MODES,
@@ -31,7 +32,7 @@ export const createRacerSchema = z.object({
   displayName: z.string().trim().min(1).max(80),
   email: z.string().trim().email().optional(),
   phone: z.string().trim().min(7).max(32).optional(),
-  anonymousId: z.string().trim().min(4).max(80).optional()
+  accountlessId: z.string().trim().min(4).max(80).optional()
 });
 
 export const createEventSchema = z.object({
@@ -42,6 +43,37 @@ export const queueSignupSchema = z.object({
   racerId: z.string().trim().min(1),
   opponentRacerId: z.string().trim().min(1).optional(),
   requestedType: z.enum(QUEUE_ENTRY_REQUESTED_TYPES).extract(["solo", "auto-match"]).optional()
+});
+
+export const racerQueueSignupSchema = z.object({
+  opponentRacerId: z.string().trim().min(1).optional(),
+  requestedType: z.enum(QUEUE_ENTRY_REQUESTED_TYPES).extract(["solo", "auto-match"]).optional()
+});
+
+export const passkeyEmailSchema = z.object({
+  email: z.string().trim().email()
+});
+
+export const passkeyRegistrationStartSchema = z.object({
+  email: z.string().trim().email(),
+  displayName: z.string().trim().min(1).max(80),
+  phone: z.string().trim().min(7).max(32).optional()
+});
+
+export const passkeyChallengeSchema = z.object({
+  challengeId: z.string().trim().min(1),
+  response: z.unknown()
+});
+
+export const accountlessRacerSessionSchema = z.object({
+  displayName: z.string().trim().min(1).max(80),
+  accountlessId: z.string().trim().min(4).max(80)
+});
+
+export const updateRacerPaymentSchema = z.object({
+  status: z.enum(EVENT_PAYMENT_STATUSES),
+  note: z.string().trim().max(240).optional(),
+  providerReference: z.string().trim().max(120).optional()
 });
 
 export const startTournamentSchema = z.object({
@@ -71,6 +103,8 @@ export const settingUpdateSchema = z.object({
   os2lEnabled: z.boolean().optional(),
   autoStageNextRace: z.boolean().optional(),
   includeAllRaceData: z.boolean().optional(),
+  allowAccountlessRacerSignup: z.boolean().optional(),
+  paymentRequiredForQueue: z.boolean().optional(),
   raceDisplayShowEventName: z.boolean().optional(),
   raceDisplayTickerMessages: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
   raceDisplayTickerSpeed: z.number().finite().min(24).max(180).optional(),

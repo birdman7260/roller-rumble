@@ -1,6 +1,7 @@
 import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type {
   BracketNode,
+  EventPaymentStatus,
   PhotoBoothCapture,
   QueueEntry,
   QueueOccurrence,
@@ -60,10 +61,30 @@ export const eventRacers = sqliteTable(
     racerId: text("racer_id")
       .notNull()
       .references(() => racers.id, { onDelete: "cascade" }),
+    paymentStatus: text("payment_status").$type<EventPaymentStatus>().notNull().default("unpaid"),
+    paidAt: text("paid_at"),
+    paymentUpdatedAt: text("payment_updated_at"),
+    paymentNote: text("payment_note"),
+    paymentProviderReference: text("payment_provider_reference"),
     createdAt: text("created_at").notNull()
   },
   (table) => [uniqueIndex("event_racers_event_racer_unique").on(table.eventId, table.racerId)]
 );
+
+export const passkeyCredentials = sqliteTable("passkey_credentials", {
+  id: text("id").primaryKey(),
+  racerId: text("racer_id")
+    .notNull()
+    .references(() => racers.id, { onDelete: "cascade" }),
+  credentialId: text("credential_id").notNull().unique(),
+  publicKey: text("public_key").notNull(),
+  counter: integer("counter").notNull(),
+  transportsJson: text("transports_json", { mode: "json" }).$type<string[]>().notNull(),
+  deviceType: text("device_type").notNull(),
+  backedUp: integer("backed_up", { mode: "boolean" }).notNull().default(false),
+  createdAt: text("created_at").notNull(),
+  lastUsedAt: text("last_used_at")
+});
 
 export const queueEntries = sqliteTable("queue_entries", {
   id: text("id").primaryKey(),

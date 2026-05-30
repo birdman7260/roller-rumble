@@ -1,7 +1,7 @@
 import type { Dispatch, SetStateAction } from "react";
 import type { RacerSummary } from "@goldsprints/shared/types";
 import { Button, Panel, TextInput } from "@goldsprints/shared-ui";
-import { removeRacerFromUpcoming, signUpQueue } from "../../lib/api";
+import { removeRacerFromUpcoming, signUpQueue, updateRacerPayment } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
 
 export function RacersTab({
@@ -14,7 +14,8 @@ export function RacersTab({
   setRacerEmail,
   racerPhone,
   setRacerPhone,
-  onQuickAddRacer
+  onQuickAddRacer,
+  paymentRequiredForQueue
 }: {
   filteredRacers: RacerSummary[];
   search: string;
@@ -26,6 +27,7 @@ export function RacersTab({
   racerPhone: string;
   setRacerPhone: Dispatch<SetStateAction<string>>;
   onQuickAddRacer: () => void;
+  paymentRequiredForQueue: boolean;
 }) {
   return (
     <div className="page-grid">
@@ -90,8 +92,46 @@ export function RacersTab({
                   {entry.stats.races} races · {entry.stats.wins} wins ·{" "}
                   {entry.stats.topSpeedKph.toFixed(1)} km/h top
                 </p>
+                {paymentRequiredForQueue ? <p>Entrance fee: {entry.payment.status}</p> : null}
               </div>
               <div className="button-row">
+                {paymentRequiredForQueue ? (
+                  <>
+                    <Button
+                      variant={entry.payment.status === "paid" ? "accent" : "ghost"}
+                      onClick={() => {
+                        fireAndForget(
+                          updateRacerPayment(entry.racer.id, { status: "paid" }),
+                          "mark racer paid"
+                        );
+                      }}
+                    >
+                      Mark Paid
+                    </Button>
+                    <Button
+                      variant={entry.payment.status === "waived" ? "accent" : "ghost"}
+                      onClick={() => {
+                        fireAndForget(
+                          updateRacerPayment(entry.racer.id, { status: "waived" }),
+                          "waive racer payment"
+                        );
+                      }}
+                    >
+                      Waive
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        fireAndForget(
+                          updateRacerPayment(entry.racer.id, { status: "unpaid" }),
+                          "mark racer unpaid"
+                        );
+                      }}
+                    >
+                      Unpaid
+                    </Button>
+                  </>
+                ) : null}
                 <Button
                   onClick={() => {
                     fireAndForget(

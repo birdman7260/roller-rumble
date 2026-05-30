@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { createWebSocketUrlFromApiBase, resolveApiBase } from "./api";
+import {
+  createWebSocketUrlFromApiBase,
+  forgetRacerSessionToken,
+  rememberRacerSessionToken,
+  resolveApiBase
+} from "./api";
 
 describe("api routing", () => {
   it("uses the dev API override for local Vite pages", () => {
@@ -32,5 +37,15 @@ describe("api routing", () => {
     expect(createWebSocketUrlFromApiBase("https://goldsprints.birdsnest.family")).toBe(
       "wss://goldsprints.birdsnest.family/ws"
     );
+  });
+
+  it("stores and clears the durable racer session fallback token", () => {
+    rememberRacerSessionToken("signed-session-token");
+
+    expect(localStorage.getItem("goldsprints.racerSessionToken")).toBe("signed-session-token");
+
+    forgetRacerSessionToken();
+
+    expect(localStorage.getItem("goldsprints.racerSessionToken")).toBeNull();
   });
 });

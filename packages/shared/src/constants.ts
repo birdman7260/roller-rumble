@@ -43,6 +43,8 @@ export const QUEUE_ENTRY_STATUSES = [
   "removed"
 ] as const;
 export const QUEUE_OCCURRENCE_INTENTS = ["auto-match", "solo", "challenge"] as const;
+export const EVENT_PAYMENT_STATUSES = ["unpaid", "paid", "waived"] as const;
+export const PASSKEY_AUTH_STATUSES = ["passkey", "register_required", "host_assist"] as const;
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
 export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;
 export const THEME_ORIENTATIONS = ["horizontal", "vertical"] as const;

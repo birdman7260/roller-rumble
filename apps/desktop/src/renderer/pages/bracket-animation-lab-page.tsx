@@ -106,7 +106,15 @@ function makeRacerSummary(id: string, displayName: string): AppSnapshot["racers"
     updatedAt: labCreatedAt
   };
 
-  return { racer, stats };
+  return {
+    racer,
+    stats,
+    payment: {
+      status: "paid",
+      paidAt: labCreatedAt,
+      updatedAt: labCreatedAt
+    }
+  };
 }
 
 const labModalRacers: AppSnapshot["racers"] = [
@@ -350,9 +358,11 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
   };
   const settings: AdminSettings = {
     autoStageNextRace: false,
+    allowAccountlessRacerSignup: false,
     includeAllRaceData: false,
     mode: "single-elimination",
     os2lEnabled: false,
+    paymentRequiredForQueue: false,
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: [],
     raceDisplayTickerSpeed: 72,

@@ -12,7 +12,13 @@ presentation, persistent event data, theme support, and live tournament operatio
 ## What The App Does
 
 - Creates and persists events
-- Registers racers by email, phone number, or anonymous local identity
+- Requires racer self-registration through email plus a passkey, with host-assisted recovery when
+  an older email identity does not have a passkey yet
+- Keeps accountless racer signup available only when admins explicitly enable it, requires a
+  display name, and lets accountless racers later attach an email/passkey to preserve the same
+  profile
+- Tracks event-scoped entrance-fee status (`unpaid`, `paid`, or `waived`) and can require payment
+  before racers add themselves to the queue; host/admin queue actions can still bypass payment
 - Turns the racer identity card into `Your Race Card` after signup instead of leaving a separate
   register card on screen
 - Lets racers upload avatars
@@ -75,7 +81,8 @@ The app is intentionally local-first. Everything important runs on the host mach
 - `Framer Motion` drives the live race-visualizer animation layer so rider markers and progress fills move smoothly with incoming telemetry.
 - `React Flow` powers the custom elimination-bracket board so the app can own node styling, edge
   routing, and viewport camera behavior.
-- `SQLite` is the source of truth for events, racers, queue entries, races, results, tournaments, and settings.
+- `SQLite` is the source of truth for events, racers, passkey credentials, event payment status,
+  queue entries, races, results, tournaments, and settings.
 - `Drizzle ORM` provides the typed query layer over `better-sqlite3`, while checked-in SQL files remain the migration source of truth.
 - A separate Raspberry Pi photo booth agent can run from this repo and pair back to the embedded
   backend for DSLR avatar capture, WLED light control, and offline upload queueing.
@@ -95,6 +102,25 @@ Operational flow looks like this:
 7. Updated snapshots fan out to admin, projector, and racer clients.
 
 The current sensor path is a simulator. A real USB adapter seam exists, but the real device protocol is not implemented yet.
+
+## Racer Auth And Payments
+
+The Racer Page uses real WebAuthn/passkeys for self-registration and sign-in. Passkeys require a
+secure browser origin, so phones should use the Cloudflare HTTPS tunnel in production; localhost is
+acceptable for development. The backend stores passkey credentials in SQLite and issues a signed
+HTTP-only racer session cookie after a successful passkey ceremony. The browser also keeps the same
+signed session token in local storage as a fallback for dev/tunnel cases where cookie handling is
+inconsistent across origins, so refreshing the racer page should keep the racer signed in.
+
+If an email exists but has no passkey credential yet, the racer page tells the racer to see the
+host instead of allowing an unsafe self-claim. Admins can still create racers from the admin
+console.
+
+Payment enforcement is manual for now. When `Require entrance fee before racer queue signup` is
+enabled, racer-page queue attempts are blocked until the active event marks that racer as `paid` or
+`waived`. Admin queue controls intentionally bypass that gate so hosts can resolve edge cases at the
+desk. Stripe or another checkout provider can plug into the existing event-scoped payment status
+fields later.
 
 ## Routes And Surfaces
 
@@ -122,10 +148,12 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
     draws after the source matchup is marked advanced and before the bracket commits the winner
     into the next slot
 - `/racer`
-  - self-registration
+  - email/passkey sign-in and registration
+  - optional admin-enabled accountless registration with a required display name
+  - accountless-to-passkey account upgrade
   - avatar upload
   - short-lived photo booth QR for DSLR avatar capture after registration
-  - queue signup
+  - payment-aware queue signup
   - challenge signup
   - upcoming races
   - racer list and stats

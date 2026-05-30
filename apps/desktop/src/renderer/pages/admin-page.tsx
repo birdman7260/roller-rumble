@@ -207,6 +207,7 @@ export function AdminPage() {
           onQuickAddRacer={() => {
             fireAndForget(handleQuickAddRacer(), "quick add racer");
           }}
+          paymentRequiredForQueue={settings.paymentRequiredForQueue}
         />
       );
       break;

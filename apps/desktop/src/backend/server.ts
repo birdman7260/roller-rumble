@@ -11,10 +11,15 @@ import { WebSocketServer } from "ws";
 import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "@goldsprints/shared/constants";
 import type { AppSnapshot } from "@goldsprints/shared/types";
 import {
+  accountlessRacerSessionSchema,
   createEventSchema,
   createPhotoBoothTokenSchema,
   createRacerSchema,
+  passkeyChallengeSchema,
+  passkeyEmailSchema,
+  passkeyRegistrationStartSchema,
   queueSignupSchema,
+  racerQueueSignupSchema,
   removeRacerSchema,
   resolvePhotoBoothSessionSchema,
   settingUpdateSchema,
@@ -22,9 +27,10 @@ import {
   tournamentBracketMatchSchema,
   tournamentGroupMatchSchema,
   tournamentIdSchema,
+  updateRacerPaymentSchema,
   updatePhotoBoothStatusSchema
 } from "@goldsprints/shared/validation";
-import { GoldsprintsApp } from "./services/app";
+import { AppHttpError, GoldsprintsApp } from "./services/app";
 
 interface BackendServerOptions {
   dataDir: string;
@@ -33,10 +39,84 @@ interface BackendServerOptions {
   rendererDevUrl?: string;
 }
 
+const RACER_SESSION_COOKIE = "goldsprints_racer_session";
+
 export interface BackendServer {
   service: GoldsprintsApp;
   start(): Promise<{ port: number }>;
   stop(): Promise<void>;
+}
+
+function parseCookies(header: string | undefined): Record<string, string> {
+  if (!header) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    header.split(";").flatMap((chunk) => {
+      const [name, ...valueParts] = chunk.trim().split("=");
+      if (!name || valueParts.length === 0) {
+        return [];
+      }
+      return [[name, decodeURIComponent(valueParts.join("="))]];
+    })
+  );
+}
+
+function getSessionToken(req: express.Request): string | null {
+  const cookieToken = parseCookies(req.get("cookie"))[RACER_SESSION_COOKIE];
+  if (cookieToken) {
+    return cookieToken;
+  }
+
+  const authorization = req.get("authorization");
+  if (authorization?.toLowerCase().startsWith("bearer ")) {
+    return authorization.slice("bearer ".length).trim();
+  }
+
+  return null;
+}
+
+function getRequestOrigin(req: express.Request): string {
+  const origin = req.get("origin");
+  if (origin) {
+    return new URL(origin).origin;
+  }
+
+  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const proto = forwardedProto ?? req.protocol;
+  const host = forwardedHost ?? req.get("host") ?? `127.0.0.1:${DEFAULT_SERVER_PORT}`;
+  return `${proto}://${host}`;
+}
+
+function setRacerSessionCookie(req: express.Request, res: express.Response, token: string): void {
+  const origin = getRequestOrigin(req);
+  res.cookie(RACER_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: origin.startsWith("https://"),
+    path: "/",
+    maxAge: 1000 * 60 * 60 * 24 * 30
+  });
+}
+
+function clearRacerSessionCookie(req: express.Request, res: express.Response): void {
+  const origin = getRequestOrigin(req);
+  res.clearCookie(RACER_SESSION_COOKIE, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: origin.startsWith("https://"),
+    path: "/"
+  });
+}
+
+function requireRacerSession(req: express.Request, service: GoldsprintsApp) {
+  const racer = service.getRacerAuthSession(getSessionToken(req));
+  if (!racer) {
+    throw new AppHttpError("Please sign in before continuing.", 401, "auth_required");
+  }
+  return racer;
 }
 
 async function proxyDevRequest(
@@ -165,7 +245,7 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     }
   });
 
-  app.use(cors());
+  app.use(cors({ origin: true, credentials: true }));
   app.use(express.json({ limit: "2mb" }));
   app.use("/uploads", express.static(uploadsDir));
 
@@ -199,6 +279,76 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     });
   });
 
+  app.get(`${API_PREFIX}/auth/session`, (req, res) => {
+    const sessionToken = getSessionToken(req);
+    res.json({
+      racer: service.getRacerAuthSession(sessionToken),
+      snapshot: service.getSnapshot(),
+      sessionToken
+    });
+  });
+
+  app.post(`${API_PREFIX}/auth/sign-out`, (req, res) => {
+    clearRacerSessionCookie(req, res);
+    res.json({
+      racer: null,
+      snapshot: service.getSnapshot()
+    });
+  });
+
+  app.post(`${API_PREFIX}/auth/passkeys/sign-in/options`, async (req, res, next) => {
+    try {
+      const input = passkeyEmailSchema.parse(req.body);
+      const context = service.getPasskeyRequestContext(getRequestOrigin(req));
+      res.json(await service.startPasskeySignIn(input.email, context));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/auth/passkeys/sign-in/verify`, async (req, res, next) => {
+    try {
+      const input = passkeyChallengeSchema.parse(req.body);
+      const result = await service.finishPasskeySignIn(input.challengeId, input.response);
+      const sessionToken = service.createRacerSessionToken(result.racer.id);
+      setRacerSessionCookie(req, res, sessionToken);
+      res.json({ ...result, sessionToken });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/auth/passkeys/register/options`, async (req, res, next) => {
+    try {
+      const input = passkeyRegistrationStartSchema.parse(req.body);
+      const context = service.getPasskeyRequestContext(getRequestOrigin(req));
+      const sessionRacer = service.getRacerAuthSession(getSessionToken(req));
+      res.json(await service.startPasskeyRegistration(input, context, sessionRacer?.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/auth/passkeys/register/verify`, async (req, res, next) => {
+    try {
+      const input = passkeyChallengeSchema.parse(req.body);
+      const result = await service.finishPasskeyRegistration(input.challengeId, input.response);
+      const sessionToken = service.createRacerSessionToken(result.racer.id);
+      setRacerSessionCookie(req, res, sessionToken);
+      res.json({ ...result, sessionToken });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/auth/accountless`, (req, res) => {
+    const input = accountlessRacerSessionSchema.parse(req.body);
+    const result = service.createAccountlessRacerSession(input);
+    const sessionToken = service.createRacerSessionToken(result.racer.id);
+    setRacerSessionCookie(req, res, sessionToken);
+    res.json({ ...result, sessionToken });
+  });
+
   app.get(`${API_PREFIX}/booth/status`, async (_req, res) => {
     res.json(await service.getPhotoBoothAdminStatus());
   });
@@ -216,6 +366,11 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   app.post(`${API_PREFIX}/booth/tokens`, async (req, res) => {
     const input = createPhotoBoothTokenSchema.parse(req.body);
     res.json(await service.createPhotoBoothToken(input.racerId));
+  });
+
+  app.post(`${API_PREFIX}/racer/booth/tokens`, async (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(await service.createPhotoBoothToken(racer.id));
   });
 
   app.post(`${API_PREFIX}/booth/sessions/resolve`, (req, res) => {
@@ -278,8 +433,19 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   });
 
   app.post(`${API_PREFIX}/queue`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    const input = racerQueueSignupSchema.parse(req.body);
+    res.json(service.signUpQueueForRacer(racer.id, input));
+  });
+
+  app.post(`${API_PREFIX}/admin/queue`, (req, res) => {
     const input = queueSignupSchema.parse(req.body);
     res.json(service.signUpQueue(input));
+  });
+
+  app.post(`${API_PREFIX}/admin/racers/:racerId/payment`, (req, res) => {
+    const payment = updateRacerPaymentSchema.parse(req.body);
+    res.json(service.updateRacerPaymentStatus(req.params.racerId, payment));
   });
 
   app.delete(`${API_PREFIX}/queue/racer/:racerId`, (req, res) => {
@@ -406,10 +572,12 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   app.use(
     (error: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
       const message = error instanceof Error ? error.message : "Unexpected server error";
+      const statusCode = error instanceof AppHttpError ? error.statusCode : 500;
+      const code = error instanceof AppHttpError ? error.code : undefined;
       if (debugEnabled) {
         console.error("[api] request failed", error);
       }
-      res.status(500).json({ message });
+      res.status(statusCode).json({ message, code });
     }
   );
 

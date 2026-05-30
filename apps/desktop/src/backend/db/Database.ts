@@ -15,6 +15,8 @@ import type {
   AdminSettings,
   AppSetting,
   BracketNode,
+  EventPaymentStatus,
+  EventRacerPayment,
   EventRecord,
   PhotoBoothCapture,
   QueueEntry,
@@ -39,6 +41,7 @@ import {
   events,
   groupMatches,
   identities,
+  passkeyCredentials,
   queueEntries,
   queueOccurrences,
   racers,
@@ -53,6 +56,7 @@ import * as schema from "./schema";
 type OrmDatabase = BetterSQLite3Database<typeof schema>;
 type EventRow = typeof events.$inferSelect;
 type IdentityRow = typeof identities.$inferSelect;
+type PasskeyCredentialRow = typeof passkeyCredentials.$inferSelect;
 type RacerRow = typeof racers.$inferSelect;
 type QueueEntryRow = typeof queueEntries.$inferSelect;
 type QueueOccurrenceRow = typeof queueOccurrences.$inferSelect;
@@ -64,6 +68,19 @@ type BracketNodeRow = typeof bracketNodes.$inferSelect;
 type GroupMatchRow = typeof groupMatches.$inferSelect;
 type BoothCaptureRow = typeof boothCaptures.$inferSelect;
 type RacerIdentity = Racer["identities"][number];
+
+export interface StoredPasskeyCredential {
+  id: string;
+  racerId: string;
+  credentialId: string;
+  publicKey: string;
+  counter: number;
+  transports: string[];
+  deviceType: string;
+  backedUp: boolean;
+  createdAt: string;
+  lastUsedAt?: string | null;
+}
 
 const CURRENT_RACE_STATES: RaceRecord["state"][] = [
   "scheduled",
@@ -87,6 +104,8 @@ function getDefaultAdminSettings(): AdminSettings {
     os2lEnabled: false,
     autoStageNextRace: false,
     includeAllRaceData: false,
+    allowAccountlessRacerSignup: false,
+    paymentRequiredForQueue: false,
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Fiercely local racing all night"],
     raceDisplayTickerSpeed: DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
@@ -118,6 +137,36 @@ function mapIdentity(row: IdentityRow): RacerIdentity {
     type: row.type,
     value: row.value,
     createdAt: row.createdAt
+  };
+}
+
+function mapPasskeyCredential(row: PasskeyCredentialRow): StoredPasskeyCredential {
+  return {
+    id: row.id,
+    racerId: row.racerId,
+    credentialId: row.credentialId,
+    publicKey: row.publicKey,
+    counter: row.counter,
+    transports: row.transportsJson,
+    deviceType: row.deviceType,
+    backedUp: row.backedUp,
+    createdAt: row.createdAt,
+    lastUsedAt: row.lastUsedAt
+  };
+}
+
+function mapEventRacerPayment(
+  row: Pick<
+    typeof eventRacers.$inferSelect,
+    "paymentStatus" | "paidAt" | "paymentUpdatedAt" | "paymentNote" | "paymentProviderReference"
+  > | null
+): EventRacerPayment {
+  return {
+    status: row?.paymentStatus ?? "unpaid",
+    paidAt: row?.paidAt ?? null,
+    updatedAt: row?.paymentUpdatedAt ?? null,
+    note: row?.paymentNote ?? null,
+    providerReference: row?.paymentProviderReference ?? null
   };
 }
 
@@ -452,9 +501,15 @@ export class AppDatabase {
 
   getAdminSettings(): AdminSettings {
     const defaultValue = getDefaultAdminSettings();
+    const persistedSettings = this.getSetting<
+      Partial<AdminSettings> & { allowAnonymousRacerSignup?: boolean }
+    >("adminSettings", defaultValue).value;
+    const legacyAccountlessToggle = persistedSettings.allowAnonymousRacerSignup;
     return {
       ...defaultValue,
-      ...this.getSetting<Partial<AdminSettings>>("adminSettings", defaultValue).value
+      ...persistedSettings,
+      allowAccountlessRacerSignup:
+        persistedSettings.allowAccountlessRacerSignup ?? legacyAccountlessToggle ?? false
     };
   }
 
@@ -530,7 +585,7 @@ export class AppDatabase {
       .map(mapIdentity);
   }
 
-  private findRacerByIdentity(type: "email" | "phone" | "anonymous", value: string): Racer | null {
+  findRacerByIdentity(type: "email" | "phone" | "anonymous", value: string): Racer | null {
     const row = this.orm
       .select({
         id: racers.id,
@@ -551,12 +606,12 @@ export class AppDatabase {
     displayName: string;
     email?: string;
     phone?: string;
-    anonymousId?: string;
+    accountlessId?: string;
   }): Racer {
     const existing =
       (input.email ? this.findRacerByIdentity("email", input.email) : null) ??
       (input.phone ? this.findRacerByIdentity("phone", input.phone) : null) ??
-      (input.anonymousId ? this.findRacerByIdentity("anonymous", input.anonymousId) : null);
+      (input.accountlessId ? this.findRacerByIdentity("anonymous", input.accountlessId) : null);
 
     const timestamp = nowIso();
     if (existing) {
@@ -571,7 +626,9 @@ export class AppDatabase {
 
       this.attachIdentity(existing.id, "email", input.email);
       this.attachIdentity(existing.id, "phone", input.phone);
-      this.attachIdentity(existing.id, "anonymous", input.anonymousId);
+      // The DB identity value stays `anonymous` for migration compatibility, but the product
+      // language and API now call this an accountless racer identity.
+      this.attachIdentity(existing.id, "anonymous", input.accountlessId);
       return this.getRacer(existing.id)!;
     }
 
@@ -589,8 +646,29 @@ export class AppDatabase {
 
     this.attachIdentity(racerId, "email", input.email);
     this.attachIdentity(racerId, "phone", input.phone);
-    this.attachIdentity(racerId, "anonymous", input.anonymousId);
+    this.attachIdentity(racerId, "anonymous", input.accountlessId);
     return this.getRacer(racerId)!;
+  }
+
+  updateRacerRegistration(
+    racerId: string,
+    input: {
+      displayName: string;
+      email?: string;
+      phone?: string;
+    }
+  ): Racer | null {
+    this.orm
+      .update(racers)
+      .set({
+        displayName: input.displayName,
+        updatedAt: nowIso()
+      })
+      .where(eq(racers.id, racerId))
+      .run();
+    this.attachIdentity(racerId, "email", input.email);
+    this.attachIdentity(racerId, "phone", input.phone);
+    return this.getRacer(racerId);
   }
 
   private attachIdentity(
@@ -612,6 +690,75 @@ export class AppDatabase {
         createdAt: nowIso()
       })
       .onConflictDoNothing()
+      .run();
+  }
+
+  attachRacerIdentity(
+    racerId: string,
+    type: "email" | "phone" | "anonymous",
+    value: string
+  ): Racer | null {
+    this.attachIdentity(racerId, type, value);
+    return this.getRacer(racerId);
+  }
+
+  listPasskeyCredentialsForRacer(racerId: string): StoredPasskeyCredential[] {
+    return this.orm
+      .select()
+      .from(passkeyCredentials)
+      .where(eq(passkeyCredentials.racerId, racerId))
+      .orderBy(asc(passkeyCredentials.createdAt))
+      .all()
+      .map(mapPasskeyCredential);
+  }
+
+  getPasskeyCredentialByCredentialId(credentialId: string): StoredPasskeyCredential | null {
+    const row = this.orm
+      .select()
+      .from(passkeyCredentials)
+      .where(eq(passkeyCredentials.credentialId, credentialId))
+      .get();
+
+    return row ? mapPasskeyCredential(row) : null;
+  }
+
+  createPasskeyCredential(input: {
+    racerId: string;
+    credentialId: string;
+    publicKey: string;
+    counter: number;
+    transports: string[];
+    deviceType: string;
+    backedUp: boolean;
+  }): StoredPasskeyCredential {
+    const createdAt = nowIso();
+    this.orm
+      .insert(passkeyCredentials)
+      .values({
+        id: nanoid(),
+        racerId: input.racerId,
+        credentialId: input.credentialId,
+        publicKey: input.publicKey,
+        counter: input.counter,
+        transportsJson: input.transports,
+        deviceType: input.deviceType,
+        backedUp: input.backedUp,
+        createdAt,
+        lastUsedAt: null
+      })
+      .run();
+
+    return this.getPasskeyCredentialByCredentialId(input.credentialId)!;
+  }
+
+  updatePasskeyCredentialUse(credentialId: string, counter: number): void {
+    this.orm
+      .update(passkeyCredentials)
+      .set({
+        counter,
+        lastUsedAt: nowIso()
+      })
+      .where(eq(passkeyCredentials.credentialId, credentialId))
       .run();
   }
 
@@ -681,6 +828,48 @@ export class AppDatabase {
       })
       .onConflictDoNothing()
       .run();
+  }
+
+  getEventRacerPayment(eventId: string, racerId: string): EventRacerPayment {
+    const row = this.orm
+      .select({
+        paymentStatus: eventRacers.paymentStatus,
+        paidAt: eventRacers.paidAt,
+        paymentUpdatedAt: eventRacers.paymentUpdatedAt,
+        paymentNote: eventRacers.paymentNote,
+        paymentProviderReference: eventRacers.paymentProviderReference
+      })
+      .from(eventRacers)
+      .where(and(eq(eventRacers.eventId, eventId), eq(eventRacers.racerId, racerId)))
+      .get();
+
+    return mapEventRacerPayment(row ?? null);
+  }
+
+  updateEventRacerPayment(
+    eventId: string,
+    racerId: string,
+    input: {
+      status: EventPaymentStatus;
+      note?: string;
+      providerReference?: string;
+    }
+  ): EventRacerPayment {
+    this.ensureEventRegistration(eventId, racerId);
+    const timestamp = nowIso();
+    this.orm
+      .update(eventRacers)
+      .set({
+        paymentStatus: input.status,
+        paidAt: input.status === "paid" ? timestamp : null,
+        paymentUpdatedAt: timestamp,
+        paymentNote: input.note ?? null,
+        paymentProviderReference: input.providerReference ?? null
+      })
+      .where(and(eq(eventRacers.eventId, eventId), eq(eventRacers.racerId, racerId)))
+      .run();
+
+    return this.getEventRacerPayment(eventId, racerId);
   }
 
   listRacers(search?: string): Racer[] {

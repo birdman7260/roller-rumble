@@ -124,6 +124,28 @@ export function SettingsTab({
             />
             Seed from all-time race data
           </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={snapshot.settings.allowAccountlessRacerSignup}
+              onChange={(event) => {
+                fireAndForget(
+                  updateSettings({ allowAccountlessRacerSignup: event.target.checked })
+                );
+              }}
+            />
+            Allow accountless racer signup
+          </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={snapshot.settings.paymentRequiredForQueue}
+              onChange={(event) => {
+                fireAndForget(updateSettings({ paymentRequiredForQueue: event.target.checked }));
+              }}
+            />
+            Require entrance fee before racer queue signup
+          </label>
           <label>
             Max active queue entries per racer
             <input

@@ -1,13 +1,32 @@
 import type {
+  AccountlessRacerSessionInput,
   AppSnapshot,
   PhotoBoothAdminStatus,
   PhotoBoothTokenResponse,
   CreateRacerInput,
+  PasskeyChallengeInput,
+  PasskeyRegistrationStartInput,
+  PasskeyRegistrationStartResponse,
+  PasskeySignInStartResponse,
   QueueSignupInput,
+  RacerAuthSessionResponse,
+  RacerAuthSuccessResponse,
+  RacerQueueSignupInput,
   Racer,
   StartTournamentInput,
-  TunnelDiagnostics
+  TunnelDiagnostics,
+  UpdateRacerPaymentInput
 } from "@goldsprints/shared/types";
+
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code?: string
+  ) {
+    super(message);
+  }
+}
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
@@ -43,9 +62,32 @@ export function resolveApiBase(
 }
 
 export const apiBase = resolveApiBase(window.location);
+const racerSessionStorageKey = "goldsprints.racerSessionToken";
 
 function buildUrl(path: string): string {
   return path.startsWith("http") ? path : `${apiBase}${path}`;
+}
+
+export function rememberRacerSessionToken(token?: string | null): void {
+  if (token) {
+    localStorage.setItem(racerSessionStorageKey, token);
+  }
+}
+
+export function forgetRacerSessionToken(): void {
+  localStorage.removeItem(racerSessionStorageKey);
+}
+
+function getRacerSessionHeaders(): Record<string, string> {
+  const token = localStorage.getItem(racerSessionStorageKey);
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+function buildJsonHeaders(extra: Record<string, string> = {}): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    ...extra
+  };
 }
 
 async function parseJson<T>(response: Response): Promise<T> {
@@ -55,7 +97,8 @@ async function parseJson<T>(response: Response): Promise<T> {
       .catch((): Promise<unknown> => Promise.resolve({ message: "Request failed" }));
     const message =
       isRecord(error) && typeof error.message === "string" ? error.message : "Request failed";
-    throw new Error(message);
+    const code = isRecord(error) && typeof error.code === "string" ? error.code : undefined;
+    throw new ApiError(message, response.status, code);
   }
 
   const payload = (await response.json()) as unknown;
@@ -94,6 +137,98 @@ export async function createPhotoBoothToken(racerId: string): Promise<PhotoBooth
   );
 }
 
+export async function createRacerPhotoBoothToken(): Promise<PhotoBoothTokenResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/booth/tokens"), {
+      method: "POST",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function fetchRacerAuthSession(): Promise<RacerAuthSessionResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/session"), {
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function signOutRacer(): Promise<RacerAuthSessionResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/sign-out"), {
+      method: "POST",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function startPasskeySignIn(email: string): Promise<PasskeySignInStartResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/passkeys/sign-in/options"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify({ email })
+    })
+  );
+}
+
+export async function finishPasskeySignIn(
+  input: PasskeyChallengeInput
+): Promise<RacerAuthSuccessResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/passkeys/sign-in/verify"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function startPasskeyRegistration(
+  input: PasskeyRegistrationStartInput
+): Promise<PasskeyRegistrationStartResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/passkeys/register/options"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function finishPasskeyRegistration(
+  input: PasskeyChallengeInput
+): Promise<RacerAuthSuccessResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/passkeys/register/verify"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function createAccountlessRacerSession(
+  input: AccountlessRacerSessionInput
+): Promise<RacerAuthSuccessResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/accountless"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
 export async function registerRacer(
   input: CreateRacerInput
 ): Promise<{ racer: Racer; snapshot: AppSnapshot }> {
@@ -120,7 +255,31 @@ export async function createEvent(name: string): Promise<AppSnapshot> {
 
 export async function signUpQueue(input: QueueSignupInput): Promise<AppSnapshot> {
   return parseJson(
+    await fetch(buildUrl("/api/admin/queue"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function signUpRacerQueue(input: RacerQueueSignupInput): Promise<AppSnapshot> {
+  return parseJson(
     await fetch(buildUrl("/api/queue"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function updateRacerPayment(
+  racerId: string,
+  input: UpdateRacerPaymentInput
+): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/admin/racers/${racerId}/payment`), {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input)

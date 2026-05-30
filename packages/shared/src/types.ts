@@ -1,6 +1,8 @@
 import type {
   APP_MODES,
+  EVENT_PAYMENT_STATUSES,
   IDENTITY_TYPES,
+  PASSKEY_AUTH_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
   QUEUE_ENTRY_LOCK_TYPES,
   QUEUE_ENTRY_STATUSES,
@@ -22,6 +24,8 @@ import type {
 } from "./constants";
 
 export type IdentityType = (typeof IDENTITY_TYPES)[number];
+export type EventPaymentStatus = (typeof EVENT_PAYMENT_STATUSES)[number];
+export type PasskeyAuthStatus = (typeof PASSKEY_AUTH_STATUSES)[number];
 export type AppMode = (typeof APP_MODES)[number];
 export type QueueEntryType = (typeof QUEUE_ENTRY_TYPES)[number];
 export type QueueEntryRequestedType = (typeof QUEUE_ENTRY_REQUESTED_TYPES)[number];
@@ -57,6 +61,14 @@ export interface Racer {
   createdAt: string;
   updatedAt: string;
   identities: Identity[];
+}
+
+export interface EventRacerPayment {
+  status: EventPaymentStatus;
+  paidAt?: string | null;
+  updatedAt?: string | null;
+  note?: string | null;
+  providerReference?: string | null;
 }
 
 export type PhotoBoothHardwareStatus = "unknown" | "online" | "offline" | "simulated" | "error";
@@ -374,6 +386,7 @@ export interface CompetitionPresetDefinition {
 export interface RacerSummary {
   racer: Racer;
   stats: RacerStats;
+  payment: EventRacerPayment;
 }
 
 export interface RacerStats {
@@ -437,6 +450,8 @@ export interface AdminSettings {
   os2lEnabled: boolean;
   autoStageNextRace: boolean;
   includeAllRaceData: boolean;
+  allowAccountlessRacerSignup: boolean;
+  paymentRequiredForQueue: boolean;
   raceDisplayShowEventName: boolean;
   raceDisplayTickerMessages: string[];
   raceDisplayTickerSpeed: number;
@@ -462,13 +477,86 @@ export interface CreateRacerInput {
   displayName: string;
   email?: string;
   phone?: string;
-  anonymousId?: string;
+  accountlessId?: string;
 }
 
 export interface QueueSignupInput {
   racerId: string;
   opponentRacerId?: string;
   requestedType?: "solo" | "auto-match";
+}
+
+export interface RacerQueueSignupInput {
+  opponentRacerId?: string;
+  requestedType?: "solo" | "auto-match";
+}
+
+export interface PasskeyEmailInput {
+  email: string;
+}
+
+export interface PasskeyRegistrationStartInput {
+  email: string;
+  displayName: string;
+  phone?: string;
+}
+
+export interface PasskeyChallengeInput {
+  challengeId: string;
+  response: unknown;
+}
+
+export interface AccountlessRacerSessionInput {
+  displayName: string;
+  accountlessId: string;
+}
+
+export type PasskeySignInStartResponse =
+  | {
+      status: "passkey";
+      email: string;
+      challengeId: string;
+      options: unknown;
+    }
+  | {
+      status: "register_required";
+      email: string;
+    }
+  | {
+      status: "host_assist";
+      email: string;
+      message: string;
+    };
+
+export type PasskeyRegistrationStartResponse =
+  | {
+      status: "passkey";
+      email: string;
+      challengeId: string;
+      options: unknown;
+    }
+  | {
+      status: "host_assist";
+      email: string;
+      message: string;
+    };
+
+export interface RacerAuthSessionResponse {
+  racer: Racer | null;
+  snapshot: AppSnapshot;
+  sessionToken?: string | null;
+}
+
+export interface RacerAuthSuccessResponse {
+  racer: Racer;
+  snapshot: AppSnapshot;
+  sessionToken?: string | null;
+}
+
+export interface UpdateRacerPaymentInput {
+  status: EventPaymentStatus;
+  note?: string;
+  providerReference?: string;
 }
 
 export interface StartTournamentInput {

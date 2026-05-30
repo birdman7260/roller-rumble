@@ -1,8 +1,21 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
+import crypto from "node:crypto";
 import QRCode from "qrcode";
 import { nanoid } from "nanoid";
+import {
+  generateAuthenticationOptions,
+  generateRegistrationOptions,
+  verifyAuthenticationResponse,
+  verifyRegistrationResponse
+} from "@simplewebauthn/server";
+import type {
+  AuthenticationResponseJSON,
+  AuthenticatorTransportFuture,
+  RegistrationResponseJSON,
+  WebAuthnCredential
+} from "@simplewebauthn/server";
 import {
   COUNTDOWN_SECONDS,
   DEFAULT_OS2L_PORT,
@@ -13,6 +26,7 @@ import type {
   BracketNode,
   AdminSettings,
   AppSnapshot,
+  AccountlessRacerSessionInput,
   PhotoBoothAdminStatus,
   PhotoBoothSession,
   PhotoBoothStatus,
@@ -21,8 +35,13 @@ import type {
   RaceRecord,
   RaceResultPresentation,
   Racer,
+  RacerAuthSuccessResponse,
+  RacerQueueSignupInput,
   RacerStats,
   RacerSummary,
+  PasskeyRegistrationStartInput,
+  PasskeyRegistrationStartResponse,
+  PasskeySignInStartResponse,
   RoundRobinMatch,
   TournamentBundle,
   TournamentBracketLayoutMode,
@@ -32,7 +51,7 @@ import type {
   TunnelState
 } from "@goldsprints/shared/types";
 import { nowIso } from "@goldsprints/shared/utils";
-import { AppDatabase } from "../db/Database";
+import { AppDatabase, type StoredPasskeyCredential } from "../db/Database";
 import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
 import { SimulatorSensorAdapter } from "../adapters/sensor-simulator";
@@ -66,6 +85,37 @@ import {
 import { getLocalNetworkBaseUrl } from "./network";
 
 const RESULT_MODAL_DURATION_MS = 15000;
+const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
+const RACER_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
+const RACER_SESSION_SECRET_SETTING_KEY = "racerSessionSecret";
+
+export class AppHttpError extends Error {
+  constructor(
+    message: string,
+    readonly statusCode: number,
+    readonly code?: string
+  ) {
+    super(message);
+  }
+}
+
+interface PasskeyRequestContext {
+  origin: string;
+  rpId: string;
+}
+
+interface PasskeyChallenge {
+  id: string;
+  kind: "sign-in" | "registration";
+  challenge: string;
+  email: string;
+  origin: string;
+  rpId: string;
+  expiresAt: number;
+  racerId?: string;
+  displayName?: string;
+  phone?: string;
+}
 
 interface CurrentRaceRuntime {
   // High-frequency telemetry stays in memory while the DB stores UI-ready snapshots.
@@ -98,6 +148,31 @@ function sameParticipantSet(left: string[], right: string[]): boolean {
   const sortedLeft = [...left].sort();
   const sortedRight = [...right].sort();
   return sortedLeft.every((racerId, index) => racerId === sortedRight[index]);
+}
+
+function normalizeEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
+function encodeBase64UrlJson(value: unknown): string {
+  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
+}
+
+function timingSafeEqualString(left: string, right: string): boolean {
+  const leftBuffer = Buffer.from(left);
+  const rightBuffer = Buffer.from(right);
+  return (
+    leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
+  );
+}
+
+function toWebAuthnCredential(credential: StoredPasskeyCredential): WebAuthnCredential {
+  return {
+    id: credential.credentialId,
+    publicKey: Buffer.from(credential.publicKey, "base64url"),
+    counter: credential.counter,
+    transports: credential.transports as AuthenticatorTransportFuture[]
+  };
 }
 
 function findBracketNodeForParticipants(
@@ -174,6 +249,7 @@ export class GoldsprintsApp extends EventEmitter {
   private currentRuntime: CurrentRaceRuntime | null = null;
   private resultPresentation: RaceResultPresentation | null = null;
   private resultPresentationTimer: NodeJS.Timeout | null = null;
+  private readonly passkeyChallenges = new Map<string, PasskeyChallenge>();
   private serverPort: number;
 
   constructor(options: AppServiceOptions) {
@@ -376,7 +452,8 @@ export class GoldsprintsApp extends EventEmitter {
       };
       return {
         racer,
-        stats
+        stats,
+        payment: this.db.getEventRacerPayment(eventId, racer.id)
       };
     });
   }
@@ -783,6 +860,335 @@ export class GoldsprintsApp extends EventEmitter {
     return this.getSnapshot();
   }
 
+  getPasskeyRequestContext(origin: string): PasskeyRequestContext {
+    const parsedOrigin = new URL(origin);
+    const configuredRpId = process.env.GOLDSPRINTS_PASSKEY_RP_ID?.trim();
+    return {
+      origin: parsedOrigin.origin,
+      rpId:
+        configuredRpId !== undefined && configuredRpId.length > 0
+          ? configuredRpId
+          : parsedOrigin.hostname
+    };
+  }
+
+  private getRacerSessionSecret(): string {
+    const existing = this.db.getSetting<string | null>(
+      RACER_SESSION_SECRET_SETTING_KEY,
+      null
+    ).value;
+    if (existing) {
+      return existing;
+    }
+
+    const secret = crypto.randomBytes(32).toString("base64url");
+    this.db.setSetting(RACER_SESSION_SECRET_SETTING_KEY, secret);
+    return secret;
+  }
+
+  createRacerSessionToken(racerId: string): string {
+    const payload = encodeBase64UrlJson({
+      racerId,
+      expiresAt: Date.now() + RACER_SESSION_TTL_MS
+    });
+    const signature = crypto
+      .createHmac("sha256", this.getRacerSessionSecret())
+      .update(payload)
+      .digest("base64url");
+    return `${payload}.${signature}`;
+  }
+
+  getRacerFromSessionToken(token?: string | null): Racer | null {
+    if (!token) {
+      return null;
+    }
+
+    const [payload, signature] = token.split(".");
+    if (!payload || !signature) {
+      return null;
+    }
+
+    const expectedSignature = crypto
+      .createHmac("sha256", this.getRacerSessionSecret())
+      .update(payload)
+      .digest("base64url");
+    if (!timingSafeEqualString(signature, expectedSignature)) {
+      return null;
+    }
+
+    try {
+      const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
+        racerId?: string;
+        expiresAt?: number;
+      };
+      if (!decoded.racerId || !decoded.expiresAt || decoded.expiresAt < Date.now()) {
+        return null;
+      }
+      return this.db.getRacer(decoded.racerId);
+    } catch {
+      return null;
+    }
+  }
+
+  getRacerAuthSession(token?: string | null): Racer | null {
+    const racer = this.getRacerFromSessionToken(token);
+    const activeEvent = this.db.getActiveEvent();
+    if (racer && activeEvent) {
+      this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    }
+    return racer;
+  }
+
+  private rememberPasskeyChallenge(challenge: Omit<PasskeyChallenge, "id" | "expiresAt">): string {
+    const id = nanoid();
+    this.passkeyChallenges.set(id, {
+      ...challenge,
+      id,
+      expiresAt: Date.now() + PASSKEY_CHALLENGE_TTL_MS
+    });
+    return id;
+  }
+
+  private consumePasskeyChallenge(id: string, kind: PasskeyChallenge["kind"]): PasskeyChallenge {
+    const challenge = this.passkeyChallenges.get(id);
+    this.passkeyChallenges.delete(id);
+    if (challenge?.kind !== kind || challenge.expiresAt < Date.now()) {
+      throw new AppHttpError("Passkey challenge expired. Please try again.", 400, "expired");
+    }
+    return challenge;
+  }
+
+  async startPasskeySignIn(
+    emailInput: string,
+    context: PasskeyRequestContext
+  ): Promise<PasskeySignInStartResponse> {
+    const email = normalizeEmail(emailInput);
+    const racer = this.db.findRacerByIdentity("email", email);
+    if (!racer) {
+      return {
+        status: "register_required",
+        email
+      };
+    }
+
+    const credentials = this.db.listPasskeyCredentialsForRacer(racer.id);
+    if (credentials.length === 0) {
+      return {
+        status: "host_assist",
+        email,
+        message: "That email is already registered. Please ask the host to help attach a passkey."
+      };
+    }
+
+    const options = await generateAuthenticationOptions({
+      rpID: context.rpId,
+      allowCredentials: credentials.map((credential) => ({
+        id: credential.credentialId,
+        transports: credential.transports as AuthenticatorTransportFuture[]
+      })),
+      userVerification: "preferred"
+    });
+    const challengeId = this.rememberPasskeyChallenge({
+      kind: "sign-in",
+      challenge: options.challenge,
+      email,
+      racerId: racer.id,
+      origin: context.origin,
+      rpId: context.rpId
+    });
+
+    return {
+      status: "passkey",
+      email,
+      challengeId,
+      options
+    };
+  }
+
+  async finishPasskeySignIn(
+    challengeId: string,
+    response: unknown
+  ): Promise<RacerAuthSuccessResponse> {
+    const challenge = this.consumePasskeyChallenge(challengeId, "sign-in");
+    const credentialId =
+      typeof (response as { id?: unknown }).id === "string" ? (response as { id: string }).id : "";
+    const credential = this.db.getPasskeyCredentialByCredentialId(credentialId);
+    if (!credential || credential.racerId !== challenge.racerId) {
+      throw new AppHttpError("Passkey credential was not recognized.", 401, "invalid_passkey");
+    }
+
+    const verification = await verifyAuthenticationResponse({
+      response: response as AuthenticationResponseJSON,
+      expectedChallenge: challenge.challenge,
+      expectedOrigin: challenge.origin,
+      expectedRPID: challenge.rpId,
+      credential: toWebAuthnCredential(credential),
+      requireUserVerification: false
+    });
+    if (!verification.verified) {
+      throw new AppHttpError("Passkey sign-in was not verified.", 401, "invalid_passkey");
+    }
+
+    this.db.updatePasskeyCredentialUse(
+      verification.authenticationInfo.credentialID,
+      verification.authenticationInfo.newCounter
+    );
+    const racer = this.db.getRacer(credential.racerId);
+    if (!racer) {
+      throw new AppHttpError("Racer account was not found.", 404, "racer_not_found");
+    }
+
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent) {
+      this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    }
+    this.emitSnapshot();
+    return {
+      racer,
+      snapshot: this.getSnapshot()
+    };
+  }
+
+  async startPasskeyRegistration(
+    input: PasskeyRegistrationStartInput,
+    context: PasskeyRequestContext,
+    sessionRacerId?: string | null
+  ): Promise<PasskeyRegistrationStartResponse> {
+    const email = normalizeEmail(input.email);
+    const existingRacer = this.db.findRacerByIdentity("email", email);
+    if (existingRacer && existingRacer.id !== sessionRacerId) {
+      return {
+        status: "host_assist",
+        email,
+        message: "That email is already registered. Please ask the host to help attach a passkey."
+      };
+    }
+
+    const racerForCredential = sessionRacerId ? this.db.getRacer(sessionRacerId) : null;
+    const excludeCredentials = racerForCredential
+      ? this.db.listPasskeyCredentialsForRacer(racerForCredential.id).map((credential) => ({
+          id: credential.credentialId,
+          transports: credential.transports as AuthenticatorTransportFuture[]
+        }))
+      : [];
+    const options = await generateRegistrationOptions({
+      rpName: "GoldSprints",
+      rpID: context.rpId,
+      userName: email,
+      userDisplayName: input.displayName,
+      excludeCredentials,
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "preferred"
+      }
+    });
+    const challengeId = this.rememberPasskeyChallenge({
+      kind: "registration",
+      challenge: options.challenge,
+      email,
+      displayName: input.displayName,
+      phone: input.phone,
+      racerId: sessionRacerId ?? undefined,
+      origin: context.origin,
+      rpId: context.rpId
+    });
+
+    return {
+      status: "passkey",
+      email,
+      challengeId,
+      options
+    };
+  }
+
+  async finishPasskeyRegistration(
+    challengeId: string,
+    response: unknown
+  ): Promise<RacerAuthSuccessResponse> {
+    const challenge = this.consumePasskeyChallenge(challengeId, "registration");
+    const verification = await verifyRegistrationResponse({
+      response: response as RegistrationResponseJSON,
+      expectedChallenge: challenge.challenge,
+      expectedOrigin: challenge.origin,
+      expectedRPID: challenge.rpId,
+      requireUserVerification: false
+    });
+    if (!verification.verified) {
+      throw new AppHttpError("Passkey registration was not verified.", 401, "invalid_passkey");
+    }
+
+    const credential = verification.registrationInfo.credential;
+    const existingCredential = this.db.getPasskeyCredentialByCredentialId(credential.id);
+    if (existingCredential) {
+      throw new AppHttpError("That passkey is already registered.", 409, "duplicate_passkey");
+    }
+
+    let racer = challenge.racerId ? this.db.getRacer(challenge.racerId) : null;
+    if (racer) {
+      this.db.updateRacerRegistration(racer.id, {
+        displayName: challenge.displayName ?? racer.displayName,
+        email: challenge.email,
+        phone: challenge.phone
+      });
+      racer = this.db.getRacer(racer.id);
+    } else {
+      racer = this.db.createOrUpdateRacer({
+        displayName: challenge.displayName ?? challenge.email,
+        email: challenge.email,
+        phone: challenge.phone
+      });
+    }
+
+    if (!racer) {
+      throw new AppHttpError("Could not create racer account.", 500, "registration_failed");
+    }
+
+    this.db.createPasskeyCredential({
+      racerId: racer.id,
+      credentialId: credential.id,
+      publicKey: Buffer.from(credential.publicKey).toString("base64url"),
+      counter: credential.counter,
+      transports: credential.transports ?? [],
+      deviceType: verification.registrationInfo.credentialDeviceType,
+      backedUp: verification.registrationInfo.credentialBackedUp
+    });
+
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent) {
+      this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    }
+    this.emitSnapshot();
+    return {
+      racer,
+      snapshot: this.getSnapshot()
+    };
+  }
+
+  createAccountlessRacerSession(input: AccountlessRacerSessionInput): RacerAuthSuccessResponse {
+    const settings = this.db.getAdminSettings();
+    if (!settings.allowAccountlessRacerSignup) {
+      throw new AppHttpError(
+        "Accountless registration is currently disabled. Please sign in with an email.",
+        403,
+        "accountless_disabled"
+      );
+    }
+
+    const displayName = input.displayName.trim();
+    if (!displayName) {
+      throw new AppHttpError("Enter a display name to continue.", 400, "display_name_required");
+    }
+
+    const racer = this.registerRacerRecord({
+      displayName,
+      accountlessId: input.accountlessId
+    });
+    return {
+      racer,
+      snapshot: this.getSnapshot()
+    };
+  }
+
   createEvent(name: string): AppSnapshot {
     this.db.createEvent(name);
     this.emitSnapshot();
@@ -793,7 +1199,7 @@ export class GoldsprintsApp extends EventEmitter {
     displayName: string;
     email?: string;
     phone?: string;
-    anonymousId?: string;
+    accountlessId?: string;
   }): AppSnapshot {
     this.registerRacerRecord(input);
     return this.getSnapshot();
@@ -803,8 +1209,15 @@ export class GoldsprintsApp extends EventEmitter {
     displayName: string;
     email?: string;
     phone?: string;
-    anonymousId?: string;
+    accountlessId?: string;
   }): Racer {
+    if (input.accountlessId && !this.db.getAdminSettings().allowAccountlessRacerSignup) {
+      throw new AppHttpError(
+        "Accountless registration is currently disabled. Please sign in with an email.",
+        403,
+        "accountless_disabled"
+      );
+    }
     const activeEvent = this.db.getActiveEvent()!;
     const racer = this.db.createOrUpdateRacer(input);
     this.db.ensureEventRegistration(activeEvent.id, racer.id);
@@ -963,6 +1376,51 @@ export class GoldsprintsApp extends EventEmitter {
       racerStatsById: this.getQueueRacerStatsById(eventId)
     });
     this.db.saveQueueState(eventId, projection.occurrences, projection.entries);
+  }
+
+  updateRacerPaymentStatus(
+    racerId: string,
+    input: {
+      status: "unpaid" | "paid" | "waived";
+      note?: string;
+      providerReference?: string;
+    }
+  ): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    this.db.updateEventRacerPayment(activeEvent.id, racerId, input);
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  signUpQueueForRacer(racerId: string, input: RacerQueueSignupInput): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    this.db.ensureEventRegistration(activeEvent.id, racerId);
+    const settings = this.db.getAdminSettings();
+    const payment = this.db.getEventRacerPayment(activeEvent.id, racerId);
+    if (settings.paymentRequiredForQueue && !["paid", "waived"].includes(payment.status)) {
+      throw new AppHttpError(
+        "Please see the host to pay the entrance fee before joining the race queue.",
+        402,
+        "payment_required"
+      );
+    }
+    if (settings.paymentRequiredForQueue && input.opponentRacerId) {
+      this.db.ensureEventRegistration(activeEvent.id, input.opponentRacerId);
+      const opponentPayment = this.db.getEventRacerPayment(activeEvent.id, input.opponentRacerId);
+      if (!["paid", "waived"].includes(opponentPayment.status)) {
+        throw new AppHttpError(
+          "That racer needs to see the host to pay before they can be added to a challenge.",
+          402,
+          "payment_required"
+        );
+      }
+    }
+
+    return this.signUpQueue({
+      racerId,
+      opponentRacerId: input.opponentRacerId,
+      requestedType: input.requestedType
+    });
   }
 
   signUpQueue(input: {
