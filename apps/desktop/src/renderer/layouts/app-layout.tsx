@@ -43,6 +43,9 @@ export function AppLayout() {
           <Link to="/bracket-lab" activeProps={{ className: "active" }}>
             Bracket Lab
           </Link>
+          <Link to="/queue-lab" activeProps={{ className: "active" }}>
+            Queue Lab
+          </Link>
         </nav>
       </aside>
       <main className="app-shell__content">

@@ -356,6 +356,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: [],
     raceDisplayTickerSpeed: 72,
+    maxActiveQueueEntriesPerRacer: 3,
     serverPort: 3187,
     targetDistanceMeters: 250,
     themeId: theme.id

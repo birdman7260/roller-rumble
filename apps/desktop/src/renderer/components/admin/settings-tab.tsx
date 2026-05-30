@@ -124,6 +124,23 @@ export function SettingsTab({
             />
             Seed from all-time race data
           </label>
+          <label>
+            Max active queue entries per racer
+            <input
+              type="number"
+              min={1}
+              max={10}
+              step={1}
+              value={snapshot.settings.maxActiveQueueEntriesPerRacer}
+              onChange={(event) => {
+                fireAndForget(
+                  updateSettings({
+                    maxActiveQueueEntriesPerRacer: Number(event.target.value)
+                  })
+                );
+              }}
+            />
+          </label>
         </div>
       </Panel>
 

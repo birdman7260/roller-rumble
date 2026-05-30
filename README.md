@@ -18,7 +18,16 @@ presentation, persistent event data, theme support, and live tournament operatio
 - Lets racers upload avatars
 - Lets racers generate a short-lived kaleidoscope photo booth QR after registration so a paired
   Raspberry Pi booth can capture a DSLR avatar for them
-- Manages an open time trial queue with solo and head-to-head entries
+- Manages an open time trial queue with solo, auto-matched head-to-head, and locked challenge
+  entries
+- Treats the open time trial queue as stable ordered slots and derives the visible race list from
+  those slots, pairing flexible racers while keeping locked challenges in place
+- Tracks each queue signup as its own occurrence so repeated signups have separate bump/wait
+  priority and per-racer active queue limits; priority is used when new slots enter instead of
+  constantly re-sorting the lineup
+- Places challenge matches at the soonest existing flexible queue spot when either racer is already
+  waiting, reusing both racers' existing queue occurrences when both are already queued
+- Protects the first three derived races from being bumped by new queue insertions
 - Uses filter-as-you-type racer pickers when admins or racers choose matchup participants
 - Reflows the racer-page queue and challenge controls for narrow phone screens so buttons and the
   opponent picker stay usable
@@ -125,6 +134,9 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
 - `/bracket-lab`
   - developer test page for replaying tournament bracket camera and connector handoff animations
     against mocked bracket data
+- `/queue-lab`
+  - developer test page for exercising open time trial queue projection, repeated signups,
+    challenges, removals, race completion, bump counts, and active-entry limits
 
 ## Project Layout
 
@@ -540,6 +552,8 @@ Manual visual testing:
   changing real event data.
 - The lab supports theme switching, standard vs center-converging layouts, individual choreography
   phases, and a full projector-style handoff playback.
+- Open `/queue-lab` while the dev app is running to test queue behavior against disposable mocked
+  racers without touching the active event database.
 
 ## Debugging
 

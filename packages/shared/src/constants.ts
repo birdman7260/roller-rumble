@@ -34,6 +34,7 @@ export const APP_MODES = SUPPORTED_TOURNAMENT_PRESETS;
 export const IDENTITY_TYPES = ["email", "phone", "anonymous"] as const;
 export const QUEUE_ENTRY_TYPES = ["solo", "match"] as const;
 export const QUEUE_ENTRY_REQUESTED_TYPES = ["solo", "match", "auto-match"] as const;
+export const QUEUE_ENTRY_LOCK_TYPES = ["flex", "challenge", "admin"] as const;
 export const QUEUE_ENTRY_STATUSES = [
   "queued",
   "staging",
@@ -41,6 +42,7 @@ export const QUEUE_ENTRY_STATUSES = [
   "completed",
   "removed"
 ] as const;
+export const QUEUE_OCCURRENCE_INTENTS = ["auto-match", "solo", "challenge"] as const;
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
 export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;
 export const THEME_ORIENTATIONS = ["horizontal", "vertical"] as const;

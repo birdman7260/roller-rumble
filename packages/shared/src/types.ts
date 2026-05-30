@@ -2,8 +2,10 @@ import type {
   APP_MODES,
   IDENTITY_TYPES,
   QUEUE_ENTRY_REQUESTED_TYPES,
+  QUEUE_ENTRY_LOCK_TYPES,
   QUEUE_ENTRY_STATUSES,
   QUEUE_ENTRY_TYPES,
+  QUEUE_OCCURRENCE_INTENTS,
   RACE_STATES,
   SUPPORTED_TOURNAMENT_PRESETS,
   THEME_CONNECTOR_STYLES,
@@ -23,7 +25,9 @@ export type IdentityType = (typeof IDENTITY_TYPES)[number];
 export type AppMode = (typeof APP_MODES)[number];
 export type QueueEntryType = (typeof QUEUE_ENTRY_TYPES)[number];
 export type QueueEntryRequestedType = (typeof QUEUE_ENTRY_REQUESTED_TYPES)[number];
+export type QueueEntryLockType = (typeof QUEUE_ENTRY_LOCK_TYPES)[number];
 export type QueueEntryStatus = (typeof QUEUE_ENTRY_STATUSES)[number];
+export type QueueOccurrenceIntent = (typeof QUEUE_OCCURRENCE_INTENTS)[number];
 export type RaceState = (typeof RACE_STATES)[number];
 export type ThemeConnectorStyle = (typeof THEME_CONNECTOR_STYLES)[number];
 export type ThemeConfettiEffect = (typeof THEME_CONFETTI_EFFECTS)[number];
@@ -139,9 +143,27 @@ export interface QueueEntry {
   eventId: string;
   type: QueueEntryType;
   requestedType: QueueEntryRequestedType;
+  lockType: QueueEntryLockType;
   position: number;
   racerIds: string[];
+  occurrenceIds: string[];
+  priorityScore: number;
   status: QueueEntryStatus;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface QueueOccurrence {
+  id: string;
+  eventId: string;
+  racerId: string;
+  status: QueueEntryStatus;
+  intent: QueueOccurrenceIntent;
+  lockGroupId: string | null;
+  signupSequence: number;
+  bumpCount: number;
+  raceCountAtJoin: number;
+  projectedPosition: number | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -418,6 +440,7 @@ export interface AdminSettings {
   raceDisplayShowEventName: boolean;
   raceDisplayTickerMessages: string[];
   raceDisplayTickerSpeed: number;
+  maxActiveQueueEntriesPerRacer: number;
   targetDistanceMeters: number;
   serverPort: number;
 }

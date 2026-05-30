@@ -3,6 +3,7 @@ import type {
   BracketNode,
   PhotoBoothCapture,
   QueueEntry,
+  QueueOccurrence,
   RaceMetricsSnapshot,
   RaceParticipant,
   RaceRecord,
@@ -71,9 +72,31 @@ export const queueEntries = sqliteTable("queue_entries", {
     .references(() => events.id, { onDelete: "cascade" }),
   type: text("type").$type<QueueEntry["type"]>().notNull(),
   requestedType: text("requested_type").$type<QueueEntry["requestedType"]>().notNull(),
+  lockType: text("lock_type").$type<QueueEntry["lockType"]>().notNull(),
   position: integer("position").notNull(),
   racerIdsJson: text("racer_ids_json", { mode: "json" }).$type<string[]>().notNull(),
+  occurrenceIdsJson: text("occurrence_ids_json", { mode: "json" }).$type<string[]>().notNull(),
+  priorityScore: real("priority_score").notNull(),
   status: text("status").$type<QueueEntry["status"]>().notNull(),
+  createdAt: text("created_at").notNull(),
+  updatedAt: text("updated_at").notNull()
+});
+
+export const queueOccurrences = sqliteTable("queue_occurrences", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id")
+    .notNull()
+    .references(() => events.id, { onDelete: "cascade" }),
+  racerId: text("racer_id")
+    .notNull()
+    .references(() => racers.id, { onDelete: "cascade" }),
+  status: text("status").$type<QueueEntry["status"]>().notNull(),
+  intent: text("intent").$type<QueueOccurrence["intent"]>().notNull(),
+  lockGroupId: text("lock_group_id"),
+  signupSequence: integer("signup_sequence").notNull(),
+  bumpCount: integer("bump_count").notNull(),
+  raceCountAtJoin: integer("race_count_at_join").notNull(),
+  projectedPosition: integer("projected_position"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
 });

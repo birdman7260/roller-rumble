@@ -17,6 +17,10 @@ export function formatRacerNames(snapshot: AppSnapshot, racerIds: string[]): str
 }
 
 export function describeQueueEntry(entry: QueueEntry): string {
+  if (entry.lockType === "challenge") {
+    return "Challenge match";
+  }
+
   if (entry.requestedType === "auto-match" && entry.racerIds.length === 1) {
     return "Waiting for head-to-head opponent";
   }

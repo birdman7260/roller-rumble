@@ -409,19 +409,43 @@ Requirements:
 - Default queue signup behavior is head-to-head auto-match, not solo. `Implemented`
 - Explicit solo runs remain supported. `Implemented`
 - A waiting auto-match signup with only one rider must not be staged until paired. `Implemented`
+- A racer must never be auto-matched against another active occurrence of themselves. If no
+  different opponent is available, that occurrence remains waiting. `Implemented`
 - Specific head-to-head challenges must remain intact and not be broken apart automatically.
+  `Implemented`
+- The queue must be modeled as stable ordered slots: single-racer slots and locked challenge slots.
+  The current race queue is derived from those slots by pairing flexible single-racer slots while
+  preserving locked challenge slots. `Implemented`
+- Queue slots are represented by per-racer queue occurrences so repeated signups still have
+  independent wait/bump history. `Implemented`
+- A racer can have a configurable maximum number of active queue occurrences at once, defaulting to
+  `3`. `Implemented`
+- When a racer who is already in a flexible queue occurrence creates a challenge, that occurrence is
+  converted into the locked challenge anchor and their former auto-match partner returns to the
+  flexible queue pool. `Implemented`
+- When either or both racers in a new challenge already have flexible queued occurrences, the
+  challenge must reuse the existing occurrence that is soonest to race and place the locked match at
+  that spot. If both racers are already queued, both existing occurrences are reused. `Implemented`
+- Priority must be used when a new single slot or new locked challenge slot enters the queue, not to
+  continuously re-sort the whole queue. New-racer priority can insert ahead of lower-priority slots,
+  but slots bumped too often gain priority and eventually stop being skipped. `Implemented`
+- Locked challenge insertion priority is the average priority of both racers. `Implemented`
+- The first three derived race entries are protected and cannot be bumped by newly inserted slots.
   `Implemented`
 - When the admin enables auto-stage-next-race and no race is currently staged, the next ready
   open-time-trial queue entry should automatically be staged. `Implemented`
 - Auto-stage-next-race applies only to open time trial and must not auto-stage tournament matches.
   `Implemented`
-- If a racer is removed from one queued open-time-trial race, later non-explicit queue entries
-  must compact upward to fill the gap, while explicit matches remain locked in place. `Implemented`
+- If a racer is removed from one queued open-time-trial race, later flexible auto-match occurrences
+  must compact upward to fill the gap while locked challenge matches remain intact. `Implemented`
+- If a racer is removed from a locked challenge, that locked slot becomes a regular flexible slot
+  with the remaining racer. `Implemented`
 
 Clarified compaction behavior:
 
-- Auto-match riders may be pulled forward into earlier open auto-match slots.
-- Explicit `requestedType: "match"` entries act as queue boundaries and are not auto-rewritten.
+- Auto-match riders may be pulled forward around locked matches to fill earlier open auto-match
+  slots.
+- Locked challenge entries are atomic blocks, not hard queue boundaries.
 
 ## Tournament Formats And Behavior
 
@@ -611,8 +635,9 @@ Requirements:
 - Developers must have an easy dev-data reset path. `Implemented`
 - Developers must have a supported debug flow for Electron main, backend, and renderer code.
   `Implemented`
-- Developers must have a manual visual test page for tournament bracket camera and connector
-  handoff animations without needing to mutate real event data. `Implemented`
+- Developers must have manual visual test pages for tournament bracket camera/connector handoff
+  animations and open time trial queue projection without needing to mutate real event data.
+  `Implemented`
 
 Current tooling requirements now include:
 
@@ -644,6 +669,7 @@ Current tooling requirements now include:
 - `pnpm dev:debug`
 - `pnpm dev:debug:break`
 - `/bracket-lab` for manual bracket animation testing
+- `/queue-lab` for manual open time trial queue behavior testing
 - `pnpm photo-booth:agent` for running the Raspberry Pi booth kiosk/agent
 - `pnpm photo-booth:doctor` for booth hardware diagnostics
 

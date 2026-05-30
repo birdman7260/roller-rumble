@@ -18,6 +18,7 @@ import type {
   EventRecord,
   PhotoBoothCapture,
   QueueEntry,
+  QueueOccurrence,
   RaceParticipant,
   RaceRecord,
   RaceResult,
@@ -39,6 +40,7 @@ import {
   groupMatches,
   identities,
   queueEntries,
+  queueOccurrences,
   racers,
   races,
   results,
@@ -53,6 +55,7 @@ type EventRow = typeof events.$inferSelect;
 type IdentityRow = typeof identities.$inferSelect;
 type RacerRow = typeof racers.$inferSelect;
 type QueueEntryRow = typeof queueEntries.$inferSelect;
+type QueueOccurrenceRow = typeof queueOccurrences.$inferSelect;
 type RaceRow = typeof races.$inferSelect;
 type ResultRow = typeof results.$inferSelect;
 type TournamentRow = typeof tournaments.$inferSelect;
@@ -87,6 +90,7 @@ function getDefaultAdminSettings(): AdminSettings {
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Fiercely local racing all night"],
     raceDisplayTickerSpeed: DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
+    maxActiveQueueEntriesPerRacer: 3,
     targetDistanceMeters: DEFAULT_TARGET_DISTANCE_METERS,
     serverPort: DEFAULT_SERVER_PORT
   };
@@ -137,9 +141,29 @@ function mapQueueEntry(row: QueueEntryRow): QueueEntry {
     eventId: row.eventId,
     type: row.type,
     requestedType: row.requestedType,
+    lockType: row.lockType,
     position: row.position,
     racerIds: row.racerIdsJson,
+    occurrenceIds: row.occurrenceIdsJson,
+    priorityScore: row.priorityScore,
     status: row.status,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+function mapQueueOccurrence(row: QueueOccurrenceRow): QueueOccurrence {
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    racerId: row.racerId,
+    status: row.status,
+    intent: row.intent,
+    lockGroupId: row.lockGroupId,
+    signupSequence: row.signupSequence,
+    bumpCount: row.bumpCount,
+    raceCountAtJoin: row.raceCountAtJoin,
+    projectedPosition: row.projectedPosition,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -272,6 +296,7 @@ export class AppDatabase {
     applyMigrations(this.db);
     this.ensureAdminSettings();
     this.ensureActiveEvent();
+    this.ensureQueueOccurrenceBackfill();
     this.markUnfinishedRacesInterrupted();
   }
 
@@ -306,6 +331,71 @@ export class AppDatabase {
     }
 
     return this.createEvent(DEFAULT_EVENT_NAME);
+  }
+
+  private ensureQueueOccurrenceBackfill(): void {
+    const legacyRows = this.db
+      .prepare(
+        "SELECT id, event_id, requested_type, position, racer_ids_json, status, created_at, updated_at FROM queue_entries WHERE occurrence_ids_json = '[]'"
+      )
+      .all() as {
+      id: string;
+      event_id: string;
+      requested_type: QueueEntry["requestedType"];
+      position: number;
+      racer_ids_json: string;
+      status: QueueEntry["status"];
+      created_at: string;
+      updated_at: string;
+    }[];
+
+    if (legacyRows.length === 0) {
+      return;
+    }
+
+    const insertOccurrence = this.db.prepare(
+      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, lock_group_id, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    const updateEntry = this.db.prepare(
+      "UPDATE queue_entries SET lock_type = ?, occurrence_ids_json = ?, priority_score = 0 WHERE id = ?"
+    );
+    const transaction = this.db.transaction(() => {
+      for (const row of legacyRows) {
+        const racerIds = JSON.parse(row.racer_ids_json) as string[];
+        const lockGroupId = row.requested_type === "match" ? `legacy-lock-${row.id}` : null;
+        const occurrenceIds = racerIds.map(() => nanoid());
+        const intent =
+          row.requested_type === "match"
+            ? "challenge"
+            : row.requested_type === "solo"
+              ? "solo"
+              : "auto-match";
+
+        racerIds.forEach((racerId, index) => {
+          insertOccurrence.run(
+            occurrenceIds[index],
+            row.event_id,
+            racerId,
+            row.status,
+            intent,
+            lockGroupId,
+            row.position * 10 + index,
+            0,
+            0,
+            row.position,
+            row.created_at,
+            row.updated_at
+          );
+        });
+
+        updateEntry.run(
+          row.requested_type === "match" ? "challenge" : "flex",
+          encodeJson(occurrenceIds),
+          row.id
+        );
+      }
+    });
+    transaction();
   }
 
   private markUnfinishedRacesInterrupted(): void {
@@ -656,6 +746,27 @@ export class AppDatabase {
       .map(mapQueueEntry);
   }
 
+  listQueueOccurrences(eventId: string): QueueOccurrence[] {
+    return this.orm
+      .select()
+      .from(queueOccurrences)
+      .where(and(eq(queueOccurrences.eventId, eventId), ne(queueOccurrences.status, "removed")))
+      .orderBy(asc(queueOccurrences.signupSequence))
+      .all()
+      .map(mapQueueOccurrence);
+  }
+
+  getNextQueueSignupSequence(eventId: string): number {
+    const row = this.orm
+      .select({
+        maxSequence: sql<number>`coalesce(max(${queueOccurrences.signupSequence}), 0)`
+      })
+      .from(queueOccurrences)
+      .where(eq(queueOccurrences.eventId, eventId))
+      .get();
+    return (row?.maxSequence ?? 0) + 1;
+  }
+
   createQueueEntry(
     eventId: string,
     racerIds: string[],
@@ -675,8 +786,11 @@ export class AppDatabase {
       eventId,
       type: racerIds.length > 1 ? "match" : "solo",
       requestedType,
+      lockType: requestedType === "match" ? "challenge" : "flex",
       position,
       racerIds,
+      occurrenceIds: [],
+      priorityScore: 0,
       status: "queued",
       createdAt: timestamp,
       updatedAt: timestamp
@@ -695,7 +809,7 @@ export class AppDatabase {
     // this keeps one prepared statement hot while the rest of the database surface
     // moves through Drizzle's typed query layer.
     const statement = this.db.prepare(
-      "INSERT INTO queue_entries (id, event_id, type, requested_type, position, racer_ids_json, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, status = excluded.status, updated_at = excluded.updated_at"
+      "INSERT INTO queue_entries (id, event_id, type, requested_type, lock_type, position, racer_ids_json, occurrence_ids_json, priority_score, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, lock_type = excluded.lock_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, occurrence_ids_json = excluded.occurrence_ids_json, priority_score = excluded.priority_score, status = excluded.status, updated_at = excluded.updated_at"
     );
     const transaction = this.db.transaction((rows: QueueEntry[]) => {
       for (const entry of rows) {
@@ -704,8 +818,11 @@ export class AppDatabase {
           entry.eventId,
           entry.type,
           entry.requestedType,
+          entry.lockType,
           entry.position,
           encodeJson(entry.racerIds),
+          encodeJson(entry.occurrenceIds),
+          entry.priorityScore,
           entry.status,
           entry.createdAt,
           entry.updatedAt
@@ -723,7 +840,100 @@ export class AppDatabase {
     transaction();
   }
 
+  replaceQueuedQueueEntries(eventId: string, entries: QueueEntry[]): void {
+    const transaction = this.db.transaction(() => {
+      this.db
+        .prepare("DELETE FROM queue_entries WHERE event_id = ? AND status = 'queued'")
+        .run(eventId);
+      this.upsertQueueEntries(entries);
+    });
+    transaction();
+  }
+
+  upsertQueueOccurrences(occurrences: QueueOccurrence[]): void {
+    if (occurrences.length === 0) {
+      return;
+    }
+
+    const statement = this.db.prepare(
+      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, lock_group_id, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, intent = excluded.intent, lock_group_id = excluded.lock_group_id, bump_count = excluded.bump_count, race_count_at_join = excluded.race_count_at_join, projected_position = excluded.projected_position, updated_at = excluded.updated_at"
+    );
+    const transaction = this.db.transaction((rows: QueueOccurrence[]) => {
+      for (const occurrence of rows) {
+        statement.run(
+          occurrence.id,
+          occurrence.eventId,
+          occurrence.racerId,
+          occurrence.status,
+          occurrence.intent,
+          occurrence.lockGroupId,
+          occurrence.signupSequence,
+          occurrence.bumpCount,
+          occurrence.raceCountAtJoin,
+          occurrence.projectedPosition,
+          occurrence.createdAt,
+          occurrence.updatedAt
+        );
+      }
+    });
+    transaction(occurrences);
+  }
+
+  saveQueueState(
+    eventId: string,
+    occurrences: QueueOccurrence[],
+    queuedEntries: QueueEntry[]
+  ): void {
+    const occurrenceStatement = this.db.prepare(
+      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, lock_group_id, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, intent = excluded.intent, lock_group_id = excluded.lock_group_id, bump_count = excluded.bump_count, race_count_at_join = excluded.race_count_at_join, projected_position = excluded.projected_position, updated_at = excluded.updated_at"
+    );
+    const entryStatement = this.db.prepare(
+      "INSERT INTO queue_entries (id, event_id, type, requested_type, lock_type, position, racer_ids_json, occurrence_ids_json, priority_score, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, lock_type = excluded.lock_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, occurrence_ids_json = excluded.occurrence_ids_json, priority_score = excluded.priority_score, status = excluded.status, updated_at = excluded.updated_at"
+    );
+    const transaction = this.db.transaction(() => {
+      for (const occurrence of occurrences) {
+        occurrenceStatement.run(
+          occurrence.id,
+          occurrence.eventId,
+          occurrence.racerId,
+          occurrence.status,
+          occurrence.intent,
+          occurrence.lockGroupId,
+          occurrence.signupSequence,
+          occurrence.bumpCount,
+          occurrence.raceCountAtJoin,
+          occurrence.projectedPosition,
+          occurrence.createdAt,
+          occurrence.updatedAt
+        );
+      }
+
+      this.db
+        .prepare("DELETE FROM queue_entries WHERE event_id = ? AND status = 'queued'")
+        .run(eventId);
+
+      for (const entry of queuedEntries) {
+        entryStatement.run(
+          entry.id,
+          entry.eventId,
+          entry.type,
+          entry.requestedType,
+          entry.lockType,
+          entry.position,
+          encodeJson(entry.racerIds),
+          encodeJson(entry.occurrenceIds),
+          entry.priorityScore,
+          entry.status,
+          entry.createdAt,
+          entry.updatedAt
+        );
+      }
+    });
+    transaction();
+  }
+
   markQueueEntryStatus(entryId: string, status: QueueEntry["status"]): void {
+    const existing = this.orm.select().from(queueEntries).where(eq(queueEntries.id, entryId)).get();
     this.orm
       .update(queueEntries)
       .set({
@@ -731,6 +941,19 @@ export class AppDatabase {
         updatedAt: nowIso()
       })
       .where(eq(queueEntries.id, entryId))
+      .run();
+
+    if (!existing || existing.occurrenceIdsJson.length === 0) {
+      return;
+    }
+
+    this.orm
+      .update(queueOccurrences)
+      .set({
+        status,
+        updatedAt: nowIso()
+      })
+      .where(inArray(queueOccurrences.id, existing.occurrenceIdsJson))
       .run();
   }
 

@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as RaceRouteImport } from './routes/race'
+import { Route as QueueLabRouteImport } from './routes/queue-lab'
 import { Route as BracketLabRouteImport } from './routes/bracket-lab'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -19,6 +20,11 @@ import { Route as RacerEventsEventIdRouteImport } from './routes/racer/events/$e
 const RaceRoute = RaceRouteImport.update({
   id: '/race',
   path: '/race',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const QueueLabRoute = QueueLabRouteImport.update({
+  id: '/queue-lab',
+  path: '/queue-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BracketLabRoute = BracketLabRouteImport.update({
@@ -51,6 +57,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/bracket-lab': typeof BracketLabRoute
+  '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
   '/racer/': typeof RacerIndexRoute
   '/racer/events/$eventId': typeof RacerEventsEventIdRoute
@@ -59,6 +66,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/bracket-lab': typeof BracketLabRoute
+  '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
   '/racer': typeof RacerIndexRoute
   '/racer/events/$eventId': typeof RacerEventsEventIdRoute
@@ -68,6 +76,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/bracket-lab': typeof BracketLabRoute
+  '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
   '/racer/': typeof RacerIndexRoute
   '/racer/events/$eventId': typeof RacerEventsEventIdRoute
@@ -78,6 +87,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bracket-lab'
+    | '/queue-lab'
     | '/race'
     | '/racer/'
     | '/racer/events/$eventId'
@@ -86,6 +96,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bracket-lab'
+    | '/queue-lab'
     | '/race'
     | '/racer'
     | '/racer/events/$eventId'
@@ -94,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bracket-lab'
+    | '/queue-lab'
     | '/race'
     | '/racer/'
     | '/racer/events/$eventId'
@@ -103,6 +115,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   BracketLabRoute: typeof BracketLabRoute
+  QueueLabRoute: typeof QueueLabRoute
   RaceRoute: typeof RaceRoute
   RacerIndexRoute: typeof RacerIndexRoute
   RacerEventsEventIdRoute: typeof RacerEventsEventIdRoute
@@ -115,6 +128,13 @@ declare module '@tanstack/react-router' {
       path: '/race'
       fullPath: '/race'
       preLoaderRoute: typeof RaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/queue-lab': {
+      id: '/queue-lab'
+      path: '/queue-lab'
+      fullPath: '/queue-lab'
+      preLoaderRoute: typeof QueueLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bracket-lab': {
@@ -159,6 +179,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BracketLabRoute: BracketLabRoute,
+  QueueLabRoute: QueueLabRoute,
   RaceRoute: RaceRoute,
   RacerIndexRoute: RacerIndexRoute,
   RacerEventsEventIdRoute: RacerEventsEventIdRoute,

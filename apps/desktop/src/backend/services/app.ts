@@ -51,6 +51,7 @@ import {
 import {
   addQueueSignup,
   findNextQueuedEntry,
+  projectQueueEntries,
   reindexQueue,
   removeRacerFromQueue,
   removeRacerFromSpecificQueueEntry
@@ -937,25 +938,64 @@ export class GoldsprintsApp extends EventEmitter {
     this.reconcileRuntimeTargetDistance(Date.now());
   }
 
+  private getQueueRacerStatsById(eventId: string): Map<string, { raceCount: number }> {
+    const stats = new Map<string, { raceCount: number }>();
+    for (const result of this.db.listResults(eventId)) {
+      const existing = stats.get(result.racerId);
+      stats.set(result.racerId, {
+        raceCount: (existing?.raceCount ?? 0) + 1
+      });
+    }
+    return stats;
+  }
+
+  private saveProjectedQueue(
+    eventId: string,
+    occurrences: ReturnType<AppDatabase["listQueueOccurrences"]>,
+    timestamp: string
+  ): void {
+    const projection = projectQueueEntries({
+      entries: this.db.listQueueEntries(eventId),
+      occurrences,
+      eventId,
+      timestamp,
+      getEntryId: () => nanoid(),
+      racerStatsById: this.getQueueRacerStatsById(eventId)
+    });
+    this.db.saveQueueState(eventId, projection.occurrences, projection.entries);
+  }
+
   signUpQueue(input: {
     racerId: string;
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
   }): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
+    const settings = this.db.getAdminSettings();
+    const racerStatsById = this.getQueueRacerStatsById(activeEvent.id);
+    const timestamp = nowIso();
     this.db.ensureEventRegistration(activeEvent.id, input.racerId);
     if (input.opponentRacerId) {
       this.db.ensureEventRegistration(activeEvent.id, input.opponentRacerId);
     }
-    const updated = addQueueSignup(this.db.listQueueEntries(activeEvent.id), {
+    const updated = addQueueSignup(this.db.listQueueOccurrences(activeEvent.id), {
       eventId: activeEvent.id,
       racerId: input.racerId,
       opponentRacerId: input.opponentRacerId,
       requestedType: input.requestedType,
-      entryId: nanoid(),
-      timestamp: nowIso()
+      occurrenceId: nanoid(),
+      opponentOccurrenceId: input.opponentRacerId ? nanoid() : undefined,
+      lockGroupId: input.opponentRacerId ? nanoid() : undefined,
+      timestamp,
+      signupSequence: this.db.getNextQueueSignupSequence(activeEvent.id),
+      raceCountAtJoin: racerStatsById.get(input.racerId)?.raceCount ?? 0,
+      opponentRaceCountAtJoin: input.opponentRacerId
+        ? (racerStatsById.get(input.opponentRacerId)?.raceCount ?? 0)
+        : undefined,
+      maxActiveOccurrencesPerRacer: settings.maxActiveQueueEntriesPerRacer,
+      racerStatsById
     });
-    this.db.replaceQueueEntries(activeEvent.id, updated);
+    this.saveProjectedQueue(activeEvent.id, updated, timestamp);
     if (!this.maybeAutoStageNextRace()) {
       this.emitSnapshot();
     }
@@ -964,13 +1004,9 @@ export class GoldsprintsApp extends EventEmitter {
 
   removeRacerFromAllUpcomingRaces(racerId: string): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
-    const updated = removeRacerFromQueue(this.db.listQueueEntries(activeEvent.id), racerId).map(
-      (entry) => ({
-        ...entry,
-        updatedAt: nowIso()
-      })
-    );
-    this.db.replaceQueueEntries(activeEvent.id, updated);
+    const timestamp = nowIso();
+    const updated = removeRacerFromQueue(this.db.listQueueOccurrences(activeEvent.id), racerId);
+    this.saveProjectedQueue(activeEvent.id, updated, timestamp);
     if (!this.maybeAutoStageNextRace()) {
       this.emitSnapshot();
     }
@@ -979,15 +1015,14 @@ export class GoldsprintsApp extends EventEmitter {
 
   removeRacerFromQueueEntry(entryId: string, racerId: string): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
+    const timestamp = nowIso();
     const updated = removeRacerFromSpecificQueueEntry(
       this.db.listQueueEntries(activeEvent.id),
+      this.db.listQueueOccurrences(activeEvent.id),
       entryId,
       racerId
-    ).map((entry) => ({
-      ...entry,
-      updatedAt: nowIso()
-    }));
-    this.db.replaceQueueEntries(activeEvent.id, updated);
+    );
+    this.saveProjectedQueue(activeEvent.id, updated, timestamp);
     if (!this.maybeAutoStageNextRace()) {
       this.emitSnapshot();
     }

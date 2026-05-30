@@ -1,4 +1,58 @@
-import type { QueueEntry } from "@goldsprints/shared/types";
+import type { QueueEntry, QueueOccurrence } from "@goldsprints/shared/types";
+
+export interface QueueRacerStats {
+  raceCount: number;
+}
+
+interface QueueProjectionInput {
+  entries: QueueEntry[];
+  occurrences: QueueOccurrence[];
+  eventId: string;
+  timestamp: string;
+  getEntryId: () => string;
+  racerStatsById?: Map<string, QueueRacerStats>;
+}
+
+interface QueueSignupInput {
+  eventId: string;
+  racerId: string;
+  opponentRacerId?: string;
+  requestedType?: "solo" | "auto-match";
+  occurrenceId: string;
+  opponentOccurrenceId?: string;
+  lockGroupId?: string;
+  timestamp: string;
+  signupSequence: number;
+  raceCountAtJoin: number;
+  opponentRaceCountAtJoin?: number;
+  maxActiveOccurrencesPerRacer: number;
+  racerStatsById?: Map<string, QueueRacerStats>;
+}
+
+interface QueueSlot {
+  kind: "auto-match" | "solo" | "challenge";
+  occurrences: QueueOccurrence[];
+  position: number;
+  priorityScore: number;
+  signupSequence: number;
+}
+
+interface DerivedQueueBlock {
+  kind: QueueSlot["kind"];
+  lockType: QueueEntry["lockType"];
+  occurrenceIds: string[];
+  priorityScore: number;
+  racerIds: string[];
+  slotIndexes: number[];
+  signupSequence: number;
+}
+
+const ACTIVE_OCCURRENCE_STATUSES = new Set<QueueOccurrence["status"]>([
+  "queued",
+  "staging",
+  "racing"
+]);
+const PROTECTED_DERIVED_MATCH_COUNT = 3;
 
 export function reindexQueue(entries: QueueEntry[]): QueueEntry[] {
   return [...entries]
@@ -14,247 +68,563 @@ export function isQueueEntryReady(entry: QueueEntry): boolean {
   return !(entry.requestedType === "auto-match" && entry.racerIds.length < 2);
 }
 
-function isLockedQueueEntry(entry: QueueEntry): boolean {
-  return entry.requestedType === "match" || entry.status !== "queued";
+function countActiveOccurrences(occurrences: QueueOccurrence[], racerId: string): number {
+  return occurrences.filter(
+    (occurrence) =>
+      occurrence.racerId === racerId && ACTIVE_OCCURRENCE_STATUSES.has(occurrence.status)
+  ).length;
 }
 
-function rebuildShiftableSegment(entries: QueueEntry[]): QueueEntry[] {
-  if (entries.length === 0) {
-    return [];
+function assertCanAddOccurrence(
+  occurrences: QueueOccurrence[],
+  racerId: string,
+  maxActiveOccurrencesPerRacer: number
+): void {
+  if (countActiveOccurrences(occurrences, racerId) >= maxActiveOccurrencesPerRacer) {
+    throw new Error(
+      `Racer already has the maximum of ${String(maxActiveOccurrencesPerRacer)} active queue entries.`
+    );
   }
+}
 
-  const templates = [...entries].sort((left, right) => left.position - right.position);
-  const rebuilt: QueueEntry[] = [];
-  const slots = templates.flatMap((entry) =>
-    entry.racerIds.map((racerId) => ({
-      racerId,
-      requestedType: entry.requestedType
-    }))
-  );
-  let templateIndex = 0;
-  let pendingAutoMatchRacerId: string | null = null;
-
-  const pushEntry = (input: {
-    racerIds: string[];
-    requestedType: QueueEntry["requestedType"];
-  }): void => {
-    const template = templates[templateIndex];
-    templateIndex += 1;
-    rebuilt.push({
-      ...template,
-      type: input.racerIds.length > 1 ? "match" : "solo",
-      requestedType: input.requestedType,
-      racerIds: input.racerIds
-    });
+function createOccurrence(input: {
+  eventId: string;
+  racerId: string;
+  id: string;
+  intent: QueueOccurrence["intent"];
+  lockGroupId: string | null;
+  timestamp: string;
+  signupSequence: number;
+  raceCountAtJoin: number;
+}): QueueOccurrence {
+  return {
+    id: input.id,
+    eventId: input.eventId,
+    racerId: input.racerId,
+    status: "queued",
+    intent: input.intent,
+    lockGroupId: input.lockGroupId,
+    signupSequence: input.signupSequence,
+    bumpCount: 0,
+    raceCountAtJoin: input.raceCountAtJoin,
+    projectedPosition: null,
+    createdAt: input.timestamp,
+    updatedAt: input.timestamp
   };
-
-  for (const slot of slots) {
-    if (slot.requestedType === "solo") {
-      // A manually queued solo run keeps its position in the flow, so any waiting auto-match rider
-      // ahead of it must stay ahead of it instead of being paired with someone after the solo slot.
-      if (pendingAutoMatchRacerId) {
-        pushEntry({
-          racerIds: [pendingAutoMatchRacerId],
-          requestedType: "auto-match"
-        });
-        pendingAutoMatchRacerId = null;
-      }
-
-      pushEntry({
-        racerIds: [slot.racerId],
-        requestedType: "solo"
-      });
-      continue;
-    }
-
-    if (pendingAutoMatchRacerId) {
-      pushEntry({
-        racerIds: [pendingAutoMatchRacerId, slot.racerId],
-        requestedType: "auto-match"
-      });
-      pendingAutoMatchRacerId = null;
-      continue;
-    }
-
-    pendingAutoMatchRacerId = slot.racerId;
-  }
-
-  if (pendingAutoMatchRacerId) {
-    pushEntry({
-      racerIds: [pendingAutoMatchRacerId],
-      requestedType: "auto-match"
-    });
-  }
-
-  return rebuilt;
 }
 
-function compactQueue(entries: QueueEntry[]): QueueEntry[] {
-  const ordered = [...entries].sort((left, right) => left.position - right.position);
-  const compacted: QueueEntry[] = [];
-  let shiftableSegment: QueueEntry[] = [];
+function getOccurrenceSlotPosition(occurrence: QueueOccurrence): number {
+  return occurrence.projectedPosition ?? occurrence.signupSequence;
+}
 
-  const flushSegment = (): void => {
-    compacted.push(...rebuildShiftableSegment(shiftableSegment));
-    shiftableSegment = [];
+function compareQueuedOccurrences(left: QueueOccurrence, right: QueueOccurrence): number {
+  return (
+    getOccurrenceSlotPosition(left) - getOccurrenceSlotPosition(right) ||
+    left.signupSequence - right.signupSequence
+  );
+}
+
+function average(values: number[]): number {
+  if (values.length === 0) {
+    return 0;
+  }
+
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+export function calculateQueueOccurrencePriority(
+  occurrence: QueueOccurrence,
+  stats?: QueueRacerStats
+): number {
+  const raceCount = stats?.raceCount ?? occurrence.raceCountAtJoin;
+  const newRacerBoost = raceCount === 0 ? 100 : 0;
+  return newRacerBoost + occurrence.bumpCount * 40 - raceCount * 20;
+}
+
+function calculateQueueSlotPriority(
+  occurrences: QueueOccurrence[],
+  racerStatsById: Map<string, QueueRacerStats>
+): number {
+  return average(
+    occurrences.map((occurrence) =>
+      calculateQueueOccurrencePriority(occurrence, racerStatsById.get(occurrence.racerId))
+    )
+  );
+}
+
+function createQueueSlot(
+  kind: QueueSlot["kind"],
+  occurrences: QueueOccurrence[],
+  racerStatsById: Map<string, QueueRacerStats>
+): QueueSlot {
+  const orderedOccurrences = [...occurrences].sort(compareQueuedOccurrences);
+
+  return {
+    kind,
+    occurrences: orderedOccurrences,
+    position: Math.min(...orderedOccurrences.map(getOccurrenceSlotPosition)),
+    priorityScore: calculateQueueSlotPriority(orderedOccurrences, racerStatsById),
+    signupSequence: Math.min(...orderedOccurrences.map((occurrence) => occurrence.signupSequence))
   };
-
-  for (const entry of ordered) {
-    if (isLockedQueueEntry(entry)) {
-      flushSegment();
-      compacted.push(entry);
-      continue;
-    }
-
-    shiftableSegment.push(entry);
-  }
-
-  flushSegment();
-  return reindexQueue(compacted);
 }
 
-export function addQueueSignup(
-  entries: QueueEntry[],
-  input: {
-    eventId: string;
-    racerId: string;
-    opponentRacerId?: string;
-    requestedType?: "solo" | "auto-match";
-    entryId: string;
-    timestamp: string;
-  }
-): QueueEntry[] {
-  const next = reindexQueue(entries);
-
-  if (input.opponentRacerId) {
-    return [
-      ...next,
-      {
-        id: input.entryId,
-        eventId: input.eventId,
-        type: "match",
-        requestedType: "match",
-        position: next.length + 1,
-        racerIds: [input.racerId, input.opponentRacerId],
-        status: "queued",
-        createdAt: input.timestamp,
-        updatedAt: input.timestamp
-      }
-    ];
-  }
-
-  if (input.requestedType === "solo") {
-    return [
-      ...next,
-      {
-        id: input.entryId,
-        eventId: input.eventId,
-        type: "solo",
-        requestedType: "solo",
-        position: next.length + 1,
-        racerIds: [input.racerId],
-        status: "queued",
-        createdAt: input.timestamp,
-        updatedAt: input.timestamp
-      }
-    ];
-  }
-
-  const pendingAutoMatch = next.find(
-    (entry) =>
-      entry.status === "queued" &&
-      entry.requestedType === "auto-match" &&
-      entry.racerIds.length === 1 &&
-      entry.racerIds[0] !== input.racerId
-  );
-
-  if (!pendingAutoMatch) {
-    return [
-      ...next,
-      {
-        id: input.entryId,
-        eventId: input.eventId,
-        type: "solo",
-        requestedType: "auto-match",
-        position: next.length + 1,
-        racerIds: [input.racerId],
-        status: "queued",
-        createdAt: input.timestamp,
-        updatedAt: input.timestamp
-      }
-    ];
-  }
-
-  return next.map((entry) =>
-    entry.id === pendingAutoMatch.id
-      ? {
-          ...entry,
-          type: "match",
-          racerIds: [...entry.racerIds, input.racerId],
-          updatedAt: input.timestamp
-        }
-      : entry
-  );
-}
-
-export function removeRacerFromQueue(entries: QueueEntry[], racerId: string): QueueEntry[] {
-  const updated = entries.flatMap((entry) => {
-    if (!entry.racerIds.includes(racerId)) {
-      return entry;
+function releaseOrphanedChallengeOccurrences(occurrences: QueueOccurrence[]): QueueOccurrence[] {
+  const activeChallengeCounts = new Map<string, number>();
+  for (const occurrence of occurrences) {
+    if (
+      occurrence.lockGroupId &&
+      occurrence.intent === "challenge" &&
+      occurrence.status === "queued"
+    ) {
+      activeChallengeCounts.set(
+        occurrence.lockGroupId,
+        (activeChallengeCounts.get(occurrence.lockGroupId) ?? 0) + 1
+      );
     }
+  }
 
-    if (entry.type === "solo") {
-      return [];
-    }
-
-    const remaining = entry.racerIds.filter((id) => id !== racerId);
-    if (remaining.length === 0) {
-      return [];
+  return occurrences.map((occurrence) => {
+    if (
+      !occurrence.lockGroupId ||
+      occurrence.intent !== "challenge" ||
+      occurrence.status !== "queued" ||
+      (activeChallengeCounts.get(occurrence.lockGroupId) ?? 0) > 1
+    ) {
+      return occurrence;
     }
 
     return {
-      ...entry,
-      type: remaining.length === 1 ? "solo" : "match",
-      requestedType: remaining.length === 1 ? "auto-match" : entry.requestedType,
-      racerIds: remaining
-    } satisfies QueueEntry;
+      ...occurrence,
+      intent: "auto-match",
+      lockGroupId: null
+    };
+  });
+}
+
+function buildQueueSlots(
+  occurrences: QueueOccurrence[],
+  racerStatsById: Map<string, QueueRacerStats>
+): QueueSlot[] {
+  const queuedOccurrences = occurrences.filter((occurrence) => occurrence.status === "queued");
+  const challengeGroups = new Map<string, QueueOccurrence[]>();
+
+  for (const occurrence of queuedOccurrences) {
+    if (occurrence.intent !== "challenge" || !occurrence.lockGroupId) {
+      continue;
+    }
+
+    challengeGroups.set(occurrence.lockGroupId, [
+      ...(challengeGroups.get(occurrence.lockGroupId) ?? []),
+      occurrence
+    ]);
+  }
+
+  const challengeOccurrenceIds = new Set(
+    [...challengeGroups.values()].flat().map((occurrence) => occurrence.id)
+  );
+  const slots: QueueSlot[] = [];
+
+  for (const group of challengeGroups.values()) {
+    slots.push(createQueueSlot("challenge", group, racerStatsById));
+  }
+
+  for (const occurrence of queuedOccurrences) {
+    if (challengeOccurrenceIds.has(occurrence.id)) {
+      continue;
+    }
+
+    slots.push(
+      createQueueSlot(
+        occurrence.intent === "solo" ? "solo" : "auto-match",
+        [occurrence],
+        racerStatsById
+      )
+    );
+  }
+
+  return slots
+    .sort(
+      (left, right) => left.position - right.position || left.signupSequence - right.signupSequence
+    )
+    .map((slot, index) => ({
+      ...slot,
+      position: index + 1
+    }));
+}
+
+function deriveQueueBlocks(slots: QueueSlot[]): DerivedQueueBlock[] {
+  const consumedSlotIndexes = new Set<number>();
+  const blocks: DerivedQueueBlock[] = [];
+
+  slots.forEach((slot, index) => {
+    if (consumedSlotIndexes.has(index)) {
+      return;
+    }
+
+    if (slot.kind === "challenge") {
+      consumedSlotIndexes.add(index);
+      blocks.push({
+        kind: "challenge",
+        lockType: "challenge",
+        occurrenceIds: slot.occurrences.map((occurrence) => occurrence.id),
+        priorityScore: slot.priorityScore,
+        racerIds: slot.occurrences.map((occurrence) => occurrence.racerId),
+        slotIndexes: [index],
+        signupSequence: slot.signupSequence
+      });
+      return;
+    }
+
+    if (slot.kind === "solo") {
+      consumedSlotIndexes.add(index);
+      blocks.push({
+        kind: "solo",
+        lockType: "flex",
+        occurrenceIds: slot.occurrences.map((occurrence) => occurrence.id),
+        priorityScore: slot.priorityScore,
+        racerIds: slot.occurrences.map((occurrence) => occurrence.racerId),
+        slotIndexes: [index],
+        signupSequence: slot.signupSequence
+      });
+      return;
+    }
+
+    const racerId = slot.occurrences[0].racerId;
+    const pairedSlotIndex = slots.findIndex(
+      (candidate, candidateIndex) =>
+        candidateIndex > index &&
+        !consumedSlotIndexes.has(candidateIndex) &&
+        candidate.kind === "auto-match" &&
+        candidate.occurrences[0]?.racerId !== racerId
+    );
+
+    if (pairedSlotIndex === -1) {
+      consumedSlotIndexes.add(index);
+      blocks.push({
+        kind: "auto-match",
+        lockType: "flex",
+        occurrenceIds: slot.occurrences.map((occurrence) => occurrence.id),
+        priorityScore: slot.priorityScore,
+        racerIds: [racerId],
+        slotIndexes: [index],
+        signupSequence: slot.signupSequence
+      });
+      return;
+    }
+
+    const pairedSlot = slots[pairedSlotIndex];
+    consumedSlotIndexes.add(index);
+    consumedSlotIndexes.add(pairedSlotIndex);
+    blocks.push({
+      kind: "auto-match",
+      lockType: "flex",
+      occurrenceIds: [
+        ...slot.occurrences.map((occurrence) => occurrence.id),
+        ...pairedSlot.occurrences.map((occurrence) => occurrence.id)
+      ],
+      priorityScore: average([slot.priorityScore, pairedSlot.priorityScore]),
+      racerIds: [racerId, pairedSlot.occurrences[0].racerId],
+      slotIndexes: [index, pairedSlotIndex],
+      signupSequence: Math.min(slot.signupSequence, pairedSlot.signupSequence)
+    });
   });
 
-  return compactQueue(updated);
+  return blocks;
+}
+
+function getProtectedInsertIndex(slots: QueueSlot[]): number {
+  const protectedSlotIndexes = deriveQueueBlocks(slots)
+    .slice(0, PROTECTED_DERIVED_MATCH_COUNT)
+    .flatMap((block) => block.slotIndexes);
+
+  if (protectedSlotIndexes.length === 0) {
+    return 0;
+  }
+
+  return Math.max(...protectedSlotIndexes) + 1;
+}
+
+function bumpSlotsFromIndex(
+  slots: QueueSlot[],
+  insertIndex: number,
+  timestamp: string
+): QueueSlot[] {
+  return slots.map((slot, index) => {
+    if (index < insertIndex) {
+      return slot;
+    }
+
+    return {
+      ...slot,
+      occurrences: slot.occurrences.map((occurrence) => ({
+        ...occurrence,
+        bumpCount: occurrence.bumpCount + 1,
+        updatedAt: timestamp
+      }))
+    };
+  });
+}
+
+function insertSlotByPriority(
+  slots: QueueSlot[],
+  newSlot: QueueSlot,
+  timestamp: string
+): QueueSlot[] {
+  const protectedInsertIndex = getProtectedInsertIndex(slots);
+  const insertionIndexCandidate = slots.findIndex(
+    (slot, index) => index >= protectedInsertIndex && slot.priorityScore < newSlot.priorityScore
+  );
+  const insertionIndex = insertionIndexCandidate === -1 ? slots.length : insertionIndexCandidate;
+  const bumpedSlots = bumpSlotsFromIndex(slots, insertionIndex, timestamp);
+
+  return [...bumpedSlots.slice(0, insertionIndex), newSlot, ...bumpedSlots.slice(insertionIndex)];
+}
+
+function flattenSlots(slots: QueueSlot[], timestamp: string): QueueOccurrence[] {
+  return slots.flatMap((slot, index) =>
+    slot.occurrences.map((occurrence) => ({
+      ...occurrence,
+      projectedPosition: index + 1,
+      updatedAt: timestamp
+    }))
+  );
+}
+
+function mergeOccurrencesWithSlots(
+  occurrences: QueueOccurrence[],
+  slots: QueueSlot[],
+  timestamp: string
+): QueueOccurrence[] {
+  const queuedOccurrenceIds = new Set(
+    occurrences
+      .filter((occurrence) => occurrence.status === "queued")
+      .map((occurrence) => occurrence.id)
+  );
+
+  return [
+    ...occurrences.filter((occurrence) => !queuedOccurrenceIds.has(occurrence.id)),
+    ...flattenSlots(slots, timestamp)
+  ];
+}
+
+function findFlexibleAnchor(
+  slots: QueueSlot[],
+  racerId: string
+): { occurrence: QueueOccurrence; slotIndex: number } | null {
+  for (const [slotIndex, slot] of slots.entries()) {
+    if (slot.kind === "challenge") {
+      continue;
+    }
+
+    const occurrence = slot.occurrences.find((candidate) => candidate.racerId === racerId);
+    if (occurrence) {
+      return { occurrence, slotIndex };
+    }
+  }
+
+  return null;
+}
+
+export function addQueueSignup(
+  occurrences: QueueOccurrence[],
+  input: QueueSignupInput
+): QueueOccurrence[] {
+  if (input.opponentRacerId && input.opponentRacerId === input.racerId) {
+    throw new Error("A racer cannot challenge themselves.");
+  }
+
+  const racerStatsById = input.racerStatsById ?? new Map<string, QueueRacerStats>();
+  const normalizedOccurrences = releaseOrphanedChallengeOccurrences(occurrences);
+  const slots = buildQueueSlots(normalizedOccurrences, racerStatsById);
+
+  if (!input.opponentRacerId) {
+    assertCanAddOccurrence(
+      normalizedOccurrences,
+      input.racerId,
+      input.maxActiveOccurrencesPerRacer
+    );
+    const occurrence = createOccurrence({
+      eventId: input.eventId,
+      racerId: input.racerId,
+      id: input.occurrenceId,
+      intent: input.requestedType === "solo" ? "solo" : "auto-match",
+      lockGroupId: null,
+      timestamp: input.timestamp,
+      signupSequence: input.signupSequence,
+      raceCountAtJoin: input.raceCountAtJoin
+    });
+    const nextSlots = insertSlotByPriority(
+      slots,
+      createQueueSlot(
+        occurrence.intent === "solo" ? "solo" : "auto-match",
+        [occurrence],
+        racerStatsById
+      ),
+      input.timestamp
+    );
+
+    return mergeOccurrencesWithSlots(normalizedOccurrences, nextSlots, input.timestamp);
+  }
+
+  const challengerAnchor = findFlexibleAnchor(slots, input.racerId);
+  const opponentAnchor = findFlexibleAnchor(slots, input.opponentRacerId);
+  const needsChallengerOccurrence = challengerAnchor === null;
+  const needsOpponentOccurrence = opponentAnchor === null;
+
+  if (needsChallengerOccurrence) {
+    assertCanAddOccurrence(
+      normalizedOccurrences,
+      input.racerId,
+      input.maxActiveOccurrencesPerRacer
+    );
+  }
+  if (needsOpponentOccurrence) {
+    assertCanAddOccurrence(
+      normalizedOccurrences,
+      input.opponentRacerId,
+      input.maxActiveOccurrencesPerRacer
+    );
+  }
+
+  const lockGroupId = input.lockGroupId ?? input.occurrenceId;
+  const challengeOccurrences: QueueOccurrence[] = [
+    challengerAnchor
+      ? {
+          ...challengerAnchor.occurrence,
+          intent: "challenge",
+          lockGroupId,
+          updatedAt: input.timestamp
+        }
+      : createOccurrence({
+          eventId: input.eventId,
+          racerId: input.racerId,
+          id: input.occurrenceId,
+          intent: "challenge",
+          lockGroupId,
+          timestamp: input.timestamp,
+          signupSequence: input.signupSequence,
+          raceCountAtJoin: input.raceCountAtJoin
+        }),
+    opponentAnchor
+      ? {
+          ...opponentAnchor.occurrence,
+          intent: "challenge",
+          lockGroupId,
+          updatedAt: input.timestamp
+        }
+      : createOccurrence({
+          eventId: input.eventId,
+          racerId: input.opponentRacerId,
+          id: input.opponentOccurrenceId ?? `${input.occurrenceId}-opponent`,
+          intent: "challenge",
+          lockGroupId,
+          timestamp: input.timestamp,
+          signupSequence: input.signupSequence + 1,
+          raceCountAtJoin: input.opponentRaceCountAtJoin ?? 0
+        })
+  ];
+  const challengeSlot = createQueueSlot("challenge", challengeOccurrences, racerStatsById);
+  const anchorSlotIndexes = [challengerAnchor?.slotIndex, opponentAnchor?.slotIndex].filter(
+    (slotIndex): slotIndex is number => slotIndex !== undefined
+  );
+
+  if (anchorSlotIndexes.length > 0) {
+    const anchorIndex = Math.min(...anchorSlotIndexes);
+    const anchorIndexSet = new Set(anchorSlotIndexes);
+    const remainingSlots = slots.filter((_slot, index) => !anchorIndexSet.has(index));
+
+    remainingSlots.splice(anchorIndex, 0, challengeSlot);
+    return mergeOccurrencesWithSlots(normalizedOccurrences, remainingSlots, input.timestamp);
+  }
+
+  const nextSlots = insertSlotByPriority(slots, challengeSlot, input.timestamp);
+  return mergeOccurrencesWithSlots(normalizedOccurrences, nextSlots, input.timestamp);
+}
+
+export function removeRacerFromQueue(
+  occurrences: QueueOccurrence[],
+  racerId: string
+): QueueOccurrence[] {
+  const timestamp = new Date().toISOString();
+  return releaseOrphanedChallengeOccurrences(
+    occurrences.map((occurrence) =>
+      occurrence.racerId === racerId && ACTIVE_OCCURRENCE_STATUSES.has(occurrence.status)
+        ? {
+            ...occurrence,
+            status: "removed",
+            updatedAt: timestamp
+          }
+        : occurrence
+    )
+  );
 }
 
 export function removeRacerFromSpecificQueueEntry(
   entries: QueueEntry[],
+  occurrences: QueueOccurrence[],
   entryId: string,
   racerId: string
-): QueueEntry[] {
-  const updated = entries.flatMap((entry) => {
-    if (entry.id !== entryId) {
-      return entry;
-    }
+): QueueOccurrence[] {
+  const entry = entries.find((candidate) => candidate.id === entryId);
+  if (!entry) {
+    return occurrences;
+  }
 
-    if (!entry.racerIds.includes(racerId)) {
-      return entry;
-    }
+  const removableOccurrenceIds = new Set(entry.occurrenceIds);
+  const timestamp = new Date().toISOString();
+  return releaseOrphanedChallengeOccurrences(
+    occurrences.map((occurrence) =>
+      occurrence.racerId === racerId &&
+      removableOccurrenceIds.has(occurrence.id) &&
+      ACTIVE_OCCURRENCE_STATUSES.has(occurrence.status)
+        ? {
+            ...occurrence,
+            status: "removed",
+            updatedAt: timestamp
+          }
+        : occurrence
+    )
+  );
+}
 
-    if (entry.type === "solo") {
-      return [];
-    }
+export function projectQueueEntries(input: QueueProjectionInput): {
+  entries: QueueEntry[];
+  occurrences: QueueOccurrence[];
+} {
+  const racerStatsById = input.racerStatsById ?? new Map<string, QueueRacerStats>();
+  const normalizedOccurrences = releaseOrphanedChallengeOccurrences(input.occurrences);
+  const slots = buildQueueSlots(normalizedOccurrences, racerStatsById);
+  const blocks = deriveQueueBlocks(slots);
+  const existingByOccurrenceKey = new Map(
+    input.entries
+      .filter((entry) => entry.status === "queued")
+      .map((entry) => [entry.occurrenceIds.join("|"), entry])
+  );
 
-    const remaining = entry.racerIds.filter((id) => id !== racerId);
-    if (remaining.length === 0) {
-      return [];
-    }
+  const entries = blocks.map((block, index) => {
+    const position = index + 1;
+    const existing = existingByOccurrenceKey.get(block.occurrenceIds.join("|"));
 
     return {
-      ...entry,
-      type: remaining.length === 1 ? "solo" : "match",
-      requestedType: remaining.length === 1 ? "auto-match" : entry.requestedType,
-      racerIds: remaining
+      id: existing?.id ?? input.getEntryId(),
+      eventId: input.eventId,
+      type: block.racerIds.length > 1 ? "match" : "solo",
+      requestedType: block.kind === "challenge" ? "match" : block.kind,
+      lockType: block.lockType,
+      position,
+      racerIds: block.racerIds,
+      occurrenceIds: block.occurrenceIds,
+      priorityScore: block.priorityScore,
+      status: "queued",
+      createdAt: existing?.createdAt ?? input.timestamp,
+      updatedAt: input.timestamp
     } satisfies QueueEntry;
   });
 
-  return compactQueue(updated);
+  return {
+    entries,
+    occurrences: mergeOccurrencesWithSlots(normalizedOccurrences, slots, input.timestamp)
+  };
 }
 
 export function findNextQueuedEntry(entries: QueueEntry[]): QueueEntry | null {
