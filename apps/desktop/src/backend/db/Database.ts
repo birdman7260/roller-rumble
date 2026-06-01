@@ -19,8 +19,11 @@ import type {
   EventPaymentStatus,
   EventRacerPayment,
   EventRecord,
+  NotificationDeliveryStatus,
   PaymentRecordStatus,
   PhotoBoothCapture,
+  RacerNotification,
+  RacerNotificationType,
   RacerQueueSignupInput,
   QueueEntry,
   QueueOccurrence,
@@ -32,7 +35,8 @@ import type {
   TournamentBundle,
   TournamentParticipantSeed,
   TournamentRecord,
-  TournamentStage
+  TournamentStage,
+  WebPushSubscriptionInput
 } from "@goldsprints/shared/types";
 import { nowIso } from "@goldsprints/shared/utils";
 import { computeRoundRobinStandings } from "../services/competition";
@@ -44,9 +48,12 @@ import {
   events,
   groupMatches,
   identities,
+  notificationDeliveries,
+  notifications,
   passkeyCredentials,
   payments,
   processedWebhookEvents,
+  pushSubscriptions,
   queueEntries,
   queueOccurrences,
   racers,
@@ -63,6 +70,8 @@ type EventRow = typeof events.$inferSelect;
 type IdentityRow = typeof identities.$inferSelect;
 type PasskeyCredentialRow = typeof passkeyCredentials.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
+type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
+type NotificationRow = typeof notifications.$inferSelect;
 type RacerRow = typeof racers.$inferSelect;
 type QueueEntryRow = typeof queueEntries.$inferSelect;
 type QueueOccurrenceRow = typeof queueOccurrences.$inferSelect;
@@ -107,6 +116,47 @@ export interface StoredPaymentRecord {
   updatedAt: string;
 }
 
+export interface StoredPushSubscription {
+  id: string;
+  racerId: string;
+  endpoint: string;
+  subscription: WebPushSubscriptionInput;
+  userAgent?: string | null;
+  revokedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StoredNotificationRecord {
+  id: string;
+  eventId?: string | null;
+  type: RacerNotificationType;
+  title: string;
+  body: string;
+  url?: string | null;
+  triggerKey?: string | null;
+  createdBy?: string | null;
+  createdAt: string;
+}
+
+export interface StoredNotificationDeliveryRecord {
+  id: string;
+  notificationId: string;
+  racerId: string;
+  status: NotificationDeliveryStatus;
+  readAt?: string | null;
+  pushSubscriptionId?: string | null;
+  pushError?: string | null;
+  sentAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CreatedNotificationBatch {
+  notification: StoredNotificationRecord;
+  deliveries: StoredNotificationDeliveryRecord[];
+}
+
 const CURRENT_RACE_STATES: RaceRecord["state"][] = [
   "scheduled",
   "staging",
@@ -130,6 +180,7 @@ function getDefaultAdminSettings(): AdminSettings {
     autoStageNextRace: false,
     includeAllRaceData: false,
     allowAccountlessRacerSignup: false,
+    showRacerNotificationDebugList: false,
     raceDisplayLaneColorsFlipped: false,
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Fiercely local racing all night"],
@@ -176,6 +227,33 @@ function mapPayment(row: PaymentRow): StoredPaymentRecord {
     completedAt: row.completedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
+  };
+}
+
+function mapPushSubscription(row: PushSubscriptionRow): StoredPushSubscription {
+  return {
+    id: row.id,
+    racerId: row.racerId,
+    endpoint: row.endpoint,
+    subscription: row.subscriptionJson,
+    userAgent: row.userAgent,
+    revokedAt: row.revokedAt,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt
+  };
+}
+
+function mapNotification(row: NotificationRow): StoredNotificationRecord {
+  return {
+    id: row.id,
+    eventId: row.eventId,
+    type: row.type,
+    title: row.title,
+    body: row.body,
+    url: row.url,
+    triggerKey: row.triggerKey,
+    createdBy: row.createdBy,
+    createdAt: row.createdAt
   };
 }
 
@@ -1044,6 +1122,282 @@ export class AppDatabase {
         processedAt: nowIso()
       })
       .onConflictDoNothing()
+      .run();
+  }
+
+  upsertPushSubscription(
+    racerId: string,
+    subscription: WebPushSubscriptionInput,
+    userAgent?: string | null
+  ): StoredPushSubscription {
+    const timestamp = nowIso();
+    this.orm
+      .insert(pushSubscriptions)
+      .values({
+        id: nanoid(),
+        racerId,
+        endpoint: subscription.endpoint,
+        subscriptionJson: subscription,
+        userAgent: userAgent ?? null,
+        revokedAt: null,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      })
+      .onConflictDoUpdate({
+        target: pushSubscriptions.endpoint,
+        set: {
+          racerId,
+          subscriptionJson: subscription,
+          userAgent: userAgent ?? null,
+          revokedAt: null,
+          updatedAt: timestamp
+        }
+      })
+      .run();
+
+    const row = this.orm
+      .select()
+      .from(pushSubscriptions)
+      .where(eq(pushSubscriptions.endpoint, subscription.endpoint))
+      .get();
+    if (!row) {
+      throw new Error("Push subscription could not be saved.");
+    }
+    return mapPushSubscription(row);
+  }
+
+  revokePushSubscription(endpoint: string): void {
+    this.orm
+      .update(pushSubscriptions)
+      .set({
+        revokedAt: nowIso(),
+        updatedAt: nowIso()
+      })
+      .where(eq(pushSubscriptions.endpoint, endpoint))
+      .run();
+  }
+
+  listActivePushSubscriptionsForRacers(racerIds: string[]): StoredPushSubscription[] {
+    const uniqueRacerIds = [...new Set(racerIds)];
+    if (uniqueRacerIds.length === 0) {
+      return [];
+    }
+
+    const placeholders = uniqueRacerIds.map(() => "?").join(", ");
+    const rows = this.db
+      .prepare(
+        `SELECT id, racer_id AS racerId, endpoint, subscription_json AS subscriptionJson, user_agent AS userAgent, revoked_at AS revokedAt, created_at AS createdAt, updated_at AS updatedAt
+         FROM push_subscriptions
+         WHERE revoked_at IS NULL AND racer_id IN (${placeholders})`
+      )
+      .all(...uniqueRacerIds) as {
+      id: string;
+      racerId: string;
+      endpoint: string;
+      subscriptionJson: string;
+      userAgent: string | null;
+      revokedAt: string | null;
+      createdAt: string;
+      updatedAt: string;
+    }[];
+
+    return rows.map((row) => ({
+      id: row.id,
+      racerId: row.racerId,
+      endpoint: row.endpoint,
+      subscription: JSON.parse(row.subscriptionJson) as WebPushSubscriptionInput,
+      userAgent: row.userAgent,
+      revokedAt: row.revokedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    }));
+  }
+
+  createNotification(input: {
+    eventId?: string | null;
+    type: RacerNotificationType;
+    title: string;
+    body: string;
+    url?: string | null;
+    triggerKey?: string | null;
+    createdBy?: string | null;
+    racerIds: string[];
+  }): CreatedNotificationBatch | null {
+    const racerIds = [...new Set(input.racerIds)].filter(Boolean);
+    if (racerIds.length === 0) {
+      return null;
+    }
+
+    if (input.triggerKey) {
+      const existing = this.orm
+        .select({ id: notifications.id })
+        .from(notifications)
+        .where(eq(notifications.triggerKey, input.triggerKey))
+        .get();
+      if (existing) {
+        return null;
+      }
+    }
+
+    const notificationId = nanoid();
+    const timestamp = nowIso();
+    const deliveries: StoredNotificationDeliveryRecord[] = racerIds.map((racerId) => ({
+      id: nanoid(),
+      notificationId,
+      racerId,
+      status: "pending",
+      readAt: null,
+      pushSubscriptionId: null,
+      pushError: null,
+      sentAt: null,
+      createdAt: timestamp,
+      updatedAt: timestamp
+    }));
+
+    const transaction = this.db.transaction(() => {
+      this.db
+        .prepare(
+          "INSERT INTO notifications (id, event_id, type, title, body, url, trigger_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        )
+        .run(
+          notificationId,
+          input.eventId ?? null,
+          input.type,
+          input.title,
+          input.body,
+          input.url ?? null,
+          input.triggerKey ?? null,
+          input.createdBy ?? null,
+          timestamp
+        );
+
+      const deliveryStatement = this.db.prepare(
+        "INSERT INTO notification_deliveries (id, notification_id, racer_id, status, read_at, push_subscription_id, push_error, sent_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+      );
+      for (const delivery of deliveries) {
+        deliveryStatement.run(
+          delivery.id,
+          delivery.notificationId,
+          delivery.racerId,
+          delivery.status,
+          delivery.readAt ?? null,
+          delivery.pushSubscriptionId ?? null,
+          delivery.pushError ?? null,
+          delivery.sentAt ?? null,
+          delivery.createdAt,
+          delivery.updatedAt
+        );
+      }
+    });
+    transaction();
+
+    return {
+      notification: {
+        id: notificationId,
+        eventId: input.eventId ?? null,
+        type: input.type,
+        title: input.title,
+        body: input.body,
+        url: input.url ?? null,
+        triggerKey: input.triggerKey ?? null,
+        createdBy: input.createdBy ?? null,
+        createdAt: timestamp
+      },
+      deliveries
+    };
+  }
+
+  getNotification(notificationId: string): StoredNotificationRecord | null {
+    const row = this.orm
+      .select()
+      .from(notifications)
+      .where(eq(notifications.id, notificationId))
+      .get();
+    return row ? mapNotification(row) : null;
+  }
+
+  listNotificationDeliveries(notificationId: string): StoredNotificationDeliveryRecord[] {
+    const rows = this.orm
+      .select()
+      .from(notificationDeliveries)
+      .where(eq(notificationDeliveries.notificationId, notificationId))
+      .all();
+
+    return rows.map((row) => ({
+      id: row.id,
+      notificationId: row.notificationId,
+      racerId: row.racerId,
+      status: row.status,
+      readAt: row.readAt,
+      pushSubscriptionId: row.pushSubscriptionId,
+      pushError: row.pushError,
+      sentAt: row.sentAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt
+    }));
+  }
+
+  updateNotificationDeliveryPushStatus(
+    deliveryId: string,
+    patch: {
+      status: NotificationDeliveryStatus;
+      pushSubscriptionId?: string | null;
+      pushError?: string | null;
+      sentAt?: string | null;
+    }
+  ): void {
+    this.orm
+      .update(notificationDeliveries)
+      .set({
+        status: patch.status,
+        pushSubscriptionId: patch.pushSubscriptionId ?? null,
+        pushError: patch.pushError ?? null,
+        sentAt: patch.sentAt ?? null,
+        updatedAt: nowIso()
+      })
+      .where(eq(notificationDeliveries.id, deliveryId))
+      .run();
+  }
+
+  listNotificationsForRacer(racerId: string, limit = 30): RacerNotification[] {
+    const rows = this.db
+      .prepare(
+        `SELECT
+           notification_deliveries.id AS id,
+           notification_deliveries.notification_id AS notificationId,
+           notification_deliveries.status AS deliveryStatus,
+           notification_deliveries.read_at AS readAt,
+           notifications.type AS type,
+           notifications.title AS title,
+           notifications.body AS body,
+           notifications.url AS url,
+           notifications.event_id AS eventId,
+           notifications.created_at AS createdAt
+         FROM notification_deliveries
+         INNER JOIN notifications ON notifications.id = notification_deliveries.notification_id
+         WHERE notification_deliveries.racer_id = ?
+         ORDER BY notifications.created_at DESC
+         LIMIT ?`
+      )
+      .all(racerId, limit) as RacerNotification[];
+
+    return rows;
+  }
+
+  markNotificationRead(racerId: string, notificationId: string): void {
+    const timestamp = nowIso();
+    this.orm
+      .update(notificationDeliveries)
+      .set({
+        readAt: timestamp,
+        updatedAt: timestamp
+      })
+      .where(
+        and(
+          eq(notificationDeliveries.racerId, racerId),
+          eq(notificationDeliveries.notificationId, notificationId)
+        )
+      )
       .run();
   }
 

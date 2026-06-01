@@ -1,11 +1,20 @@
 import { useEffect } from "react";
 import { queryOptions, QueryClient, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { AppSnapshot } from "@goldsprints/shared/types";
-import { createWebSocketUrl, fetchMeta, fetchPhotoBoothStatus, fetchSnapshot } from "./api";
+import {
+  createWebSocketUrl,
+  fetchMeta,
+  fetchNotificationConfig,
+  fetchPhotoBoothStatus,
+  fetchRacerNotifications,
+  fetchSnapshot
+} from "./api";
 
 export const snapshotQueryKey = ["snapshot"];
 export const metaQueryKey = ["meta"];
 export const photoBoothStatusQueryKey = ["photo-booth-status"];
+export const notificationConfigQueryKey = ["notification-config"];
+export const racerNotificationsQueryKey = ["racer-notifications"];
 const snapshotQueryOptions = queryOptions({
   queryKey: snapshotQueryKey,
   queryFn: fetchSnapshot
@@ -18,6 +27,16 @@ const photoBoothStatusQueryOptions = queryOptions({
   queryKey: photoBoothStatusQueryKey,
   queryFn: fetchPhotoBoothStatus
 });
+const notificationConfigQueryOptions = queryOptions({
+  queryKey: notificationConfigQueryKey,
+  queryFn: fetchNotificationConfig
+});
+const racerNotificationsQueryOptions = (enabled: boolean) =>
+  queryOptions({
+    queryKey: racerNotificationsQueryKey,
+    queryFn: fetchRacerNotifications,
+    enabled
+  });
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -38,6 +57,14 @@ export function useMetaQuery() {
 
 export function usePhotoBoothStatusQuery() {
   return useQuery(photoBoothStatusQueryOptions);
+}
+
+export function useNotificationConfigQuery() {
+  return useQuery(notificationConfigQueryOptions);
+}
+
+export function useRacerNotificationsQuery(enabled: boolean) {
+  return useQuery(racerNotificationsQueryOptions(enabled));
 }
 
 function isSnapshotMessage(value: unknown): value is {
@@ -87,6 +114,7 @@ export function useSnapshotStream(): void {
           void client.invalidateQueries({ queryKey: metaQueryKey });
         }
         void client.invalidateQueries({ queryKey: photoBoothStatusQueryKey });
+        void client.invalidateQueries({ queryKey: racerNotificationsQueryKey });
       }
     };
     return () => {

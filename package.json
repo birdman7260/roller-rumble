@@ -19,6 +19,7 @@
     "format:check": "prettier --check .",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "notifications:keys": "pnpm --filter @goldsprints/desktop notifications:keys",
     "os2l:cue": "node scripts/send-os2l-cue.mjs",
     "photo-booth:agent": "node scripts/run-photo-booth-agent.mjs",
     "photo-booth:doctor": "node scripts/run-photo-booth-check.mjs doctor",

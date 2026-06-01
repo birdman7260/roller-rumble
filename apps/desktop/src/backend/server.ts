@@ -12,9 +12,11 @@ import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "@goldsprints/shared/co
 import type { AppSnapshot } from "@goldsprints/shared/types";
 import {
   accountlessRacerSessionSchema,
+  adminNotificationSchema,
   createEventSchema,
   createPhotoBoothTokenSchema,
   createRacerSchema,
+  notificationIdSchema,
   passkeyChallengeSchema,
   passkeyEmailSchema,
   passkeyRegistrationStartSchema,
@@ -29,7 +31,8 @@ import {
   tournamentIdSchema,
   updateEventPaymentConfigSchema,
   updateRacerPaymentSchema,
-  updatePhotoBoothStatusSchema
+  updatePhotoBoothStatusSchema,
+  webPushSubscriptionSchema
 } from "@goldsprints/shared/validation";
 import { AppHttpError, GoldsprintsApp } from "./services/app";
 
@@ -285,6 +288,10 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.getSnapshot());
   });
 
+  app.get(`${API_PREFIX}/notifications/config`, (_req, res) => {
+    res.json(service.getNotificationConfig());
+  });
+
   app.get(`${API_PREFIX}/meta`, async (_req, res) => {
     res.json({
       localBaseUrl: service.getLocalBaseUrl(),
@@ -460,6 +467,29 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     }
   });
 
+  app.post(`${API_PREFIX}/racer/notifications/subscriptions`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    const input = webPushSubscriptionSchema.parse(req.body);
+    res.json(service.saveRacerPushSubscription(racer.id, input, req.get("user-agent")));
+  });
+
+  app.delete(`${API_PREFIX}/racer/notifications/subscriptions`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    const input = webPushSubscriptionSchema.parse(req.body);
+    res.json(service.revokeRacerPushSubscription(racer.id, input));
+  });
+
+  app.get(`${API_PREFIX}/racer/notifications`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(service.listRacerNotifications(racer.id));
+  });
+
+  app.post(`${API_PREFIX}/racer/notifications/:notificationId/read`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    const input = notificationIdSchema.parse({ notificationId: req.params.notificationId });
+    res.json(service.markRacerNotificationRead(racer.id, input.notificationId));
+  });
+
   app.post(`${API_PREFIX}/racer/payments/:paymentId/cancel`, (req, res) => {
     const racer = requireRacerSession(req, service);
     res.json(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId));
@@ -473,6 +503,11 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   app.post(`${API_PREFIX}/admin/racers/:racerId/payment`, (req, res) => {
     const payment = updateRacerPaymentSchema.parse(req.body);
     res.json(service.updateRacerPaymentStatus(req.params.racerId, payment));
+  });
+
+  app.post(`${API_PREFIX}/admin/notifications`, (req, res) => {
+    const input = adminNotificationSchema.parse(req.body);
+    res.json(service.sendAdminNotification(input));
   });
 
   app.delete(`${API_PREFIX}/queue/racer/:racerId`, (req, res) => {

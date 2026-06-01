@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   EVENT_PAYMENT_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
+  RACER_NOTIFICATION_TYPES,
   STRIPE_MIN_PAYMENT_AMOUNT_CENTS,
   SUPPORTED_TOURNAMENT_PRESETS,
   TOURNAMENT_BRACKET_LAYOUT_MODES,
@@ -117,6 +118,7 @@ export const settingUpdateSchema = z.object({
   autoStageNextRace: z.boolean().optional(),
   includeAllRaceData: z.boolean().optional(),
   allowAccountlessRacerSignup: z.boolean().optional(),
+  showRacerNotificationDebugList: z.boolean().optional(),
   raceDisplayLaneColorsFlipped: z.boolean().optional(),
   raceDisplayShowEventName: z.boolean().optional(),
   raceDisplayTickerMessages: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
@@ -159,4 +161,26 @@ export const updatePhotoBoothStatusSchema = z.object({
       hallSensor: photoBoothHardwareComponentSchema.optional()
     })
     .optional()
+});
+
+export const webPushSubscriptionSchema = z.object({
+  endpoint: z.string().trim().url(),
+  expirationTime: z.number().int().nullable().optional(),
+  keys: z.object({
+    p256dh: z.string().trim().min(1),
+    auth: z.string().trim().min(1)
+  })
+});
+
+export const adminNotificationSchema = z.object({
+  targetType: z.enum(["event", "queued", "tournament", "selected"]),
+  type: z.enum(RACER_NOTIFICATION_TYPES).optional(),
+  racerIds: z.array(z.string().trim().min(1)).max(200).optional(),
+  title: z.string().trim().min(1).max(80),
+  body: z.string().trim().min(1).max(240),
+  url: z.string().trim().max(240).nullable().optional()
+});
+
+export const notificationIdSchema = z.object({
+  notificationId: z.string().trim().min(1)
 });

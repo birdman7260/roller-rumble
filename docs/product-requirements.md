@@ -32,6 +32,8 @@ The app manages:
 - `Event-specific racer registrations`
 - `Event-specific payment config and status`
 - `Stripe payment records`
+- `Push subscriptions`
+- `Notification records and per-racer deliveries`
 - `Queue entries`
 - `Races`
 - `Race results`
@@ -62,6 +64,8 @@ Requirements:
   `Implemented`
 - Stripe Checkout must be available for racer-page self-service payment, with Stripe webhooks
   marking the event racer `paid` and auto-queueing the stored join/challenge intent. `Implemented`
+- Browser Web Push must be available for racer notifications when VAPID keys are configured, with
+  full-screen in-app notification modals while the racer page is open. `Implemented`
 
 ## Race Input And Metrics
 
@@ -247,6 +251,14 @@ Requirements:
 - Event-only vs all-time race-data toggle. `Implemented`
 - Allow-accountless-racer-signup toggle, disabled by default. `Implemented`
 - Tunnel start/stop controls. `Implemented`
+- Web Push setup health must show whether public notification configuration is present without
+  exposing private VAPID keys. `Implemented`
+- Admins must be able to turn on a racer notification debug list for troubleshooting, and it must
+  be off by default. `Implemented`
+- Admins must be able to send notification messages to all active-event racers, queued racers,
+  active tournament racers, or selected racers. `Implemented`
+- Admin/test tooling must be able to send any supported notification type to those same targets so
+  type-specific racer modal behavior can be validated before an event. `Implemented`
 - Kaleidoscope photo booth pairing/status controls. `Implemented`
 
 Requirement removed by product decision:
@@ -450,6 +462,21 @@ Requirements:
   a separate `Open` button flow. `Implemented`
 - The racer page should show only the active tournament for the current event, or the most recent
   completed tournament when no tournament is currently active. `Implemented`
+- Racers must be prompted to enable notifications the first time they try to queue or challenge,
+  before the queue/payment request continues, with a persistent enable button available on
+  `Your Race Card` when they are queued or returning from a payment redirect. `Implemented`
+- Racer notifications must use browser Web Push when available and must still appear in a full-screen
+  dismissible in-app modal while the racer page is open when push is denied, unsupported, or
+  unconfigured. `Implemented`
+- Clicking a browser/system notification must open the racer page and show the matching unread
+  notification in the full-screen modal instead of silently landing on the page. `Implemented`
+- The racer-page notification history list must be hidden by default behind an admin-controlled
+  notification debug setting. `Implemented`
+- Notification records must include a notification type so the racer page can render type-specific
+  modal treatments and actions, such as tournament check-in messaging. `Implemented`
+- Automatic racer notifications must include a get-ready alert when a queue entry first becomes the
+  third visible upcoming match and a tournament-start alert for racers involved in a newly active
+  tournament. `Implemented`
 
 ## Open Time Trial Queue Behavior
 
@@ -724,6 +751,8 @@ Current tooling requirements now include:
 - `pnpm dev:debug:break`
 - `/bracket-lab` for manual bracket animation testing
 - `/queue-lab` for manual open time trial queue behavior testing
+- `/notification-lab` for manual Web Push and in-app notification type/target testing
+- `pnpm notifications:keys` for generating VAPID keys used by racer Web Push notifications
 - `pnpm photo-booth:agent` for running the Raspberry Pi booth kiosk/agent
 - `pnpm photo-booth:doctor` for booth hardware diagnostics
 
@@ -735,5 +764,6 @@ These are still part of the broader product direction, but are not complete in t
 - field-validated OS2L / VirtualDJ start integration
 - full tournament racer-replacement workflow
 - field validation of the stable Cloudflare Tunnel at an event venue network
+- field validation of Web Push notification behavior on the actual event phone mix
 - field-validated DSLR camera model and WLED serial setup for the kaleidoscope booth
 - true avatar crop/resize derivative generation from booth DSLR originals

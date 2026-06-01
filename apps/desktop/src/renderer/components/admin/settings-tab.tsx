@@ -1,15 +1,20 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
-import type { AppSnapshot } from "@goldsprints/shared/types";
+import type { AdminNotificationTargetType, AppSnapshot } from "@goldsprints/shared/types";
 import { Button, Panel, StatPill } from "@goldsprints/shared-ui";
 import {
   installCloudflared,
   rotatePhotoBoothPairing,
+  sendAdminNotification,
   startTunnel,
   stopTunnel,
   updateSettings
 } from "../../lib/api";
-import { photoBoothStatusQueryKey, usePhotoBoothStatusQuery } from "../../lib/query";
+import {
+  photoBoothStatusQueryKey,
+  useNotificationConfigQuery,
+  usePhotoBoothStatusQuery
+} from "../../lib/query";
 import { fireAndForget } from "../../lib/ui-actions";
 
 const boothHardwareLabels = {
@@ -56,11 +61,18 @@ export function SettingsTab({
   meta?: { localBaseUrl: string; qrCodeDataUrl: string };
 }) {
   const photoBoothStatusQuery = usePhotoBoothStatusQuery();
+  const notificationConfigQuery = useNotificationConfigQuery();
   const queryClient = useQueryClient();
   const photoBoothAdminStatus = photoBoothStatusQuery.data;
   const photoBoothStatus = photoBoothAdminStatus?.status ?? snapshot.photoBooth;
   const tickerMessageInputRef = useRef<HTMLTextAreaElement | null>(null);
   const [cloudflaredInstalling, setCloudflaredInstalling] = useState(false);
+  const [notificationTargetType, setNotificationTargetType] =
+    useState<AdminNotificationTargetType>("event");
+  const [notificationRacerIds, setNotificationRacerIds] = useState<string[]>([]);
+  const [notificationTitle, setNotificationTitle] = useState("");
+  const [notificationBody, setNotificationBody] = useState("");
+  const [notificationSendStatus, setNotificationSendStatus] = useState<string | null>(null);
   const tunnelUrl =
     snapshot.tunnel.publicUrl ?? (meta ? `${meta.localBaseUrl}/racer` : "Tunnel inactive");
   const canInstallCloudflared =
@@ -73,6 +85,22 @@ export function SettingsTab({
     } finally {
       setCloudflaredInstalling(false);
     }
+  }
+
+  async function sendNotificationFromAdmin(): Promise<void> {
+    setNotificationSendStatus(null);
+    const result = await sendAdminNotification({
+      targetType: notificationTargetType,
+      racerIds: notificationTargetType === "selected" ? notificationRacerIds : undefined,
+      title: notificationTitle,
+      body: notificationBody,
+      url: "/racer"
+    });
+    setNotificationSendStatus(
+      `Sent to ${result.targetCount} racer${result.targetCount === 1 ? "" : "s"}.`
+    );
+    setNotificationTitle("");
+    setNotificationBody("");
   }
 
   return (
@@ -233,6 +261,109 @@ export function SettingsTab({
               Save Ticker Messages
             </Button>
           </div>
+        </div>
+      </Panel>
+
+      <Panel title="Notifications">
+        <div className="form-grid">
+          <div className="stat-grid">
+            <StatPill
+              label="Web Push"
+              value={notificationConfigQuery.data?.configured ? "Ready" : "Not configured"}
+            />
+            <StatPill
+              label="Public Key"
+              value={notificationConfigQuery.data?.publicKey ? "Present" : "Missing"}
+            />
+          </div>
+          <p>
+            {notificationConfigQuery.data?.message ??
+              "Checking Web Push setup. Private VAPID keys are never shown here."}
+          </p>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={snapshot.settings.showRacerNotificationDebugList}
+              onChange={(event) => {
+                fireAndForget(
+                  updateSettings({ showRacerNotificationDebugList: event.target.checked })
+                );
+              }}
+            />
+            Show racer notification debug list
+          </label>
+          <label>
+            Target
+            <select
+              value={notificationTargetType}
+              onChange={(event) => {
+                setNotificationTargetType(event.target.value as AdminNotificationTargetType);
+              }}
+            >
+              <option value="event">All current event racers</option>
+              <option value="queued">Queued racers</option>
+              <option value="tournament">Active tournament racers</option>
+              <option value="selected">Selected racers</option>
+            </select>
+          </label>
+          {notificationTargetType === "selected" ? (
+            <label>
+              Selected racers
+              <select
+                multiple
+                value={notificationRacerIds}
+                onChange={(event) => {
+                  setNotificationRacerIds(
+                    [...event.currentTarget.selectedOptions].map((option) => option.value)
+                  );
+                }}
+              >
+                {snapshot.racers.map((entry) => (
+                  <option key={entry.racer.id} value={entry.racer.id}>
+                    {entry.racer.displayName}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <label>
+            Message title
+            <input
+              value={notificationTitle}
+              maxLength={80}
+              onChange={(event) => {
+                setNotificationTitle(event.target.value);
+              }}
+              placeholder="Race update"
+            />
+          </label>
+          <label>
+            Message body
+            <textarea
+              rows={4}
+              maxLength={240}
+              value={notificationBody}
+              onChange={(event) => {
+                setNotificationBody(event.target.value);
+              }}
+              placeholder="Head to the bikes. Your match is coming up."
+            />
+          </label>
+          <div className="button-row">
+            <Button
+              disabled={
+                !notificationTitle.trim() ||
+                !notificationBody.trim() ||
+                (notificationTargetType === "selected" && notificationRacerIds.length === 0)
+              }
+              onClick={() => {
+                fireAndForget(sendNotificationFromAdmin(), "send notification");
+              }}
+            >
+              Send Notification
+            </Button>
+          </div>
+          {notificationSendStatus ? <p>{notificationSendStatus}</p> : null}
         </div>
       </Panel>
 

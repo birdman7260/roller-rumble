@@ -1,7 +1,8 @@
-import { integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 import type {
   BracketNode,
   EventPaymentStatus,
+  NotificationDeliveryStatus,
   PaymentRecordStatus,
   PhotoBoothCapture,
   QueueEntry,
@@ -9,9 +10,11 @@ import type {
   RaceMetricsSnapshot,
   RaceParticipant,
   RaceRecord,
+  RacerNotificationType,
   TournamentParticipantSeed,
   TournamentRecord,
-  TournamentStage
+  TournamentStage,
+  WebPushSubscriptionInput
 } from "@goldsprints/shared/types";
 
 type JsonMap = Record<string, unknown>;
@@ -129,6 +132,66 @@ export const processedWebhookEvents = sqliteTable("processed_webhook_events", {
   eventType: text("event_type").notNull(),
   processedAt: text("processed_at").notNull()
 });
+
+export const pushSubscriptions = sqliteTable(
+  "push_subscriptions",
+  {
+    id: text("id").primaryKey(),
+    racerId: text("racer_id")
+      .notNull()
+      .references(() => racers.id, { onDelete: "cascade" }),
+    endpoint: text("endpoint").notNull().unique(),
+    subscriptionJson: text("subscription_json", { mode: "json" })
+      .$type<WebPushSubscriptionInput>()
+      .notNull(),
+    userAgent: text("user_agent"),
+    revokedAt: text("revoked_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => [index("push_subscriptions_racer_active_idx").on(table.racerId, table.revokedAt)]
+);
+
+export const notifications = sqliteTable("notifications", {
+  id: text("id").primaryKey(),
+  eventId: text("event_id").references(() => events.id, { onDelete: "cascade" }),
+  type: text("type").$type<RacerNotificationType>().notNull(),
+  title: text("title").notNull(),
+  body: text("body").notNull(),
+  url: text("url"),
+  triggerKey: text("trigger_key").unique(),
+  createdBy: text("created_by"),
+  createdAt: text("created_at").notNull()
+});
+
+export const notificationDeliveries = sqliteTable(
+  "notification_deliveries",
+  {
+    id: text("id").primaryKey(),
+    notificationId: text("notification_id")
+      .notNull()
+      .references(() => notifications.id, { onDelete: "cascade" }),
+    racerId: text("racer_id")
+      .notNull()
+      .references(() => racers.id, { onDelete: "cascade" }),
+    status: text("status").$type<NotificationDeliveryStatus>().notNull(),
+    readAt: text("read_at"),
+    pushSubscriptionId: text("push_subscription_id").references(() => pushSubscriptions.id, {
+      onDelete: "set null"
+    }),
+    pushError: text("push_error"),
+    sentAt: text("sent_at"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull()
+  },
+  (table) => [
+    uniqueIndex("notification_deliveries_notification_racer_unique").on(
+      table.notificationId,
+      table.racerId
+    ),
+    index("notification_deliveries_racer_created_idx").on(table.racerId, table.createdAt)
+  ]
+);
 
 export const queueEntries = sqliteTable("queue_entries", {
   id: text("id").primaryKey(),

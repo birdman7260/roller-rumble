@@ -55,6 +55,11 @@ export const PAYMENT_RECORD_STATUSES = [
   "queue_failed"
 ] as const;
 export const PASSKEY_AUTH_STATUSES = ["passkey", "register_required", "host_assist"] as const;
+export const RACER_NOTIFICATION_TYPES = [
+  "admin_message",
+  "queue_get_ready",
+  "tournament_started"
+] as const;
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
 export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;
 export const THEME_ORIENTATIONS = ["horizontal", "vertical"] as const;

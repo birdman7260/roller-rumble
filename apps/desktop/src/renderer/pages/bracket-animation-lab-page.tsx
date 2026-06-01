@@ -362,6 +362,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
   const settings: AdminSettings = {
     autoStageNextRace: false,
     allowAccountlessRacerSignup: false,
+    showRacerNotificationDebugList: false,
     includeAllRaceData: false,
     mode: "single-elimination",
     os2lEnabled: false,

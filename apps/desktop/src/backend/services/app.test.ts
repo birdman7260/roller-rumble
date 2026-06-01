@@ -275,6 +275,7 @@ describe("app service current race controls", () => {
       },
       emitSnapshot,
       getSnapshot,
+      runQueueNotificationTriggers: vi.fn(),
       os2lTrigger: {
         disarmRace
       },

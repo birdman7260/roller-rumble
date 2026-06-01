@@ -1,9 +1,14 @@
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
-import type { PhotoBoothTokenResponse } from "@goldsprints/shared/types";
+import type {
+  NotificationConfig,
+  PhotoBoothTokenResponse,
+  RacerNotification,
+  WebPushSubscriptionInput
+} from "@goldsprints/shared/types";
 import { EliminationBracketView } from "../components/elimination-bracket-view";
 import { TournamentBracketBoard } from "../components/admin/tournament-board";
 import { Button, EmptyState, Panel, SearchableSelect, TextInput } from "@goldsprints/shared-ui";
@@ -13,10 +18,13 @@ import {
   createAccountlessRacerSession,
   createRacerPhotoBoothToken,
   fetchRacerAuthSession,
+  fetchNotificationConfig,
   finishPasskeyRegistration,
   finishPasskeySignIn,
   forgetRacerSessionToken,
+  markRacerNotificationRead,
   rememberRacerSessionToken,
+  saveRacerPushSubscription,
   signOutRacer,
   signUpRacerQueue,
   startPasskeyRegistration,
@@ -26,10 +34,17 @@ import {
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { describeQueueEntry, resolveRacerName } from "../lib/snapshot-display";
 import { fireAndForget } from "../lib/ui-actions";
-import { snapshotQueryKey, useSnapshotQuery } from "../lib/query";
+import {
+  racerNotificationsQueryKey,
+  snapshotQueryKey,
+  useNotificationConfigQuery,
+  useRacerNotificationsQuery,
+  useSnapshotQuery
+} from "../lib/query";
 
 type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJSON"];
 type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
+const notificationQueuePromptStorageKey = "goldsprints.notifications.queuePromptedAt";
 
 function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
   if (typeof amountCents !== "number") {
@@ -40,6 +55,66 @@ function formatPaymentAmount(amountCents: number | null | undefined, currency: s
     style: "currency",
     currency: currency.toUpperCase()
   }).format(amountCents / 100);
+}
+
+function isPushSupported(): boolean {
+  return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+}
+
+function urlBase64ToArrayBuffer(value: string): ArrayBuffer {
+  const padding = "=".repeat((4 - (value.length % 4)) % 4);
+  const base64 = `${value}${padding}`.replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = window.atob(base64);
+  const output = new Uint8Array(rawData.length);
+  for (let index = 0; index < rawData.length; index += 1) {
+    output[index] = rawData.charCodeAt(index);
+  }
+  return output.buffer.slice(output.byteOffset, output.byteOffset + output.byteLength);
+}
+
+function pushSubscriptionToInput(subscription: PushSubscription): WebPushSubscriptionInput {
+  const json = subscription.toJSON();
+  if (!json.endpoint || !json.keys?.p256dh || !json.keys.auth) {
+    throw new Error("Browser did not return a complete push subscription.");
+  }
+
+  return {
+    endpoint: json.endpoint,
+    expirationTime: json.expirationTime ?? null,
+    keys: {
+      p256dh: json.keys.p256dh,
+      auth: json.keys.auth
+    }
+  };
+}
+
+async function getPushConfig(
+  cachedConfig: NotificationConfig | undefined
+): Promise<NotificationConfig> {
+  return cachedConfig ?? fetchNotificationConfig();
+}
+
+function clearNotificationLaunchParam(): void {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.has("notificationId")) {
+    return;
+  }
+
+  url.searchParams.delete("notificationId");
+  window.history.replaceState(window.history.state, "", url);
+}
+
+function getNotificationModalLabel(notification: RacerNotification): string {
+  switch (notification.type) {
+    case "queue_get_ready":
+      return "Race Coming Up";
+    case "tournament_started":
+      return "Tournament Check-In";
+    case "admin_message":
+      return "Host Message";
+    default:
+      return "Race Update";
+  }
 }
 
 function PhotoBoothQr() {
@@ -130,6 +205,7 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const snapshotQuery = useSnapshotQuery();
   const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
+  const notificationConfigQuery = useNotificationConfigQuery();
   const [displayName, setDisplayName] = useState("");
   const [accountlessDisplayName, setAccountlessDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -138,6 +214,11 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [queueMessage, setQueueMessage] = useState<string | null>(null);
+  const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
+  const [notificationPromptVisible, setNotificationPromptVisible] = useState(false);
+  const [modalNotifications, setModalNotifications] = useState<RacerNotification[]>([]);
+  const [modalActionMessage, setModalActionMessage] = useState<string | null>(null);
+  const knownNotificationIdsRef = useRef<Set<string> | null>(null);
   const [avatarUploadMessage, setAvatarUploadMessage] = useState<string | null>(null);
   const [avatarUploadBusy, setAvatarUploadBusy] = useState(false);
   const [upgradeEmail, setUpgradeEmail] = useState("");
@@ -152,6 +233,7 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   );
   const paymentReturnState = new URLSearchParams(window.location.search).get("payment");
   const paymentReturnId = new URLSearchParams(window.location.search).get("payment_id");
+  const launchedNotificationId = new URLSearchParams(window.location.search).get("notificationId");
   const [accountlessId] = useState(() => {
     const existing =
       localStorage.getItem("goldsprints.accountlessId") ??
@@ -165,6 +247,7 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
     localStorage.setItem("goldsprints.accountlessId", created);
     return created;
   });
+  const racerNotificationsQuery = useRacerNotificationsQuery(Boolean(selectedRacerId));
 
   useEffect(() => {
     let cancelled = false;
@@ -197,6 +280,74 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
 
     fireAndForget(cancelRacerCheckoutPayment(paymentReturnId), "cancel checkout payment");
   }, [paymentReturnId, paymentReturnState]);
+
+  useEffect(() => {
+    const notifications = racerNotificationsQuery.data;
+    if (!notifications) {
+      return;
+    }
+
+    let modalTimer: number | null = null;
+    function scheduleModalNotifications(
+      notificationsToShow: RacerNotification[],
+      replaceCurrentNotifications = false
+    ): void {
+      modalTimer = window.setTimeout(() => {
+        setModalActionMessage(null);
+        setModalNotifications((currentNotifications) => {
+          const queuedIds = new Set(
+            currentNotifications.map((notification) => notification.notificationId)
+          );
+          const nextNotifications = notificationsToShow.filter(
+            (notification) =>
+              replaceCurrentNotifications || !queuedIds.has(notification.notificationId)
+          );
+          return replaceCurrentNotifications
+            ? nextNotifications
+            : [...currentNotifications, ...nextNotifications];
+        });
+      }, 0);
+    }
+
+    if (knownNotificationIdsRef.current === null) {
+      knownNotificationIdsRef.current = new Set(
+        notifications.map((notification) => notification.notificationId)
+      );
+      const launchedNotification = launchedNotificationId
+        ? notifications.find(
+            (notification) =>
+              notification.notificationId === launchedNotificationId && !notification.readAt
+          )
+        : null;
+      if (launchedNotification) {
+        scheduleModalNotifications([launchedNotification], true);
+        clearNotificationLaunchParam();
+      }
+      return () => {
+        if (modalTimer !== null) {
+          window.clearTimeout(modalTimer);
+        }
+      };
+    }
+
+    const newUnreadNotifications = notifications.filter(
+      (notification) =>
+        !notification.readAt && !knownNotificationIdsRef.current?.has(notification.notificationId)
+    );
+    notifications.forEach((notification) => {
+      knownNotificationIdsRef.current?.add(notification.notificationId);
+    });
+    if (newUnreadNotifications.length === 0) {
+      return;
+    }
+
+    scheduleModalNotifications([...newUnreadNotifications].reverse());
+    return () => {
+      if (modalTimer !== null) {
+        window.clearTimeout(modalTimer);
+      }
+    };
+  }, [launchedNotificationId, racerNotificationsQuery.data]);
 
   function rememberSignedInRacer(result: {
     racer: { id: string; displayName: string };
@@ -288,12 +439,91 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
     localStorage.removeItem("goldsprints.racerId");
     setSelectedRacerId("");
     setAvatarUploadMessage(null);
+    setNotificationPromptVisible(false);
+    setNotificationMessage(null);
+  }
+
+  async function saveGrantedNotificationSubscription(
+    cachedConfig?: NotificationConfig
+  ): Promise<void> {
+    const config = await getPushConfig(cachedConfig ?? notificationConfigQuery.data);
+    if (!config.configured || !config.publicKey) {
+      setNotificationMessage(config.message);
+      setNotificationPromptVisible(true);
+      return;
+    }
+
+    const registration = await navigator.serviceWorker.register("/racer-notifications-sw.js");
+    const existingSubscription = await registration.pushManager.getSubscription();
+    const subscription =
+      existingSubscription ??
+      (await registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToArrayBuffer(config.publicKey)
+      }));
+
+    await saveRacerPushSubscription(pushSubscriptionToInput(subscription));
+    setNotificationPromptVisible(false);
+    setNotificationMessage("Notifications enabled for this device.");
+  }
+
+  async function handleEnableNotifications(): Promise<void> {
+    setNotificationMessage(null);
+    if (!isPushSupported()) {
+      setNotificationMessage("This browser does not support Web Push notifications.");
+      return;
+    }
+
+    const permission =
+      Notification.permission === "granted" ? "granted" : await Notification.requestPermission();
+    if (permission !== "granted") {
+      setNotificationMessage(
+        "Notifications were not enabled. Race updates will still appear here."
+      );
+      return;
+    }
+
+    await saveGrantedNotificationSubscription();
+  }
+
+  async function promptForNotificationsOnFirstQueueAttempt(): Promise<void> {
+    if (
+      localStorage.getItem(notificationQueuePromptStorageKey) ||
+      !isPushSupported() ||
+      Notification.permission !== "default"
+    ) {
+      return;
+    }
+
+    localStorage.setItem(notificationQueuePromptStorageKey, new Date().toISOString());
+    setNotificationMessage(null);
+    // Ask for permission immediately from the queue button gesture; browser permission prompts can
+    // be blocked if we wait until after the queue/payment request finishes.
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") {
+      setNotificationMessage(
+        "Notifications were not enabled. Race updates will still appear here."
+      );
+      setNotificationPromptVisible(true);
+      return;
+    }
+
+    await saveGrantedNotificationSubscription();
   }
 
   async function handleQueueSignup(input: {
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
   }): Promise<void> {
+    try {
+      await promptForNotificationsOnFirstQueueAttempt();
+    } catch (error) {
+      setNotificationMessage(
+        error instanceof Error ? error.message : "Could not enable notifications on this device."
+      );
+      setNotificationPromptVisible(true);
+    }
+
     try {
       const result = await signUpRacerQueue(input);
       if (result.status === "checkout_required") {
@@ -302,6 +532,7 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
         return;
       }
       setQueueMessage(null);
+      setNotificationPromptVisible(true);
     } catch (error) {
       if (error instanceof ApiError && error.code === "payment_required") {
         setQueueMessage(error.message);
@@ -332,11 +563,23 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
     }
   }
 
+  async function dismissNotificationModal(notification: RacerNotification): Promise<void> {
+    setModalActionMessage(null);
+    setModalNotifications((currentNotifications) =>
+      currentNotifications.filter((entry) => entry.notificationId !== notification.notificationId)
+    );
+    const nextNotifications = await markRacerNotificationRead(notification.notificationId);
+    queryClient.setQueryData(racerNotificationsQueryKey, nextNotifications);
+  }
+
   if (!snapshot) {
     return <p>Loading racer page…</p>;
   }
 
   const selectedRacer = snapshot.racers.find((entry) => entry.racer.id === selectedRacerId);
+  const selectedRacerQueueEntries = snapshot.queue.filter((entry) =>
+    entry.racerIds.includes(selectedRacerId)
+  );
   const selectedRacerAvatarUrl = resolveBackendAssetUrl(selectedRacer?.racer.avatarUrl);
   const selectedRacerHasEmail = Boolean(
     selectedRacer?.racer.identities.some((identity) => identity.type === "email")
@@ -389,6 +632,15 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const layoutTransition = reduceMotion
     ? { duration: 0 }
     : { type: "spring" as const, stiffness: 230, damping: 28, mass: 0.92 };
+  const racerNotifications = racerNotificationsQuery.data ?? [];
+  const unreadNotificationCount = racerNotifications.filter(
+    (notification) => !notification.readAt
+  ).length;
+  const activeModalNotification = modalNotifications.length > 0 ? modalNotifications[0] : null;
+  const shouldShowNotificationPrompt =
+    notificationPromptVisible ||
+    paymentReturnState === "success" ||
+    selectedRacerQueueEntries.length > 0;
 
   function canShowBracket(bundle: (typeof tournaments)[number]): boolean {
     return bundle.bracketNodes.length > 0;
@@ -448,6 +700,87 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                       >
                         Sign out
                       </Button>
+                    </div>
+                    <div className="racer-notification-center stack-sm">
+                      <div className="racer-section-heading">
+                        <strong>Race Notifications</strong>
+                        <p>
+                          {unreadNotificationCount > 0
+                            ? `${unreadNotificationCount} unread update${
+                                unreadNotificationCount === 1 ? "" : "s"
+                              }.`
+                            : "Get phone alerts when your race or tournament is coming up."}
+                        </p>
+                      </div>
+                      {shouldShowNotificationPrompt ? (
+                        <div className="racer-notification-callout">
+                          <span>
+                            {notificationConfigQuery.data?.configured
+                              ? "Enable notifications on this phone so you do not miss your race."
+                              : (notificationConfigQuery.data?.message ??
+                                "Notification setup is still loading.")}
+                          </span>
+                          <Button
+                            variant="accent"
+                            disabled={!notificationConfigQuery.data?.configured}
+                            onClick={() => {
+                              fireAndForget(handleEnableNotifications(), "enable notifications");
+                            }}
+                          >
+                            Enable Notifications
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="button-row">
+                          <Button
+                            variant="ghost"
+                            onClick={() => {
+                              fireAndForget(handleEnableNotifications(), "enable notifications");
+                            }}
+                          >
+                            Enable Notifications
+                          </Button>
+                        </div>
+                      )}
+                      {notificationMessage ? <p>{notificationMessage}</p> : null}
+                      {snapshot.settings.showRacerNotificationDebugList &&
+                      racerNotifications.length > 0 ? (
+                        <div className="racer-notification-list">
+                          {racerNotifications.slice(0, 5).map((notification) => (
+                            <article
+                              key={notification.id}
+                              className={`racer-notification-item${
+                                notification.readAt ? "" : " racer-notification-item--unread"
+                              }`}
+                            >
+                              <div>
+                                <strong>{notification.title}</strong>
+                                <p>{notification.body}</p>
+                              </div>
+                              {!notification.readAt ? (
+                                <Button
+                                  variant="ghost"
+                                  onClick={() => {
+                                    fireAndForget(
+                                      markRacerNotificationRead(notification.notificationId).then(
+                                        (nextNotifications) => {
+                                          queryClient.setQueryData(
+                                            racerNotificationsQueryKey,
+                                            nextNotifications
+                                          );
+                                        }
+                                      ),
+                                      "mark notification read"
+                                    );
+                                  }}
+                                >
+                                  Mark read
+                                </Button>
+                              ) : null}
+                            </article>
+                          ))}
+                        </div>
+                      ) : null}
                     </div>
                     <label>
                       Upload avatar
@@ -875,6 +1208,90 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
           </Panel>
         </motion.div>
       </div>
+      <AnimatePresence>
+        {activeModalNotification ? (
+          <motion.div
+            className={`racer-notification-modal racer-notification-modal--${activeModalNotification.type}`}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="racer-notification-modal-title"
+          >
+            <motion.div
+              className="racer-notification-modal__card"
+              initial={{ opacity: 0, y: 28, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            >
+              <button
+                type="button"
+                className="racer-notification-modal__close"
+                onClick={() => {
+                  fireAndForget(
+                    dismissNotificationModal(activeModalNotification),
+                    "close racer notification"
+                  );
+                }}
+              >
+                Close
+              </button>
+              <span className="racer-notification-modal__eyebrow">
+                {getNotificationModalLabel(activeModalNotification)}
+              </span>
+              <h2 id="racer-notification-modal-title">{activeModalNotification.title}</h2>
+              <p>{activeModalNotification.body}</p>
+              {modalActionMessage ? (
+                <p className="racer-notification-modal__action-message">{modalActionMessage}</p>
+              ) : null}
+              <div className="racer-notification-modal__actions">
+                {activeModalNotification.type === "tournament_started" ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        // This is intentionally non-mutating until tournament opt-out rules can
+                        // decide whether to replace the racer, insert a bye, or require host review.
+                        setModalActionMessage(
+                          "Ask the host to remove you for now. Tournament self-removal needs bracket-safe host rules before it can change the live board."
+                        );
+                      }}
+                    >
+                      Remove Me
+                    </Button>
+                    <Button
+                      variant="accent"
+                      onClick={() => {
+                        fireAndForget(
+                          dismissNotificationModal(activeModalNotification),
+                          "accept tournament notification"
+                        );
+                      }}
+                    >
+                      Accept Spot
+                    </Button>
+                  </>
+                ) : (
+                  <Button
+                    variant="accent"
+                    onClick={() => {
+                      fireAndForget(
+                        dismissNotificationModal(activeModalNotification),
+                        "dismiss racer notification"
+                      );
+                    }}
+                  >
+                    {activeModalNotification.type === "queue_get_ready"
+                      ? "I'm On My Way"
+                      : "Dismiss"}
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </LayoutGroup>
   );
 }

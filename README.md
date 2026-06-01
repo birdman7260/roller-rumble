@@ -19,6 +19,8 @@ presentation, persistent event data, theme support, and live tournament operatio
   profile
 - Tracks event-scoped entrance-fee amount/status and can require Stripe Checkout payment before
   racers add themselves to the queue; host/admin queue actions can still bypass payment
+- Sends racer notifications through browser Web Push when configured, with full-screen in-app
+  modals while the racer page is open and a debug-only notification history list
 - Turns the racer identity card into `Your Race Card` after signup instead of leaving a separate
   register card on screen
 - Lets racers upload avatars
@@ -82,7 +84,8 @@ The app is intentionally local-first. Everything important runs on the host mach
 - `React Flow` powers the custom elimination-bracket board so the app can own node styling, edge
   routing, and viewport camera behavior.
 - `SQLite` is the source of truth for events, racers, passkey credentials, event payment config/status,
-  queue entries, races, results, tournaments, and settings.
+  queue entries, races, results, tournaments, push subscriptions, notification deliveries, and
+  settings.
 - `Drizzle ORM` provides the typed query layer over `better-sqlite3`, while checked-in SQL files remain the migration source of truth.
 - A separate Raspberry Pi photo booth agent can run from this repo and pair back to the embedded
   backend for DSLR avatar capture, WLED light control, and offline upload queueing.
@@ -133,6 +136,33 @@ Apple Pay, Google Pay, Link, and cards are handled by Stripe-hosted Checkout and
 enabled in the Stripe Dashboard. In local development, use the Stripe CLI to forward webhooks to
 `/api/webhooks/stripe`.
 
+## Racer Notifications
+
+The Racer Page supports true browser Web Push plus an in-page full-screen modal. Web Push requires HTTPS on
+phones, so use the Cloudflare tunnel URL for event use. Racers are prompted to enable notifications
+the first time they press a queue/challenge button, and admin-queued racers see the same enable
+button when they open their race card.
+
+Generate VAPID keys with:
+
+```sh
+pnpm notifications:keys
+```
+
+Then add the values to `.env.local`:
+
+- `GOLDSPRINTS_WEB_PUSH_PUBLIC_KEY`
+- `GOLDSPRINTS_WEB_PUSH_PRIVATE_KEY`
+- `GOLDSPRINTS_WEB_PUSH_SUBJECT`
+
+Automatic notifications currently include the “3rd match coming up” queue alert and tournament-start
+alerts for racers seeded into an active tournament. Admins can also send messages from the Settings
+tab to all event racers, queued racers, active tournament racers, or a selected racer list. If Web
+Push is unavailable or not configured, incoming notification records still appear as dismissible
+in-app modals while the racer page is open. A racer-page notification history list is available only
+when the Admin Settings notification debug toggle is enabled. Clicking a system notification opens
+the racer page with that notification selected so the matching in-app modal appears after load.
+
 ## Routes And Surfaces
 
 - `/admin`
@@ -147,6 +177,7 @@ enabled in the Stripe Dashboard. In local development, use the Stripe CLI to for
   - side-by-side tournament setup and history when no tournament is active
   - full-width active tournament summary followed by the full-width bracket board while active
   - settings and tunnel controls
+  - Web Push setup health, admin-sent racer notifications, and racer notification debug-list toggle
   - photo booth pairing/status controls
 - `/race`
   - countdown
@@ -165,6 +196,7 @@ enabled in the Stripe Dashboard. In local development, use the Stripe CLI to for
   - avatar upload
   - short-lived photo booth QR for DSLR avatar capture after registration
   - payment-aware queue signup
+  - Web Push opt-in plus full-screen in-page notification modals
   - challenge signup
   - upcoming races
   - racer list and stats
@@ -176,6 +208,9 @@ enabled in the Stripe Dashboard. In local development, use the Stripe CLI to for
 - `/queue-lab`
   - developer test page for exercising open time trial queue projection, repeated signups,
     challenges, removals, race completion, bump counts, and active-entry limits
+- `/notification-lab`
+  - developer test page for sending any supported racer notification type to event groups or
+    selected registered racers through the real Web Push/in-app notification pipeline
 
 ## Project Layout
 
@@ -215,6 +250,7 @@ Important files:
 - [apps/desktop/drizzle.config.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/drizzle.config.ts)
 - [apps/desktop/src/backend/services/app.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/src/backend/services/app.ts)
 - [apps/desktop/src/backend/services/competition.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/src/backend/services/competition.ts)
+- [apps/desktop/src/backend/services/notifications.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/src/backend/services/notifications.ts)
 - [apps/desktop/src/renderer/router.tsx](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/src/renderer/router.tsx)
 - [apps/desktop/src/renderer/components/elimination-bracket-view.tsx](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/src/renderer/components/elimination-bracket-view.tsx)
 - [apps/desktop/src/renderer/components/tournament-flow-layout.ts](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/goldSprints/apps/desktop/src/renderer/components/tournament-flow-layout.ts)
@@ -375,6 +411,9 @@ testing does not produce unrelated Vite websocket failures.
   - Exits non-zero when no usable `cloudflared` binary is available.
 - `pnpm cloudflared:version`
   - Prints the resolved `cloudflared --version` output using the same lookup order as the app.
+- `pnpm notifications:keys`
+  - Generates VAPID keys for browser Web Push and prints the `.env.local` variables to add.
+  - The private key should stay local and must not be committed.
 - `pnpm dev:reset-data`
   - Deletes the repo-local dev runtime directory at `.goldsprints-dev/runtime`.
   - Use this when you want a fresh SQLite database, cleared uploads, and no leftover dev event data.

@@ -1,9 +1,11 @@
 import type {
   AccountlessRacerSessionInput,
+  AdminNotificationInput,
   AppSnapshot,
   PhotoBoothAdminStatus,
   PhotoBoothTokenResponse,
   CreateRacerInput,
+  NotificationConfig,
   PasskeyChallengeInput,
   PasskeyRegistrationStartInput,
   PasskeyRegistrationStartResponse,
@@ -11,13 +13,15 @@ import type {
   QueueSignupInput,
   RacerAuthSessionResponse,
   RacerAuthSuccessResponse,
+  RacerNotification,
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   Racer,
   StartTournamentInput,
   TunnelDiagnostics,
   UpdateEventPaymentConfigInput,
-  UpdateRacerPaymentInput
+  UpdateRacerPaymentInput,
+  WebPushSubscriptionInput
 } from "@goldsprints/shared/types";
 
 export class ApiError extends Error {
@@ -113,6 +117,10 @@ export async function fetchSnapshot(): Promise<AppSnapshot> {
 
 export async function fetchMeta(): Promise<{ localBaseUrl: string; qrCodeDataUrl: string }> {
   return parseJson(await fetch(buildUrl("/api/meta")));
+}
+
+export async function fetchNotificationConfig(): Promise<NotificationConfig> {
+  return parseJson(await fetch(buildUrl("/api/notifications/config")));
 }
 
 export async function fetchPhotoBoothStatus(): Promise<PhotoBoothAdminStatus> {
@@ -296,6 +304,65 @@ export async function cancelRacerCheckoutPayment(paymentId: string): Promise<App
       method: "POST",
       credentials: "include",
       headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function saveRacerPushSubscription(
+  subscription: WebPushSubscriptionInput
+): Promise<NotificationConfig> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/notifications/subscriptions"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(subscription)
+    })
+  );
+}
+
+export async function deleteRacerPushSubscription(
+  subscription: WebPushSubscriptionInput
+): Promise<NotificationConfig> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/notifications/subscriptions"), {
+      method: "DELETE",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(subscription)
+    })
+  );
+}
+
+export async function fetchRacerNotifications(): Promise<RacerNotification[]> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/notifications"), {
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function markRacerNotificationRead(
+  notificationId: string
+): Promise<RacerNotification[]> {
+  return parseJson(
+    await fetch(buildUrl(`/api/racer/notifications/${notificationId}/read`), {
+      method: "POST",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function sendAdminNotification(
+  input: AdminNotificationInput
+): Promise<{ snapshot: AppSnapshot; targetCount: number }> {
+  return parseJson(
+    await fetch(buildUrl("/api/admin/notifications"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     })
   );
 }

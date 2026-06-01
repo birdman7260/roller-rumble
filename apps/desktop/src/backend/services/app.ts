@@ -28,8 +28,10 @@ import { themes, getTheme } from "@goldsprints/shared/themes";
 import type {
   BracketNode,
   AdminSettings,
+  AdminNotificationInput,
   AppSnapshot,
   AccountlessRacerSessionInput,
+  NotificationConfig,
   PhotoBoothAdminStatus,
   PhotoBoothSession,
   PhotoBoothStatus,
@@ -41,6 +43,7 @@ import type {
   RacerAuthSuccessResponse,
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
+  RacerNotification,
   RacerStats,
   RacerSummary,
   PasskeyRegistrationStartInput,
@@ -53,7 +56,8 @@ import type {
   TournamentPreset,
   TunnelDiagnostics,
   TunnelState,
-  UpdateEventPaymentConfigInput
+  UpdateEventPaymentConfigInput,
+  WebPushSubscriptionInput
 } from "@goldsprints/shared/types";
 import { nowIso } from "@goldsprints/shared/utils";
 import {
@@ -99,6 +103,12 @@ import {
   normalizePaymentCurrency,
   type StripeRuntimeConfig
 } from "./stripe-payments";
+import {
+  getThirdUpcomingQueueEntry,
+  getTournamentNotificationRacerIds,
+  getWebPushRuntimeConfig,
+  sendNotificationPushes
+} from "./notifications";
 
 const RESULT_MODAL_DURATION_MS = 15000;
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
@@ -369,6 +379,185 @@ export class GoldsprintsApp extends EventEmitter {
     return this.stripeClient;
   }
 
+  getNotificationConfig(): NotificationConfig {
+    const { configured, publicKey, message } = getWebPushRuntimeConfig();
+    return {
+      configured,
+      publicKey,
+      message
+    };
+  }
+
+  saveRacerPushSubscription(
+    racerId: string,
+    subscription: WebPushSubscriptionInput,
+    userAgent?: string | null
+  ): NotificationConfig {
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent) {
+      this.db.ensureEventRegistration(activeEvent.id, racerId);
+    }
+    this.db.upsertPushSubscription(racerId, subscription, userAgent);
+    return this.getNotificationConfig();
+  }
+
+  revokeRacerPushSubscription(
+    racerId: string,
+    subscription: WebPushSubscriptionInput
+  ): NotificationConfig {
+    const racer = this.db.getRacer(racerId);
+    if (!racer) {
+      throw new AppHttpError("Racer not found.", 404, "racer_not_found");
+    }
+    this.db.revokePushSubscription(subscription.endpoint);
+    return this.getNotificationConfig();
+  }
+
+  listRacerNotifications(racerId: string): RacerNotification[] {
+    return this.db.listNotificationsForRacer(racerId);
+  }
+
+  markRacerNotificationRead(racerId: string, notificationId: string): RacerNotification[] {
+    this.db.markNotificationRead(racerId, notificationId);
+    return this.listRacerNotifications(racerId);
+  }
+
+  private createNotificationAndDispatch(input: {
+    eventId?: string | null;
+    type: "queue_get_ready" | "tournament_started" | "admin_message";
+    title: string;
+    body: string;
+    url?: string | null;
+    triggerKey?: string | null;
+    createdBy?: string | null;
+    racerIds: string[];
+  }): number {
+    const batch = this.db.createNotification(input);
+    if (!batch) {
+      return 0;
+    }
+
+    void this.dispatchNotificationPushes(batch.notification.id).catch((error: unknown) => {
+      console.warn("[notifications] push dispatch failed", error);
+    });
+    return batch.deliveries.length;
+  }
+
+  private async dispatchNotificationPushes(notificationId: string): Promise<void> {
+    const deliveries = this.db.listNotificationDeliveries(notificationId);
+    if (deliveries.length === 0) {
+      return;
+    }
+
+    const notificationRecord = this.db.getNotification(notificationId);
+    if (!notificationRecord) {
+      return;
+    }
+
+    const racerIds = deliveries.map((delivery) => delivery.racerId);
+    await sendNotificationPushes({
+      config: getWebPushRuntimeConfig(),
+      notification: notificationRecord,
+      deliveries,
+      subscriptions: this.db.listActivePushSubscriptionsForRacers(racerIds),
+      markDelivery: (deliveryId, result) => {
+        this.db.updateNotificationDeliveryPushStatus(deliveryId, result);
+      },
+      revokeSubscription: (endpoint) => {
+        this.db.revokePushSubscription(endpoint);
+      }
+    });
+    this.emitSnapshot();
+  }
+
+  private runQueueNotificationTriggers(eventId: string): void {
+    const thirdEntry = getThirdUpcomingQueueEntry(reindexQueue(this.db.listQueueEntries(eventId)));
+    if (!thirdEntry) {
+      return;
+    }
+
+    const racerNames = thirdEntry.racerIds
+      .map((racerId) => this.db.getRacer(racerId)?.displayName ?? "Racer")
+      .join(" vs ");
+    this.createNotificationAndDispatch({
+      eventId,
+      type: "queue_get_ready",
+      title: "Get ready to race",
+      body: `You are the 3rd match coming up: ${racerNames}. Head toward the bikes.`,
+      url: "/racer",
+      triggerKey: `queue-get-ready:${eventId}:${thirdEntry.id}`,
+      racerIds: thirdEntry.racerIds
+    });
+  }
+
+  private notifyTournamentStarted(bundle: TournamentBundle): void {
+    const racerIds = getTournamentNotificationRacerIds(bundle);
+    this.createNotificationAndDispatch({
+      eventId: bundle.tournament.eventId,
+      type: "tournament_started",
+      title: "Tournament started",
+      body: `${bundle.tournament.name} is live. Check the bracket and be ready for your matchup.`,
+      url: "/racer",
+      triggerKey: `tournament-started:${bundle.tournament.id}`,
+      racerIds
+    });
+  }
+
+  private resolveAdminNotificationTargets(input: AdminNotificationInput): string[] {
+    const activeEvent = this.db.getActiveEvent()!;
+    switch (input.targetType) {
+      case "event":
+        return this.db.listEventRacers(activeEvent.id).map((racer) => racer.id);
+      case "queued":
+        return [
+          ...new Set(
+            this.db
+              .listQueueEntries(activeEvent.id)
+              .filter((entry) => ["queued", "staging", "racing"].includes(entry.status))
+              .flatMap((entry) => entry.racerIds)
+          )
+        ];
+      case "tournament": {
+        const activeTournament = this.getActiveTournamentBundle(activeEvent.id);
+        return activeTournament ? getTournamentNotificationRacerIds(activeTournament) : [];
+      }
+      case "selected":
+        return [...new Set(input.racerIds ?? [])];
+      default:
+        return [];
+    }
+  }
+
+  sendAdminNotification(input: AdminNotificationInput): {
+    snapshot: AppSnapshot;
+    targetCount: number;
+  } {
+    const activeEvent = this.db.getActiveEvent()!;
+    const targetRacerIds = this.resolveAdminNotificationTargets(input);
+    if (targetRacerIds.length === 0) {
+      throw new AppHttpError(
+        "Choose at least one racer to notify.",
+        400,
+        "no_notification_targets"
+      );
+    }
+
+    const targetCount = this.createNotificationAndDispatch({
+      eventId: activeEvent.id,
+      type: input.type ?? "admin_message",
+      title: input.title,
+      body: input.body,
+      url: input.url ?? "/racer",
+      createdBy: "admin",
+      racerIds: targetRacerIds
+    });
+    this.emitSnapshot();
+    return {
+      snapshot: this.getSnapshot(),
+      targetCount
+    };
+  }
+
   getSnapshot(): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     const settings = this.db.getAdminSettings();
@@ -464,14 +653,16 @@ export class GoldsprintsApp extends EventEmitter {
     if (!this.resultPresentation) {
       return;
     }
-    if (this.resultPresentation.race.queueEntryId) {
-      this.db.markQueueEntryStatus(this.resultPresentation.race.queueEntryId, "completed");
+    const completedRace = this.resultPresentation.race;
+    if (completedRace.queueEntryId) {
+      this.db.markQueueEntryStatus(completedRace.queueEntryId, "completed");
     }
-    this.reconcileQueueRaceStatuses(this.resultPresentation.race.eventId);
+    this.reconcileQueueRaceStatuses(completedRace.eventId);
     this.resultPresentation = null;
     // Auto-stage waits until the audience result beat is finished so the projector and admin
     // workflow both move forward at the same deliberate moment.
     if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(completedRace.eventId);
       this.emitSnapshot();
     }
   }
@@ -1766,6 +1957,7 @@ export class GoldsprintsApp extends EventEmitter {
     });
     this.saveProjectedQueue(activeEvent.id, updated, timestamp);
     if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(activeEvent.id);
       this.emitSnapshot();
     }
     return this.getSnapshot();
@@ -1777,6 +1969,7 @@ export class GoldsprintsApp extends EventEmitter {
     const updated = removeRacerFromQueue(this.db.listQueueOccurrences(activeEvent.id), racerId);
     this.saveProjectedQueue(activeEvent.id, updated, timestamp);
     if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(activeEvent.id);
       this.emitSnapshot();
     }
     return this.getSnapshot();
@@ -1793,6 +1986,7 @@ export class GoldsprintsApp extends EventEmitter {
     );
     this.saveProjectedQueue(activeEvent.id, updated, timestamp);
     if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(activeEvent.id);
       this.emitSnapshot();
     }
     return this.getSnapshot();
@@ -1840,6 +2034,7 @@ export class GoldsprintsApp extends EventEmitter {
       this.os2lTrigger.armRace(race.id);
     }
 
+    this.runQueueNotificationTriggers(activeEvent.id);
     this.emitSnapshot();
     return this.getSnapshot();
   }
@@ -1884,6 +2079,7 @@ export class GoldsprintsApp extends EventEmitter {
       // to immediately recreate the same staged race.
       this.autoStagePausedUntilManualStage = true;
     }
+    this.runQueueNotificationTriggers(activeEvent.id);
     this.emitSnapshot();
     return this.getSnapshot();
   }
@@ -2002,6 +2198,7 @@ export class GoldsprintsApp extends EventEmitter {
       this.db.markQueueEntryStatus(activeRace.queueEntryId, "racing");
     }
     this.sensorAdapter.beginRace(activeRace.participants);
+    this.runQueueNotificationTriggers(activeRace.eventId);
     this.emitSnapshot();
   }
 
@@ -2151,6 +2348,7 @@ export class GoldsprintsApp extends EventEmitter {
 
     this.currentRuntime = null;
     if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(race.eventId);
       this.emitSnapshot();
     }
     return this.getSnapshot();
@@ -2392,6 +2590,7 @@ export class GoldsprintsApp extends EventEmitter {
     this.db.updateAdminSettings({
       mode: input.preset
     });
+    this.notifyTournamentStarted(bundle);
     this.emitSnapshot();
     return this.getSnapshot();
   }
@@ -2456,6 +2655,7 @@ export class GoldsprintsApp extends EventEmitter {
       mode: "open-time-trial"
     });
     if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(bundle.tournament.eventId);
       this.emitSnapshot();
     }
     return this.getSnapshot();

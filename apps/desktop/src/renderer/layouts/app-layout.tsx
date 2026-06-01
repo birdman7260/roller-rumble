@@ -46,6 +46,9 @@ export function AppLayout() {
           <Link to="/queue-lab" activeProps={{ className: "active" }}>
             Queue Lab
           </Link>
+          <Link to="/notification-lab" activeProps={{ className: "active" }}>
+            Notification Lab
+          </Link>
         </nav>
       </aside>
       <main className="app-shell__content">

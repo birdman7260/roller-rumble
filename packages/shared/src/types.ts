@@ -9,6 +9,7 @@ import type {
   QUEUE_ENTRY_STATUSES,
   QUEUE_ENTRY_TYPES,
   QUEUE_OCCURRENCE_INTENTS,
+  RACER_NOTIFICATION_TYPES,
   RACE_STATES,
   SUPPORTED_TOURNAMENT_PRESETS,
   THEME_CONNECTOR_STYLES,
@@ -133,6 +134,47 @@ export interface PhotoBoothCapture {
   avatarUrl: string;
   capturedAt: string;
   uploadedAt: string;
+  createdAt: string;
+}
+
+export type RacerNotificationType = (typeof RACER_NOTIFICATION_TYPES)[number];
+export type NotificationDeliveryStatus = "pending" | "sent" | "failed" | "no_subscription";
+export type AdminNotificationTargetType = "event" | "queued" | "tournament" | "selected";
+
+export interface WebPushSubscriptionInput {
+  endpoint: string;
+  expirationTime?: number | null;
+  keys: {
+    p256dh: string;
+    auth: string;
+  };
+}
+
+export interface NotificationConfig {
+  configured: boolean;
+  publicKey?: string | null;
+  message: string;
+}
+
+export interface AdminNotificationInput {
+  targetType: AdminNotificationTargetType;
+  type?: RacerNotificationType;
+  racerIds?: string[];
+  title: string;
+  body: string;
+  url?: string | null;
+}
+
+export interface RacerNotification {
+  id: string;
+  notificationId: string;
+  type: RacerNotificationType;
+  title: string;
+  body: string;
+  url?: string | null;
+  eventId?: string | null;
+  readAt?: string | null;
+  deliveryStatus: NotificationDeliveryStatus;
   createdAt: string;
 }
 
@@ -456,6 +498,7 @@ export interface AdminSettings {
   autoStageNextRace: boolean;
   includeAllRaceData: boolean;
   allowAccountlessRacerSignup: boolean;
+  showRacerNotificationDebugList: boolean;
   raceDisplayLaneColorsFlipped: boolean;
   raceDisplayShowEventName: boolean;
   raceDisplayTickerMessages: string[];
