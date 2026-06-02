@@ -362,6 +362,64 @@ export interface TournamentBundle {
   seeds: TournamentParticipantSeed[];
 }
 
+export interface TournamentOptOutResponse {
+  snapshot: AppSnapshot;
+  tournamentId: string;
+  optedOutRacerId: string;
+  replacementType: "racer" | "bye";
+  replacementRacerId: string | null;
+  replacementRacerName: string | null;
+  message: string;
+}
+
+export interface TournamentReplacementCandidate {
+  label: string;
+  racerId: string;
+  score: number;
+  seed: number;
+}
+
+export interface TournamentRacerRemovalOptionsResponse {
+  canAutomaticallyReplace: boolean;
+  candidates: TournamentReplacementCandidate[];
+  racerId: string;
+  tournamentId: string;
+}
+
+export interface AdminTournamentRacerRemovalInput {
+  replacementMode: "auto" | "racer" | "bye";
+  replacementRacerId?: string | null;
+}
+
+export interface AdminTournamentRacerRemovalResponse {
+  snapshot: AppSnapshot;
+  tournamentId: string;
+  removedRacerId: string;
+  replacementType: "racer" | "bye";
+  replacementRacerId: string | null;
+  replacementRacerName: string | null;
+  message: string;
+}
+
+export interface TournamentByeFillOptionsResponse {
+  candidates: TournamentReplacementCandidate[];
+  nodeId: string;
+  tournamentId: string;
+}
+
+export interface AdminTournamentByeFillInput {
+  replacementRacerId: string;
+}
+
+export interface AdminTournamentByeFillResponse {
+  snapshot: AppSnapshot;
+  tournamentId: string;
+  nodeId: string;
+  replacementRacerId: string;
+  replacementRacerName: string;
+  message: string;
+}
+
 export interface ThemeTokens {
   surface: string;
   surfaceAlt: string;

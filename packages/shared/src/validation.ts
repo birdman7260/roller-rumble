@@ -111,6 +111,20 @@ export const tournamentGroupMatchSchema = z.object({
   matchId: z.string().trim().min(1)
 });
 
+export const tournamentRacerSchema = z.object({
+  tournamentId: z.string().trim().min(1),
+  racerId: z.string().trim().min(1)
+});
+
+export const adminTournamentRacerRemovalSchema = z.object({
+  replacementMode: z.enum(["auto", "racer", "bye"]),
+  replacementRacerId: z.string().trim().min(1).nullable().optional()
+});
+
+export const adminTournamentByeFillSchema = z.object({
+  replacementRacerId: z.string().trim().min(1)
+});
+
 export const settingUpdateSchema = z.object({
   mode: z.enum(SUPPORTED_TOURNAMENT_PRESETS).optional(),
   themeId: z.string().trim().min(1).optional(),

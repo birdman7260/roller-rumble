@@ -4,7 +4,7 @@ import { resolveBackendAssetUrl } from "../lib/assets";
 import type { BracketFlowNode } from "./tournament-flow-layout";
 
 export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNode>) {
-  const clickable = data.canStage && typeof data.onStageMatch === "function";
+  const clickable = data.canSelect && typeof data.onSelectMatch === "function";
   const Root = clickable ? "button" : "div";
 
   return (
@@ -18,7 +18,7 @@ export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNod
       onClick={
         clickable
           ? () => {
-              data.onStageMatch?.(data.appNodeId);
+              data.onSelectMatch?.(data.appNodeId);
             }
           : undefined
       }

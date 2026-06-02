@@ -4,9 +4,9 @@ import type { Dispatch, SetStateAction } from "react";
 import { competitionPresets } from "@goldsprints/shared/presets";
 import type {
   AppSnapshot,
-  TournamentBracketLayoutMode,
   TournamentBracketSize,
   TournamentBundle,
+  TournamentBracketLayoutMode,
   TournamentPreset
 } from "@goldsprints/shared/types";
 import { Button, EmptyState, Panel, StatPill, TextInput } from "@goldsprints/shared-ui";
@@ -14,7 +14,9 @@ import {
   createTournament,
   endTournamentEarly,
   stageTournamentBracketMatch,
-  stageTournamentGroupMatch
+  stageTournamentGroupMatch,
+  undoTournamentBracketMatch,
+  undoTournamentGroupMatch
 } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
 import { getBracketLayoutLabel, getPresetLabel } from "../../lib/admin-competition";
@@ -291,6 +293,7 @@ export function TournamentsTab({
               }`}
             >
               <TournamentBracketBoard
+                key={activeTournament.tournament.id}
                 snapshot={snapshot}
                 bundle={activeTournament}
                 canStageMatches={!tournamentRaceLocked}
@@ -302,6 +305,12 @@ export function TournamentsTab({
                   fireAndForget(
                     stageTournamentBracketMatch(activeTournament.tournament.id, nodeId),
                     "stage tournament bracket match"
+                  );
+                }}
+                onUndoMatch={(nodeId) => {
+                  fireAndForget(
+                    undoTournamentBracketMatch(activeTournament.tournament.id, nodeId),
+                    "undo tournament bracket match"
                   );
                 }}
               />
@@ -327,6 +336,12 @@ export function TournamentsTab({
                     fireAndForget(
                       stageTournamentGroupMatch(activeTournament.tournament.id, matchId),
                       "stage tournament group match"
+                    );
+                  }}
+                  onUndoMatch={(matchId) => {
+                    fireAndForget(
+                      undoTournamentGroupMatch(activeTournament.tournament.id, matchId),
+                      "undo tournament group match"
                     );
                   }}
                 />

@@ -4,9 +4,11 @@ import type { ChangeEvent } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import type {
+  AppSnapshot,
   NotificationConfig,
   PhotoBoothTokenResponse,
   RacerNotification,
+  TournamentBundle,
   WebPushSubscriptionInput
 } from "@goldsprints/shared/types";
 import { EliminationBracketView } from "../components/elimination-bracket-view";
@@ -24,6 +26,7 @@ import {
   forgetRacerSessionToken,
   markRacerNotificationRead,
   rememberRacerSessionToken,
+  optOutOfCurrentTournament,
   saveRacerPushSubscription,
   signOutRacer,
   signUpRacerQueue,
@@ -115,6 +118,33 @@ function getNotificationModalLabel(notification: RacerNotification): string {
     default:
       return "Race Update";
   }
+}
+
+function canRacerOptOutFromTournament(
+  snapshot: AppSnapshot,
+  bundle: TournamentBundle,
+  racerId: string
+): boolean {
+  if (
+    bundle.tournament.status !== "active" ||
+    !bundle.seeds.some((seed) => seed.racerId === racerId)
+  ) {
+    return false;
+  }
+
+  const activeRace = snapshot.raceProjection.race;
+  const racerIsInActiveRace = activeRace?.participants.some(
+    (participant) => participant.racerId === racerId
+  );
+  if (
+    activeRace?.tournamentId === bundle.tournament.id &&
+    racerIsInActiveRace &&
+    !["scheduled", "staging"].includes(activeRace.state)
+  ) {
+    return false;
+  }
+
+  return true;
 }
 
 function PhotoBoothQr() {
@@ -218,6 +248,8 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   const [notificationPromptVisible, setNotificationPromptVisible] = useState(false);
   const [modalNotifications, setModalNotifications] = useState<RacerNotification[]>([]);
   const [modalActionMessage, setModalActionMessage] = useState<string | null>(null);
+  const [tournamentOptOutBusy, setTournamentOptOutBusy] = useState(false);
+  const [tournamentOptOutMessage, setTournamentOptOutMessage] = useState<string | null>(null);
   const knownNotificationIdsRef = useRef<Set<string> | null>(null);
   const [avatarUploadMessage, setAvatarUploadMessage] = useState<string | null>(null);
   const [avatarUploadBusy, setAvatarUploadBusy] = useState(false);
@@ -441,6 +473,7 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
     setAvatarUploadMessage(null);
     setNotificationPromptVisible(false);
     setNotificationMessage(null);
+    setTournamentOptOutMessage(null);
   }
 
   async function saveGrantedNotificationSubscription(
@@ -572,6 +605,25 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
     queryClient.setQueryData(racerNotificationsQueryKey, nextNotifications);
   }
 
+  async function handleTournamentOptOut(): Promise<void> {
+    setTournamentOptOutBusy(true);
+    setTournamentOptOutMessage(null);
+    setModalActionMessage(null);
+    try {
+      const result = await optOutOfCurrentTournament();
+      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+      setTournamentOptOutMessage(result.message);
+      setModalActionMessage(result.message);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Could not opt out of the tournament.";
+      setTournamentOptOutMessage(message);
+      setModalActionMessage(message);
+    } finally {
+      setTournamentOptOutBusy(false);
+    }
+  }
+
   if (!snapshot) {
     return <p>Loading racer page…</p>;
   }
@@ -606,6 +658,11 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
   // the same event: show the active bracket when one exists, otherwise use the most recently
   // updated finished tournament instead of turning the racer surface into a history browser.
   const tournaments = visibleTournament === null ? [] : [visibleTournament];
+  const selectedRacerCanOptOutOfVisibleTournament = Boolean(
+    selectedRacerId &&
+    visibleTournament &&
+    canRacerOptOutFromTournament(snapshot, visibleTournament, selectedRacerId)
+  );
   const bracketExpanded = tournaments.some(
     (bundle) =>
       bundle.tournament.id === expandedBracketTournamentId && bundle.bracketNodes.length > 0
@@ -1146,10 +1203,6 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                     expanded ? expandedBracketTournament.tournament.id : null
                   );
                 }}
-                onStageMatch={() => {
-                  // Racer view is read-only; the shared board component is reused here so the
-                  // layout stays in lockstep with the admin bracket presentation.
-                }}
               />
             ) : (
               <div className="stack-md racer-tournaments">
@@ -1166,7 +1219,20 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                           <strong>{bundle.tournament.name}</strong>
                           <p>{bundle.tournament.preset}</p>
                         </div>
+                        {selectedRacerCanOptOutOfVisibleTournament &&
+                        bundle.tournament.id === visibleTournament?.tournament.id ? (
+                          <Button
+                            variant="ghost"
+                            disabled={tournamentOptOutBusy}
+                            onClick={() => {
+                              fireAndForget(handleTournamentOptOut(), "opt out of tournament");
+                            }}
+                          >
+                            {tournamentOptOutBusy ? "Opting out..." : "Opt out"}
+                          </Button>
+                        ) : null}
                       </div>
+                      {tournamentOptOutMessage ? <p>{tournamentOptOutMessage}</p> : null}
                       {canShowBracket(bundle) ? (
                         <EliminationBracketView
                           snapshot={snapshot}
@@ -1250,15 +1316,12 @@ export function RacerPage({ focusEventId }: { focusEventId?: string }) {
                   <>
                     <Button
                       variant="ghost"
+                      disabled={tournamentOptOutBusy}
                       onClick={() => {
-                        // This is intentionally non-mutating until tournament opt-out rules can
-                        // decide whether to replace the racer, insert a bye, or require host review.
-                        setModalActionMessage(
-                          "Ask the host to remove you for now. Tournament self-removal needs bracket-safe host rules before it can change the live board."
-                        );
+                        fireAndForget(handleTournamentOptOut(), "opt out of tournament");
                       }}
                     >
-                      Remove Me
+                      {tournamentOptOutBusy ? "Removing..." : "Remove Me"}
                     </Button>
                     <Button
                       variant="accent"

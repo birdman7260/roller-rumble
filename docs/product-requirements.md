@@ -226,6 +226,15 @@ Requirements:
   matches are completed. The current implementation uses a custom React Flow board rather than a
   fixed bracket widget so nodes, theming, and camera behavior can evolve with the product.
   `Implemented`
+- In elimination tournaments, the drawn bracket itself should be the primary admin interaction
+  surface: clicking a matchup opens a context menu with only the actions valid for that match, such
+  as staging, undoing a safe result, removing a racer, or filling a BYE slot. Separate always-visible
+  removal/fill controls and completed-match action lists should not be shown around the board.
+  `Implemented`
+- Bracket context menus must hide stale actions once the match context has moved on: completed
+  matches should only show `Undo Result` while no downstream winner/loser result depends on them,
+  `Remove` should only appear for racers in unfinished matches, and `Fill BYE Slot` should only
+  appear while the advanced racer has no downstream completed result. `Implemented`
 - Bracket matchup cards should not display any footer text below the matchup body. `Implemented`
 - As racers advance through elimination brackets, their completed advancement paths should remain
   visually highlighted using theme-appropriate line styling. `Implemented`
@@ -556,13 +565,39 @@ Requirements:
   `Implemented`
 - Tournament progression must record completed later-round matches correctly. `Implemented`
 - When a tournament finishes naturally, the app returns to open time trial. `Implemented`
+- Active tournament racers must be able to opt out from the Racer Page at any point, except while
+  their own tournament race is already starting or active. `Implemented`
+- Tournament self opt-out may automatically replace the racer with the next eligible active-event
+  racer only if the opting-out racer has not raced yet and is still in an unplayed
+  first-stage/first-round match. Replacement candidates use the same seeding order and exclude
+  racers already in the tournament or previously opted out. `Implemented`
+- If a tournament self opt-out cannot use an automatic racer replacement, the app must preserve
+  completed tournament history and remove the racer from future participation. In elimination play,
+  future slots become BYEs and remaining opponents advance where applicable; in round-robin/group
+  play, future matches involving that racer become no-contests. `Implemented`
+- Admins must be able to remove a selected racer from an active elimination tournament by clicking
+  a match containing that racer and choosing `Remove`. The app must then open a modal where the
+  admin explicitly chooses an eligible replacement from a searchable, seed-ordered list, makes the
+  future slot a BYE/no-contest, or cancels. Replacement selectors must start empty while still
+  showing the ranked candidate list before the admin types. `Implemented`
+- If an elimination match was resolved as a BYE and the advanced racer has not completed a later
+  match that depends on that BYE, admins must be able to click that BYE match and choose `Fill BYE
+Slot`, then pick an eligible seed-ordered replacement racer from a modal. Filling the BYE clears
+  the automatic advance and makes the original match stageable. `Implemented`
+- Admins must be able to undo a completed tournament match result and stage that match again while
+  the result is still safe to roll back: either the tournament is still at that match, or the
+  bracket has only just advanced and no downstream match depending on that result has completed.
+  Undo must be launched from that completed match's bracket context menu, reopen the original race
+  as staged, and remove that race's persisted result rows. `Implemented`
+- Bracket views must label the missing opponent in a BYE-resolved match as `BYE`, while still using
+  `TBD` for future slots that are not known yet. `Implemented`
 
 Current delivery notes:
 
 - Round robin and group-stage interaction is match-list based rather than a literal bracket.
   `Implemented`
-- Tournament replacement / bye-management prompts for racer removal are still part of the product
-  requirement set but not fully implemented in admin UI. `Planned`
+- Group-stage finals recalculation after undo is intentionally conservative and should be manually
+  validated before relying on complicated group-to-finals reversals at an event. `Partial`
 
 ## Persistence, Networking, And Recovery
 

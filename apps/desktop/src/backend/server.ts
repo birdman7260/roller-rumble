@@ -12,6 +12,7 @@ import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "@goldsprints/shared/co
 import type { AppSnapshot } from "@goldsprints/shared/types";
 import {
   accountlessRacerSessionSchema,
+  adminTournamentByeFillSchema,
   adminNotificationSchema,
   createEventSchema,
   createPhotoBoothTokenSchema,
@@ -26,9 +27,11 @@ import {
   resolvePhotoBoothSessionSchema,
   settingUpdateSchema,
   startTournamentSchema,
+  adminTournamentRacerRemovalSchema,
   tournamentBracketMatchSchema,
   tournamentGroupMatchSchema,
   tournamentIdSchema,
+  tournamentRacerSchema,
   updateEventPaymentConfigSchema,
   updateRacerPaymentSchema,
   updatePhotoBoothStatusSchema,
@@ -490,6 +493,11 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.markRacerNotificationRead(racer.id, input.notificationId));
   });
 
+  app.post(`${API_PREFIX}/racer/tournaments/current/opt-out`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(service.optOutOfActiveTournament(racer.id));
+  });
+
   app.post(`${API_PREFIX}/racer/payments/:paymentId/cancel`, (req, res) => {
     const racer = requireRacerSession(req, service);
     res.json(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId));
@@ -575,6 +583,23 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.endTournamentEarly(input.tournamentId));
   });
 
+  app.get(`${API_PREFIX}/tournaments/:tournamentId/racers/:racerId/removal-options`, (req, res) => {
+    const input = tournamentRacerSchema.parse({
+      tournamentId: req.params.tournamentId,
+      racerId: req.params.racerId
+    });
+    res.json(service.getTournamentRacerRemovalOptions(input.tournamentId, input.racerId));
+  });
+
+  app.post(`${API_PREFIX}/tournaments/:tournamentId/racers/:racerId/remove`, (req, res) => {
+    const params = tournamentRacerSchema.parse({
+      tournamentId: req.params.tournamentId,
+      racerId: req.params.racerId
+    });
+    const input = adminTournamentRacerRemovalSchema.parse(req.body);
+    res.json(service.removeRacerFromTournament(params.tournamentId, params.racerId, input));
+  });
+
   app.post(`${API_PREFIX}/tournaments/:tournamentId/bracket/:nodeId/stage`, (req, res) => {
     const input = tournamentBracketMatchSchema.parse({
       tournamentId: req.params.tournamentId,
@@ -583,12 +608,50 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.stageTournamentBracketMatch(input.tournamentId, input.nodeId));
   });
 
+  app.post(`${API_PREFIX}/tournaments/:tournamentId/bracket/:nodeId/undo`, (req, res) => {
+    const input = tournamentBracketMatchSchema.parse({
+      tournamentId: req.params.tournamentId,
+      nodeId: req.params.nodeId
+    });
+    res.json(service.undoTournamentBracketMatch(input.tournamentId, input.nodeId));
+  });
+
+  app.get(
+    `${API_PREFIX}/tournaments/:tournamentId/bracket/:nodeId/fill-bye-options`,
+    (req, res) => {
+      const input = tournamentBracketMatchSchema.parse({
+        tournamentId: req.params.tournamentId,
+        nodeId: req.params.nodeId
+      });
+      res.json(service.getTournamentByeFillOptions(input.tournamentId, input.nodeId));
+    }
+  );
+
+  app.post(`${API_PREFIX}/tournaments/:tournamentId/bracket/:nodeId/fill-bye`, (req, res) => {
+    const params = tournamentBracketMatchSchema.parse({
+      tournamentId: req.params.tournamentId,
+      nodeId: req.params.nodeId
+    });
+    const input = adminTournamentByeFillSchema.parse(req.body);
+    res.json(
+      service.fillTournamentByeSlot(params.tournamentId, params.nodeId, input.replacementRacerId)
+    );
+  });
+
   app.post(`${API_PREFIX}/tournaments/:tournamentId/group-matches/:matchId/stage`, (req, res) => {
     const input = tournamentGroupMatchSchema.parse({
       tournamentId: req.params.tournamentId,
       matchId: req.params.matchId
     });
     res.json(service.stageTournamentGroupMatch(input.tournamentId, input.matchId));
+  });
+
+  app.post(`${API_PREFIX}/tournaments/:tournamentId/group-matches/:matchId/undo`, (req, res) => {
+    const input = tournamentGroupMatchSchema.parse({
+      tournamentId: req.params.tournamentId,
+      matchId: req.params.matchId
+    });
+    res.json(service.undoTournamentGroupMatch(input.tournamentId, input.matchId));
   });
 
   app.post(`${API_PREFIX}/tunnel/start`, (_req, res) => {

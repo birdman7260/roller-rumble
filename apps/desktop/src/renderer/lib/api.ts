@@ -1,5 +1,9 @@
 import type {
   AccountlessRacerSessionInput,
+  AdminTournamentByeFillInput,
+  AdminTournamentByeFillResponse,
+  AdminTournamentRacerRemovalInput,
+  AdminTournamentRacerRemovalResponse,
   AdminNotificationInput,
   AppSnapshot,
   PhotoBoothAdminStatus,
@@ -18,6 +22,9 @@ import type {
   RacerQueueSignupResponse,
   Racer,
   StartTournamentInput,
+  TournamentOptOutResponse,
+  TournamentByeFillOptionsResponse,
+  TournamentRacerRemovalOptionsResponse,
   TunnelDiagnostics,
   UpdateEventPaymentConfigInput,
   UpdateRacerPaymentInput,
@@ -355,6 +362,16 @@ export async function markRacerNotificationRead(
   );
 }
 
+export async function optOutOfCurrentTournament(): Promise<TournamentOptOutResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/tournaments/current/opt-out"), {
+      method: "POST",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
 export async function sendAdminNotification(
   input: AdminNotificationInput
 ): Promise<{ snapshot: AppSnapshot; targetCount: number }> {
@@ -456,6 +473,29 @@ export async function endTournamentEarly(tournamentId: string): Promise<AppSnaps
   );
 }
 
+export async function fetchTournamentRacerRemovalOptions(
+  tournamentId: string,
+  racerId: string
+): Promise<TournamentRacerRemovalOptionsResponse> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/racers/${racerId}/removal-options`))
+  );
+}
+
+export async function removeRacerFromTournament(
+  tournamentId: string,
+  racerId: string,
+  input: AdminTournamentRacerRemovalInput
+): Promise<AdminTournamentRacerRemovalResponse> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/racers/${racerId}/remove`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    })
+  );
+}
+
 export async function stageTournamentBracketMatch(
   tournamentId: string,
   nodeId: string
@@ -467,12 +507,57 @@ export async function stageTournamentBracketMatch(
   );
 }
 
+export async function undoTournamentBracketMatch(
+  tournamentId: string,
+  nodeId: string
+): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/bracket/${nodeId}/undo`), {
+      method: "POST"
+    })
+  );
+}
+
+export async function fetchTournamentByeFillOptions(
+  tournamentId: string,
+  nodeId: string
+): Promise<TournamentByeFillOptionsResponse> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/bracket/${nodeId}/fill-bye-options`))
+  );
+}
+
+export async function fillTournamentByeSlot(
+  tournamentId: string,
+  nodeId: string,
+  input: AdminTournamentByeFillInput
+): Promise<AdminTournamentByeFillResponse> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/bracket/${nodeId}/fill-bye`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    })
+  );
+}
+
 export async function stageTournamentGroupMatch(
   tournamentId: string,
   matchId: string
 ): Promise<AppSnapshot> {
   return parseJson(
     await fetch(buildUrl(`/api/tournaments/${tournamentId}/group-matches/${matchId}/stage`), {
+      method: "POST"
+    })
+  );
+}
+
+export async function undoTournamentGroupMatch(
+  tournamentId: string,
+  matchId: string
+): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/group-matches/${matchId}/undo`), {
       method: "POST"
     })
   );

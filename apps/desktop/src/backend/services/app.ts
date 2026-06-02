@@ -31,6 +31,9 @@ import type {
   AdminNotificationInput,
   AppSnapshot,
   AccountlessRacerSessionInput,
+  AdminTournamentByeFillResponse,
+  AdminTournamentRacerRemovalInput,
+  AdminTournamentRacerRemovalResponse,
   NotificationConfig,
   PhotoBoothAdminStatus,
   PhotoBoothSession,
@@ -50,10 +53,13 @@ import type {
   PasskeyRegistrationStartResponse,
   PasskeySignInStartResponse,
   RoundRobinMatch,
+  TournamentByeFillOptionsResponse,
+  TournamentRacerRemovalOptionsResponse,
   TournamentBundle,
   TournamentBracketLayoutMode,
   TournamentBracketSize,
   TournamentPreset,
+  TournamentOptOutResponse,
   TunnelDiagnostics,
   TunnelState,
   UpdateEventPaymentConfigInput,
@@ -78,6 +84,7 @@ import { CloudflaredTunnelManager } from "./cloudflared";
 import {
   advanceDoubleElimination,
   advanceSingleElimination,
+  buildSeeds,
   computeRoundRobinStandings
 } from "./competition";
 import {
@@ -88,7 +95,18 @@ import {
   removeRacerFromQueue,
   removeRacerFromSpecificQueueEntry
 } from "./queue";
-import { TournamentService } from "./tournaments";
+import {
+  canAutomaticallyReplaceTournamentRacer,
+  canFillBracketByeSlot,
+  fillBracketByeSlot,
+  getTournamentParticipantIds,
+  getTournamentRacerIdsWithIncompleteMatches,
+  getTournamentUnavailableReplacementRacerIds,
+  optOutTournamentRacer,
+  undoBracketNodeResult,
+  undoGroupMatchResult,
+  TournamentService
+} from "./tournaments";
 import {
   createSignedPhotoBoothToken,
   PHOTO_BOOTH_TOKEN_TTL_MS,
@@ -723,6 +741,339 @@ export class GoldsprintsApp extends EventEmitter {
         .listTournamentBundles(eventId)
         .find((bundle) => bundle.tournament.status === "active") ?? null
     );
+  }
+
+  private findTournamentReplacementSeeds(bundle: TournamentBundle, removedRacerId: string) {
+    const activeEvent = this.db.getActiveEvent()!;
+    const settings = this.db.getAdminSettings();
+    const results = settings.includeAllRaceData
+      ? this.db.listResults()
+      : this.db.listResults(activeEvent.id);
+    const participantIds = new Set(getTournamentParticipantIds(bundle));
+    const unavailableIds = new Set([
+      ...getTournamentUnavailableReplacementRacerIds(bundle),
+      removedRacerId
+    ]);
+
+    return buildSeeds(this.db.listEventRacers(activeEvent.id), results).filter(
+      (seed) => !participantIds.has(seed.racerId) && !unavailableIds.has(seed.racerId)
+    );
+  }
+
+  private findNextTournamentReplacementSeed(bundle: TournamentBundle, removedRacerId: string) {
+    return this.findTournamentReplacementSeeds(bundle, removedRacerId)[0] ?? null;
+  }
+
+  private assertNoEditableTournamentRaceInProgress(tournamentId: string): void {
+    const activeEvent = this.db.getActiveEvent()!;
+    const currentRace = this.db.getCurrentRace(activeEvent.id);
+    if (currentRace?.tournamentId !== tournamentId) {
+      return;
+    }
+
+    throw new AppHttpError(
+      "Finish or unstage the current tournament race before editing tournament slots.",
+      409,
+      "tournament_race_in_progress"
+    );
+  }
+
+  private cancelStagedTournamentRaceForOptOut(bundle: TournamentBundle, racerId: string): void {
+    const activeEvent = this.db.getActiveEvent()!;
+    const currentRace = this.db.getCurrentRace(activeEvent.id);
+    if (currentRace?.tournamentId !== bundle.tournament.id) {
+      return;
+    }
+
+    const includesOptingOutRacer = currentRace.participants.some(
+      (participant) => participant.racerId === racerId
+    );
+    if (!includesOptingOutRacer) {
+      return;
+    }
+
+    if (!["scheduled", "staging"].includes(currentRace.state)) {
+      throw new AppHttpError(
+        "You cannot opt out while your tournament race is already starting or active.",
+        409,
+        "tournament_race_in_progress"
+      );
+    }
+
+    this.db.updateRace(currentRace.id, {
+      countdownStartedAt: null,
+      finishedAt: null,
+      metrics: [],
+      startedAt: null,
+      state: "cancelled",
+      winnerRacerId: null
+    });
+    this.os2lTrigger.disarmRace();
+  }
+
+  optOutOfActiveTournament(racerId: string): TournamentOptOutResponse {
+    const activeEvent = this.db.getActiveEvent()!;
+    const bundle = this.getActiveTournamentBundle(activeEvent.id);
+    if (!bundle) {
+      throw new AppHttpError("There is no active tournament to opt out of.", 404, "no_tournament");
+    }
+
+    if (!bundle.seeds.some((seed) => seed.racerId === racerId)) {
+      throw new AppHttpError(
+        "You are not currently seeded in the active tournament.",
+        409,
+        "not_in_tournament"
+      );
+    }
+
+    const canUseReplacement = canAutomaticallyReplaceTournamentRacer(bundle, racerId);
+    const replacementSeed = canUseReplacement
+      ? this.findNextTournamentReplacementSeed(bundle, racerId)
+      : null;
+
+    const result = optOutTournamentRacer({
+      bundle,
+      optedOutRacerId: racerId,
+      replacementSeed
+    });
+    if (!result) {
+      throw new AppHttpError(
+        "Could not find a remaining tournament slot to opt you out of.",
+        409,
+        "tournament_opt_out_unavailable"
+      );
+    }
+
+    this.cancelStagedTournamentRaceForOptOut(bundle, racerId);
+    const finalizedBundle = this.markTournamentCompleteIfFinished(result.bundle);
+    this.db.saveTournamentBundle(finalizedBundle);
+    if (finalizedBundle.tournament.status === "complete") {
+      this.db.updateAdminSettings({
+        mode: "open-time-trial"
+      });
+    }
+    this.emitSnapshot();
+    const replacementRacer = replacementSeed ? this.db.getRacer(replacementSeed.racerId) : null;
+    const replacementName = replacementSeed
+      ? (replacementRacer?.displayName ?? replacementSeed.label)
+      : null;
+
+    return {
+      snapshot: this.getSnapshot(),
+      tournamentId: bundle.tournament.id,
+      optedOutRacerId: racerId,
+      replacementType: result.replacementType,
+      replacementRacerId:
+        result.replacementType === "racer" ? (replacementSeed?.racerId ?? null) : null,
+      replacementRacerName: result.replacementType === "racer" ? replacementName : null,
+      message:
+        result.replacedIn === "none"
+          ? `You were removed from ${bundle.tournament.name}. Completed results were preserved.`
+          : replacementName && result.replacementType === "racer"
+            ? `${replacementName} replaced you in ${bundle.tournament.name}.`
+            : `Your spot in ${bundle.tournament.name} was replaced with a BYE.`
+    };
+  }
+
+  getTournamentRacerRemovalOptions(
+    tournamentId: string,
+    racerId: string
+  ): TournamentRacerRemovalOptionsResponse {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    if (!bundle?.seeds.some((seed) => seed.racerId === racerId)) {
+      throw new AppHttpError(
+        "That racer is not currently seeded in this tournament.",
+        404,
+        "not_in_tournament"
+      );
+    }
+    if (!getTournamentRacerIdsWithIncompleteMatches(bundle).includes(racerId)) {
+      throw new AppHttpError(
+        "That racer has no remaining tournament matches to complete.",
+        409,
+        "no_remaining_tournament_matches"
+      );
+    }
+
+    return {
+      tournamentId,
+      racerId,
+      canAutomaticallyReplace: canAutomaticallyReplaceTournamentRacer(bundle, racerId),
+      candidates: this.findTournamentReplacementSeeds(bundle, racerId).map((seed) => ({
+        racerId: seed.racerId,
+        label: seed.label,
+        score: seed.score,
+        seed: seed.seed
+      }))
+    };
+  }
+
+  removeRacerFromTournament(
+    tournamentId: string,
+    racerId: string,
+    input: AdminTournamentRacerRemovalInput
+  ): AdminTournamentRacerRemovalResponse {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    if (!bundle?.seeds.some((seed) => seed.racerId === racerId)) {
+      throw new AppHttpError(
+        "That racer is not currently seeded in this tournament.",
+        404,
+        "not_in_tournament"
+      );
+    }
+    if (!getTournamentRacerIdsWithIncompleteMatches(bundle).includes(racerId)) {
+      throw new AppHttpError(
+        "That racer has no remaining tournament matches to complete.",
+        409,
+        "no_remaining_tournament_matches"
+      );
+    }
+
+    const candidates = this.findTournamentReplacementSeeds(bundle, racerId);
+    const canUseAutomaticReplacement = canAutomaticallyReplaceTournamentRacer(bundle, racerId);
+    const replacementSeed = (() => {
+      if (input.replacementMode === "auto") {
+        if (!canUseAutomaticReplacement) {
+          throw new AppHttpError(
+            "Choose a replacement racer or BYE before removing this racer.",
+            409,
+            "replacement_choice_required"
+          );
+        }
+        return candidates[0] ?? null;
+      }
+
+      if (input.replacementMode === "bye") {
+        return null;
+      }
+
+      const candidate = candidates.find((seed) => seed.racerId === input.replacementRacerId);
+      if (!candidate) {
+        throw new AppHttpError(
+          "Choose an eligible replacement racer.",
+          400,
+          "invalid_replacement_racer"
+        );
+      }
+      return candidate;
+    })();
+
+    const result = optOutTournamentRacer({
+      bundle,
+      optedOutRacerId: racerId,
+      removalReason: "admin-removed",
+      replacementSeed
+    });
+    if (!result) {
+      throw new AppHttpError(
+        "Could not remove that racer from the tournament.",
+        409,
+        "tournament_removal_unavailable"
+      );
+    }
+
+    this.cancelStagedTournamentRaceForOptOut(bundle, racerId);
+    const finalizedBundle = this.markTournamentCompleteIfFinished(result.bundle);
+    this.db.saveTournamentBundle(finalizedBundle);
+    if (finalizedBundle.tournament.status === "complete") {
+      this.db.updateAdminSettings({
+        mode: "open-time-trial"
+      });
+    }
+    this.emitSnapshot();
+
+    const replacementRacer = replacementSeed ? this.db.getRacer(replacementSeed.racerId) : null;
+    const replacementName = replacementSeed
+      ? (replacementRacer?.displayName ?? replacementSeed.label)
+      : null;
+    const removedRacer = this.db.getRacer(racerId);
+    const removedName = removedRacer?.displayName ?? "Racer";
+
+    return {
+      snapshot: this.getSnapshot(),
+      tournamentId,
+      removedRacerId: racerId,
+      replacementType: result.replacementType,
+      replacementRacerId:
+        result.replacementType === "racer" ? (replacementSeed?.racerId ?? null) : null,
+      replacementRacerName: result.replacementType === "racer" ? replacementName : null,
+      message:
+        result.replacedIn === "none"
+          ? `${removedName} was removed from the tournament. Completed results were preserved.`
+          : replacementName && result.replacementType === "racer"
+            ? `${removedName} was removed and ${replacementName} took their tournament slot.`
+            : `${removedName} was removed and their future slot became a BYE.`
+    };
+  }
+
+  getTournamentByeFillOptions(
+    tournamentId: string,
+    nodeId: string
+  ): TournamentByeFillOptionsResponse {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    if (!bundle || !canFillBracketByeSlot(bundle, nodeId)) {
+      throw new AppHttpError("That BYE slot can no longer be filled.", 409, "bye_slot_locked");
+    }
+
+    return {
+      tournamentId,
+      nodeId,
+      candidates: this.findTournamentReplacementSeeds(bundle, "").map((seed) => ({
+        racerId: seed.racerId,
+        label: seed.label,
+        score: seed.score,
+        seed: seed.seed
+      }))
+    };
+  }
+
+  fillTournamentByeSlot(
+    tournamentId: string,
+    nodeId: string,
+    replacementRacerId: string
+  ): AdminTournamentByeFillResponse {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    if (!bundle || !canFillBracketByeSlot(bundle, nodeId)) {
+      throw new AppHttpError("That BYE slot can no longer be filled.", 409, "bye_slot_locked");
+    }
+
+    this.assertNoEditableTournamentRaceInProgress(tournamentId);
+    const replacementSeed = this.findTournamentReplacementSeeds(bundle, "").find(
+      (seed) => seed.racerId === replacementRacerId
+    );
+    if (!replacementSeed) {
+      throw new AppHttpError(
+        "Choose an eligible racer for this BYE slot.",
+        400,
+        "invalid_replacement_racer"
+      );
+    }
+
+    const nextBundle = fillBracketByeSlot({
+      bundle,
+      nodeId,
+      replacementSeed
+    });
+    if (!nextBundle) {
+      throw new AppHttpError("That BYE slot can no longer be filled.", 409, "bye_slot_locked");
+    }
+
+    this.db.saveTournamentBundle(nextBundle);
+    this.db.updateAdminSettings({
+      mode: nextBundle.tournament.preset
+    });
+    this.emitSnapshot();
+    const replacementRacer = this.db.getRacer(replacementSeed.racerId);
+    const replacementName = replacementRacer?.displayName ?? replacementSeed.label;
+
+    return {
+      snapshot: this.getSnapshot(),
+      tournamentId,
+      nodeId,
+      replacementRacerId: replacementSeed.racerId,
+      replacementRacerName: replacementName,
+      message: `${replacementName} was added to the BYE slot. The match can now be staged.`
+    };
   }
 
   private syncGroupsToFinals(bundle: TournamentBundle): TournamentBundle {
@@ -2492,6 +2843,59 @@ export class GoldsprintsApp extends EventEmitter {
     return this.getSnapshot();
   }
 
+  private findFinishedTournamentRace(input: {
+    eventId: string;
+    tournamentId: string;
+    stageId: string;
+    participantIds: string[];
+  }): RaceRecord | null {
+    return (
+      this.db.listRaces(input.eventId).find(
+        (race) =>
+          race.tournamentId === input.tournamentId &&
+          race.stageId === input.stageId &&
+          race.state === "finished" &&
+          sameParticipantSet(
+            race.participants.map((participant) => participant.racerId),
+            input.participantIds
+          )
+      ) ?? null
+    );
+  }
+
+  private reopenTournamentRaceForUndo(race: RaceRecord): void {
+    const currentRace = this.db.getCurrentRace(race.eventId);
+    if (currentRace && currentRace.id !== race.id) {
+      throw new AppHttpError(
+        "Finish or unstage the current race before undoing a tournament result.",
+        409,
+        "race_in_progress"
+      );
+    }
+
+    if (this.resultPresentation?.race.id === race.id) {
+      if (this.resultPresentationTimer) {
+        clearTimeout(this.resultPresentationTimer);
+        this.resultPresentationTimer = null;
+      }
+      this.resultPresentation = null;
+    }
+
+    this.db.deleteResultsForRace(race.id);
+    this.db.updateRace(race.id, {
+      countdownStartedAt: null,
+      finishedAt: null,
+      metrics: [],
+      startedAt: null,
+      state: "staging",
+      winnerRacerId: null
+    });
+
+    if (this.db.getAdminSettings().os2lEnabled) {
+      this.os2lTrigger.armRace(race.id);
+    }
+  }
+
   private unstageOpenTimeTrialRaceForTournament(eventId: string): void {
     const currentRace = this.db.getCurrentRace(eventId);
     if (!currentRace) {
@@ -2635,6 +3039,90 @@ export class GoldsprintsApp extends EventEmitter {
       preset: bundle.tournament.preset,
       racerIds: [match.racerAId, match.racerBId]
     });
+  }
+
+  undoTournamentBracketMatch(tournamentId: string, nodeId: string): AppSnapshot {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    const activeEvent = this.db.getActiveEvent()!;
+    const node = bundle?.bracketNodes.find((candidate) => candidate.id === nodeId);
+    if (!bundle || !node?.winnerRacerId || !node.racerAId || !node.racerBId) {
+      return this.getSnapshot();
+    }
+
+    const race = this.findFinishedTournamentRace({
+      eventId: activeEvent.id,
+      tournamentId,
+      stageId: node.stageId,
+      participantIds: [node.racerAId, node.racerBId]
+    });
+    if (!race) {
+      throw new AppHttpError(
+        "Could not find the completed race for that bracket match.",
+        404,
+        "race_not_found"
+      );
+    }
+
+    const nextBundle = undoBracketNodeResult({ bundle, nodeId });
+    if (!nextBundle) {
+      throw new AppHttpError(
+        "That match can no longer be safely undone because later tournament results depend on it.",
+        409,
+        "tournament_result_locked"
+      );
+    }
+
+    this.reopenTournamentRaceForUndo(race);
+    this.db.saveTournamentBundle(nextBundle);
+    this.db.updateAdminSettings({
+      mode: nextBundle.tournament.preset
+    });
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  undoTournamentGroupMatch(tournamentId: string, matchId: string): AppSnapshot {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    const activeEvent = this.db.getActiveEvent()!;
+    const match = bundle?.groupMatches.find((candidate) => candidate.id === matchId);
+    const stage =
+      bundle?.stages.find(
+        (candidate) => candidate.kind === "groups" || candidate.kind === "round-robin"
+      ) ?? bundle?.stages[0];
+    if (!bundle || !match?.winnerRacerId || !stage) {
+      return this.getSnapshot();
+    }
+
+    const race = this.findFinishedTournamentRace({
+      eventId: activeEvent.id,
+      tournamentId,
+      stageId: stage.id,
+      participantIds: [match.racerAId, match.racerBId]
+    });
+    if (!race) {
+      throw new AppHttpError(
+        "Could not find the completed race for that tournament match.",
+        404,
+        "race_not_found"
+      );
+    }
+
+    const nextBundle = undoGroupMatchResult({ bundle, matchId });
+    if (!nextBundle) {
+      throw new AppHttpError(
+        "That match can no longer be safely undone because later tournament results depend on it.",
+        409,
+        "tournament_result_locked"
+      );
+    }
+
+    this.reopenTournamentRaceForUndo(race);
+    this.db.saveTournamentBundle(this.syncGroupsToFinals(nextBundle));
+    this.db.updateAdminSettings({
+      mode: nextBundle.tournament.preset
+    });
+    this.emitSnapshot();
+    return this.getSnapshot();
   }
 
   endTournamentEarly(tournamentId: string): AppSnapshot {

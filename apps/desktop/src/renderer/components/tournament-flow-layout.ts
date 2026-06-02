@@ -25,10 +25,10 @@ export interface BracketFlowParticipant {
 
 export interface BracketFlowNodeData extends Record<string, unknown> {
   appNodeId: string;
-  canStage: boolean;
+  canSelect: boolean;
   highlighted: boolean;
   label: string;
-  onStageMatch?: (nodeId: string) => void;
+  onSelectMatch?: (nodeId: string) => void;
   participants: [BracketFlowParticipant, BracketFlowParticipant];
   roundLabel: string;
   side: BracketFlowSide;
@@ -116,6 +116,7 @@ function getParticipant(
   node: BracketNode,
   racerId?: string | null
 ): BracketFlowParticipant {
+  const isMissingByeOpponent = !racerId && node.state === "bye" && Boolean(node.winnerRacerId);
   const racer = racerId
     ? (snapshot.racers.find((entry) => entry.racer.id === racerId)?.racer ?? null)
     : null;
@@ -124,7 +125,7 @@ function getParticipant(
     avatarUrl: racer?.avatarUrl ?? null,
     id: racerId ?? null,
     isWinner: Boolean(racerId && node.winnerRacerId === racerId),
-    name: resolveTournamentRacerName(snapshot, bundle, racerId),
+    name: isMissingByeOpponent ? "BYE" : resolveTournamentRacerName(snapshot, bundle, racerId),
     resultText: getParticipantResult(node, racerId)
   };
 }
@@ -368,10 +369,10 @@ export function buildBracketFlow(
       targetPosition: placement.side === "right" ? Position.Right : Position.Left,
       data: {
         appNodeId: node.id,
-        canStage: interactive && node.state === "ready" && Boolean(node.racerAId && node.racerBId),
+        canSelect: interactive,
         highlighted: effectiveHighlightedNodeId === node.id,
         label: node.slotLabel,
-        onStageMatch: undefined,
+        onSelectMatch: undefined,
         participants: [
           getParticipant(snapshot, bundle, node, node.racerAId),
           getParticipant(snapshot, bundle, node, node.racerBId)
@@ -479,15 +480,15 @@ export function buildBracketFlow(
   };
 }
 
-export function withStageCallbacks(
+export function withMatchSelectCallbacks(
   nodes: BracketFlowNode[],
-  onStageMatch?: (nodeId: string) => void
+  onSelectMatch?: (nodeId: string) => void
 ): BracketFlowNode[] {
   return nodes.map((node) => ({
     ...node,
     data: {
       ...node.data,
-      onStageMatch
+      onSelectMatch
     }
   }));
 }

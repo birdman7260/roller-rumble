@@ -6,8 +6,9 @@ GoldSprints is a local-first Electron app for running live stationary-bike race 
 - `Race Display` for the projector or secondary screen
 - `Racer Page` for phones over the local network or a `cloudflared` tunnel
 
-The current codebase is aimed at the first working milestone: open time trial operation, live race
-presentation, persistent event data, theme support, and live tournament operation.
+The current codebase supports open time trial operation, live race presentation, persistent event
+data, passkey registration, event-scoped payments, Web Push notifications, theme support, live
+tournament operation, and the Raspberry Pi photo booth workflow.
 
 ## What The App Does
 
@@ -55,6 +56,8 @@ presentation, persistent event data, theme support, and live tournament operatio
   - `Groups -> Single Elimination`
 - Draws live elimination brackets in admin and racer tournament views, and updates them as matches
   are completed
+- Lets admins click bracket matches to stage races, undo safe results, remove active racers, or
+  fill editable BYE slots from context-aware menus
 - Highlights completed advancement paths through the bracket with theme-specific connector styling
 - Lets admins choose bracket size and board layout for direct elimination starts, including an
   optional center-converging board for larger single-tree brackets
@@ -493,6 +496,12 @@ testing does not produce unrelated Vite websocket failures.
   - Runs booth hardware diagnostics without starting a racer session.
   - Checks the scanner, camera, WLED serial control, umbrella helper, hall sensor status, and local
     queue wiring using the same `.env.photo-booth` config as the agent.
+- `pnpm photo-booth:test`
+  - Runs the isolated Raspberry Pi booth agent Vitest suite.
+  - Useful when working only on kiosk, adapter, queue, or booth state-machine code.
+- `pnpm photo-booth:typecheck`
+  - Runs TypeScript in no-emit mode for the isolated booth agent package.
+  - This is the booth-only version of the root `pnpm typecheck` booth step.
 - `pnpm quality`
   - Runs the formatting and lint gate used before handoff: `format:check` then `lint`.
 - `pnpm typecheck`
@@ -616,13 +625,19 @@ SQLite schema changes are managed as ordered SQL migrations in `apps/desktop/src
 Current automated tests cover:
 
 - speed, distance, and wattage calculations
-- queue removal and shifting rules
+- queue insertion, challenge placement, bumping, removal, and shifting rules
+- passkey/auth and event-scoped payment gating
+- Stripe Checkout session and webhook handling
+- Web Push notification targeting and queue/tournament triggers
 - theme registry validation
 - tournament seed generation
 - single-elimination advancement
 - double-elimination advancement
 - round-robin standings
 - groups-to-single-elimination structure
+- tournament opt-out, admin replacement, BYE filling, safe result undo, and bracket-menu action
+  eligibility
+- photo booth queue/state behavior and adapter payloads
 
 Manual visual testing:
 
@@ -703,7 +718,7 @@ widget. That gives the app control over:
 - theme-aware matchup cards
 - winners, losers, and reset connector styling
 - completed advancement path highlights and projector-side connector draw animations
-- interactive staging from the admin board
+- click-to-open admin match menus for staging, safe undo, racer removal, and BYE filling
 - viewport controls like `Fit Board`, `Focus Current`, and `Expand View`
 - an admin workspace mode where the bracket card can take over the tournament tab while the other
   cards animate out of the way
@@ -734,21 +749,26 @@ selected.
 
 ## Current Limitations
 
-- The real USB bike sensor adapter is still a placeholder seam.
-- OS2L wiring is scaffolded, but real VirtualDJ cue integration is not validated end-to-end yet.
-- Tournament replacement / bye-management workflows for removing racers mid-tournament are still
-  partial in the admin UI.
+- The real USB bike sensor adapter is still a placeholder seam. The simulator is the working path
+  until the hardware protocol is finalized.
+- OS2L wiring is scaffolded, but real VirtualDJ cue integration still needs end-to-end validation
+  with the event music setup.
+- Photo booth hardware support is implemented behind adapters, but the full Raspberry Pi, Sony,
+  WLED, stepper, and hall-sensor stack still needs physical event-rig validation.
+- Packaged desktop builds are unsigned unless macOS notarization or Windows code-signing
+  credentials are configured.
+- Stripe Terminal / in-person reader payments are not implemented; v1 self-service payments use
+  Stripe-hosted Checkout.
 
 ## Quality Gate
 
-Before handing work back, the expected repo gate is:
+Before handing work back, run the same repo gate used during Codex work:
 
 ```bash
+pnpm format
 pnpm quality
-```
-
-For code changes that touch TypeScript behavior, it is also worth running:
-
-```bash
 pnpm typecheck
+pnpm test
+pnpm build
+pnpm --dir tools/photo-booth-agent kiosk:build
 ```

@@ -1454,6 +1454,10 @@ export class AppDatabase {
     return rows.map(mapResult);
   }
 
+  deleteResultsForRace(raceId: string): void {
+    this.orm.delete(results).where(eq(results.raceId, raceId)).run();
+  }
+
   listQueueEntries(eventId: string): QueueEntry[] {
     return this.orm
       .select()

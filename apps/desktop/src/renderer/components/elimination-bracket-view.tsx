@@ -16,7 +16,7 @@ import { TournamentMatchNode } from "./tournament-match-node";
 import {
   buildBracketFlow,
   FLOW_NODE_ORIGIN,
-  withStageCallbacks,
+  withMatchSelectCallbacks,
   type BracketFlowEdge,
   type BracketFlowNode
 } from "./tournament-flow-layout";
@@ -159,7 +159,7 @@ function BracketCanvas({
   expandMode,
   expanded,
   highlightedNodeId,
-  onStageMatch,
+  onMatchSelect,
   onToggleExpanded,
   presentationRequest,
   showViewportControls,
@@ -171,7 +171,7 @@ function BracketCanvas({
   expandMode: BracketExpandMode;
   expanded: boolean;
   highlightedNodeId?: string | null;
-  onStageMatch?: (nodeId: string) => void;
+  onMatchSelect?: (nodeId: string) => void;
   onToggleExpanded: () => void;
   presentationRequest?: BracketPresentationRequest | null;
   showViewportControls: boolean;
@@ -203,8 +203,8 @@ function BracketCanvas({
     [animatedAdvancementEdge, bundle, highlightedNodeId, interactive, snapshot]
   );
   const nodes = useMemo(
-    () => withStageCallbacks(flow.nodes, onStageMatch),
-    [flow.nodes, onStageMatch]
+    () => withMatchSelectCallbacks(flow.nodes, onMatchSelect),
+    [flow.nodes, onMatchSelect]
   );
   const updateNodeInternals = useUpdateNodeInternals();
 
@@ -332,7 +332,7 @@ export function EliminationBracketView({
   expanded: controlledExpanded,
   highlightedNodeId,
   onExpandedChange,
-  onStageMatch,
+  onMatchSelect,
   presentationRequest,
   showViewportControls = true,
   winnerAdvance
@@ -344,7 +344,7 @@ export function EliminationBracketView({
   expanded?: boolean;
   highlightedNodeId?: string | null;
   onExpandedChange?: (expanded: boolean) => void;
-  onStageMatch?: (nodeId: string) => void;
+  onMatchSelect?: (nodeId: string) => void;
   presentationRequest?: BracketPresentationRequest | null;
   showViewportControls?: boolean;
   winnerAdvance?: BracketWinnerAdvance | null;
@@ -391,7 +391,7 @@ export function EliminationBracketView({
         expandMode={expandMode}
         expanded={expanded}
         highlightedNodeId={highlightedNodeId}
-        onStageMatch={onStageMatch}
+        onMatchSelect={onMatchSelect}
         presentationRequest={presentationRequest}
         showViewportControls={showViewportControls}
         winnerAdvance={winnerAdvance}
