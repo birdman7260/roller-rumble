@@ -74,7 +74,7 @@ function bumpVersion(version, type) {
 }
 
 function extractUnreleased(changelog) {
-  const match = /^## Unreleased\s*\n([\s\S]*?)(?=^## |\s*$)/m.exec(changelog);
+  const match = /^## Unreleased\s*\n([\s\S]*?)(?=^## |(?![\s\S]))/m.exec(changelog);
   if (!match) {
     throw new Error("CHANGELOG.md must contain a '## Unreleased' section.");
   }
@@ -106,7 +106,10 @@ function updateChangelog(version) {
     ""
   ].join("\n");
 
-  const nextChangelog = changelog.replace(/^## Unreleased\s*\n[\s\S]*?(?=^## |\s*$)/m, nextSection);
+  const nextChangelog = changelog.replace(
+    /^## Unreleased\s*\n[\s\S]*?(?=^## |(?![\s\S]))/m,
+    nextSection
+  );
   fs.writeFileSync(changelogPath, nextChangelog);
 }
 

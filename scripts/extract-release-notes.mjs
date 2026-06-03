@@ -19,7 +19,7 @@ const version = tagOrVersion.replace(/^v/, "");
 const changelog = fs.readFileSync(changelogPath, "utf8");
 const escapedVersion = version.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 const sectionPattern = new RegExp(
-  `^## ${escapedVersion} - [^\\n]+\\n([\\s\\S]*?)(?=^## |\\s*$)`,
+  `^## ${escapedVersion} - [^\\n]+\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`,
   "m"
 );
 const match = sectionPattern.exec(changelog);
