@@ -1,10 +1,9 @@
 {
   "extends": "../../tsconfig.node.base.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@renderer/*": ["src/renderer/*"],
-      "@backend/*": ["src/backend/*"]
+      "@renderer/*": ["./src/renderer/*"],
+      "@backend/*": ["./src/backend/*"]
     }
   },
   "include": ["src/backend", "src/electron", "drizzle.config.ts", "tsup.electron.config.ts"]

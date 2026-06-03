@@ -1,10 +1,9 @@
 {
   "extends": "../../tsconfig.react.json",
   "compilerOptions": {
-    "baseUrl": ".",
     "paths": {
-      "@renderer/*": ["src/renderer/*"],
-      "@backend/*": ["src/backend/*"]
+      "@renderer/*": ["./src/renderer/*"],
+      "@backend/*": ["./src/backend/*"]
     },
     "types": ["vite/client"]
   },

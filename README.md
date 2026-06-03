@@ -444,6 +444,16 @@ testing does not produce unrelated Vite websocket failures.
 - `pnpm package:win`
   - Builds a Windows package from Windows for the most reliable result.
   - Current builds are unsigned unless code-signing credentials are configured.
+- `pnpm release:patch`
+  - Requires a clean git worktree and at least one bullet under `CHANGELOG.md -> Unreleased`.
+  - Bumps `0.0.x`, commits `package.json`, `apps/desktop/package.json`, and `CHANGELOG.md`, creates
+    a `v*.*.*` git tag, and pushes the branch and tag.
+  - Pushing the tag starts the GitHub Actions release workflow, which builds macOS and Windows
+    packages on native runners and publishes them to GitHub Releases.
+- `pnpm release:minor`
+  - Same as `release:patch`, but bumps `0.x.0` for feature releases.
+- `pnpm release:major`
+  - Same as `release:patch`, but bumps `x.0.0` for breaking releases or large compatibility shifts.
 - `pnpm preview`
   - Serves the built Vite renderer for inspection outside Electron.
   - Useful when checking static renderer output only.
@@ -537,6 +547,57 @@ and safe. Set `ROLLER_RUMBLE_DATA_DIR` in `.env.local` if you need a different l
 folder.
 
 The app is designed to recover from restarts. If shutdown happens during countdown or an active race, that race is restored as interrupted and can be resumed, restarted, or finalized from the admin UI.
+
+## Release Process
+
+Roller Rumble releases are built by GitHub Actions and published to GitHub Releases. The release
+workflow builds macOS on a macOS runner and Windows on a Windows runner so Electron and native
+dependencies are packaged on their target operating systems.
+
+Use semantic versioning:
+
+- `patch` for bug fixes and small polish, such as `0.1.2` to `0.1.3`
+- `minor` for new features or meaningful workflow changes, such as `0.1.3` to `0.2.0`
+- `major` for breaking changes, migrations, or large compatibility shifts, such as `1.4.2` to
+  `2.0.0`
+
+Before releasing:
+
+1. Commit the code changes that should be included in the release.
+2. Add useful notes under `CHANGELOG.md -> Unreleased`.
+3. Use bullets that teammates can understand, not just internal commit messages.
+4. Make sure the worktree is clean with `git status`.
+
+Release from your Mac with one command:
+
+```bash
+pnpm release:patch
+```
+
+Use `pnpm release:minor` for feature releases and `pnpm release:major` for breaking releases.
+
+The release command:
+
+1. verifies the worktree is clean
+2. verifies `CHANGELOG.md -> Unreleased` has at least one bullet
+3. bumps the root and desktop package versions
+4. moves the unreleased changelog notes into a dated version section
+5. commits the version and changelog changes
+6. creates an annotated tag such as `v0.2.0`
+7. pushes the branch and tag to GitHub
+
+When the tag reaches GitHub, `.github/workflows/release.yml` builds the macOS and Windows packages,
+creates a GitHub Release, attaches the installers, and uses the matching changelog section as the
+release notes. The generated GitHub Release also adds download guidance and unsigned-install notes.
+
+Teammates should download from GitHub Releases:
+
+- Windows users should download the `.exe` installer.
+- Mac users should download the `.dmg`.
+
+Current builds are unsigned. Windows may show a SmartScreen warning, and macOS may require
+right-clicking the app and choosing `Open`. Removing those warnings requires paid code-signing and
+notarization setup.
 
 ## VirtualDJ Cue Starts
 

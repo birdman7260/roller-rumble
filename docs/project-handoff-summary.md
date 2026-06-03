@@ -642,6 +642,11 @@ Key developer workflows:
 - `pnpm dev` runs Vite plus Electron
 - debug scripts open devtools and expose Electron inspector ports
 - renderer console logs can mirror to terminal in debug mode
+- `pnpm release:patch`, `pnpm release:minor`, and `pnpm release:major` turn committed
+  `CHANGELOG.md -> Unreleased` notes into a dated release, bump package versions, commit the
+  release metadata, create an annotated `v*.*.*` tag, and push the branch/tag
+- pushed release tags trigger GitHub Actions to build macOS and Windows packages on native runners
+  and publish the installers to GitHub Releases
 - OS2L cue script can simulate countdown triggers
 - dev database reset script clears local runtime state
 - Drizzle Studio is isolated to avoid native ABI conflicts

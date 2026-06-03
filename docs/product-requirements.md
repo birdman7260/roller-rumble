@@ -787,6 +787,14 @@ Current tooling requirements now include:
   process output so the built app can run with `pnpm start` without a TypeScript loader
 - root packaging scripts must exist for unpacked smoke builds and platform packages:
   `pnpm package:dir`, `pnpm package:app`, `pnpm package:mac`, and `pnpm package:win`
+- root release scripts must exist for semver increments: `pnpm release:patch`,
+  `pnpm release:minor`, and `pnpm release:major`
+- release scripts must require useful `CHANGELOG.md -> Unreleased` notes, bump matching root and
+  desktop package versions, create a dated changelog section, commit the release metadata, create an
+  annotated `v*.*.*` tag, and push the branch and tag
+- pushing a `v*.*.*` tag must trigger GitHub Actions to build macOS and Windows packages on native
+  GitHub-hosted runners and publish those artifacts to GitHub Releases with changelog-derived
+  release notes
 - strict ESLint + Prettier
 - `pnpm dev:reset-data`
 - `pnpm dev:debug`
