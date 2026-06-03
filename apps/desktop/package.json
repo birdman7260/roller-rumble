@@ -1,6 +1,6 @@
 {
   "name": "@roller-rumble/desktop",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "description": "Electron app for orchestrating Roller Rumble races, queues, and tournaments.",
   "main": "dist/electron/main.js",
