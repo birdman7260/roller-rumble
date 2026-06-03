@@ -103,6 +103,7 @@ function updateChangelog(version) {
     `## ${version} - ${date}`,
     "",
     body,
+    "",
     ""
   ].join("\n");
 

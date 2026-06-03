@@ -590,6 +590,11 @@ When the tag reaches GitHub, `.github/workflows/release.yml` builds the macOS an
 creates a GitHub Release, attaches the installers, and uses the matching changelog section as the
 release notes. The generated GitHub Release also adds download guidance and unsigned-install notes.
 
+To test the GitHub Actions packaging flow without creating a new tag or GitHub Release, open
+`Actions -> Release Builds -> Run workflow` in GitHub. Manual workflow runs build the same macOS and
+Windows packages and leave them in that run's `Artifacts` section. Only tag-triggered runs publish a
+GitHub Release.
+
 Teammates should download from GitHub Releases:
 
 - Windows users should download the `.exe` installer.
