@@ -1,0 +1,30 @@
+#:schema https://mise.jdx.dev/schema/mise.json
+
+[tools]
+node = "22"
+pnpm = "9.15.9"
+stripe-cli = "latest"
+
+[tasks.install]
+description = "Install workspace dependencies"
+run = "pnpm install"
+
+[tasks.dev]
+description = "Start the Electron app in development"
+run = "pnpm dev"
+
+[tasks.typecheck]
+description = "Run TypeScript checks across the repo"
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Run the project test suite"
+run = "pnpm test"
+
+[tasks.build]
+description = "Build the desktop app"
+run = "pnpm build"
+
+[tasks.quality]
+description = "Run formatting and lint checks"
+run = "pnpm quality"

@@ -398,6 +398,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
         configured: false,
         hasSecretKey: false,
         hasWebhookSecret: false,
+        hasExtraCaCertFile: false,
         publicRacerUrl: null,
         message: "Stripe Checkout is not configured."
       }

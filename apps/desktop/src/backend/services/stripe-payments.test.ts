@@ -3,6 +3,7 @@ import type { EventRecord, Racer } from "@roller-rumble/shared/types";
 import {
   assertEventPaymentConfig,
   buildStripeCheckoutSessionParams,
+  createStripeHttpAgent,
   getStripeRuntimeConfig
 } from "./stripe-payments";
 
@@ -42,9 +43,22 @@ describe("Stripe payment helpers", () => {
       getStripeRuntimeConfig({
         ROLLER_RUMBLE_STRIPE_SECRET_KEY: "sk_test",
         ROLLER_RUMBLE_STRIPE_WEBHOOK_SECRET: "whsec_test",
+        ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE: " /tmp/zscaler.pem ",
         ROLLER_RUMBLE_PUBLIC_RACER_URL: "https://roller-rumble.example/racer"
       }).publicRacerUrl
     ).toBe("https://roller-rumble.example");
+    expect(
+      getStripeRuntimeConfig({
+        ROLLER_RUMBLE_STRIPE_SECRET_KEY: "sk_test",
+        ROLLER_RUMBLE_STRIPE_WEBHOOK_SECRET: "whsec_test",
+        ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE: " /tmp/zscaler.pem ",
+        ROLLER_RUMBLE_PUBLIC_RACER_URL: "https://roller-rumble.example/racer"
+      }).extraCaCertFile
+    ).toBe("/tmp/zscaler.pem");
+  });
+
+  it("uses the default Stripe HTTP agent when no extra CA certificate is configured", () => {
+    expect(createStripeHttpAgent()).toBeUndefined();
   });
 
   it("requires a usable event payment amount", () => {

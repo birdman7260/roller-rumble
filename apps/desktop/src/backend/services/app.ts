@@ -49,6 +49,7 @@ import type {
   RacerNotification,
   RacerStats,
   RacerSummary,
+  StripeConnectionTestResult,
   PasskeyRegistrationStartInput,
   PasskeyRegistrationStartResponse,
   PasskeySignInStartResponse,
@@ -117,8 +118,10 @@ import { getLocalNetworkBaseUrl } from "./network";
 import {
   assertEventPaymentConfig,
   buildStripeCheckoutSessionParams,
+  createStripeHttpAgent,
   getStripeRuntimeConfig,
   normalizePaymentCurrency,
+  StripeCaCertificateError,
   type StripeRuntimeConfig
 } from "./stripe-payments";
 import {
@@ -132,6 +135,72 @@ const RESULT_MODAL_DURATION_MS = 15000;
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
 const RACER_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const RACER_SESSION_SECRET_SETTING_KEY = "racerSessionSecret";
+
+interface StripeFailureDetails {
+  code: string;
+  message: string;
+  requestId?: string | null;
+  type?: string | null;
+}
+
+function valueFromRecord(value: unknown, key: string): unknown {
+  return typeof value === "object" && value !== null
+    ? (value as Record<string, unknown>)[key]
+    : null;
+}
+
+function getStripeFailureDetails(error: unknown): StripeFailureDetails {
+  if (error instanceof StripeCaCertificateError) {
+    return {
+      code: error.code,
+      message: error.message
+    };
+  }
+
+  const message =
+    error instanceof Error && error.message.trim().length > 0
+      ? error.message
+      : "Stripe returned an unexpected error.";
+  const type = valueFromRecord(error, "type");
+  const code = valueFromRecord(error, "code");
+  const requestId = valueFromRecord(error, "requestId");
+  const stripeType = typeof type === "string" ? type : null;
+  const stripeCode = typeof code === "string" ? code : null;
+
+  if (stripeType === "StripeConnectionError") {
+    return {
+      code: "stripe_connection_failed",
+      message: `Roller Rumble could not reach Stripe. ${message}`,
+      requestId: typeof requestId === "string" ? requestId : null,
+      type: stripeType
+    };
+  }
+
+  if (stripeType === "StripeAuthenticationError") {
+    return {
+      code: "stripe_authentication_failed",
+      message: `Stripe rejected the configured secret key. ${message}`,
+      requestId: typeof requestId === "string" ? requestId : null,
+      type: stripeType
+    };
+  }
+
+  if (stripeType === "StripePermissionError") {
+    return {
+      code: "stripe_permission_failed",
+      message: `Stripe rejected this operation for the configured account. ${message}`,
+      requestId: typeof requestId === "string" ? requestId : null,
+      type: stripeType
+    };
+  }
+
+  return {
+    code: stripeCode ?? "stripe_checkout_failed",
+    message: `Could not start Stripe Checkout. ${message}`,
+    requestId: typeof requestId === "string" ? requestId : null,
+    type: stripeType
+  };
+}
 
 export class AppHttpError extends Error {
   constructor(
@@ -299,6 +368,7 @@ export class RollerRumbleApp extends EventEmitter {
   private readonly passkeyChallenges = new Map<string, PasskeyChallenge>();
   private stripeClient: Stripe | null = null;
   private stripeSecretKey: string | null = null;
+  private stripeExtraCaCertFile: string | null = null;
   private serverPort: number;
 
   constructor(options: AppServiceOptions) {
@@ -379,6 +449,8 @@ export class RollerRumbleApp extends EventEmitter {
       configured: config.configured,
       hasSecretKey: config.hasSecretKey,
       hasWebhookSecret: config.hasWebhookSecret,
+      hasExtraCaCertFile: config.hasExtraCaCertFile,
+      extraCaCertFile: config.extraCaCertFile,
       publicRacerUrl: config.publicRacerUrl,
       message: config.message
     };
@@ -394,13 +466,21 @@ export class RollerRumbleApp extends EventEmitter {
       );
     }
 
-    if (!this.stripeClient || this.stripeSecretKey !== config.secretKey) {
+    const extraCaCertFile = config.extraCaCertFile ?? null;
+    if (
+      !this.stripeClient ||
+      this.stripeSecretKey !== config.secretKey ||
+      this.stripeExtraCaCertFile !== extraCaCertFile
+    ) {
+      const httpAgent = createStripeHttpAgent(extraCaCertFile);
       this.stripeClient = new Stripe(config.secretKey, {
         appInfo: {
           name: "Roller Rumble"
-        }
+        },
+        ...(httpAgent ? { httpAgent } : {})
       });
       this.stripeSecretKey = config.secretKey;
+      this.stripeExtraCaCertFile = extraCaCertFile;
     }
 
     return this.stripeClient;
@@ -413,6 +493,35 @@ export class RollerRumbleApp extends EventEmitter {
       publicKey,
       message
     };
+  }
+
+  async testStripeConnection(): Promise<StripeConnectionTestResult> {
+    const config = this.getStripeConfig();
+    if (!config.configured) {
+      return {
+        ok: false,
+        code: "stripe_not_configured",
+        message: config.message
+      };
+    }
+
+    try {
+      await this.getStripeClient().balance.retrieve();
+      return {
+        ok: true,
+        code: "stripe_ready",
+        message: "Roller Rumble reached Stripe successfully."
+      };
+    } catch (error) {
+      const failure = getStripeFailureDetails(error);
+      console.warn("[stripe] connection test failed", failure);
+      return {
+        ok: false,
+        code: failure.code,
+        message: failure.message,
+        requestId: failure.requestId
+      };
+    }
   }
 
   saveRacerPushSubscription(
@@ -2117,17 +2226,32 @@ export class RollerRumbleApp extends EventEmitter {
       currency,
       queueIntent: input
     });
-    const session = await this.getStripeClient().checkout.sessions.create(
-      buildStripeCheckoutSessionParams({
-        event: activeEvent,
-        racer,
-        paymentId: payment.id,
-        amountCents,
-        currency,
-        publicRacerUrl: config.publicRacerUrl,
-        queueIntent: input
-      })
-    );
+    let session: Stripe.Checkout.Session;
+    try {
+      session = await this.getStripeClient().checkout.sessions.create(
+        buildStripeCheckoutSessionParams({
+          event: activeEvent,
+          racer,
+          paymentId: payment.id,
+          amountCents,
+          currency,
+          publicRacerUrl: config.publicRacerUrl,
+          queueIntent: input
+        })
+      );
+    } catch (error) {
+      const failure = getStripeFailureDetails(error);
+      this.db.updatePaymentRecord(payment.id, {
+        status: "failed",
+        failureCode: failure.code,
+        failureMessage: failure.message
+      });
+      console.warn("[stripe] checkout session creation failed", {
+        ...failure,
+        paymentId: payment.id
+      });
+      throw new AppHttpError(failure.message, 502, failure.code);
+    }
 
     if (!session.url) {
       this.db.updatePaymentRecord(payment.id, {

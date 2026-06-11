@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import https from "node:https";
+import tls from "node:tls";
 import type Stripe from "stripe";
 import {
   DEFAULT_PAYMENT_CURRENCY,
@@ -9,10 +12,21 @@ export interface StripeRuntimeConfig {
   configured: boolean;
   hasSecretKey: boolean;
   hasWebhookSecret: boolean;
+  hasExtraCaCertFile: boolean;
   secretKey?: string;
   webhookSecret?: string;
+  extraCaCertFile?: string | null;
   publicRacerUrl?: string | null;
   message: string;
+}
+
+export class StripeCaCertificateError extends Error {
+  readonly code = "stripe_ca_file_unreadable";
+
+  constructor(filePath: string, cause: unknown) {
+    const detail = cause instanceof Error ? cause.message : String(cause);
+    super(`Stripe extra CA certificate file could not be read: ${filePath}. ${detail}`);
+  }
 }
 
 function normalizePublicRacerBaseUrl(value: string | null): string | null {
@@ -27,6 +41,7 @@ function normalizePublicRacerBaseUrl(value: string | null): string | null {
 export function getStripeRuntimeConfig(env: NodeJS.ProcessEnv = process.env): StripeRuntimeConfig {
   const secretKey = env.ROLLER_RUMBLE_STRIPE_SECRET_KEY?.trim();
   const webhookSecret = env.ROLLER_RUMBLE_STRIPE_WEBHOOK_SECRET?.trim();
+  const extraCaCertFile = env.ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE?.trim() || null;
   const publicRacerUrl = normalizePublicRacerBaseUrl(
     env.ROLLER_RUMBLE_PUBLIC_RACER_URL?.trim() ?? null
   );
@@ -40,14 +55,31 @@ export function getStripeRuntimeConfig(env: NodeJS.ProcessEnv = process.env): St
     configured: missing.length === 0,
     hasSecretKey: Boolean(secretKey),
     hasWebhookSecret: Boolean(webhookSecret),
+    hasExtraCaCertFile: Boolean(extraCaCertFile),
     secretKey,
     webhookSecret,
+    extraCaCertFile,
     publicRacerUrl,
     message:
       missing.length === 0
         ? "Stripe Checkout is ready."
         : `Stripe Checkout is missing ${missing.join(", ")}.`
   };
+}
+
+export function createStripeHttpAgent(extraCaCertFile?: string | null): https.Agent | undefined {
+  if (!extraCaCertFile) {
+    return undefined;
+  }
+
+  try {
+    const extraCaCert = fs.readFileSync(extraCaCertFile, "utf8");
+    return new https.Agent({
+      ca: [...tls.rootCertificates, extraCaCert]
+    });
+  } catch (error) {
+    throw new StripeCaCertificateError(extraCaCertFile, error);
+  }
 }
 
 export function normalizePaymentCurrency(currency?: string | null): string {

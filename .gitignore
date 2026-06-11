@@ -15,4 +15,6 @@ pnpm-debug.log*
 .env.*
 !.env.example
 !.env.*.example
+mise.local.toml
+mise.*.local.toml
 .roller-rumble-booth

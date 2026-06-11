@@ -592,8 +592,17 @@ export interface StripeSetupStatus {
   configured: boolean;
   hasSecretKey: boolean;
   hasWebhookSecret: boolean;
+  hasExtraCaCertFile: boolean;
+  extraCaCertFile?: string | null;
   publicRacerUrl?: string | null;
   message: string;
+}
+
+export interface StripeConnectionTestResult {
+  ok: boolean;
+  code: string;
+  message: string;
+  requestId?: string | null;
 }
 
 export interface PaymentProviderStatus {

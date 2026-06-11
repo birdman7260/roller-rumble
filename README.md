@@ -139,6 +139,37 @@ Apple Pay, Google Pay, Link, and cards are handled by Stripe-hosted Checkout and
 enabled in the Stripe Dashboard. In local development, use the Stripe CLI to forward webhooks to
 `/api/webhooks/stripe`.
 
+The Stripe CLI does not create Checkout sessions for the app; it only forwards completed/expired
+webhook events back to Roller Rumble after Stripe Checkout runs. The desktop app must still be able
+to make outbound HTTPS requests to Stripe when an unpaid racer queues. Use `Event -> Event Payments
+-> Test Stripe Connection` to confirm that Roller Rumble can authenticate with Stripe and reach the
+Stripe API from the machine running the app. If that test fails, check the secret key, internet/VPN
+access, firewall/proxy settings, and whether the app was restarted after changing `.env.local`.
+
+Some networks use HTTPS inspection tools such as Zscaler. In that case, `curl` or Safari may trust
+Stripe because macOS/Windows trusts the company certificate, while Node/Electron still rejects it
+with `UNABLE_TO_GET_ISSUER_CERT_LOCALLY` or a generic Stripe connection failure. Export the trusted
+company root/intermediate certificate as a PEM file, then add it to `.env.local`:
+
+```bash
+ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE=/absolute/path/to/company-ca.pem
+```
+
+On macOS, a common way to export a Zscaler certificate is:
+
+```bash
+security find-certificate -a -c "Zscaler" -p > ~/Documents/zscaler-ca.pem
+```
+
+Then set:
+
+```bash
+ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE=/Users/your-name/Documents/zscaler-ca.pem
+```
+
+Fully quit and reopen Roller Rumble after changing the env file, then run `Test Stripe Connection`
+again. Do not use `NODE_TLS_REJECT_UNAUTHORIZED=0`; it disables TLS verification entirely.
+
 ## Racer Notifications
 
 The Racer Page supports true browser Web Push plus an in-page full-screen modal. Web Push requires HTTPS on
@@ -296,17 +327,50 @@ Important files:
 
 ## Requirements
 
-- Node.js 22 or newer is recommended
+- Node.js 22 is the project runtime version
+- pnpm 9.15.9 is the project package-manager version
+- `mise` is recommended for automatically installing and selecting the right Node/pnpm versions
 - macOS or Windows for the intended desktop runtime
 - `cloudflared` is optional at first run: Roller Rumble can use an existing binary, or install an
   app-managed macOS/Windows binary into its runtime tools folder.
+
+## Tool Versions With mise
+
+Roller Rumble includes a committed `mise.toml` that pins the local development tools:
+
+- `node@22`
+- `pnpm@9.15.9`
+
+After installing mise globally and activating it in your shell, run this once from the repo root:
+
+```bash
+mise trust
+mise install
+```
+
+Then the normal project commands can be run through mise:
+
+```bash
+mise run install
+mise run dev
+```
+
+You can also run `pnpm dev` directly after mise is active. mise will put the pinned Node and pnpm
+versions on your `PATH` whenever your shell is inside this repo.
+
+If mise is not installed yet, the Corepack fallback still works:
+
+```bash
+corepack pnpm install
+corepack pnpm dev
+```
 
 ## Getting Started
 
 1. Install dependencies:
 
 ```bash
-corepack pnpm install
+mise run install
 ```
 
 2. Optional: copy the example environment file if you want persistent local defaults:
@@ -318,7 +382,7 @@ cp .env.example .env.local
 3. Start the app in development:
 
 ```bash
-corepack pnpm dev
+mise run dev
 ```
 
 4. Use the admin window to create an event and stage races.

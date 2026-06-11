@@ -313,6 +313,14 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.getNotificationConfig());
   });
 
+  app.post(`${API_PREFIX}/stripe/test-connection`, async (_req, res, next) => {
+    try {
+      res.json(await service.testStripeConnection());
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.get(`${API_PREFIX}/meta`, async (_req, res) => {
     res.json({
       localBaseUrl: service.getLocalBaseUrl(),

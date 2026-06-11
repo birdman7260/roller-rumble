@@ -3,7 +3,7 @@ import { useState } from "react";
 import type { AppSnapshot, RaceRecord, TournamentBundle } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel, StatPill, TextInput } from "@roller-rumble/shared-ui";
 import { STRIPE_MIN_PAYMENT_AMOUNT_CENTS } from "@roller-rumble/shared/constants";
-import { createEvent, updateEventPaymentConfig } from "../../lib/api";
+import { createEvent, testStripeConnection, updateEventPaymentConfig } from "../../lib/api";
 import { formatRacerNames } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 
@@ -38,6 +38,8 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
     snapshot.activeEvent.paymentRequiredForQueue
   );
   const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
+  const [stripeTestMessage, setStripeTestMessage] = useState<string | null>(null);
+  const [stripeTestRunning, setStripeTestRunning] = useState(false);
   const paymentAmountCents = parseDollarAmountToCents(paymentAmountInput);
   const paymentAmountIsValid =
     !paymentRequiredInput ||
@@ -55,6 +57,22 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
       paymentCurrency: snapshot.activeEvent.paymentCurrency
     });
     setPaymentMessage("Payment settings saved.");
+  }
+
+  async function runStripeConnectionTest(): Promise<void> {
+    setStripeTestRunning(true);
+    setStripeTestMessage(null);
+    try {
+      const result = await testStripeConnection();
+      const requestHint = result.requestId ? ` Request ID: ${result.requestId}.` : "";
+      setStripeTestMessage(`${result.message}${requestHint}`);
+    } catch (error) {
+      setStripeTestMessage(
+        error instanceof Error ? error.message : "Could not test the Stripe connection."
+      );
+    } finally {
+      setStripeTestRunning(false);
+    }
   }
 
   return (
@@ -102,6 +120,10 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
             label="Webhook Secret"
             value={snapshot.paymentProvider.stripe.hasWebhookSecret ? "Set" : "Missing"}
           />
+          <StatPill
+            label="Extra CA"
+            value={snapshot.paymentProvider.stripe.hasExtraCaCertFile ? "Set" : "Not Set"}
+          />
         </div>
         <p>{snapshot.paymentProvider.stripe.message}</p>
         {snapshot.paymentProvider.stripe.publicRacerUrl ? (
@@ -110,14 +132,26 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
         {paymentMessage ? (
           <p className={paymentAmountIsValid ? "form-success" : "form-error"}>{paymentMessage}</p>
         ) : null}
-        <Button
-          disabled={!paymentAmountIsValid}
-          onClick={() => {
-            fireAndForget(savePaymentSettings(), "save event payment settings");
-          }}
-        >
-          Save Payment Settings
-        </Button>
+        {stripeTestMessage ? <p>{stripeTestMessage}</p> : null}
+        <div className="panel-action-row">
+          <Button
+            disabled={!paymentAmountIsValid}
+            onClick={() => {
+              fireAndForget(savePaymentSettings(), "save event payment settings");
+            }}
+          >
+            Save Payment Settings
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={stripeTestRunning}
+            onClick={() => {
+              fireAndForget(runStripeConnectionTest(), "test stripe connection");
+            }}
+          >
+            {stripeTestRunning ? "Testing..." : "Test Stripe Connection"}
+          </Button>
+        </div>
       </div>
     </Panel>
   );

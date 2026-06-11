@@ -483,6 +483,12 @@ Requirements:
 - When the active event requires payment, racer-page queue attempts must redirect unpaid racers to
   Stripe Checkout, then mark them `paid` and auto-queue them after webhook confirmation.
   `Implemented`
+- Stripe Checkout creation failures must be reported as Stripe-specific gateway errors, recorded on
+  the payment attempt, and diagnosable from the admin Event payment panel with a connection test.
+  `Implemented`
+- Stripe API calls must support an optional app-level extra CA certificate file for venues or
+  company machines that use HTTPS inspection, without requiring global Node TLS settings or
+  disabling certificate verification. `Implemented`
 - If a racer challenges an unpaid opponent, checkout must not start and the racer should see that
   the opponent needs to pay first. `Implemented`
 - If a racer attempts to queue after already reaching the configured maximum active queue entries,
@@ -845,6 +851,8 @@ Current tooling requirements now include:
 - the generated `.env.local` file must contain plain-language setup comments suitable for
   non-technical users, and the admin Settings UI must be able to generate Web Push VAPID keys and
   write them into that file automatically
+- a committed `mise.toml` must pin the local development toolchain to Node 22 and pnpm 9.15.9, with
+  task aliases for install, dev, typecheck, test, build, and quality checks
 - a root `pnpm db:studio` launcher that bootstraps the isolated Studio package on demand
 - root `pnpm cloudflared:install`, `pnpm cloudflared:doctor`, and `pnpm cloudflared:version`
   scripts for app-managed tunnel binary setup and diagnostics

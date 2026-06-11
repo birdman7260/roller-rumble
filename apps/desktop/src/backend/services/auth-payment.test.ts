@@ -4,6 +4,7 @@ import type {
   AppSnapshot,
   EventRecord,
   Racer,
+  StripeConnectionTestResult,
   RacerQueueSignupResponse
 } from "@roller-rumble/shared/types";
 import { AppHttpError, RollerRumbleApp } from "./app";
@@ -124,6 +125,7 @@ type EventPaymentConfigUpdate = (
     paymentCurrency?: string;
   }
 ) => AppSnapshot;
+type StripeConnectionTest = (this: FakeTarget) => Promise<StripeConnectionTestResult>;
 
 const passkeyContext = {
   origin: "http://localhost:3187",
@@ -212,6 +214,9 @@ function makeFakeTarget(): FakeTarget & {
             url: "https://checkout.stripe.test/session"
           }))
         }
+      },
+      balance: {
+        retrieve: vi.fn(async () => ({}))
       },
       webhooks: {
         constructEvent: vi.fn()
@@ -353,6 +358,7 @@ const handleStripeWebhook = getPrototypeMethod("handleStripeWebhook") as StripeW
 const updateActiveEventPaymentConfig = getPrototypeMethod(
   "updateActiveEventPaymentConfig"
 ) as EventPaymentConfigUpdate;
+const testStripeConnection = getPrototypeMethod("testStripeConnection") as StripeConnectionTest;
 
 describe("passkey racer auth and payment gating", () => {
   beforeEach(() => {
@@ -519,6 +525,54 @@ describe("passkey racer auth and payment gating", () => {
     ).resolves.toMatchObject({
       status: "checkout_required",
       checkoutUrl: "https://checkout.stripe.test/session"
+    });
+  });
+
+  it("records Stripe connection failures during checkout creation", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const target = makeFakeTarget();
+    const racer = makeRacer("racer-1", "Payment Racer", "pay@example.com");
+    const stripeError = Object.assign(
+      new Error("An error occurred with our connection to Stripe. Request was retried 2 times."),
+      {
+        type: "StripeConnectionError",
+        requestId: "req_test_123"
+      }
+    );
+    target.racers.set(racer.id, racer);
+    target.activeEvent.paymentRequiredForQueue = true;
+    target.activeEvent.paymentAmountCents = 1000;
+    target.getStripeClient.mockReturnValueOnce({
+      checkout: {
+        sessions: {
+          create: vi.fn(async () => {
+            throw stripeError;
+          })
+        }
+      }
+    });
+
+    await expect(
+      signUpQueueForRacer.call(target, racer.id, { requestedType: "solo" })
+    ).rejects.toMatchObject({
+      statusCode: 502,
+      code: "stripe_connection_failed",
+      message: expect.stringContaining("could not reach Stripe")
+    });
+    expect(target.paymentRecords.get("payment-1")).toMatchObject({
+      status: "failed",
+      failureCode: "stripe_connection_failed",
+      failureMessage: expect.stringContaining("Request was retried 2 times")
+    });
+    warnSpy.mockRestore();
+  });
+
+  it("tests the configured Stripe connection", async () => {
+    const target = makeFakeTarget();
+
+    await expect(testStripeConnection.call(target)).resolves.toMatchObject({
+      ok: true,
+      code: "stripe_ready"
     });
   });
 

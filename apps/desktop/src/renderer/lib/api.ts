@@ -21,6 +21,7 @@ import type {
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   Racer,
+  StripeConnectionTestResult,
   StartTournamentInput,
   TournamentOptOutResponse,
   TournamentByeFillOptionsResponse,
@@ -335,6 +336,14 @@ export async function updateEventPaymentConfig(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function testStripeConnection(): Promise<StripeConnectionTestResult> {
+  return parseJson(
+    await fetch(buildUrl("/api/stripe/test-connection"), {
+      method: "POST"
     })
   );
 }
