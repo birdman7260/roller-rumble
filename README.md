@@ -230,6 +230,9 @@ the racer page with that notification selected so the matching in-app modal appe
   - developer test page for sending any supported racer notification type to event groups or
     selected registered racers through the real Web Push/in-app notification pipeline
 
+Installed desktop builds can also open these pages from `Settings -> Lab Pages`, which launches the
+selected lab in the system default browser.
+
 ## Project Layout
 
 - `apps/desktop`

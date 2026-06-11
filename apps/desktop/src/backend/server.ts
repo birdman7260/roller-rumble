@@ -44,11 +44,24 @@ import { AppHttpError, RollerRumbleApp } from "./services/app";
 interface BackendServerOptions {
   dataDir: string;
   loadedDotenvFiles?: string[];
+  openExternalUrl?: (url: string) => Promise<void>;
   openPath?: (filePath: string) => Promise<string>;
   port?: number;
   rendererDistDir?: string;
   rendererDevUrl?: string;
   runtimeEnvFilePath?: string;
+}
+
+const labRoutes = {
+  bracket: "/bracket-lab",
+  notification: "/notification-lab",
+  queue: "/queue-lab"
+} as const;
+
+type LabRouteId = keyof typeof labRoutes;
+
+function isLabRouteId(value: string): value is LabRouteId {
+  return value in labRoutes;
 }
 
 const RACER_SESSION_COOKIE = "roller_rumble_racer_session";
@@ -359,6 +372,28 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
       subject: "mailto:roller-rumble@localhost.local"
     });
     res.json(getRuntimeEnvFileInfo(options.runtimeEnvFilePath, options.loadedDotenvFiles ?? []));
+  });
+
+  app.post(`${API_PREFIX}/labs/:labId/open`, async (req, res, next) => {
+    try {
+      if (!options.openExternalUrl) {
+        res.status(404).json({ message: "External browser opener is not available." });
+        return;
+      }
+
+      const labId = req.params.labId;
+      if (!isLabRouteId(labId)) {
+        res.status(404).json({ message: "Unknown lab page." });
+        return;
+      }
+
+      const port = options.port ?? DEFAULT_SERVER_PORT;
+      const url = new URL(labRoutes[labId], `http://127.0.0.1:${port}`);
+      await options.openExternalUrl(url.toString());
+      res.json({ url: url.toString() });
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.get(`${API_PREFIX}/auth/session`, (req, res) => {

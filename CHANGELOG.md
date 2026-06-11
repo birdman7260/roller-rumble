@@ -8,6 +8,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Buttons in the settings to easily open the different lab pages
+
 ### Changed
 
 ### Fixed

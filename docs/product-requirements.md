@@ -867,6 +867,8 @@ Current tooling requirements now include:
 - `/bracket-lab` for manual bracket animation testing
 - `/queue-lab` for manual open time trial queue behavior testing
 - `/notification-lab` for manual Web Push and in-app notification type/target testing
+- admin Settings lab-launch buttons that open those lab pages in the system browser from installed
+  desktop builds
 - `pnpm notifications:keys` for generating VAPID keys used by racer Web Push notifications
 - `pnpm photo-booth:agent` for running the Raspberry Pi booth kiosk/agent
 - `pnpm photo-booth:doctor` for booth hardware diagnostics

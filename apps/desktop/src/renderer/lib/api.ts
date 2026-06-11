@@ -154,6 +154,12 @@ export async function generateRuntimeEnvPushKeys(): Promise<RuntimeEnvInfo> {
   );
 }
 
+export async function openLabPage(labId: "bracket" | "notification" | "queue"): Promise<{
+  url: string;
+}> {
+  return parseJson(await fetch(buildUrl(`/api/labs/${labId}/open`), { method: "POST" }));
+}
+
 export async function fetchNotificationConfig(): Promise<NotificationConfig> {
   return parseJson(await fetch(buildUrl("/api/notifications/config")));
 }

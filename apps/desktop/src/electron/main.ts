@@ -152,6 +152,7 @@ async function bootstrap(): Promise<void> {
   backend = createBackendServer({
     dataDir: userDataDir,
     loadedDotenvFiles,
+    openExternalUrl: (url) => shell.openExternal(url),
     openPath: (filePath) => shell.openPath(filePath),
     port: Number(process.env.ROLLER_RUMBLE_PORT ?? "3187"),
     rendererDistDir: resolveRendererDistDir(),

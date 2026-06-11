@@ -6,6 +6,7 @@ import {
   ensureRuntimeEnvFile,
   generateRuntimeEnvPushKeys,
   installCloudflared,
+  openLabPage,
   openRuntimeEnvFile,
   rotatePhotoBoothPairing,
   sendAdminNotification,
@@ -130,6 +131,7 @@ export function SettingsTab({
   const [cloudflaredInstalling, setCloudflaredInstalling] = useState(false);
   const [runtimeEnvWorking, setRuntimeEnvWorking] = useState(false);
   const [runtimeEnvStatus, setRuntimeEnvStatus] = useState<string | null>(null);
+  const [labOpenStatus, setLabOpenStatus] = useState<string | null>(null);
   const [notificationTargetType, setNotificationTargetType] =
     useState<AdminNotificationTargetType>("event");
   const [notificationRacerIds, setNotificationRacerIds] = useState<string[]>([]);
@@ -177,6 +179,12 @@ export function SettingsTab({
     } finally {
       setRuntimeEnvWorking(false);
     }
+  }
+
+  async function openLabFromAdmin(labId: "bracket" | "notification" | "queue"): Promise<void> {
+    setLabOpenStatus(null);
+    const result = await openLabPage(labId);
+    setLabOpenStatus(`Opened ${result.url}`);
   }
 
   async function sendNotificationFromAdmin(): Promise<void> {
@@ -514,6 +522,39 @@ export function SettingsTab({
             </code>
           </div>
           {snapshot.os2l.lastError ? <p className="form-error">{snapshot.os2l.lastError}</p> : null}
+        </div>
+      </Panel>
+
+      <Panel className="settings-panel" title="Lab Pages">
+        <div className="stack-sm">
+          <p>Open the built-in test labs in your default browser.</p>
+          <div className="panel-action-row settings-panel__actions">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                fireAndForget(openLabFromAdmin("bracket"), "open bracket lab");
+              }}
+            >
+              Open Bracket Lab
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                fireAndForget(openLabFromAdmin("queue"), "open queue lab");
+              }}
+            >
+              Open Queue Lab
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                fireAndForget(openLabFromAdmin("notification"), "open notification lab");
+              }}
+            >
+              Open Notification Lab
+            </Button>
+          </div>
+          {labOpenStatus ? <p>{labOpenStatus}</p> : null}
         </div>
       </Panel>
 
