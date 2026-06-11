@@ -108,6 +108,11 @@ Requirements:
   `Implemented`
 - The app must support OS2L / VirtualDJ cue-based race starts behind an admin toggle. `Implemented`
 - OS2L listening must only matter when a race is staged and cue starts are enabled. `Implemented`
+- The desktop app must advertise itself as an `_os2l._tcp` service over DNS-SD/Bonjour so VirtualDJ
+  can auto-discover it as an OS2L receiver. `Implemented`
+- The admin Settings UI must expose OS2L diagnostics, including listener state, discovery
+  advertising state, armed-race state, beat message count, last raw non-beat message, last accepted
+  cue, and last ignored message/reason. `Implemented`
 - If OS2L is enabled after a race has already been staged, the staged race must be armed for the
   next valid cue without requiring the race to be re-staged. `Implemented`
 - OS2L cue payloads may include a `countdownMs` attribute that controls how many milliseconds to
@@ -121,7 +126,8 @@ Current delivery notes:
   simulator script exist. `Implemented`
 - The local OS2L simulator supports `pnpm`'s forwarded `--` separator and has a `--dryRun` mode for
   confirming the outgoing payload without contacting the app. `Implemented`
-- Real-world VirtualDJ cue behavior has not yet been fully validated in production use. `Partial`
+- Real-world VirtualDJ cue behavior still needs field validation with an installed Windows app and a
+  real track action POI. `Partial`
 
 ## Admin Display
 

@@ -49,6 +49,7 @@
     "@tanstack/react-router": "^1.116.1",
     "@xyflow/react": "^12.10.2",
     "better-sqlite3": "^11.10.0",
+    "bonjour-service": "^1.4.1",
     "canvas-confetti": "^1.9.4",
     "cors": "^2.8.5",
     "dotenv": "^17.4.2",

@@ -410,6 +410,26 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
       pendingUploadCount: 0,
       message: null
     },
+    os2l: {
+      enabled: false,
+      listening: false,
+      advertising: false,
+      port: 9996,
+      serviceName: "Roller Rumble",
+      armedRaceId: null,
+      acceptedMessageCount: 0,
+      ignoredMessageCount: 0,
+      beatMessageCount: 0,
+      lastBeatAt: null,
+      lastRawMessage: null,
+      lastRawMessageAt: null,
+      lastAcceptedMessage: null,
+      lastAcceptedAt: null,
+      lastIgnoredMessage: null,
+      lastIgnoredAt: null,
+      lastIgnoredReason: null,
+      lastError: null
+    },
     tunnel: {
       status: "idle"
     }

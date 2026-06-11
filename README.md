@@ -787,10 +787,28 @@ Troubleshooting:
 
 - If nothing happens, confirm the race is staged in Roller Rumble.
 - Confirm `Settings -> Enable VirtualDJ cue start` is turned on.
+- Open `Settings -> VirtualDJ Diagnostics` in Roller Rumble:
+  - `TCP Listener` should say `Listening`.
+  - `Discovery` should say `Advertising`. If Windows asks about network access, allow Roller
+    Rumble on the private/event network.
+  - `Armed Race` should say `Ready` after a race is staged.
+  - `Beats Seen` increasing means VirtualDJ discovered Roller Rumble and connected over OS2L.
+  - `Last raw OS2L message` shows the last non-beat message Roller Rumble received from VirtualDJ.
+  - `Last accepted cue` shows the last message that actually matched `roller-rumble-start`.
+  - `Last ignored message` explains why a received OS2L message did not start the countdown.
 - If you turned the setting on after staging the race, that is supported. If it still does not work,
   restart `pnpm dev`, stage the race again, and retest with `pnpm os2l:cue -- --countdownMs 5000`.
 - Confirm VirtualDJ is running on the same computer as Roller Rumble.
 - Confirm the action contains `roller-rumble-start`.
+- To test VirtualDJ without the track cue, make a temporary VirtualDJ custom button or pad with:
+
+```text
+os2l_button "roller-rumble-start countdownMs=5000" on
+```
+
+If the custom button starts Roller Rumble but the song cue does not, the issue is the POI/cue
+setup on the track.
+
 - Confirm `countdownMs` has no comma, decimal unit, or `ms` suffix. Use `5000`, not `5,000`,
   `5s`, or `5000ms`.
 - If the simulator fails with `Unexpected argument`, update your local code and try again. The

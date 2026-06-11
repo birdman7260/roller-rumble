@@ -549,6 +549,27 @@ export interface TunnelDiagnostics {
   lastError: string | null;
 }
 
+export interface Os2lDiagnostics {
+  enabled: boolean;
+  listening: boolean;
+  advertising: boolean;
+  port: number;
+  serviceName: string;
+  armedRaceId: string | null;
+  acceptedMessageCount: number;
+  ignoredMessageCount: number;
+  beatMessageCount: number;
+  lastBeatAt: string | null;
+  lastRawMessage: string | null;
+  lastRawMessageAt: string | null;
+  lastAcceptedMessage: string | null;
+  lastAcceptedAt: string | null;
+  lastIgnoredMessage: string | null;
+  lastIgnoredAt: string | null;
+  lastIgnoredReason: string | null;
+  lastError: string | null;
+}
+
 export interface AdminSettings {
   mode: AppMode;
   themeId: string;
@@ -589,6 +610,7 @@ export interface AppSnapshot {
   tournaments: TournamentBundle[];
   themes: ThemeDefinition[];
   tunnel: TunnelState;
+  os2l: Os2lDiagnostics;
   photoBooth: PhotoBoothStatus;
   paymentProvider: PaymentProviderStatus;
 }

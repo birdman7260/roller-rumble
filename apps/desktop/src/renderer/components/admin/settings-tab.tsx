@@ -58,6 +58,10 @@ function cloudflaredSourceLabel(source: AppSnapshot["tunnel"]["binarySource"]): 
   }
 }
 
+function diagnosticTimeLabel(value: string | null): string {
+  return value ? new Date(value).toLocaleTimeString() : "Not yet";
+}
+
 function useMasonryGrid() {
   const gridRef = useRef<HTMLDivElement | null>(null);
 
@@ -464,6 +468,52 @@ export function SettingsTab({
             </Button>
           </div>
           {notificationSendStatus ? <p>{notificationSendStatus}</p> : null}
+        </div>
+      </Panel>
+
+      <Panel className="settings-panel" title="VirtualDJ Diagnostics">
+        <div className="stack-sm">
+          <div className="stat-grid">
+            <StatPill label="Cue Start" value={snapshot.os2l.enabled ? "Enabled" : "Disabled"} />
+            <StatPill label="TCP Listener" value={snapshot.os2l.listening ? "Listening" : "Off"} />
+            <StatPill
+              label="Discovery"
+              value={snapshot.os2l.advertising ? "Advertising" : "Not advertising"}
+            />
+            <StatPill label="Port" value={snapshot.os2l.port} />
+            <StatPill label="Armed Race" value={snapshot.os2l.armedRaceId ? "Ready" : "None"} />
+            <StatPill label="Beats Seen" value={snapshot.os2l.beatMessageCount} />
+            <StatPill label="Accepted" value={snapshot.os2l.acceptedMessageCount} />
+            <StatPill label="Ignored" value={snapshot.os2l.ignoredMessageCount} />
+          </div>
+          <p>
+            VirtualDJ should discover this app as `{snapshot.os2l.serviceName}` over OS2L. If
+            Windows asks about network access, allow Roller Rumble on the private/event network.
+          </p>
+          <p>Last beat message: {diagnosticTimeLabel(snapshot.os2l.lastBeatAt)}</p>
+          <div className="stack-sm">
+            <strong>Last raw OS2L message</strong>
+            <span>{diagnosticTimeLabel(snapshot.os2l.lastRawMessageAt)}</span>
+            <code className="breakable-value">
+              {snapshot.os2l.lastRawMessage ?? "No OS2L messages received yet."}
+            </code>
+          </div>
+          <div className="stack-sm">
+            <strong>Last accepted cue</strong>
+            <span>{diagnosticTimeLabel(snapshot.os2l.lastAcceptedAt)}</span>
+            <code className="breakable-value">
+              {snapshot.os2l.lastAcceptedMessage ?? "No accepted Roller Rumble cue yet."}
+            </code>
+          </div>
+          <div className="stack-sm">
+            <strong>Last ignored message</strong>
+            <span>{diagnosticTimeLabel(snapshot.os2l.lastIgnoredAt)}</span>
+            <span>{snapshot.os2l.lastIgnoredReason ?? "No ignored messages yet."}</span>
+            <code className="breakable-value">
+              {snapshot.os2l.lastIgnoredMessage ?? "No ignored OS2L messages yet."}
+            </code>
+          </div>
+          {snapshot.os2l.lastError ? <p className="form-error">{snapshot.os2l.lastError}</p> : null}
         </div>
       </Panel>
 

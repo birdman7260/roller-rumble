@@ -315,6 +315,7 @@ export class RollerRumbleApp extends EventEmitter {
     const settings = this.db.getAdminSettings();
     this.serverPort = settings.serverPort;
     this.manualTrigger.start((source, options) => this.startCountdown(source, options));
+    this.os2lTrigger.onDiagnosticsChange(() => this.emitSnapshot());
     this.os2lTrigger.start((source, options) => this.startCountdown(source, options));
     this.os2lTrigger.setEnabled(settings.os2lEnabled);
     this.sensorAdapter.connect((event) =>
@@ -633,6 +634,7 @@ export class RollerRumbleApp extends EventEmitter {
       queue,
       tournaments: tournamentBundles,
       tunnel,
+      os2l: this.os2lTrigger.getDiagnostics(),
       photoBooth: this.getPhotoBoothStatus(),
       paymentProvider: {
         stripe: this.getStripeSetupStatus()

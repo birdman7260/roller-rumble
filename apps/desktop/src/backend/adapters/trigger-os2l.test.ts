@@ -23,12 +23,24 @@ describe("OS2L trigger parsing", () => {
     expect(
       isOs2lStartCueMessage(
         JSON.stringify({
-          evt: "button",
+          evt: "btn",
           name: "roller-rumble-start countdownMs=2500",
-          state: true
+          state: "on"
         })
       )
     ).toBe(true);
+  });
+
+  it("ignores VirtualDJ-style button release payloads", () => {
+    expect(
+      isOs2lStartCueMessage(
+        JSON.stringify({
+          evt: "btn",
+          name: "roller-rumble-start countdownMs=2500",
+          state: "off"
+        })
+      )
+    ).toBe(false);
   });
 
   it("reads countdownMs from JSON cue payloads", () => {
@@ -54,9 +66,9 @@ describe("OS2L trigger parsing", () => {
     expect(
       parseOs2lCountdownDurationMs(
         JSON.stringify({
-          evt: "button",
+          evt: "btn",
           name: "roller-rumble-start countdownMs=4200",
-          state: true
+          state: "on"
         })
       )
     ).toBe(4_200);
