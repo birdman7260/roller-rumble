@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.6 - 2026-06-11
+
+### Added
+
 - Stuff to investigate VDJ
 
 ### Changed
