@@ -44,12 +44,14 @@ export const createEventSchema = z.object({
 export const queueSignupSchema = z.object({
   racerId: z.string().trim().min(1),
   opponentRacerId: z.string().trim().min(1).optional(),
-  requestedType: z.enum(QUEUE_ENTRY_REQUESTED_TYPES).extract(["solo", "auto-match"]).optional()
+  requestedType: z.enum(QUEUE_ENTRY_REQUESTED_TYPES).extract(["solo", "auto-match"]).optional(),
+  replaceQueueEntryId: z.string().trim().min(1).optional()
 });
 
 export const racerQueueSignupSchema = z.object({
   opponentRacerId: z.string().trim().min(1).optional(),
-  requestedType: z.enum(QUEUE_ENTRY_REQUESTED_TYPES).extract(["solo", "auto-match"]).optional()
+  requestedType: z.enum(QUEUE_ENTRY_REQUESTED_TYPES).extract(["solo", "auto-match"]).optional(),
+  replaceQueueEntryId: z.string().trim().min(1).optional()
 });
 
 export const passkeyEmailSchema = z.object({

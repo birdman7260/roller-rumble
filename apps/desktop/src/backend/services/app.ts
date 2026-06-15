@@ -34,6 +34,7 @@ import type {
   AdminTournamentByeFillResponse,
   AdminTournamentRacerRemovalInput,
   AdminTournamentRacerRemovalResponse,
+  ChallengeReplacementOption,
   NotificationConfig,
   PhotoBoothAdminStatus,
   PhotoBoothSession,
@@ -90,7 +91,10 @@ import {
 } from "./competition";
 import {
   addQueueSignup,
+  ChallengeReplacementRequiredError,
+  ChallengeTargetUnavailableError,
   findNextQueuedEntry,
+  InvalidChallengeReplacementError,
   projectQueueEntries,
   reindexQueue,
   removeRacerFromQueue,
@@ -2274,6 +2278,74 @@ export class RollerRumbleApp extends EventEmitter {
     };
   }
 
+  private getChallengeReplacementOptions(
+    eventId: string,
+    racerId: string
+  ): ChallengeReplacementOption[] {
+    return this.db
+      .listQueueEntries(eventId)
+      .filter(
+        (entry) =>
+          entry.status === "queued" &&
+          entry.lockType === "challenge" &&
+          entry.racerIds.includes(racerId)
+      )
+      .sort((left, right) => left.position - right.position)
+      .flatMap((entry) => {
+        const opponentRacerId = entry.racerIds.find((candidate) => candidate !== racerId);
+        if (!opponentRacerId) {
+          return [];
+        }
+
+        return [
+          {
+            queueEntryId: entry.id,
+            position: entry.position,
+            opponentRacerId,
+            opponentDisplayName: this.db.getRacer(opponentRacerId)?.displayName ?? "Unknown racer"
+          }
+        ];
+      });
+  }
+
+  private resolveChallengeReplacementOccurrenceId(
+    eventId: string,
+    racerId: string,
+    replaceQueueEntryId: string
+  ): string {
+    const replacementEntry = this.db
+      .listQueueEntries(eventId)
+      .find((entry) => entry.id === replaceQueueEntryId);
+    if (
+      !replacementEntry ||
+      replacementEntry.status !== "queued" ||
+      replacementEntry.lockType !== "challenge" ||
+      !replacementEntry.racerIds.includes(racerId)
+    ) {
+      throw new AppHttpError(
+        "Choose a queued challenge match to replace.",
+        400,
+        "invalid_challenge_replacement"
+      );
+    }
+
+    const replacementOccurrence = this.db
+      .listQueueOccurrences(eventId)
+      .find(
+        (occurrence) =>
+          replacementEntry.occurrenceIds.includes(occurrence.id) && occurrence.racerId === racerId
+      );
+    if (!replacementOccurrence) {
+      throw new AppHttpError(
+        "Choose a queued challenge match to replace.",
+        400,
+        "invalid_challenge_replacement"
+      );
+    }
+
+    return replacementOccurrence.id;
+  }
+
   async signUpQueueForRacer(
     racerId: string,
     input: RacerQueueSignupInput
@@ -2301,14 +2373,30 @@ export class RollerRumbleApp extends EventEmitter {
       }
     }
 
-    return {
-      status: "queued",
-      snapshot: this.signUpQueue({
-        racerId,
-        opponentRacerId: input.opponentRacerId,
-        requestedType: input.requestedType
-      })
-    };
+    try {
+      return {
+        status: "queued",
+        snapshot: this.signUpQueue({
+          racerId,
+          opponentRacerId: input.opponentRacerId,
+          requestedType: input.requestedType,
+          replaceQueueEntryId: input.replaceQueueEntryId
+        })
+      };
+    } catch (error) {
+      if (error instanceof ChallengeReplacementRequiredError && input.opponentRacerId) {
+        return {
+          status: "challenge_replacement_required",
+          message:
+            "All of your queue spots are already locked challenge matches. Choose one challenge to replace, or cancel this request.",
+          opponentRacerId: input.opponentRacerId,
+          replaceableMatches: this.getChallengeReplacementOptions(activeEvent.id, racerId),
+          snapshot: this.getSnapshot()
+        };
+      }
+
+      throw error;
+    }
   }
 
   private assertStripeWebhookConfig(): string {
@@ -2350,7 +2438,8 @@ export class RollerRumbleApp extends EventEmitter {
     this.signUpQueue({
       racerId: payment.racerId,
       opponentRacerId: payment.queueIntent.opponentRacerId,
-      requestedType: payment.queueIntent.requestedType
+      requestedType: payment.queueIntent.requestedType,
+      replaceQueueEntryId: payment.queueIntent.replaceQueueEntryId
     });
   }
 
@@ -2453,6 +2542,7 @@ export class RollerRumbleApp extends EventEmitter {
     racerId: string;
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
+    replaceQueueEntryId?: string;
   }): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     const settings = this.db.getAdminSettings();
@@ -2462,6 +2552,21 @@ export class RollerRumbleApp extends EventEmitter {
     if (input.opponentRacerId) {
       this.db.ensureEventRegistration(activeEvent.id, input.opponentRacerId);
     }
+    if (input.replaceQueueEntryId && !input.opponentRacerId) {
+      throw new AppHttpError(
+        "Challenge replacement is only available for challenge matches.",
+        400,
+        "invalid_challenge_replacement"
+      );
+    }
+
+    const replaceOccurrenceId = input.replaceQueueEntryId
+      ? this.resolveChallengeReplacementOccurrenceId(
+          activeEvent.id,
+          input.racerId,
+          input.replaceQueueEntryId
+        )
+      : undefined;
     let updated: ReturnType<typeof addQueueSignup>;
     try {
       updated = addQueueSignup(this.db.listQueueOccurrences(activeEvent.id), {
@@ -2469,6 +2574,7 @@ export class RollerRumbleApp extends EventEmitter {
         racerId: input.racerId,
         opponentRacerId: input.opponentRacerId,
         requestedType: input.requestedType,
+        replaceOccurrenceId,
         occurrenceId: nanoid(),
         opponentOccurrenceId: input.opponentRacerId ? nanoid() : undefined,
         lockGroupId: input.opponentRacerId ? nanoid() : undefined,
@@ -2482,6 +2588,19 @@ export class RollerRumbleApp extends EventEmitter {
         racerStatsById
       });
     } catch (error) {
+      if (error instanceof ChallengeReplacementRequiredError) {
+        throw error;
+      }
+      if (error instanceof ChallengeTargetUnavailableError) {
+        throw new AppHttpError(
+          "That racer is already locked into challenge matches and cannot be challenged until they have room in the queue.",
+          409,
+          "challenge_target_unavailable"
+        );
+      }
+      if (error instanceof InvalidChallengeReplacementError) {
+        throw new AppHttpError(error.message, 400, "invalid_challenge_replacement");
+      }
       if (error instanceof Error && error.message.includes("maximum of")) {
         throw new AppHttpError(error.message, 409, "max_active_queue_entries");
       }

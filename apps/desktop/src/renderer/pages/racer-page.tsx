@@ -6,6 +6,7 @@ import { startAuthentication, startRegistration } from "@simplewebauthn/browser"
 import type {
   AppSnapshot,
   BracketNode,
+  ChallengeReplacementOption,
   NotificationConfig,
   PhotoBoothTokenResponse,
   RacerNotification,
@@ -55,6 +56,18 @@ type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJ
 type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
 const notificationQueuePromptStorageKey = "roller-rumble.notifications.queuePromptedAt";
 type RacerTabId = "race" | "queue" | "tournament" | "racers" | "me";
+
+interface ChallengeReplacementRequest {
+  message: string;
+  opponentRacerId: string;
+  replaceableMatches: ChallengeReplacementOption[];
+}
+
+interface QueueIssueModal {
+  eyebrow: string;
+  title: string;
+  message: string;
+}
 
 const racerTabs: Array<{ id: RacerTabId; label: string }> = [
   { id: "race", label: "Race" },
@@ -431,7 +444,9 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   const [authBusy, setAuthBusy] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [queueMessage, setQueueMessage] = useState<string | null>(null);
-  const [queueLimitModalMessage, setQueueLimitModalMessage] = useState<string | null>(null);
+  const [queueIssueModal, setQueueIssueModal] = useState<QueueIssueModal | null>(null);
+  const [challengeReplacementRequest, setChallengeReplacementRequest] =
+    useState<ChallengeReplacementRequest | null>(null);
   const [notificationMessage, setNotificationMessage] = useState<string | null>(null);
   const [notificationPromptVisible, setNotificationPromptVisible] = useState(false);
   const [deviceNotificationsEnabled, setDeviceNotificationsEnabled] = useState(false);
@@ -806,14 +821,17 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   async function handleQueueSignup(input: {
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
+    replaceQueueEntryId?: string;
   }): Promise<void> {
     const maxActiveEntries = snapshot?.settings.maxActiveQueueEntriesPerRacer ?? 3;
-    if (selectedRacerQueueEntries.length >= maxActiveEntries) {
-      setQueueLimitModalMessage(
-        `You are already queued ${String(maxActiveEntries)} time${
+    if (!input.opponentRacerId && selectedRacerQueueEntries.length >= maxActiveEntries) {
+      setQueueIssueModal({
+        eyebrow: "Queue Limit",
+        title: "Already queued",
+        message: `You are already queued ${String(maxActiveEntries)} time${
           maxActiveEntries === 1 ? "" : "s"
         }. Finish or leave one of those races before joining again.`
-      );
+      });
       return;
     }
 
@@ -833,6 +851,16 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
         window.location.assign(result.checkoutUrl);
         return;
       }
+      if (result.status === "challenge_replacement_required") {
+        setChallengeReplacementRequest({
+          message: result.message,
+          opponentRacerId: result.opponentRacerId,
+          replaceableMatches: result.replaceableMatches
+        });
+        queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+        setQueueMessage(null);
+        return;
+      }
       queryClient.setQueryData(snapshotQueryKey, result.snapshot);
       setQueueMessage(null);
       setNotificationPromptVisible(true);
@@ -842,7 +870,19 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
         return;
       }
       if (error instanceof ApiError && error.code === "max_active_queue_entries") {
-        setQueueLimitModalMessage(error.message);
+        setQueueIssueModal({
+          eyebrow: "Queue Limit",
+          title: "Already queued",
+          message: error.message
+        });
+        return;
+      }
+      if (error instanceof ApiError && error.code === "challenge_target_unavailable") {
+        setQueueIssueModal({
+          eyebrow: "Challenge Queue",
+          title: "Challenge unavailable",
+          message: error.message
+        });
         return;
       }
       throw error;
@@ -2223,7 +2263,73 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
         ) : null}
       </div>
       <AnimatePresence>
-        {queueLimitModalMessage ? (
+        {challengeReplacementRequest ? (
+          <motion.div
+            className="racer-notification-modal racer-notification-modal--challenge-replacement"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="racer-challenge-replacement-modal-title"
+          >
+            <motion.div
+              className="racer-notification-modal__card"
+              initial={{ opacity: 0, y: 28, scale: 0.97 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 18, scale: 0.98 }}
+            >
+              <button
+                type="button"
+                className="racer-notification-modal__close"
+                onClick={() => {
+                  setChallengeReplacementRequest(null);
+                }}
+              >
+                Close
+              </button>
+              <span className="racer-notification-modal__eyebrow">Challenge Queue</span>
+              <h2 id="racer-challenge-replacement-modal-title">Pick a challenge to replace</h2>
+              <p>{challengeReplacementRequest.message}</p>
+              <div className="racer-notification-modal__match-list">
+                {challengeReplacementRequest.replaceableMatches.map((match) => (
+                  <button
+                    key={match.queueEntryId}
+                    type="button"
+                    className="racer-notification-modal__match-option"
+                    onClick={() => {
+                      const opponentRacerId = challengeReplacementRequest.opponentRacerId;
+                      setChallengeReplacementRequest(null);
+                      fireAndForget(
+                        handleQueueSignup({
+                          opponentRacerId,
+                          replaceQueueEntryId: match.queueEntryId
+                        }),
+                        "replace challenge queue match"
+                      );
+                    }}
+                  >
+                    <span>Queue #{match.position}</span>
+                    <strong>vs {match.opponentDisplayName}</strong>
+                  </button>
+                ))}
+              </div>
+              <div className="racer-notification-modal__actions">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    setChallengeReplacementRequest(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
+      <AnimatePresence>
+        {queueIssueModal ? (
           <motion.div
             className="racer-notification-modal racer-notification-modal--queue-limit"
             initial={{ opacity: 0 }}
@@ -2243,19 +2349,19 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
                 type="button"
                 className="racer-notification-modal__close"
                 onClick={() => {
-                  setQueueLimitModalMessage(null);
+                  setQueueIssueModal(null);
                 }}
               >
                 Close
               </button>
-              <span className="racer-notification-modal__eyebrow">Queue Limit</span>
-              <h2 id="racer-queue-limit-modal-title">Already queued</h2>
-              <p>{queueLimitModalMessage}</p>
+              <span className="racer-notification-modal__eyebrow">{queueIssueModal.eyebrow}</span>
+              <h2 id="racer-queue-limit-modal-title">{queueIssueModal.title}</h2>
+              <p>{queueIssueModal.message}</p>
               <div className="racer-notification-modal__actions">
                 <Button
                   variant="accent"
                   onClick={() => {
-                    setQueueLimitModalMessage(null);
+                    setQueueIssueModal(null);
                   }}
                 >
                   Got it

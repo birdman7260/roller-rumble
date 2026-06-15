@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import type { QueueEntry, QueueOccurrence } from "@roller-rumble/shared/types";
 import {
   addQueueSignup,
+  ChallengeReplacementRequiredError,
+  ChallengeTargetUnavailableError,
   findNextQueuedEntry,
   projectQueueEntries,
   removeRacerFromQueue,
@@ -509,6 +511,194 @@ describe("queue service", () => {
         maxActiveOccurrencesPerRacer: 3
       })
     ).toThrow("maximum of 3 active queue entries");
+  });
+
+  it("asks a maxed challenger with only challenge matches to choose a replacement", () => {
+    const occurrences = [
+      occurrence("o1", "r1", { intent: "challenge", lockGroupId: "lock-1" }),
+      occurrence("o2", "r2", { intent: "challenge", lockGroupId: "lock-1" }),
+      occurrence("o3", "r1", { intent: "challenge", lockGroupId: "lock-2" }),
+      occurrence("o4", "r3", { intent: "challenge", lockGroupId: "lock-2" }),
+      occurrence("o5", "r1", { intent: "challenge", lockGroupId: "lock-3" }),
+      occurrence("o6", "r4", { intent: "challenge", lockGroupId: "lock-3" })
+    ];
+
+    expect(() =>
+      addQueueSignup(occurrences, {
+        eventId: "e1",
+        racerId: "r1",
+        opponentRacerId: "r5",
+        occurrenceId: "o7",
+        opponentOccurrenceId: "o8",
+        lockGroupId: "lock-4",
+        timestamp,
+        signupSequence: 7,
+        raceCountAtJoin: 0,
+        opponentRaceCountAtJoin: 0,
+        maxActiveOccurrencesPerRacer: 3
+      })
+    ).toThrow(ChallengeReplacementRequiredError);
+  });
+
+  it("replaces the selected challenge slot and keeps the former opponent queued", () => {
+    const occurrences = [
+      occurrence("o1", "r1", {
+        intent: "challenge",
+        lockGroupId: "lock-1",
+        projectedPosition: 1
+      }),
+      occurrence("o2", "r2", {
+        intent: "challenge",
+        lockGroupId: "lock-1",
+        projectedPosition: 1
+      }),
+      occurrence("o3", "r1", {
+        intent: "challenge",
+        lockGroupId: "lock-2",
+        projectedPosition: 2
+      }),
+      occurrence("o4", "r3", {
+        intent: "challenge",
+        lockGroupId: "lock-2",
+        projectedPosition: 2
+      }),
+      occurrence("o5", "r1", {
+        intent: "challenge",
+        lockGroupId: "lock-3",
+        projectedPosition: 3
+      }),
+      occurrence("o6", "r4", {
+        intent: "challenge",
+        lockGroupId: "lock-3",
+        projectedPosition: 3
+      })
+    ];
+
+    const updated = addQueueSignup(occurrences, {
+      eventId: "e1",
+      racerId: "r1",
+      opponentRacerId: "r5",
+      replaceOccurrenceId: "o3",
+      occurrenceId: "o7",
+      opponentOccurrenceId: "o8",
+      lockGroupId: "lock-4",
+      timestamp,
+      signupSequence: 7,
+      raceCountAtJoin: 0,
+      opponentRaceCountAtJoin: 0,
+      maxActiveOccurrencesPerRacer: 3
+    });
+    const result = project(updated);
+
+    expect(result.entries[1]).toMatchObject({
+      requestedType: "match",
+      lockType: "challenge",
+      racerIds: ["r1", "r5"],
+      occurrenceIds: ["o3", "o8"]
+    });
+    expect(result.entries[2]).toMatchObject({
+      requestedType: "auto-match",
+      racerIds: ["r3"]
+    });
+  });
+
+  it("uses the opponent's earlier flexible slot even after the challenger chooses a replacement", () => {
+    const occurrences = [
+      occurrence("o1", "r6", { projectedPosition: 1, signupSequence: 1 }),
+      occurrence("o2", "r7", { projectedPosition: 1, signupSequence: 2 }),
+      occurrence("o3", "r1", {
+        intent: "challenge",
+        lockGroupId: "lock-1",
+        projectedPosition: 2,
+        signupSequence: 3
+      }),
+      occurrence("o4", "r2", {
+        intent: "challenge",
+        lockGroupId: "lock-1",
+        projectedPosition: 2,
+        signupSequence: 4
+      }),
+      occurrence("o5", "r1", {
+        intent: "challenge",
+        lockGroupId: "lock-2",
+        projectedPosition: 3,
+        signupSequence: 5
+      }),
+      occurrence("o6", "r3", {
+        intent: "challenge",
+        lockGroupId: "lock-2",
+        projectedPosition: 3,
+        signupSequence: 6
+      }),
+      occurrence("o7", "r1", {
+        intent: "challenge",
+        lockGroupId: "lock-3",
+        projectedPosition: 4,
+        signupSequence: 7
+      }),
+      occurrence("o8", "r4", {
+        intent: "challenge",
+        lockGroupId: "lock-3",
+        projectedPosition: 4,
+        signupSequence: 8
+      })
+    ];
+
+    const updated = addQueueSignup(occurrences, {
+      eventId: "e1",
+      racerId: "r1",
+      opponentRacerId: "r6",
+      replaceOccurrenceId: "o5",
+      occurrenceId: "o9",
+      opponentOccurrenceId: "o10",
+      lockGroupId: "lock-4",
+      timestamp,
+      signupSequence: 9,
+      raceCountAtJoin: 0,
+      opponentRaceCountAtJoin: 0,
+      maxActiveOccurrencesPerRacer: 3
+    });
+    const result = project(updated);
+
+    expect(result.entries[0]).toMatchObject({
+      requestedType: "match",
+      lockType: "challenge",
+      racerIds: ["r6", "r1"],
+      occurrenceIds: ["o1", "o5"]
+    });
+    expect(result.entries[1]).toMatchObject({
+      requestedType: "auto-match",
+      racerIds: ["r7", "r3"]
+    });
+  });
+
+  it("rejects challenges against a target whose active queue is only challenge matches", () => {
+    const occurrences = [
+      occurrence("o1", "r9", { projectedPosition: 1 }),
+      occurrence("o2", "r10", { projectedPosition: 1 }),
+      occurrence("o3", "r1", { intent: "challenge", lockGroupId: "lock-1" }),
+      occurrence("o4", "r2", { intent: "challenge", lockGroupId: "lock-1" }),
+      occurrence("o5", "r1", { intent: "challenge", lockGroupId: "lock-2" }),
+      occurrence("o6", "r3", { intent: "challenge", lockGroupId: "lock-2" }),
+      occurrence("o7", "r1", { intent: "challenge", lockGroupId: "lock-3" }),
+      occurrence("o8", "r4", { intent: "challenge", lockGroupId: "lock-3" })
+    ];
+
+    expect(() =>
+      addQueueSignup(occurrences, {
+        eventId: "e1",
+        racerId: "r9",
+        opponentRacerId: "r1",
+        occurrenceId: "o11",
+        opponentOccurrenceId: "o12",
+        lockGroupId: "lock-4",
+        timestamp,
+        signupSequence: 11,
+        raceCountAtJoin: 0,
+        opponentRaceCountAtJoin: 0,
+        maxActiveOccurrencesPerRacer: 3
+      })
+    ).toThrow(ChallengeTargetUnavailableError);
   });
 
   it("rejects signups above the configured per-racer active queue limit", () => {

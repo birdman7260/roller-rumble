@@ -9,18 +9,22 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Added
 
 - Projector display settings now include quick buttons to resize the race window to 720p or 1080p for layout checks.
+- Racers who are maxed out only by locked challenge matches now get a modal to choose which queued challenge to replace when creating a new challenge.
 
 ### Changed
 
+- Challenge placement now reuses the opponent's sooner flexible queue spot when available, otherwise the challenger's selected replacement challenge spot, while keeping the previous opponent in the flexible queue.
 - Reworked the horizontal projector layout so the title, main stage, Fiercely Local footer, and ticker stay visible down to 720p.
 - Rebalanced staged race lanes so racer details cards, avatars, stats, and race indicators fit more cleanly at 720p and 1080p.
 - Removed the visible URL text from the projector QR card and enlarged the QR so it fills the right side of the card.
 - Winner results now use the full projector screen with spacing while keeping the bottom ticker visible.
 - The URL on the QR code page is removed.
+- More logic for queueing and challenging
 
 ### Fixed
 
 - Removed negative letter spacing from large projector text so title, signup, and winner text no longer has letters touching.
+- Racers who are already fully locked into challenge matches can no longer be silently displaced by someone else's challenge; the challenger now sees an unavailable message.
 - Improved race sprite marker positioning so animated racers stay fully inside their race indicators.
 - The QR display works at different screen sizes now.
 

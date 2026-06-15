@@ -36,6 +36,9 @@ tournament operation, and the Raspberry Pi photo booth workflow.
   constantly re-sorting the lineup
 - Places challenge matches at the soonest existing flexible queue spot when either racer is already
   waiting, reusing both racers' existing queue occurrences when both are already queued
+- Lets a max-queued racer who is only in locked challenge matches pick which queued challenge to
+  replace when they challenge someone else; the former opponent stays in the flexible queue, and
+  racers who are fully challenge-locked cannot be challenged by others until they have room
 - Protects the first three derived races from being bumped by new queue insertions
 - Uses filter-as-you-type racer pickers when admins or racers choose matchup participants
 - Reflows the racer-page queue and challenge controls for narrow phone screens so buttons and the
@@ -237,6 +240,7 @@ the racer page with that notification selected so the matching in-app modal appe
   - payment-aware queue signup
   - Web Push opt-in plus full-screen in-page notification modals
   - challenge signup from Race controls or the Racers tab
+  - a challenge replacement picker when every active queue spot is already a locked challenge
   - upcoming races, with the Race tab previewing the next three open queue matches and linking to
     the full Queue tab when more are waiting
   - racer list with inline expanded stats for each event racer

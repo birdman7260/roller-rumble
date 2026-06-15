@@ -642,16 +642,32 @@ export interface QueueSignupInput {
   racerId: string;
   opponentRacerId?: string;
   requestedType?: "solo" | "auto-match";
+  replaceQueueEntryId?: string;
 }
 
 export interface RacerQueueSignupInput {
   opponentRacerId?: string;
   requestedType?: "solo" | "auto-match";
+  replaceQueueEntryId?: string;
+}
+
+export interface ChallengeReplacementOption {
+  queueEntryId: string;
+  position: number;
+  opponentRacerId: string;
+  opponentDisplayName: string;
 }
 
 export type RacerQueueSignupResponse =
   | {
       status: "queued";
+      snapshot: AppSnapshot;
+    }
+  | {
+      status: "challenge_replacement_required";
+      message: string;
+      opponentRacerId: string;
+      replaceableMatches: ChallengeReplacementOption[];
       snapshot: AppSnapshot;
     }
   | {

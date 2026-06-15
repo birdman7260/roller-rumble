@@ -597,6 +597,14 @@ Requirements:
 - When either or both racers in a new challenge already have flexible queued occurrences, the
   challenge must reuse the existing occurrence that is soonest to race and place the locked match at
   that spot. If both racers are already queued, both existing occurrences are reused. `Implemented`
+- If a racer is already at the active queue limit but all of their active queue occurrences are
+  locked challenges, they may still challenge another racer by choosing which queued challenge match
+  to replace. The new challenge uses the opponent's sooner flexible spot when one exists; otherwise
+  it uses the selected replacement spot. The former opponent from the replaced challenge remains in
+  the flexible queue. `Implemented`
+- If a target racer is already at the active queue limit and all of their active queue occurrences
+  are locked challenges, other racers must see an unavailable message instead of being allowed to
+  replace that racer's challenges. `Implemented`
 - Priority must be used when a new single slot or new locked challenge slot enters the queue, not to
   continuously re-sort the whole queue. New-racer priority can insert ahead of lower-priority slots,
   but slots bumped too often gain priority and eventually stop being skipped. `Implemented`

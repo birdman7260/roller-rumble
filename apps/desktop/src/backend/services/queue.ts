@@ -18,6 +18,7 @@ interface QueueSignupInput {
   racerId: string;
   opponentRacerId?: string;
   requestedType?: "solo" | "auto-match";
+  replaceOccurrenceId?: string;
   occurrenceId: string;
   opponentOccurrenceId?: string;
   lockGroupId?: string;
@@ -54,6 +55,24 @@ const ACTIVE_OCCURRENCE_STATUSES = new Set<QueueOccurrence["status"]>([
 ]);
 const PROTECTED_DERIVED_MATCH_COUNT = 3;
 
+export class ChallengeReplacementRequiredError extends Error {
+  constructor(readonly racerId: string) {
+    super("Choose one of your existing challenge matches to replace.");
+  }
+}
+
+export class ChallengeTargetUnavailableError extends Error {
+  constructor(readonly racerId: string) {
+    super("That racer is already locked into challenge matches and cannot be challenged yet.");
+  }
+}
+
+export class InvalidChallengeReplacementError extends Error {
+  constructor() {
+    super("Choose a valid queued challenge match to replace.");
+  }
+}
+
 export function reindexQueue(entries: QueueEntry[]): QueueEntry[] {
   return [...entries]
     .sort((left, right) => left.position - right.position)
@@ -75,6 +94,26 @@ function countActiveOccurrences(occurrences: QueueOccurrence[], racerId: string)
   ).length;
 }
 
+function getActiveOccurrences(occurrences: QueueOccurrence[], racerId: string): QueueOccurrence[] {
+  return occurrences.filter(
+    (occurrence) =>
+      occurrence.racerId === racerId && ACTIVE_OCCURRENCE_STATUSES.has(occurrence.status)
+  );
+}
+
+function hasOnlyActiveChallengeOccurrences(
+  occurrences: QueueOccurrence[],
+  racerId: string
+): boolean {
+  const activeOccurrences = getActiveOccurrences(occurrences, racerId);
+  return (
+    activeOccurrences.length > 0 &&
+    activeOccurrences.every(
+      (occurrence) => occurrence.intent === "challenge" && Boolean(occurrence.lockGroupId)
+    )
+  );
+}
+
 function assertCanAddOccurrence(
   occurrences: QueueOccurrence[],
   racerId: string,
@@ -85,6 +124,29 @@ function assertCanAddOccurrence(
       `Racer already has the maximum of ${String(maxActiveOccurrencesPerRacer)} active queue entries.`
     );
   }
+}
+
+function assertCanAddChallengeOccurrence(
+  occurrences: QueueOccurrence[],
+  racerId: string,
+  maxActiveOccurrencesPerRacer: number,
+  role: "challenger" | "opponent"
+): void {
+  if (countActiveOccurrences(occurrences, racerId) < maxActiveOccurrencesPerRacer) {
+    return;
+  }
+
+  if (hasOnlyActiveChallengeOccurrences(occurrences, racerId)) {
+    if (role === "challenger") {
+      throw new ChallengeReplacementRequiredError(racerId);
+    }
+
+    throw new ChallengeTargetUnavailableError(racerId);
+  }
+
+  throw new Error(
+    `Racer already has the maximum of ${String(maxActiveOccurrencesPerRacer)} active queue entries.`
+  );
 }
 
 function createOccurrence(input: {
@@ -425,6 +487,47 @@ function findFlexibleAnchor(
   return null;
 }
 
+function findChallengeReplacementAnchor(
+  slots: QueueSlot[],
+  racerId: string,
+  occurrenceId: string
+): { occurrence: QueueOccurrence; slotIndex: number } | null {
+  for (const [slotIndex, slot] of slots.entries()) {
+    if (slot.kind !== "challenge") {
+      continue;
+    }
+
+    const occurrence = slot.occurrences.find(
+      (candidate) => candidate.id === occurrenceId && candidate.racerId === racerId
+    );
+    if (occurrence) {
+      return { occurrence, slotIndex };
+    }
+  }
+
+  return null;
+}
+
+function releaseReplacementSlotRemainder(
+  slot: QueueSlot,
+  replacedOccurrenceId: string,
+  timestamp: string,
+  racerStatsById: Map<string, QueueRacerStats>
+): QueueSlot | null {
+  const remainingOccurrences = slot.occurrences
+    .filter((occurrence) => occurrence.id !== replacedOccurrenceId)
+    .map((occurrence) => ({
+      ...occurrence,
+      intent: "auto-match" as const,
+      lockGroupId: null,
+      updatedAt: timestamp
+    }));
+
+  return remainingOccurrences.length > 0
+    ? createQueueSlot("auto-match", remainingOccurrences, racerStatsById)
+    : null;
+}
+
 export function addQueueSignup(
   occurrences: QueueOccurrence[],
   input: QueueSignupInput
@@ -466,23 +569,32 @@ export function addQueueSignup(
     return mergeOccurrencesWithSlots(normalizedOccurrences, nextSlots, input.timestamp);
   }
 
-  const challengerAnchor = findFlexibleAnchor(slots, input.racerId);
+  const replacementAnchor = input.replaceOccurrenceId
+    ? findChallengeReplacementAnchor(slots, input.racerId, input.replaceOccurrenceId)
+    : null;
+  if (input.replaceOccurrenceId && !replacementAnchor) {
+    throw new InvalidChallengeReplacementError();
+  }
+
+  const challengerAnchor = replacementAnchor ?? findFlexibleAnchor(slots, input.racerId);
   const opponentAnchor = findFlexibleAnchor(slots, input.opponentRacerId);
   const needsChallengerOccurrence = challengerAnchor === null;
   const needsOpponentOccurrence = opponentAnchor === null;
 
   if (needsChallengerOccurrence) {
-    assertCanAddOccurrence(
+    assertCanAddChallengeOccurrence(
       normalizedOccurrences,
       input.racerId,
-      input.maxActiveOccurrencesPerRacer
+      input.maxActiveOccurrencesPerRacer,
+      "challenger"
     );
   }
   if (needsOpponentOccurrence) {
-    assertCanAddOccurrence(
+    assertCanAddChallengeOccurrence(
       normalizedOccurrences,
       input.opponentRacerId,
-      input.maxActiveOccurrencesPerRacer
+      input.maxActiveOccurrencesPerRacer,
+      "opponent"
     );
   }
 
@@ -531,7 +643,19 @@ export function addQueueSignup(
   if (anchorSlotIndexes.length > 0) {
     const anchorIndex = Math.min(...anchorSlotIndexes);
     const anchorIndexSet = new Set(anchorSlotIndexes);
-    const remainingSlots = slots.filter((_slot, index) => !anchorIndexSet.has(index));
+    const remainingSlots = slots.flatMap((slot, index) => {
+      if (replacementAnchor && index === replacementAnchor.slotIndex) {
+        const remainder = releaseReplacementSlotRemainder(
+          slot,
+          replacementAnchor.occurrence.id,
+          input.timestamp,
+          racerStatsById
+        );
+        return remainder ? [remainder] : [];
+      }
+
+      return anchorIndexSet.has(index) ? [] : [slot];
+    });
 
     remainingSlots.splice(anchorIndex, 0, challengeSlot);
     return mergeOccurrencesWithSlots(normalizedOccurrences, remainingSlots, input.timestamp);
