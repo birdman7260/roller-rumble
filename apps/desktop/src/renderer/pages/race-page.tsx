@@ -298,13 +298,7 @@ function RaceTicker({
   );
 }
 
-function RacerSignupPrompt({
-  qrCodeDataUrl,
-  racerPageUrl
-}: {
-  qrCodeDataUrl?: string;
-  racerPageUrl: string;
-}) {
+function RacerSignupPrompt({ qrCodeDataUrl }: { qrCodeDataUrl?: string }) {
   return (
     <Panel className="panel--glass race-page__signup-prompt">
       <div className="race-page__signup-copy">
@@ -319,7 +313,6 @@ function RacerSignupPrompt({
           <div className="race-page__signup-qr race-page__signup-qr--loading">Preparing QR</div>
         )}
       </div>
-      <div className="race-page__signup-url">{racerPageUrl}</div>
     </Panel>
   );
 }
@@ -606,7 +599,6 @@ export function RacePage() {
   // projector layout instead of inheriting the current theme's horizontal/vertical race-track
   // geometry. The bottom ticker still communicates any queued upcoming races.
   const showSignupPrompt = !bracketBundle && displayRace == null;
-  const racerPageUrl = meta?.racerPageUrl ?? snapshot.tunnel.publicUrl ?? "/racer";
 
   return (
     <div
@@ -690,7 +682,7 @@ export function RacePage() {
               laneColorsFlipped={snapshot.settings.raceDisplayLaneColorsFlipped}
             />
           ) : showSignupPrompt ? (
-            <RacerSignupPrompt qrCodeDataUrl={meta?.qrCodeDataUrl} racerPageUrl={racerPageUrl} />
+            <RacerSignupPrompt qrCodeDataUrl={meta?.qrCodeDataUrl} />
           ) : !bracketBundle ? (
             <Panel className="panel--glass">
               <EmptyState

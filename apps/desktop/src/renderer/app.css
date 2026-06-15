@@ -1481,11 +1481,12 @@ p {
 
 .race-page__signup-prompt {
   --ui-panel-padding: clamp(1.4rem, 3vw, 3rem);
+  --race-signup-qr-column: 36%;
   justify-self: center;
   width: min(84rem, 100%);
   height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(16rem, 0.75fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, var(--race-signup-qr-column));
   gap: clamp(1.4rem, 3vw, 3rem);
   align-items: center;
   border-width: 0.14rem;
@@ -1522,13 +1523,18 @@ p {
 }
 
 .race-page__signup-qr-wrap {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  min-height: 0;
   display: grid;
+  align-items: center;
   justify-items: center;
   gap: 0.9rem;
 }
 
 .race-page__signup-qr {
-  width: min(24rem, 100%);
+  width: min(100%, 64vh, calc(100vh - 16rem));
   aspect-ratio: 1;
   padding: clamp(0.7rem, 1.3vw, 1.1rem);
   border-radius: 1.2rem;
@@ -1548,14 +1554,16 @@ p {
   text-transform: uppercase;
 }
 
-.race-page__signup-url {
-  grid-column: 1 / -1;
-  overflow-wrap: anywhere;
-  color: var(--theme-text-muted);
-  font-size: clamp(0.9rem, 1.4vw, 1.4rem);
-  font-weight: 800;
-  letter-spacing: 0.06em;
-  text-align: center;
+@media (max-width: 1500px) {
+  .race-page__signup-prompt {
+    --race-signup-qr-column: 44%;
+  }
+}
+
+@media (max-width: 1100px) {
+  .race-page__signup-prompt {
+    --race-signup-qr-column: 50%;
+  }
 }
 
 .countdown-overlay {
@@ -3450,14 +3458,6 @@ button.tournament-match-node:active {
 
   .race-page__signup-copy p {
     font-size: clamp(1rem, 1.7vw, 1.5rem);
-  }
-
-  .race-page__signup-qr {
-    width: min(16rem, 100%);
-  }
-
-  .race-page__signup-url {
-    font-size: clamp(0.72rem, 1vw, 1rem);
   }
 
   .countdown-overlay {

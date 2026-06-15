@@ -14,12 +14,15 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 - Reworked the horizontal projector layout so the title, main stage, Fiercely Local footer, and ticker stay visible down to 720p.
 - Rebalanced staged race lanes so racer details cards, avatars, stats, and race indicators fit more cleanly at 720p and 1080p.
+- Removed the visible URL text from the projector QR card and enlarged the QR so it fills the right side of the card.
 - Winner results now use the full projector screen with spacing while keeping the bottom ticker visible.
+- The URL on the QR code page is removed.
 
 ### Fixed
 
 - Removed negative letter spacing from large projector text so title, signup, and winner text no longer has letters touching.
 - Improved race sprite marker positioning so animated racers stay fully inside their race indicators.
+- The QR display works at different screen sizes now.
 
 ## 0.1.7 - 2026-06-11
 
