@@ -48,6 +48,13 @@ export type TournamentBracketSize = (typeof TOURNAMENT_BRACKET_SIZES)[number];
 export type TournamentBracketLayoutMode = (typeof TOURNAMENT_BRACKET_LAYOUT_MODES)[number];
 export type TournamentStatus = (typeof TOURNAMENT_STATUSES)[number];
 export type TournamentStageKind = (typeof TOURNAMENT_STAGE_KINDS)[number];
+export type ProjectorWindowSizePreset = "720p" | "1080p";
+
+export interface ProjectorWindowResizeResult {
+  preset: ProjectorWindowSizePreset;
+  width: number;
+  height: number;
+}
 
 export interface Identity {
   id: string;

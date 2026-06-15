@@ -4,6 +4,10 @@ import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, screen, shell } from "electron";
 import { loadDotenvFiles } from "../backend/env";
 import { createBackendServer, type BackendServer } from "../backend/server";
+import type {
+  ProjectorWindowResizeResult,
+  ProjectorWindowSizePreset
+} from "@roller-rumble/shared/types";
 
 let backend: BackendServer | null = null;
 let adminWindow: BrowserWindow | null = null;
@@ -92,6 +96,34 @@ function wireWindowDebugging(window: BrowserWindow, label: string): void {
   });
 }
 
+function resizeRaceWindow(preset: ProjectorWindowSizePreset): ProjectorWindowResizeResult {
+  if (!raceWindow || raceWindow.isDestroyed()) {
+    throw new Error("The projector window is not open.");
+  }
+
+  const size = preset === "720p" ? { width: 1280, height: 720 } : { width: 1920, height: 1080 };
+  const currentBounds = raceWindow.getBounds();
+  const display = screen.getDisplayMatching(currentBounds);
+  const { workArea } = display;
+  const xOffset = Math.max(0, (workArea.width - size.width) / 2);
+  const yOffset = Math.max(0, (workArea.height - size.height) / 2);
+
+  raceWindow.setFullScreen(false);
+  raceWindow.unmaximize();
+  raceWindow.setBounds({
+    width: size.width,
+    height: size.height,
+    x: Math.round(workArea.x + xOffset),
+    y: Math.round(workArea.y + yOffset)
+  });
+  raceWindow.focus();
+
+  return {
+    preset,
+    ...size
+  };
+}
+
 async function createWindows(port: number): Promise<void> {
   const rendererUrl = process.env.ELECTRON_RENDERER_URL;
   const baseUrl = rendererUrl ?? `http://127.0.0.1:${port}`;
@@ -155,6 +187,7 @@ async function bootstrap(): Promise<void> {
     openExternalUrl: (url) => shell.openExternal(url),
     openPath: (filePath) => shell.openPath(filePath),
     port: Number(process.env.ROLLER_RUMBLE_PORT ?? "3187"),
+    resizeProjectorWindow: async (preset) => resizeRaceWindow(preset),
     rendererDistDir: resolveRendererDistDir(),
     rendererDevUrl: process.env.ELECTRON_RENDERER_URL,
     runtimeEnvFilePath: resolveRuntimeEnvFilePath()

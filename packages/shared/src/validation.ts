@@ -90,6 +90,10 @@ export const updateEventPaymentConfigSchema = z.object({
   paymentCurrency: z.string().trim().toLowerCase().length(3).optional()
 });
 
+export const projectorWindowResizeSchema = z.object({
+  preset: z.enum(["720p", "1080p"])
+});
+
 export const startTournamentSchema = z.object({
   name: z.string().trim().min(1).max(120),
   preset: z.enum(SUPPORTED_TOURNAMENT_PRESETS),

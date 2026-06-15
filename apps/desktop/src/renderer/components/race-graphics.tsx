@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "framer-motion";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   RaceMetricsSnapshot,
   RacerSummary,
@@ -7,6 +7,7 @@ import type {
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { RaceSpriteAvatar } from "./race-sprite-avatar";
+import { getRaceSpriteDisplaySize } from "./race-sprite-sizing";
 
 interface RaceGraphicProps {
   theme: ThemeDefinition;
@@ -19,6 +20,26 @@ interface RaceGraphicProps {
 type RaceLaneColor = "orange" | "purple";
 
 const FALLBACK_MIN_NAME_FONT_SIZE_PX = 22;
+
+function useViewportHeight(): number {
+  const [height, setHeight] = useState(() =>
+    typeof window === "undefined" ? 1080 : window.innerHeight
+  );
+
+  useEffect(() => {
+    function handleResize(): void {
+      setHeight(window.innerHeight);
+    }
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return height;
+}
 
 function progress(distanceMeters: number, targetDistanceMeters: number): number {
   return Math.max(0, Math.min(100, (distanceMeters / targetDistanceMeters) * 100));
@@ -33,6 +54,14 @@ function resolveMetric(
 
 function formatSpeed(value: number | undefined): string {
   return `${(value ?? 0).toFixed(1)} km/h`;
+}
+
+function getHorizontalMarkerPosition(percentageValue: string, spriteWidthRem: number): string {
+  return `clamp(0rem, calc(${percentageValue} - ${spriteWidthRem / 2}rem), calc(100% - ${spriteWidthRem}rem))`;
+}
+
+function getVerticalMarkerPosition(percentageValue: string, spriteHeightRem: number): string {
+  return `clamp(0rem, calc(${percentageValue} - ${spriteHeightRem / 2}rem), calc(100% - ${spriteHeightRem}rem))`;
 }
 
 function getLaneColor(index: number, laneColorsFlipped: boolean): RaceLaneColor {
@@ -177,9 +206,10 @@ export function RaceGraphic({
   laneColorsFlipped
 }: RaceGraphicProps) {
   const prefersReducedMotion = useReducedMotion();
+  const viewportHeight = useViewportHeight();
   const { raceGraphic } = theme;
-  const spriteDisplayHeightRem = theme.orientation === "vertical" ? 4.5 : 5.4;
-  const spriteOffsetRem = spriteDisplayHeightRem / 2;
+  const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;
+  const spriteDisplayHeightRem = (theme.orientation === "vertical" ? 4.5 : 5.4) * spriteScale;
   // Keep one shared motion profile across themes so each graphic can style itself
   // differently without feeling like a completely different timing system.
   const progressTransition = prefersReducedMotion
@@ -198,6 +228,12 @@ export function RaceGraphic({
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
+          const spriteSize = getRaceSpriteDisplaySize({
+            displayHeightRem: spriteDisplayHeightRem,
+            metric,
+            theme
+          });
+          const markerBottom = getVerticalMarkerPosition(percentageValue, spriteSize.heightRem);
           return (
             <div
               key={entry.racer.id}
@@ -215,9 +251,9 @@ export function RaceGraphic({
                   className="climb-lane__rider"
                   data-race-motion="true"
                   initial={false}
-                  animate={{ bottom: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                  animate={{ bottom: markerBottom }}
                   transition={progressTransition}
-                  style={{ bottom: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                  style={{ bottom: markerBottom }}
                 >
                   <RaceSpriteAvatar
                     displayHeightRem={spriteDisplayHeightRem}
@@ -246,6 +282,12 @@ export function RaceGraphic({
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
+          const spriteSize = getRaceSpriteDisplaySize({
+            displayHeightRem: spriteDisplayHeightRem,
+            metric,
+            theme
+          });
+          const markerLeft = getHorizontalMarkerPosition(percentageValue, spriteSize.widthRem);
 
           return (
             <div
@@ -269,9 +311,9 @@ export function RaceGraphic({
                   className="ledger-lane__marker"
                   data-race-motion="true"
                   initial={false}
-                  animate={{ left: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                  animate={{ left: markerLeft }}
                   transition={progressTransition}
-                  style={{ left: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                  style={{ left: markerLeft }}
                 >
                   <RaceSpriteAvatar
                     displayHeightRem={spriteDisplayHeightRem}
@@ -295,6 +337,12 @@ export function RaceGraphic({
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
+          const spriteSize = getRaceSpriteDisplaySize({
+            displayHeightRem: spriteDisplayHeightRem,
+            metric,
+            theme
+          });
+          const markerLeft = getHorizontalMarkerPosition(percentageValue, spriteSize.widthRem);
           return (
             <div
               key={entry.racer.id}
@@ -317,9 +365,9 @@ export function RaceGraphic({
                   className="wagon-lane__marker"
                   data-race-motion="true"
                   initial={false}
-                  animate={{ left: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                  animate={{ left: markerLeft }}
                   transition={progressTransition}
-                  style={{ left: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                  style={{ left: markerLeft }}
                 >
                   <RaceSpriteAvatar
                     displayHeightRem={spriteDisplayHeightRem}
@@ -342,6 +390,12 @@ export function RaceGraphic({
         const metric = resolveMetric(metrics, entry.racer.id);
         const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
         const percentageValue = `${percentage.toFixed(2)}%`;
+        const spriteSize = getRaceSpriteDisplaySize({
+          displayHeightRem: spriteDisplayHeightRem,
+          metric,
+          theme
+        });
+        const markerLeft = getHorizontalMarkerPosition(percentageValue, spriteSize.widthRem);
         return (
           <div
             key={entry.racer.id}
@@ -363,9 +417,9 @@ export function RaceGraphic({
                 className="track-lane__marker"
                 data-race-motion="true"
                 initial={false}
-                animate={{ left: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                animate={{ left: markerLeft }}
                 transition={progressTransition}
-                style={{ left: `calc(${percentageValue} - ${spriteOffsetRem}rem)` }}
+                style={{ left: markerLeft }}
               >
                 <RaceSpriteAvatar
                   displayHeightRem={spriteDisplayHeightRem}

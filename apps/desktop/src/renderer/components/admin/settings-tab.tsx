@@ -1,6 +1,10 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
-import type { AdminNotificationTargetType, AppSnapshot } from "@roller-rumble/shared/types";
+import type {
+  AdminNotificationTargetType,
+  AppSnapshot,
+  ProjectorWindowSizePreset
+} from "@roller-rumble/shared/types";
 import { Button, Panel, StatPill } from "@roller-rumble/shared-ui";
 import {
   ensureRuntimeEnvFile,
@@ -9,6 +13,7 @@ import {
   openLabPage,
   openRuntimeEnvFile,
   rotatePhotoBoothPairing,
+  resizeProjectorWindow,
   sendAdminNotification,
   startTunnel,
   stopTunnel,
@@ -132,6 +137,9 @@ export function SettingsTab({
   const [runtimeEnvWorking, setRuntimeEnvWorking] = useState(false);
   const [runtimeEnvStatus, setRuntimeEnvStatus] = useState<string | null>(null);
   const [labOpenStatus, setLabOpenStatus] = useState<string | null>(null);
+  const [projectorWindowWorking, setProjectorWindowWorking] =
+    useState<ProjectorWindowSizePreset | null>(null);
+  const [projectorWindowStatus, setProjectorWindowStatus] = useState<string | null>(null);
   const [notificationTargetType, setNotificationTargetType] =
     useState<AdminNotificationTargetType>("event");
   const [notificationRacerIds, setNotificationRacerIds] = useState<string[]>([]);
@@ -185,6 +193,22 @@ export function SettingsTab({
     setLabOpenStatus(null);
     const result = await openLabPage(labId);
     setLabOpenStatus(`Opened ${result.url}`);
+  }
+
+  async function resizeProjectorFromAdmin(preset: ProjectorWindowSizePreset): Promise<void> {
+    setProjectorWindowWorking(preset);
+    setProjectorWindowStatus(null);
+    try {
+      const result = await resizeProjectorWindow(preset);
+      setProjectorWindowStatus(`Projector window set to ${result.width}x${result.height}.`);
+    } catch (error) {
+      setProjectorWindowStatus(
+        error instanceof Error ? error.message : "Projector window could not be resized."
+      );
+      throw error;
+    } finally {
+      setProjectorWindowWorking(null);
+    }
   }
 
   async function sendNotificationFromAdmin(): Promise<void> {
@@ -298,6 +322,30 @@ export function SettingsTab({
 
       <Panel title="Projector Display">
         <div className="form-grid">
+          <div className="stack-sm">
+            <p>Resize the projector window for quick 720p or 1080p layout checks.</p>
+            <div className="panel-action-row settings-panel__actions">
+              <Button
+                variant="ghost"
+                disabled={projectorWindowWorking !== null}
+                onClick={() => {
+                  fireAndForget(resizeProjectorFromAdmin("720p"), "resize projector to 720p");
+                }}
+              >
+                {projectorWindowWorking === "720p" ? "Resizing..." : "720p (1280x720)"}
+              </Button>
+              <Button
+                variant="ghost"
+                disabled={projectorWindowWorking !== null}
+                onClick={() => {
+                  fireAndForget(resizeProjectorFromAdmin("1080p"), "resize projector to 1080p");
+                }}
+              >
+                {projectorWindowWorking === "1080p" ? "Resizing..." : "1080p (1920x1080)"}
+              </Button>
+            </div>
+            {projectorWindowStatus ? <p>{projectorWindowStatus}</p> : null}
+          </div>
           <label className="toggle">
             <input
               type="checkbox"

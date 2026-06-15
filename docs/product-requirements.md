@@ -301,13 +301,26 @@ Requirements:
 - The display must show solo and two-rider races. `Implemented`
 - The race visualization must support horizontal or vertical layouts depending on theme.
   `Implemented`
-- Projector layout must be optimized for a likely `1080p` display with large audience-readable
-  text and minimal non-race chrome. `Implemented`
+- Projector layout must treat `1280x720` and `1920x1080` as first-class full-screen targets, with
+  large audience-readable text and minimal non-race chrome. `Implemented`
+- Projector content must remain fully visible down to `720p`: active race lanes, rider markers,
+  signup QR cards, tournament/bracket areas, bottom ticker, and sponsor/brand marks must not be
+  cropped out of the viewport. Elements should dynamically reduce spacing, type size, sprite size,
+  and track/header proportions instead of relying on fixed desktop-sized chrome. `Implemented`
+- Large projector display text must not use negative letter spacing. It should rely on the selected
+  font's normal kerning so title, signup, and winner text never has touching letters. `Implemented`
+- Horizontal projector themes must reserve visible screen regions for the title, full-height main
+  stage, footer mark, and ticker. The main stage must fill the available space between the title
+  and footer/ticker and contain the QR card, race card, or bracket card. `Implemented`
 - Horizontal race themes must show `Roller Rumble` centered at the top, optionally show the active
   event name underneath, let the race lanes fill the main middle area, and show a centered
   `Fiercely Local` footer with a real logo asset between the words. The logo should be loaded from
   the desktop public brand asset directory with SVG preferred and raster fallbacks supported.
   `Implemented`
+- Horizontal staged races must split the race card into equal-height race lanes. Each lane must
+  span the race card width, contain a full-width racer details card followed by a full-width race
+  indicator, keep the racer identity at the start, keep live statistics at the end, and prevent the
+  race indicator from absorbing leftover vertical space. `Implemented`
 - Vertical race themes must show `Roller Rumble` and the optional event name in the top-left,
   `Fiercely Local` with the same logo asset in the top-right, keep the race indicator centered
   from top to bottom, and keep racer identity and stats inside each lane rather than in separate
@@ -325,6 +338,8 @@ Requirements:
   to a visible starting position during normal operation. `Implemented`
 - Admin must be able to control projector ticker scroll speed with a slider in projector display
   settings. `Implemented`
+- Admin must be able to resize the projector window to `1280x720` or `1920x1080` from projector
+  display settings for quick layout checks. `Implemented`
 - When no race is staged and no tournament bracket is being shown, the projector display should
   show a large racer-page QR code with audience messaging that encourages people to scan, register,
   and sign up, even if there are already upcoming queue entries. This prompt should be centered in
@@ -357,8 +372,9 @@ Requirements:
   than one event. Missing avatars should not render placeholder imagery or reserve avatar space. The
   cards should use the same orange/purple lane color roles as the race lanes, including the admin
   flip-lane-colors setting. The winning card should be highlighted and slightly larger. The modal
-  should remain up for 15 seconds by default, and the admin should be able to choose `Move On` to
-  dismiss it early.
+  may use the full projector screen with appropriate spacing, but it must never cover the bottom
+  ticker. It should remain up for 15 seconds by default, and the admin should be able to choose
+  `Move On` to dismiss it early.
   While the modal is active, the completed race should remain frozen behind it and the app should
   not transition to the next race or tournament bracket handoff until the modal clears.
   If open-time-trial auto-stage is enabled, the next race should stage when this modal clears, not

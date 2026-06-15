@@ -14,6 +14,8 @@ import type {
   PasskeyRegistrationStartInput,
   PasskeyRegistrationStartResponse,
   PasskeySignInStartResponse,
+  ProjectorWindowResizeResult,
+  ProjectorWindowSizePreset,
   QueueSignupInput,
   RacerAuthSessionResponse,
   RacerAuthSuccessResponse,
@@ -159,6 +161,18 @@ export async function openLabPage(labId: "bracket" | "notification" | "queue"): 
   url: string;
 }> {
   return parseJson(await fetch(buildUrl(`/api/labs/${labId}/open`), { method: "POST" }));
+}
+
+export async function resizeProjectorWindow(
+  preset: ProjectorWindowSizePreset
+): Promise<ProjectorWindowResizeResult> {
+  return parseJson(
+    await fetch(buildUrl("/api/projector/window-size"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preset })
+    })
+  );
 }
 
 export async function fetchNotificationConfig(): Promise<NotificationConfig> {

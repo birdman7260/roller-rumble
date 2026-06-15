@@ -1062,6 +1062,20 @@ theme sprite, keep the declared frame grid in [packages/shared/src/themes.ts](/U
 
 The projector `Fiercely Local` mark is loaded from [apps/desktop/public/brand/fiercely-local-logo.svg](/Users/BIRDMX5/go/src/bitbucket.org/newyuinc/roller-rumble/apps/desktop/public/brand/fiercely-local-logo.svg). Replace that placeholder with the real logo when ready. If the asset is not SVG, use the same basename with `.png`, `.webp`, or `.jpg`; the race display checks those fallbacks automatically.
 
+Projector layouts are designed to fit both common `1280x720` and `1920x1080` outputs. At 720p, the
+race display reduces non-race chrome, lane-header spacing, live sprite size, and track proportions
+so the horizontal `Fiercely Local` footer/logo, ticker, and complete race lanes remain visible.
+Use the `720p` and `1080p` buttons in `Settings` -> `Projector Display` to resize the projector
+window quickly while checking layouts.
+
+For horizontal projector themes, use these layout terms when tuning the race screen: the
+`projector screen` is the full `/race` viewport, the `title` is the top Roller Rumble/event header,
+the `main stage` is the middle region that contains the QR card, race card, or bracket card, the
+`footer mark` is the centered Fiercely Local logo lockup, and the `ticker` is the bottom scrolling
+bar. In a staged race, the `race card` is split into equal-height `race lanes`; each lane contains
+a full-width `racer details card` followed by a full-width `race indicator`. The winner overlay may
+cover the title, footer mark, and main stage, but it must keep the bottom ticker visible.
+
 The DOS-inspired `Oregon Trail '90` theme also bundles an IBM VGA bitmap recreation so the intended projector typography does not depend on fonts installed on the host machine.
 
 ## Tournament Bracket Layouts

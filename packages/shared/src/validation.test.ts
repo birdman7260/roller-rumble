@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accountlessRacerSessionSchema,
   adminNotificationSchema,
+  projectorWindowResizeSchema,
   settingUpdateSchema
 } from "./validation";
 
@@ -56,5 +57,16 @@ describe("admin settings validation", () => {
         showPublicRacerInfoWithoutLogin: true
       }).success
     ).toBe(true);
+  });
+});
+
+describe("projector window resize validation", () => {
+  it("accepts supported projector test sizes", () => {
+    expect(projectorWindowResizeSchema.safeParse({ preset: "720p" }).success).toBe(true);
+    expect(projectorWindowResizeSchema.safeParse({ preset: "1080p" }).success).toBe(true);
+  });
+
+  it("rejects unsupported projector sizes", () => {
+    expect(projectorWindowResizeSchema.safeParse({ preset: "4k" }).success).toBe(false);
   });
 });

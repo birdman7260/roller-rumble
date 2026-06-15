@@ -22,6 +22,7 @@ import {
   passkeyChallengeSchema,
   passkeyEmailSchema,
   passkeyRegistrationStartSchema,
+  projectorWindowResizeSchema,
   queueSignupSchema,
   racerQueueSignupSchema,
   removeRacerSchema,
@@ -47,6 +48,9 @@ interface BackendServerOptions {
   openExternalUrl?: (url: string) => Promise<void>;
   openPath?: (filePath: string) => Promise<string>;
   port?: number;
+  resizeProjectorWindow?: (
+    preset: "720p" | "1080p"
+  ) => Promise<{ preset: "720p" | "1080p"; width: number; height: number }>;
   rendererDistDir?: string;
   rendererDevUrl?: string;
   runtimeEnvFilePath?: string;
@@ -327,6 +331,20 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
       racerPageUrl: service.getRacerPageUrl(),
       qrCodeDataUrl: await service.getQrCodeDataUrl()
     });
+  });
+
+  app.post(`${API_PREFIX}/projector/window-size`, async (req, res, next) => {
+    try {
+      if (!options.resizeProjectorWindow) {
+        res.status(404).json({ message: "Projector window controls are not available." });
+        return;
+      }
+
+      const input = projectorWindowResizeSchema.parse(req.body);
+      res.json(await options.resizeProjectorWindow(input.preset));
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.get(`${API_PREFIX}/runtime-env`, (_req, res) => {

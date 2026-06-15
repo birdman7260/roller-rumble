@@ -1,29 +1,13 @@
 import type { CSSProperties } from "react";
-import type {
-  RaceMetricsSnapshot,
-  ThemeDefinition,
-  ThemeSpriteAnimationDefinition
-} from "@roller-rumble/shared/types";
+import type { RaceMetricsSnapshot, ThemeDefinition } from "@roller-rumble/shared/types";
 import { resolveThemeSpriteSheet } from "../lib/theme-sprites";
+import { getRaceSpriteAnimation, getRaceSpriteDisplaySize } from "./race-sprite-sizing";
 
 interface RaceSpriteAvatarProps {
   displayHeightRem?: number;
   label: string;
   metric?: RaceMetricsSnapshot;
   theme: ThemeDefinition;
-}
-
-function pickAnimation(
-  currentSpeedKph: number,
-  speedThresholdKph: number,
-  slowAnimation: ThemeSpriteAnimationDefinition,
-  fastAnimation: ThemeSpriteAnimationDefinition
-): { animation: ThemeSpriteAnimationDefinition; speedState: "fast" | "slow" } {
-  if (currentSpeedKph >= speedThresholdKph) {
-    return { animation: fastAnimation, speedState: "fast" };
-  }
-
-  return { animation: slowAnimation, speedState: "slow" };
 }
 
 export function RaceSpriteAvatar({
@@ -33,13 +17,8 @@ export function RaceSpriteAvatar({
   theme
 }: RaceSpriteAvatarProps) {
   const spriteSheet = resolveThemeSpriteSheet(theme);
-  const { animation, speedState } = pickAnimation(
-    metric?.currentSpeedKph ?? 0,
-    spriteSheet.speedThresholdKph,
-    spriteSheet.slowAnimation,
-    spriteSheet.fastAnimation
-  );
-  const displayWidthRem = displayHeightRem * (animation.frameWidth / animation.frameHeight);
+  const { animation, speedState } = getRaceSpriteAnimation({ metric, theme });
+  const displayWidthRem = getRaceSpriteDisplaySize({ displayHeightRem, metric, theme }).widthRem;
 
   // The sprite row changes with speed, while the keyframes only scrub across columns.
   // That keeps theme assets replaceable as long as they preserve the declared frame grid.
