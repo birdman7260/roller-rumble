@@ -69,7 +69,7 @@ interface QueueIssueModal {
   message: string;
 }
 
-const racerTabs: Array<{ id: RacerTabId; label: string }> = [
+const racerTabs: { id: RacerTabId; label: string }[] = [
   { id: "race", label: "Race" },
   { id: "queue", label: "Queue" },
   { id: "tournament", label: "Tournament" },
@@ -287,11 +287,12 @@ function getCurrentTournamentRaceCards(
   );
   const firstReadyBracketNode = activeBracketNodes.find((node) => node.state === "ready");
   const currentStageId =
-    currentBracketNode?.stageId ??
-    firstReadyBracketNode?.stageId ??
-    activeBracketNodes[0]?.stageId ??
-    sortedBracketNodes[0]?.stageId ??
-    null;
+    [
+      currentBracketNode?.stageId,
+      firstReadyBracketNode?.stageId,
+      activeBracketNodes[0]?.stageId,
+      sortedBracketNodes[0]?.stageId
+    ].find((stageId) => stageId !== undefined) ?? null;
   const currentRoundNumber =
     currentBracketNode?.roundNumber ??
     firstReadyBracketNode?.roundNumber ??
@@ -425,11 +426,11 @@ function PhotoBoothCard() {
   );
 }
 
-type RacerPageProps = {
+interface RacerPageProps {
   focusEventId?: string;
   initialTab?: string;
   source?: string;
-};
+}
 
 export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   const snapshotQuery = useSnapshotQuery();
@@ -504,31 +505,6 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   }, []);
 
   useEffect(() => {
-    setActiveTab(normalizeRacerTab(initialTab));
-  }, [initialTab]);
-
-  useEffect(() => {
-    if (
-      selectedRacerDetailId &&
-      snapshot &&
-      !snapshot.racers.some((entry) => entry.racer.id === selectedRacerDetailId)
-    ) {
-      setSelectedRacerDetailId(null);
-    }
-  }, [selectedRacerDetailId, snapshot]);
-
-  useEffect(() => {
-    if (
-      snapshot &&
-      !selectedRacerId &&
-      !snapshot.settings.showPublicRacerInfoWithoutLogin &&
-      activeTab !== "race"
-    ) {
-      setActiveTab("race");
-    }
-  }, [activeTab, selectedRacerId, snapshot]);
-
-  useEffect(() => {
     let cancelled = false;
     async function hydrateSession(): Promise<void> {
       const result = await fetchRacerAuthSession();
@@ -553,17 +529,17 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   }, [queryClient]);
 
   useEffect(() => {
-    fireAndForget(refreshDeviceNotificationState(), "check racer notification device state");
-
     function refreshOnVisible(): void {
       if (document.visibilityState === "visible") {
         fireAndForget(refreshDeviceNotificationState(), "refresh racer notification device state");
       }
     }
 
+    const initialRefreshTimer = window.setTimeout(refreshOnVisible, 0);
     window.addEventListener("focus", refreshOnVisible);
     document.addEventListener("visibilitychange", refreshOnVisible);
     return () => {
+      window.clearTimeout(initialRefreshTimer);
       window.removeEventListener("focus", refreshOnVisible);
       document.removeEventListener("visibilitychange", refreshOnVisible);
     };
@@ -1043,6 +1019,12 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   const activeTabs = canBrowsePublicRacerInfo
     ? racerTabs
     : racerTabs.filter((tab) => tab.id === "race");
+  const visibleActiveTab = activeTabs.some((tab) => tab.id === activeTab) ? activeTab : "race";
+  const visibleSelectedRacerDetailId =
+    selectedRacerDetailId &&
+    snapshot.racers.some((entry) => entry.racer.id === selectedRacerDetailId)
+      ? selectedRacerDetailId
+      : null;
   const authOnlyMode = !selectedRacer && !canBrowsePublicRacerInfo && !bracketExpanded;
   const eventStatusLabel =
     currentRace?.state === "active"
@@ -1061,22 +1043,6 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
     return bundle.bracketNodes.length > 0;
   }
 
-  function handleFocusCurrentBracketMatch(bundle: TournamentBundle): void {
-    const currentMatchNodeId = getCurrentMatchNodeId(liveSnapshot, bundle);
-    if (!currentMatchNodeId) {
-      return;
-    }
-
-    setBracketPresentationRequest({
-      durationMs: reduceMotion ? 0 : 900,
-      key: `${bundle.tournament.id}:focus-current:${Date.now()}`,
-      maxZoom: 1.22,
-      nodeIds: [currentMatchNodeId],
-      padding: 0.95,
-      type: "focus-node"
-    });
-  }
-
   function renderBracketFocusAction(bundle: TournamentBundle): ReactElement {
     const currentMatchNodeId = getCurrentMatchNodeId(liveSnapshot, bundle);
 
@@ -1085,7 +1051,18 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
         variant="ghost"
         disabled={!currentMatchNodeId}
         onClick={() => {
-          handleFocusCurrentBracketMatch(bundle);
+          if (!currentMatchNodeId) {
+            return;
+          }
+
+          setBracketPresentationRequest({
+            durationMs: reduceMotion ? 0 : 900,
+            key: `${bundle.tournament.id}:focus-current:${crypto.randomUUID()}`,
+            maxZoom: 1.22,
+            nodeIds: [currentMatchNodeId],
+            padding: 0.95,
+            type: "focus-node"
+          });
         }}
       >
         Focus Current
@@ -1094,7 +1071,7 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
   }
 
   function handleTabChange(tabId: RacerTabId): void {
-    if (tabId === activeTab) {
+    if (tabId === visibleActiveTab) {
       return;
     }
     setActiveTab(tabId);
@@ -1492,27 +1469,20 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
         <div className="racer-card-stack">
           <Panel title="Race">
             <div className="stack-md">
-              {canBrowsePublicRacerInfo ? (
-                <div className="racer-public-summary">
-                  <div>
-                    <span>Current race</span>
-                    <strong>{currentRaceNames ?? "No race staged"}</strong>
-                  </div>
-                  <div>
-                    <span>Queue</span>
-                    <strong>{upcoming.length} upcoming</strong>
-                  </div>
-                  <div>
-                    <span>Racers</span>
-                    <strong>{liveSnapshot.racers.length} checked in</strong>
-                  </div>
+              <div className="racer-public-summary">
+                <div>
+                  <span>Current race</span>
+                  <strong>{currentRaceNames ?? "No race staged"}</strong>
                 </div>
-              ) : (
-                <EmptyState
-                  title="Sign in to race"
-                  body="Register or sign in before joining the queue, challenging another racer, or getting race alerts."
-                />
-              )}
+                <div>
+                  <span>Queue</span>
+                  <strong>{upcoming.length} upcoming</strong>
+                </div>
+                <div>
+                  <span>Racers</span>
+                  <strong>{liveSnapshot.racers.length} checked in</strong>
+                </div>
+              </div>
               <div className="racer-signin-cta">
                 <strong>Ready to ride?</strong>
                 <Button
@@ -1711,14 +1681,14 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
         ) : null}
 
         <div
-          key={bracketExpanded ? "bracket-expanded" : activeTab}
+          key={bracketExpanded ? "bracket-expanded" : visibleActiveTab}
           ref={racerContentRef}
           className={`page-grid racer-page-grid${
             bracketExpanded ? " racer-page-grid--bracket-expanded" : ""
           }`}
         >
           <AnimatePresence initial={false} mode="popLayout">
-            {!bracketExpanded && activeTab === "race" ? (
+            {!bracketExpanded && visibleActiveTab === "race" ? (
               <motion.div
                 key="racer-race-dashboard"
                 layout="position"
@@ -1730,7 +1700,7 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
               </motion.div>
             ) : null}
 
-            {!bracketExpanded && activeTab === "me" ? (
+            {!bracketExpanded && visibleActiveTab === "me" ? (
               <motion.div
                 key="racer-identity"
                 layout="position"
@@ -1964,7 +1934,7 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
               </motion.div>
             ) : null}
 
-            {!bracketExpanded && activeTab === "queue" && canBrowsePublicRacerInfo ? (
+            {!bracketExpanded && visibleActiveTab === "queue" && canBrowsePublicRacerInfo ? (
               <>
                 {tournamentMode ? (
                   <motion.div
@@ -2030,7 +2000,7 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
               </>
             ) : null}
 
-            {!bracketExpanded && activeTab === "racers" && canBrowsePublicRacerInfo ? (
+            {!bracketExpanded && visibleActiveTab === "racers" && canBrowsePublicRacerInfo ? (
               <motion.div
                 key="racer-list"
                 layout="position"
@@ -2041,7 +2011,7 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
                 <Panel title="Event Racers">
                   <div className="list">
                     {snapshot.racers.map((entry) => {
-                      const isExpanded = selectedRacerDetailId === entry.racer.id;
+                      const isExpanded = visibleSelectedRacerDetailId === entry.racer.id;
                       const rowAvatarUrl = resolveBackendAssetUrl(entry.racer.avatarUrl);
                       return (
                         <motion.div
@@ -2116,7 +2086,7 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
             ) : null}
           </AnimatePresence>
 
-          {bracketExpanded || (activeTab === "tournament" && canBrowsePublicRacerInfo) ? (
+          {bracketExpanded || (visibleActiveTab === "tournament" && canBrowsePublicRacerInfo) ? (
             <motion.div
               layout
               transition={{ layout: layoutTransition }}
@@ -2249,9 +2219,9 @@ export function RacerPage({ focusEventId, initialTab }: RacerPageProps) {
               <button
                 key={tab.id}
                 type="button"
-                className={`racer-bottom-tab${activeTab === tab.id ? " is-active" : ""}`}
-                disabled={activeTab === tab.id}
-                aria-current={activeTab === tab.id ? "page" : undefined}
+                className={`racer-bottom-tab${visibleActiveTab === tab.id ? " is-active" : ""}`}
+                disabled={visibleActiveTab === tab.id}
+                aria-current={visibleActiveTab === tab.id ? "page" : undefined}
                 onClick={() => {
                   handleTabChange(tab.id);
                 }}

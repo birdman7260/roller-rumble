@@ -20,7 +20,7 @@ describe("dotenv runtime loading", () => {
   beforeEach(() => {
     for (const key of testKeys) {
       originalValues.set(key, process.env[key]);
-      delete process.env[key];
+      Reflect.deleteProperty(process.env, key);
     }
   });
 
@@ -28,7 +28,7 @@ describe("dotenv runtime loading", () => {
     for (const key of testKeys) {
       const original = originalValues.get(key);
       if (original == null) {
-        delete process.env[key];
+        Reflect.deleteProperty(process.env, key);
       } else {
         process.env[key] = original;
       }

@@ -2,6 +2,7 @@ import js from "@eslint/js";
 import eslintConfigPrettier from "eslint-config-prettier";
 import pluginQuery from "@tanstack/eslint-plugin-query";
 import globals from "globals";
+import reactDoctor from "eslint-plugin-react-doctor";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import unusedImports from "eslint-plugin-unused-imports";
@@ -19,6 +20,45 @@ const typedFiles = [
   "tools/photo-booth-agent/vite.config.ts",
   "tools/photo-booth-agent/vitest.config.ts"
 ];
+const reactFiles = [
+  "apps/desktop/src/renderer/**/*.{ts,tsx}",
+  "packages/shared-ui/src/**/*.{ts,tsx}",
+  "tools/photo-booth-agent/src/kiosk/**/*.{ts,tsx}"
+];
+const reactDoctorBaselineRuleOverrides = {
+  "react-doctor/button-has-type": "off",
+  "react-doctor/client-passive-event-listeners": "off",
+  "react-doctor/control-has-associated-label": "off",
+  "react-doctor/img-redundant-alt": "off",
+  "react-doctor/js-cache-property-access": "off",
+  "react-doctor/js-combine-iterations": "off",
+  "react-doctor/js-flatmap-filter": "off",
+  "react-doctor/js-hoist-intl": "off",
+  "react-doctor/js-length-check-first": "off",
+  "react-doctor/js-tosorted-immutable": "off",
+  "react-doctor/label-has-associated-control": "off",
+  "react-doctor/no-aria-hidden-on-focusable": "off",
+  "react-doctor/no-derived-useState": "off",
+  "react-doctor/no-event-handler": "off",
+  "react-doctor/no-fetch-in-effect": "off",
+  "react-doctor/no-giant-component": "off",
+  "react-doctor/no-initialize-state": "off",
+  "react-doctor/no-multi-comp": "off",
+  "react-doctor/no-render-in-render": "off",
+  "react-doctor/no-reset-all-state-on-prop-change": "off",
+  "react-doctor/prefer-html-dialog": "off",
+  "react-doctor/prefer-module-scope-pure-function": "off",
+  "react-doctor/prefer-tag-over-role": "off",
+  "react-doctor/prefer-use-effect-event": "off",
+  "react-doctor/prefer-useReducer": "off",
+  "react-doctor/react-compiler-no-manual-memoization": "off",
+  "react-doctor/rendering-hydration-mismatch-time": "off",
+  "react-doctor/rerender-functional-setstate": "off",
+  "react-doctor/rerender-lazy-ref-init": "off",
+  "react-doctor/rerender-lazy-state-init": "off",
+  "react-doctor/rerender-state-only-in-handlers": "off",
+  "react-doctor/use-lazy-motion": "off"
+};
 const scopeToFiles = (configs, files) =>
   configs.map((config) => ({
     ...config,
@@ -42,6 +82,14 @@ export default tseslint.config(
   {
     ...reactHooks.configs.flat["recommended-latest"],
     files: typedFiles
+  },
+  {
+    ...reactDoctor.configs.recommended,
+    files: reactFiles
+  },
+  {
+    files: reactFiles,
+    rules: reactDoctorBaselineRuleOverrides
   },
   ...scopeToFiles(pluginQuery.configs["flat/recommended-strict"], typedFiles),
   eslintConfigPrettier,
@@ -140,6 +188,7 @@ export default tseslint.config(
     files: [
       "apps/desktop/src/backend/**/*.ts",
       "apps/desktop/src/electron/**/*.ts",
+      "apps/desktop/scripts/**/*.mjs",
       "apps/desktop/vitest.config.ts",
       "apps/desktop/vite.config.ts",
       "apps/desktop/drizzle.config.ts",

@@ -839,7 +839,8 @@ Requirements:
 - Dev/build toolchain must use Vite. `Implemented`
 - Backend must run in Node. `Implemented`
 - The app must run on macOS or Windows in intended production use. `Implemented`
-- The codebase must use strict formatting and linting. `Implemented`
+- The codebase must use strict formatting and linting, including React Doctor coverage for renderer
+  React code with a documented advisory baseline. `Implemented`
 - Developers must have an easy dev-data reset path. `Implemented`
 - Developers must have a supported debug flow for Electron main, backend, and renderer code.
   `Implemented`
@@ -892,7 +893,7 @@ Current tooling requirements now include:
 - pushing a `v*.*.*` tag must trigger GitHub Actions to build macOS and Windows packages on native
   GitHub-hosted runners and publish those artifacts to GitHub Releases with changelog-derived
   release notes
-- strict ESLint + Prettier
+- strict ESLint + Prettier + React Doctor
 - `pnpm dev:reset-data`
 - `pnpm dev:debug`
 - `pnpm dev:debug:break`

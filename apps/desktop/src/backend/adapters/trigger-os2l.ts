@@ -43,8 +43,20 @@ function valueContainsStartCue(value: unknown): boolean {
   return false;
 }
 
+function unknownToSearchText(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  return "";
+}
+
 function valueIsOffState(value: unknown): boolean {
-  const normalized = String(value ?? "").toLowerCase();
+  const normalized = unknownToSearchText(value).toLowerCase();
   return normalized === "off" || normalized === "false" || normalized === "release";
 }
 
@@ -89,8 +101,8 @@ function objectLooksLikeStartCue(value: unknown): boolean {
   }
 
   const record = value as Record<string, unknown>;
-  const eventName = String(record.evt ?? record.event ?? record.type ?? "").toLowerCase();
-  const action = String(record.action ?? record.command ?? record.cmd ?? "").toLowerCase();
+  const eventName = unknownToSearchText(record.evt ?? record.event ?? record.type).toLowerCase();
+  const action = unknownToSearchText(record.action ?? record.command ?? record.cmd).toLowerCase();
 
   if ((eventName === "cue" || eventName === "play") && (action === "" || action === "start")) {
     return true;
@@ -127,7 +139,7 @@ function isOs2lBeatMessage(message: string): boolean {
     return (
       typeof parsed === "object" &&
       parsed !== null &&
-      String((parsed as Record<string, unknown>).evt ?? "").toLowerCase() === "beat"
+      unknownToSearchText((parsed as Record<string, unknown>).evt).toLowerCase() === "beat"
     );
   } catch {
     return false;

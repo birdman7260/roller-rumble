@@ -41,7 +41,7 @@ function normalizePublicRacerBaseUrl(value: string | null): string | null {
 export function getStripeRuntimeConfig(env: NodeJS.ProcessEnv = process.env): StripeRuntimeConfig {
   const secretKey = env.ROLLER_RUMBLE_STRIPE_SECRET_KEY?.trim();
   const webhookSecret = env.ROLLER_RUMBLE_STRIPE_WEBHOOK_SECRET?.trim();
-  const extraCaCertFile = env.ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE?.trim() || null;
+  const extraCaCertFile = env.ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE?.trim();
   const publicRacerUrl = normalizePublicRacerBaseUrl(
     env.ROLLER_RUMBLE_PUBLIC_RACER_URL?.trim() ?? null
   );

@@ -529,7 +529,7 @@ describe("passkey racer auth and payment gating", () => {
   });
 
   it("records Stripe connection failures during checkout creation", async () => {
-    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
     const target = makeFakeTarget();
     const racer = makeRacer("racer-1", "Payment Racer", "pay@example.com");
     const stripeError = Object.assign(
@@ -557,12 +557,12 @@ describe("passkey racer auth and payment gating", () => {
     ).rejects.toMatchObject({
       statusCode: 502,
       code: "stripe_connection_failed",
-      message: expect.stringContaining("could not reach Stripe")
+      message: expect.stringContaining("could not reach Stripe") as unknown
     });
     expect(target.paymentRecords.get("payment-1")).toMatchObject({
       status: "failed",
       failureCode: "stripe_connection_failed",
-      failureMessage: expect.stringContaining("Request was retried 2 times")
+      failureMessage: expect.stringContaining("Request was retried 2 times") as unknown
     });
     warnSpy.mockRestore();
   });

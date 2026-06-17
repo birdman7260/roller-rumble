@@ -50,8 +50,6 @@ we show up to Worthy with the homies and let whoever is there sign up to race. l
 
 eyJhIjoiNTAzMzFhZjY3MjQ5M2M3MmYyZTk3NzIxNWMxY2VlNjUiLCJ0IjoiZDZiODk2OTYtNGNiOC00NDZiLWEzMTMtNWQ5ZTM4MmM2NWYzIiwicyI6IlpqWXdaRGMxTUdRdFl6SmtOaTAwT1RJMkxUZ3lOMlV0TURVd04yWTBZMk16TVRJMyJ9
 
-when challenging a racer there should be more logic around maximum queueing and whatnot
-
 check out network requests and figure out if there are way more than are needed. do overall performance tweaks
 
 what can we show in the racer page header that would be more useful?

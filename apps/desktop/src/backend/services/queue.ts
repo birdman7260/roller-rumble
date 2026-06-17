@@ -644,7 +644,7 @@ export function addQueueSignup(
     const anchorIndex = Math.min(...anchorSlotIndexes);
     const anchorIndexSet = new Set(anchorSlotIndexes);
     const remainingSlots = slots.flatMap((slot, index) => {
-      if (replacementAnchor && index === replacementAnchor.slotIndex) {
+      if (index === replacementAnchor?.slotIndex) {
         const remainder = releaseReplacementSlotRemainder(
           slot,
           replacementAnchor.occurrence.id,

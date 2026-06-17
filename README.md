@@ -574,7 +574,10 @@ testing does not produce unrelated Vite websocket failures.
 - `pnpm format:check`
   - Verifies Prettier formatting without changing files.
 - `pnpm lint`
-  - Runs the strict ESLint ruleset, including TypeScript, React Hooks, TanStack Query, and unused import checks.
+  - Runs the strict ESLint ruleset, including TypeScript, React Hooks, TanStack Query, React Doctor,
+    and unused import checks.
+  - React Doctor is enabled with an explicit baseline override for broad advisory refactors so the
+    lint gate stays clean while future non-baselined React issues still surface.
 - `pnpm lint:fix`
   - Runs ESLint with automatic fixes where possible.
 - `pnpm os2l:cue`

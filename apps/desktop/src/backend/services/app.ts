@@ -2317,8 +2317,7 @@ export class RollerRumbleApp extends EventEmitter {
       .listQueueEntries(eventId)
       .find((entry) => entry.id === replaceQueueEntryId);
     if (
-      !replacementEntry ||
-      replacementEntry.status !== "queued" ||
+      replacementEntry?.status !== "queued" ||
       replacementEntry.lockType !== "challenge" ||
       !replacementEntry.racerIds.includes(racerId)
     ) {

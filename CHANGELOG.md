@@ -10,6 +10,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 - Projector display settings now include quick buttons to resize the race window to 720p or 1080p for layout checks.
 - Racers who are maxed out only by locked challenge matches now get a modal to choose which queued challenge to replace when creating a new challenge.
+- React Doctor is now installed and included in the ESLint configuration for React renderer code.
 
 ### Changed
 
