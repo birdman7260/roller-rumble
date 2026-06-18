@@ -380,6 +380,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
   return {
     activeEvent,
     generatedAt: labCreatedAt,
+    notificationRevision: "lab",
     queue: [],
     raceProjection: {
       countdownSecondsRemaining: null,

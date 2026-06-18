@@ -1385,6 +1385,29 @@ export class AppDatabase {
     return rows;
   }
 
+  getNotificationRevision(): string {
+    const row = this.db
+      .prepare(
+        `SELECT
+           COUNT(notification_deliveries.id) AS deliveryCount,
+           MAX(notifications.created_at) AS newestNotificationAt,
+           MAX(notification_deliveries.read_at) AS newestReadAt
+         FROM notification_deliveries
+         INNER JOIN notifications ON notifications.id = notification_deliveries.notification_id`
+      )
+      .get() as {
+      deliveryCount: number;
+      newestNotificationAt: string | null;
+      newestReadAt: string | null;
+    };
+
+    return [
+      String(row.deliveryCount),
+      row.newestNotificationAt ?? "",
+      row.newestReadAt ?? ""
+    ].join(":");
+  }
+
   markNotificationRead(racerId: string, notificationId: string): void {
     const timestamp = nowIso();
     this.orm

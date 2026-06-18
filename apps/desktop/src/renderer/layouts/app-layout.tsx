@@ -4,12 +4,14 @@ import { applyThemeToDocument } from "@roller-rumble/shared-ui/theme";
 import { useSnapshotQuery, useSnapshotStream } from "../lib/query";
 
 export function AppLayout() {
-  useSnapshotStream();
   const snapshotQuery = useSnapshotQuery();
   const selectedTheme = snapshotQuery.data?.raceProjection.theme;
   const { location } = useRouterState();
   const adminMode = location.pathname.startsWith("/admin");
   const raceMode = location.pathname.startsWith("/race");
+  const racerMode = location.pathname.startsWith("/racer");
+  const streamSurface = racerMode ? "racer" : raceMode ? "projector" : "admin";
+  useSnapshotStream(streamSurface);
 
   useEffect(() => {
     if (!selectedTheme) {

@@ -3,6 +3,7 @@ import { queryOptions, QueryClient, useQuery, useQueryClient } from "@tanstack/r
 import type { AppSnapshot } from "@roller-rumble/shared/types";
 import {
   createWebSocketUrl,
+  type SnapshotStreamSurface,
   fetchRuntimeEnvInfo,
   fetchMeta,
   fetchNotificationConfig,
@@ -77,6 +78,13 @@ export function useRacerNotificationsQuery(enabled: boolean) {
   return useQuery(racerNotificationsQueryOptions(enabled));
 }
 
+export function hasNotificationRevisionChanged(
+  previousSnapshot: Pick<AppSnapshot, "notificationRevision"> | null | undefined,
+  nextSnapshot: Pick<AppSnapshot, "notificationRevision">
+): boolean {
+  return previousSnapshot?.notificationRevision !== nextSnapshot.notificationRevision;
+}
+
 function isSnapshotMessage(value: unknown): value is {
   type: string;
   payload: AppSnapshot;
@@ -90,11 +98,11 @@ function isSnapshotMessage(value: unknown): value is {
   );
 }
 
-export function useSnapshotStream(): void {
+export function useSnapshotStream(surface?: SnapshotStreamSurface): void {
   const client = useQueryClient();
 
   useEffect(() => {
-    const socket = new WebSocket(createWebSocketUrl());
+    const socket = new WebSocket(createWebSocketUrl(surface));
     socket.onerror = (event) => {
       // eslint-disable-next-line no-console
       console.error("[snapshot-stream] websocket error", event);
@@ -118,17 +126,23 @@ export function useSnapshotStream(): void {
         const tunnelChanged =
           previousSnapshot?.tunnel.publicUrl !== message.payload.tunnel.publicUrl ||
           previousSnapshot?.tunnel.status !== message.payload.tunnel.status;
+        const notificationsChanged = hasNotificationRevisionChanged(
+          previousSnapshot,
+          message.payload
+        );
 
         client.setQueryData(snapshotQueryKey, message.payload);
         if (tunnelChanged) {
           void client.invalidateQueries({ queryKey: metaQueryKey });
         }
         void client.invalidateQueries({ queryKey: photoBoothStatusQueryKey });
-        void client.invalidateQueries({ queryKey: racerNotificationsQueryKey });
+        if (notificationsChanged) {
+          void client.invalidateQueries({ queryKey: racerNotificationsQueryKey });
+        }
       }
     };
     return () => {
       socket.close();
     };
-  }, [client]);
+  }, [client, surface]);
 }

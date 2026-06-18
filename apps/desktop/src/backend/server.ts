@@ -9,6 +9,7 @@ import cors from "cors";
 import multer from "multer";
 import webpush from "web-push";
 import { WebSocketServer } from "ws";
+import type { WebSocket } from "ws";
 import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "@roller-rumble/shared/constants";
 import type { AppSnapshot } from "@roller-rumble/shared/types";
 import {
@@ -64,11 +65,97 @@ const labRoutes = {
 
 type LabRouteId = keyof typeof labRoutes;
 
+type SnapshotStreamSurface = "admin" | "projector" | "racer";
+
 function isLabRouteId(value: string): value is LabRouteId {
   return value in labRoutes;
 }
 
+function normalizeSnapshotStreamSurface(value: string | null): SnapshotStreamSurface {
+  return value === "racer" || value === "projector" || value === "admin" ? value : "admin";
+}
+
+function serializeSnapshotMessage(snapshot: AppSnapshot): string {
+  return JSON.stringify({
+    type: "snapshot",
+    payload: snapshot
+  });
+}
+
+function createRacerSnapshotPayload(snapshot: AppSnapshot): AppSnapshot {
+  const race = snapshot.raceProjection.race
+    ? {
+        ...snapshot.raceProjection.race,
+        metrics: []
+      }
+    : null;
+
+  return {
+    ...snapshot,
+    settings: {
+      ...snapshot.settings,
+      raceDisplayTickerMessages: []
+    },
+    raceProjection: {
+      ...snapshot.raceProjection,
+      race,
+      metricsByRacerId: {},
+      resultPresentation: null
+    },
+    themes: [],
+    tunnel: {
+      status: snapshot.tunnel.status,
+      publicUrl: snapshot.tunnel.publicUrl ?? null
+    },
+    os2l: {
+      enabled: snapshot.os2l.enabled,
+      listening: false,
+      advertising: false,
+      port: snapshot.os2l.port,
+      serviceName: snapshot.os2l.serviceName,
+      armedRaceId: snapshot.os2l.armedRaceId,
+      acceptedMessageCount: 0,
+      ignoredMessageCount: 0,
+      beatMessageCount: 0,
+      lastBeatAt: null,
+      lastRawMessage: null,
+      lastRawMessageAt: null,
+      lastAcceptedMessage: null,
+      lastAcceptedAt: null,
+      lastIgnoredMessage: null,
+      lastIgnoredAt: null,
+      lastIgnoredReason: null,
+      lastError: null
+    },
+    photoBooth: {
+      boothId: snapshot.photoBooth.boothId,
+      status: snapshot.photoBooth.status,
+      lastSeenAt: null,
+      lastCaptureAt: null,
+      pendingUploadCount: 0,
+      message: null
+    },
+    paymentProvider: {
+      stripe: {
+        configured: snapshot.paymentProvider.stripe.configured,
+        hasSecretKey: false,
+        hasWebhookSecret: false,
+        hasExtraCaCertFile: false,
+        publicRacerUrl: null,
+        message: ""
+      }
+    }
+  };
+}
+
 const RACER_SESSION_COOKIE = "roller_rumble_racer_session";
+const RACER_SNAPSHOT_STREAM_INTERVAL_MS = 1000;
+
+interface SnapshotStreamClientState {
+  pendingSnapshot: AppSnapshot | null;
+  surface: SnapshotStreamSurface;
+  timer: NodeJS.Timeout | null;
+}
 
 export interface BackendServer {
   service: RollerRumbleApp;
@@ -242,7 +329,40 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   const upload = multer({ storage });
 
   const wsServer = new WebSocketServer({ noServer: true });
+  const snapshotStreamClients = new Map<WebSocket, SnapshotStreamClientState>();
   const debugEnabled = process.env.ROLLER_RUMBLE_DEBUG === "1";
+
+  function sendSnapshotToClient(client: WebSocket, snapshot: AppSnapshot): void {
+    if (client.readyState === 1) {
+      client.send(serializeSnapshotMessage(snapshot));
+    }
+  }
+
+  function scheduleRacerSnapshot(client: WebSocket, state: SnapshotStreamClientState): void {
+    if (state.timer !== null) {
+      return;
+    }
+
+    state.timer = setTimeout(() => {
+      state.timer = null;
+      const pendingSnapshot = state.pendingSnapshot;
+      state.pendingSnapshot = null;
+      if (pendingSnapshot) {
+        sendSnapshotToClient(client, pendingSnapshot);
+      }
+    }, RACER_SNAPSHOT_STREAM_INTERVAL_MS);
+  }
+
+  function sendSnapshotForSurface(client: WebSocket, snapshot: AppSnapshot): void {
+    const state = snapshotStreamClients.get(client);
+    if (state?.surface !== "racer") {
+      sendSnapshotToClient(client, snapshot);
+      return;
+    }
+
+    state.pendingSnapshot = createRacerSnapshotPayload(snapshot);
+    scheduleRacerSnapshot(client, state);
+  }
 
   httpServer.on("upgrade", (req, socket, head) => {
     const pathname = new URL(req.url ?? "/", "http://localhost").pathname;
@@ -261,16 +381,26 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     socket.destroy();
   });
 
+  wsServer.on("connection", (client, req) => {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    const state: SnapshotStreamClientState = {
+      pendingSnapshot: null,
+      surface: normalizeSnapshotStreamSurface(url.searchParams.get("surface")),
+      timer: null
+    };
+    snapshotStreamClients.set(client, state);
+    client.on("close", () => {
+      if (state.timer !== null) {
+        clearTimeout(state.timer);
+      }
+      snapshotStreamClients.delete(client);
+    });
+  });
+
   service.onSnapshot((snapshot: AppSnapshot) => {
     // Every surface hydrates from the same snapshot stream so admin, projector, and phones stay in sync.
-    const payload = JSON.stringify({
-      type: "snapshot",
-      payload: snapshot
-    });
     for (const client of wsServer.clients) {
-      if (client.readyState === 1) {
-        client.send(payload);
-      }
+      sendSnapshotForSurface(client, snapshot);
     }
   });
 

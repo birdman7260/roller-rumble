@@ -39,6 +39,12 @@ describe("api routing", () => {
     );
   });
 
+  it("identifies racer websocket streams for server-side throttling", () => {
+    expect(createWebSocketUrlFromApiBase("https://roller-rumble.birdsnest.family", "racer")).toBe(
+      "wss://roller-rumble.birdsnest.family/ws?surface=racer"
+    );
+  });
+
   it("stores and clears the durable racer session fallback token", () => {
     rememberRacerSessionToken("signed-session-token");
 

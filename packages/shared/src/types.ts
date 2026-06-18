@@ -618,6 +618,7 @@ export interface PaymentProviderStatus {
 
 export interface AppSnapshot {
   generatedAt: string;
+  notificationRevision: string;
   settings: AdminSettings;
   activeEvent: EventRecord;
   racers: RacerSummary[];

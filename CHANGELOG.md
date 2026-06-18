@@ -28,6 +28,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Racers who are already fully locked into challenge matches can no longer be silently displaced by someone else's challenge; the challenger now sees an unavailable message.
 - Improved race sprite marker positioning so animated racers stay fully inside their race indicators.
 - The QR display works at different screen sizes now.
+- The racer page no longer makes requests for notifications during a race.
+- The racer page only gets updates with what it actually needs and at a slower rate to minimize network.
 
 ## 0.1.7 - 2026-06-11
 

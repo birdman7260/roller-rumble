@@ -741,6 +741,7 @@ export class RollerRumbleApp extends EventEmitter {
 
     return {
       generatedAt: nowIso(),
+      notificationRevision: this.db.getNotificationRevision(),
       settings,
       activeEvent,
       racers,

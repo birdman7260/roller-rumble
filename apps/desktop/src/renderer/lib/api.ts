@@ -661,14 +661,22 @@ export async function uploadAvatar(racerId: string, file: File): Promise<AppSnap
   );
 }
 
-export function createWebSocketUrl(): string {
-  return createWebSocketUrlFromApiBase(apiBase);
+export type SnapshotStreamSurface = "admin" | "projector" | "racer";
+
+export function createWebSocketUrl(surface?: SnapshotStreamSurface): string {
+  return createWebSocketUrlFromApiBase(apiBase, surface);
 }
 
-export function createWebSocketUrlFromApiBase(baseUrl: string): string {
+export function createWebSocketUrlFromApiBase(
+  baseUrl: string,
+  surface?: SnapshotStreamSurface
+): string {
   const url = new URL(baseUrl);
   url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
   url.pathname = "/ws";
   url.search = "";
+  if (surface) {
+    url.searchParams.set("surface", surface);
+  }
   return url.toString();
 }
