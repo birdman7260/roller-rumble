@@ -1,4 +1,4 @@
-import { StrictMode, useEffect, useState } from "react";
+import { StrictMode, useEffect, useReducer } from "react";
 import { createRoot } from "react-dom/client";
 import { Button, Panel, StatPill, TextInput } from "@roller-rumble/shared-ui";
 import "@roller-rumble/shared-ui/styles.css";
@@ -6,12 +6,8 @@ import { applyThemeToDocument } from "@roller-rumble/shared-ui/theme";
 import { themes } from "@roller-rumble/shared/themes";
 import type { ThemeDefinition } from "@roller-rumble/shared/types";
 import { DEFAULT_LIGHT_LOOK } from "../light-looks";
-import type {
-  DiagnosticsResult,
-  HardwareComponentHealth,
-  LightSelection,
-  UmbrellaState
-} from "../types";
+import type { DiagnosticsResult, HardwareComponentHealth, LightSelection, UmbrellaState } from "../types";
+import { DiagnosticsPanel, HardwareBadge } from "./components/hardware-status";
 import { LightLookWheel } from "./components/light-look-wheel";
 import { UmbrellaPanelPicker } from "./components/umbrella-panel-picker";
 import "./styles.css";
@@ -63,65 +59,49 @@ async function post<T>(path: string, body: unknown = {}): Promise<T> {
   return payload;
 }
 
-function HardwareBadge({ label, health }: { label: string; health?: HardwareComponentHealth }) {
-  return (
-    <StatPill
-      className={`hardware-badge hardware-badge--${health?.status ?? "unknown"}`}
-      label={label}
-      value={health?.status ?? "unknown"}
-    />
-  );
+async function fetchBoothState(): Promise<BoothState> {
+  const response = await fetch("/api/state");
+  return (await response.json()) as BoothState;
 }
 
-function DiagnosticsPanel({
-  diagnostics,
-  hardware,
-  onRun
-}: {
+interface KioskUiState {
   diagnostics: DiagnosticsResult | null;
-  hardware: BoothState["hardware"];
-  onRun: () => void;
-}) {
-  const components = diagnostics ?? hardware;
-  return (
-    <Panel title="Diagnostics" className="diagnostics">
-      <div className="diagnostics__header">
-        <Button variant="ghost" onClick={onRun}>
-          Run Checks
-        </Button>
-      </div>
-      <div className="hardware-grid">
-        {["scanner", "camera", "lights", "umbrella", "hallSensor"].map((key) => {
-          const health = components[key as keyof typeof components] as
-            | HardwareComponentHealth
-            | undefined;
-          return <HardwareBadge key={key} label={key} health={health} />;
-        })}
-      </div>
-    </Panel>
-  );
+  error: string | null;
+  manualScan: string;
+  showDiagnostics: boolean;
+  state: BoothState;
+}
+
+const initialKioskUiState: KioskUiState = {
+  diagnostics: null,
+  error: null,
+  manualScan: "",
+  showDiagnostics: false,
+  state: defaultState
+};
+
+function kioskUiReducer(state: KioskUiState, patch: Partial<KioskUiState>): KioskUiState {
+  return { ...state, ...patch };
 }
 
 function App() {
-  const [state, setState] = useState<BoothState>(defaultState);
-  const [manualScan, setManualScan] = useState("");
-  const [error, setError] = useState<string | null>(null);
-  const [showDiagnostics, setShowDiagnostics] = useState(false);
-  const [diagnostics, setDiagnostics] = useState<DiagnosticsResult | null>(null);
+  const [uiState, setUiState] = useReducer(kioskUiReducer, initialKioskUiState);
+  const { diagnostics, error, manualScan, showDiagnostics, state } = uiState;
 
   useEffect(() => {
-    fetch("/api/state")
-      .then((response) => response.json())
-      .then((payload: BoothState) => setState(payload))
+    fetchBoothState()
+      .then((payload) => setUiState({ state: payload }))
       .catch((caught: unknown) =>
-        setError(caught instanceof Error ? caught.message : "Could not load booth state.")
+        setUiState({
+          error: caught instanceof Error ? caught.message : "Could not load booth state."
+        })
       );
 
     const events = new EventSource("/api/events");
     events.onmessage = (event) => {
-      setState(JSON.parse(String(event.data)) as BoothState);
+      setUiState({ state: JSON.parse(String(event.data)) as BoothState });
     };
-    events.onerror = () => setError("Lost live connection to the booth agent.");
+    events.onerror = () => setUiState({ error: "Lost live connection to the booth agent." });
     return () => events.close();
   }, []);
 
@@ -129,14 +109,14 @@ function App() {
     action
       .then((payload) => {
         if ("flow" in payload) {
-          setState(payload);
+          setUiState({ state: payload });
         } else {
-          setDiagnostics(payload);
+          setUiState({ diagnostics: payload });
         }
-        setError(null);
+        setUiState({ error: null });
       })
       .catch((caught: unknown) =>
-        setError(caught instanceof Error ? caught.message : "Booth action failed.")
+        setUiState({ error: caught instanceof Error ? caught.message : "Booth action failed." })
       );
   };
 
@@ -174,18 +154,18 @@ function App() {
           <TextInput
             value={manualScan}
             placeholder="Manual QR token, or fake:Test Rider when fake QR testing is enabled"
-            onChange={(event) => setManualScan(event.target.value)}
+            onChange={(event) => setUiState({ manualScan: event.target.value })}
             onKeyDown={(event) => {
               if (event.key === "Enter" && manualScan.trim()) {
                 runAction(post("/api/scan", { payload: manualScan }));
-                setManualScan("");
+                setUiState({ manualScan: "" });
               }
             }}
           />
           <Button
             onClick={() => {
               runAction(post("/api/scan", { payload: manualScan }));
-              setManualScan("");
+              setUiState({ manualScan: "" });
             }}
           >
             Start Photo Mode
@@ -202,6 +182,7 @@ function App() {
           />
           <Panel className="capture-card">
             <button
+              type="button"
               className="capture-button"
               disabled={!canCapture}
               onClick={() => runAction(post("/api/capture"))}
@@ -248,7 +229,10 @@ function App() {
       ) : null}
 
       <footer>
-        <Button variant="ghost" onClick={() => setShowDiagnostics((current) => !current)}>
+        <Button
+          variant="ghost"
+          onClick={() => setUiState({ showDiagnostics: !showDiagnostics })}
+        >
           {showDiagnostics ? "Hide Diagnostics" : "Diagnostics"}
         </Button>
       </footer>

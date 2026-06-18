@@ -1,4 +1,4 @@
-import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from "framer-motion";
+import { AnimatePresence, LayoutGroup, m, useReducedMotion } from "framer-motion";
 import { useState } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import { competitionPresets } from "@roller-rumble/shared/presets";
@@ -21,6 +21,195 @@ import {
 import { fireAndForget } from "../../lib/ui-actions";
 import { getBracketLayoutLabel, getPresetLabel } from "../../lib/admin-competition";
 import { TournamentBracketBoard, TournamentGroupMatchBoard } from "./tournament-board";
+
+function TournamentSummaryPanel({
+  activeTournament,
+  activeTournamentBracketLayout,
+  activeTournamentBracketSize,
+  selectedBracketSize,
+  setTournamentBracketLayout,
+  setTournamentBracketSize,
+  setTournamentBracketSizeTouched,
+  setTournamentName,
+  setTournamentPreset,
+  snapshot,
+  tournamentBracketLayout,
+  tournamentBracketLayoutOptions,
+  tournamentBracketSizeOptions,
+  tournamentName,
+  tournamentPreset,
+  tournamentPresetOptions,
+  tournamentPresetSupportsBracketSizing,
+  tournamentPresetSupportsCenterConverging
+}: {
+  activeTournament: TournamentBundle | null;
+  activeTournamentBracketLayout: TournamentBracketLayoutMode;
+  activeTournamentBracketSize: number | null;
+  selectedBracketSize: TournamentBracketSize | undefined;
+  setTournamentBracketLayout: Dispatch<SetStateAction<TournamentBracketLayoutMode>>;
+  setTournamentBracketSize: Dispatch<SetStateAction<TournamentBracketSize>>;
+  setTournamentBracketSizeTouched: Dispatch<SetStateAction<boolean>>;
+  setTournamentName: Dispatch<SetStateAction<string>>;
+  setTournamentPreset: Dispatch<SetStateAction<TournamentPreset>>;
+  snapshot: AppSnapshot;
+  tournamentBracketLayout: TournamentBracketLayoutMode;
+  tournamentBracketLayoutOptions: {
+    id: TournamentBracketLayoutMode;
+    label: string;
+    description: string;
+  }[];
+  tournamentBracketSizeOptions: TournamentBracketSize[];
+  tournamentName: string;
+  tournamentPreset: TournamentPreset;
+  tournamentPresetOptions: { id: TournamentPreset; label: string; description: string }[];
+  tournamentPresetSupportsBracketSizing: boolean;
+  tournamentPresetSupportsCenterConverging: boolean;
+}) {
+  const selectedPreset = competitionPresets.find((preset) => preset.id === tournamentPreset);
+  const selectedLayoutDescription =
+    tournamentBracketLayoutOptions.find((layout) => layout.id === tournamentBracketLayout)
+      ?.description ?? "Choose how the bracket should be drawn.";
+
+  return (
+    <Panel
+      title={activeTournament ? "Active Tournament" : "Start Tournament"}
+      actions={
+        activeTournament ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(
+                endTournamentEarly(activeTournament.tournament.id),
+                "end tournament early"
+              );
+            }}
+          >
+            End Tournament Early
+          </Button>
+        ) : undefined
+      }
+    >
+      {activeTournament ? (
+        <div className="stack-md">
+          <div className="stat-grid">
+            <StatPill label="Name" value={activeTournament.tournament.name} />
+            <StatPill label="Format" value={getPresetLabel(activeTournament.tournament.preset)} />
+            {activeTournamentBracketSize ? (
+              <StatPill label="Bracket" value={`${activeTournamentBracketSize} slots`} />
+            ) : null}
+            <StatPill label="Layout" value={getBracketLayoutLabel(activeTournamentBracketLayout)} />
+            <StatPill label="Status" value={activeTournament.tournament.status} />
+            <StatPill label="Seeds" value={activeTournament.seeds.length} />
+          </div>
+          <p>
+            Open time trial is paused while this tournament is active. Stage the next matchup from
+            the tournament board below, or end the tournament early to return to the regular queue
+            flow.
+          </p>
+        </div>
+      ) : (
+        <div className="form-grid">
+          <label htmlFor="tournament-name">
+            Tournament name
+            <TextInput
+              id="tournament-name"
+              value={tournamentName}
+              onChange={(event) => {
+                setTournamentName(event.target.value);
+              }}
+              placeholder="Bracket Night"
+            />
+          </label>
+          <label>
+            Format
+            <select
+              value={tournamentPreset}
+              onChange={(event) => {
+                setTournamentPreset(event.target.value as TournamentPreset);
+                setTournamentBracketSizeTouched(false);
+                setTournamentBracketLayout("auto");
+              }}
+            >
+              {tournamentPresetOptions.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          {tournamentPresetSupportsBracketSizing ? (
+            <label>
+              Bracket size
+              <select
+                value={selectedBracketSize ?? tournamentBracketSizeOptions[0]}
+                onChange={(event) => {
+                  setTournamentBracketSizeTouched(true);
+                  setTournamentBracketSize(Number(event.target.value) as TournamentBracketSize);
+                }}
+              >
+                {tournamentBracketSizeOptions.map((size) => (
+                  <option key={size} value={size}>
+                    {size} slots
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          {selectedPreset?.createsBracket ? (
+            <label>
+              Bracket layout
+              <select
+                value={tournamentBracketLayout}
+                onChange={(event) => {
+                  setTournamentBracketLayout(event.target.value as TournamentBracketLayoutMode);
+                }}
+              >
+                {tournamentBracketLayoutOptions.map((layout) => (
+                  <option key={layout.id} value={layout.id}>
+                    {layout.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+          <div className="stack-sm">
+            <strong>{getPresetLabel(tournamentPreset)}</strong>
+            <span>
+              {selectedPreset?.description ?? "Choose a tournament format to seed from event results."}
+            </span>
+            {selectedBracketSize ? (
+              <span>
+                {selectedBracketSize < snapshot.racers.length
+                  ? `Seed the top ${selectedBracketSize} racers from the ${snapshot.racers.length} registered for this event.`
+                  : `${selectedBracketSize}-slot bracket with ${snapshot.racers.length} registered racers. Empty slots become byes.`}
+              </span>
+            ) : null}
+            {selectedPreset?.createsBracket ? <span>{selectedLayoutDescription}</span> : null}
+            {!tournamentPresetSupportsCenterConverging &&
+            tournamentPreset === "double-elimination" ? (
+              <span>Double elimination stays on a standard board layout for now.</span>
+            ) : null}
+          </div>
+          <Button
+            onClick={() => {
+              fireAndForget(
+                createTournament({
+                  name: tournamentName,
+                  preset: tournamentPreset,
+                  bracketSize: selectedBracketSize,
+                  bracketLayout: tournamentBracketLayout
+                }),
+                "start tournament"
+              );
+            }}
+          >
+            Start Tournament
+          </Button>
+        </div>
+      )}
+    </Panel>
+  );
+}
 
 export function TournamentsTab({
   snapshot,
@@ -112,174 +301,41 @@ export function TournamentsTab({
       >
         <AnimatePresence initial={false} mode="popLayout">
           {showSupportingCards ? (
-            <motion.div
+            <m.div
               key="tournament-summary"
               layout="position"
               transition={{ layout: layoutTransition }}
               {...supportingCardMotion}
               className="tournaments-tab__card tournaments-tab__card--supporting"
             >
-              <Panel
-                title={activeTournament ? "Active Tournament" : "Start Tournament"}
-                actions={
-                  activeTournament ? (
-                    <Button
-                      variant="ghost"
-                      onClick={() => {
-                        fireAndForget(
-                          endTournamentEarly(activeTournament.tournament.id),
-                          "end tournament early"
-                        );
-                      }}
-                    >
-                      End Tournament Early
-                    </Button>
-                  ) : undefined
+              <TournamentSummaryPanel
+                activeTournament={activeTournament}
+                activeTournamentBracketLayout={activeTournamentBracketLayout}
+                activeTournamentBracketSize={activeTournamentBracketSize}
+                selectedBracketSize={selectedBracketSize}
+                setTournamentBracketLayout={setTournamentBracketLayout}
+                setTournamentBracketSize={setTournamentBracketSize}
+                setTournamentBracketSizeTouched={setTournamentBracketSizeTouched}
+                setTournamentName={setTournamentName}
+                setTournamentPreset={setTournamentPreset}
+                snapshot={snapshot}
+                tournamentBracketLayout={tournamentBracketLayout}
+                tournamentBracketLayoutOptions={tournamentBracketLayoutOptions}
+                tournamentBracketSizeOptions={tournamentBracketSizeOptions}
+                tournamentName={tournamentName}
+                tournamentPreset={tournamentPreset}
+                tournamentPresetOptions={tournamentPresetOptions}
+                tournamentPresetSupportsBracketSizing={tournamentPresetSupportsBracketSizing}
+                tournamentPresetSupportsCenterConverging={
+                  tournamentPresetSupportsCenterConverging
                 }
-              >
-                {activeTournament ? (
-                  <div className="stack-md">
-                    <div className="stat-grid">
-                      <StatPill label="Name" value={activeTournament.tournament.name} />
-                      <StatPill
-                        label="Format"
-                        value={getPresetLabel(activeTournament.tournament.preset)}
-                      />
-                      {activeTournamentBracketSize ? (
-                        <StatPill label="Bracket" value={`${activeTournamentBracketSize} slots`} />
-                      ) : null}
-                      <StatPill
-                        label="Layout"
-                        value={getBracketLayoutLabel(activeTournamentBracketLayout)}
-                      />
-                      <StatPill label="Status" value={activeTournament.tournament.status} />
-                      <StatPill label="Seeds" value={activeTournament.seeds.length} />
-                    </div>
-                    <p>
-                      Open time trial is paused while this tournament is active. Stage the next
-                      matchup from the tournament board below, or end the tournament early to return
-                      to the regular queue flow.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="form-grid">
-                    <label>
-                      Tournament name
-                      <TextInput
-                        value={tournamentName}
-                        onChange={(event) => {
-                          setTournamentName(event.target.value);
-                        }}
-                        placeholder="Bracket Night"
-                      />
-                    </label>
-                    <label>
-                      Format
-                      <select
-                        value={tournamentPreset}
-                        onChange={(event) => {
-                          setTournamentPreset(event.target.value as TournamentPreset);
-                          setTournamentBracketSizeTouched(false);
-                          setTournamentBracketLayout("auto");
-                        }}
-                      >
-                        {tournamentPresetOptions.map((preset) => (
-                          <option key={preset.id} value={preset.id}>
-                            {preset.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                    {tournamentPresetSupportsBracketSizing ? (
-                      <label>
-                        Bracket size
-                        <select
-                          value={selectedBracketSize ?? tournamentBracketSizeOptions[0]}
-                          onChange={(event) => {
-                            setTournamentBracketSizeTouched(true);
-                            setTournamentBracketSize(
-                              Number(event.target.value) as TournamentBracketSize
-                            );
-                          }}
-                        >
-                          {tournamentBracketSizeOptions.map((size) => (
-                            <option key={size} value={size}>
-                              {size} slots
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    {competitionPresets.find((preset) => preset.id === tournamentPreset)
-                      ?.createsBracket ? (
-                      <label>
-                        Bracket layout
-                        <select
-                          value={tournamentBracketLayout}
-                          onChange={(event) => {
-                            setTournamentBracketLayout(
-                              event.target.value as TournamentBracketLayoutMode
-                            );
-                          }}
-                        >
-                          {tournamentBracketLayoutOptions.map((layout) => (
-                            <option key={layout.id} value={layout.id}>
-                              {layout.label}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    <div className="stack-sm">
-                      <strong>{getPresetLabel(tournamentPreset)}</strong>
-                      <span>
-                        {competitionPresets.find((preset) => preset.id === tournamentPreset)
-                          ?.description ?? "Choose a tournament format to seed from event results."}
-                      </span>
-                      {selectedBracketSize ? (
-                        <span>
-                          {selectedBracketSize < snapshot.racers.length
-                            ? `Seed the top ${selectedBracketSize} racers from the ${snapshot.racers.length} registered for this event.`
-                            : `${selectedBracketSize}-slot bracket with ${snapshot.racers.length} registered racers. Empty slots become byes.`}
-                        </span>
-                      ) : null}
-                      {competitionPresets.find((preset) => preset.id === tournamentPreset)
-                        ?.createsBracket ? (
-                        <span>
-                          {tournamentBracketLayoutOptions.find(
-                            (layout) => layout.id === tournamentBracketLayout
-                          )?.description ?? "Choose how the bracket should be drawn."}
-                        </span>
-                      ) : null}
-                      {!tournamentPresetSupportsCenterConverging &&
-                      tournamentPreset === "double-elimination" ? (
-                        <span>Double elimination stays on a standard board layout for now.</span>
-                      ) : null}
-                    </div>
-                    <Button
-                      onClick={() => {
-                        fireAndForget(
-                          createTournament({
-                            name: tournamentName,
-                            preset: tournamentPreset,
-                            bracketSize: selectedBracketSize,
-                            bracketLayout: tournamentBracketLayout
-                          }),
-                          "start tournament"
-                        );
-                      }}
-                    >
-                      Start Tournament
-                    </Button>
-                  </div>
-                )}
-              </Panel>
-            </motion.div>
+              />
+            </m.div>
           ) : null}
         </AnimatePresence>
 
         {activeTournament?.bracketNodes.length ? (
-          <motion.div
+          <m.div
             layout
             transition={{ layout: layoutTransition }}
             className={`tournaments-tab__card tournaments-tab__card--bracket${
@@ -315,12 +371,12 @@ export function TournamentsTab({
                 }}
               />
             </Panel>
-          </motion.div>
+          </m.div>
         ) : null}
 
         <AnimatePresence initial={false} mode="popLayout">
           {showTournamentMatches && activeTournament ? (
-            <motion.div
+            <m.div
               key="tournament-matches"
               layout="position"
               transition={{ layout: layoutTransition }}
@@ -346,11 +402,11 @@ export function TournamentsTab({
                   }}
                 />
               </Panel>
-            </motion.div>
+            </m.div>
           ) : null}
 
           {showTournamentHistory ? (
-            <motion.div
+            <m.div
               key="tournament-history"
               layout="position"
               transition={{ layout: layoutTransition }}
@@ -380,7 +436,7 @@ export function TournamentsTab({
                   </div>
                 )}
               </Panel>
-            </motion.div>
+            </m.div>
           ) : null}
         </AnimatePresence>
       </div>

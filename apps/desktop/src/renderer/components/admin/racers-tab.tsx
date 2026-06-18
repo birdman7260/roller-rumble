@@ -29,13 +29,18 @@ export function RacersTab({
   onQuickAddRacer: () => void;
   paymentRequiredForQueue: boolean;
 }) {
+  const quickAddNameId = "quick-add-racer-name";
+  const quickAddEmailId = "quick-add-racer-email";
+  const quickAddPhoneId = "quick-add-racer-phone";
+
   return (
     <div className="page-grid">
       <Panel title="Quick Add Racer">
         <div className="form-grid">
-          <label>
+          <label htmlFor={quickAddNameId}>
             Name
             <TextInput
+              id={quickAddNameId}
               value={racerName}
               onChange={(event) => {
                 setRacerName(event.target.value);
@@ -43,9 +48,10 @@ export function RacersTab({
               placeholder="Alex Fast"
             />
           </label>
-          <label>
+          <label htmlFor={quickAddEmailId}>
             Email
             <TextInput
+              id={quickAddEmailId}
               value={racerEmail}
               onChange={(event) => {
                 setRacerEmail(event.target.value);
@@ -53,9 +59,10 @@ export function RacersTab({
               placeholder="alex@example.com"
             />
           </label>
-          <label>
+          <label htmlFor={quickAddPhoneId}>
             Phone
             <TextInput
+              id={quickAddPhoneId}
               value={racerPhone}
               onChange={(event) => {
                 setRacerPhone(event.target.value);

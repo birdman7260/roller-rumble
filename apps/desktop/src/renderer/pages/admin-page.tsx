@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import type { ReactElement } from "react";
+import { useReducer } from "react";
+import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { competitionPresets } from "@roller-rumble/shared/presets";
 import type {
   TournamentBracketLayoutMode,
@@ -28,51 +28,142 @@ import { registerRacer, signUpQueue, updateSettings } from "../lib/api";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
 import { fireAndForget } from "../lib/ui-actions";
 
+interface AdminPageState {
+  activeTab: AdminTabId;
+  adminQueueOpponentId: string;
+  adminQueueRacerId: string;
+  adminQueueRequestedType: "auto-match" | "solo";
+  newEventName: string;
+  raceDistanceInput: string;
+  racerEmail: string;
+  racerName: string;
+  racerPhone: string;
+  search: string;
+  tournamentBracketLayout: TournamentBracketLayoutMode;
+  tournamentBracketSize: TournamentBracketSize;
+  tournamentBracketSizeTouched: boolean;
+  tournamentName: string;
+  tournamentPreset: TournamentPreset;
+}
+
+const initialAdminPageState: AdminPageState = {
+  activeTab: "event",
+  adminQueueOpponentId: "",
+  adminQueueRacerId: "",
+  adminQueueRequestedType: "auto-match",
+  newEventName: "",
+  raceDistanceInput: "",
+  racerEmail: "",
+  racerName: "",
+  racerPhone: "",
+  search: "",
+  tournamentBracketLayout: "auto",
+  tournamentBracketSize: 8,
+  tournamentBracketSizeTouched: false,
+  tournamentName: "Bracket Night",
+  tournamentPreset: "single-elimination"
+};
+
+function adminPageReducer(state: AdminPageState, patch: Partial<AdminPageState>): AdminPageState {
+  return { ...state, ...patch };
+}
+
+function resolveStateAction<T>(action: SetStateAction<T>, currentValue: T): T {
+  return typeof action === "function" ? (action as (value: T) => T)(currentValue) : action;
+}
+
 export function AdminPage() {
   const snapshotQuery = useSnapshotQuery();
   const metaQuery = useMetaQuery();
   const snapshot = snapshotQuery.data;
-  const [activeTab, setActiveTab] = useState<AdminTabId>("event");
-  const [adminQueueRacerId, setAdminQueueRacerId] = useState("");
-  const [adminQueueOpponentId, setAdminQueueOpponentId] = useState("");
-  const [adminQueueRequestedType, setAdminQueueRequestedType] = useState<"auto-match" | "solo">(
-    "auto-match"
-  );
-  const [raceDistanceInput, setRaceDistanceInput] = useState("");
-  const [search, setSearch] = useState("");
-  const [newEventName, setNewEventName] = useState("");
-  const [racerName, setRacerName] = useState("");
-  const [racerEmail, setRacerEmail] = useState("");
-  const [racerPhone, setRacerPhone] = useState("");
-  const [tournamentName, setTournamentName] = useState("Bracket Night");
-  const [tournamentPreset, setTournamentPreset] = useState<TournamentPreset>("single-elimination");
-  const [tournamentBracketSize, setTournamentBracketSize] = useState<TournamentBracketSize>(8);
-  const [tournamentBracketSizeTouched, setTournamentBracketSizeTouched] = useState(false);
-  const [tournamentBracketLayout, setTournamentBracketLayout] =
-    useState<TournamentBracketLayoutMode>("auto");
+  const [state, setState] = useReducer(adminPageReducer, initialAdminPageState);
+  const {
+    activeTab,
+    adminQueueOpponentId,
+    adminQueueRacerId,
+    adminQueueRequestedType,
+    newEventName,
+    raceDistanceInput,
+    racerEmail,
+    racerName,
+    racerPhone,
+    search,
+    tournamentBracketLayout,
+    tournamentBracketSize,
+    tournamentBracketSizeTouched,
+    tournamentName,
+    tournamentPreset
+  } = state;
+  const setActiveTab: Dispatch<SetStateAction<AdminTabId>> = (action) => {
+    setState({ activeTab: resolveStateAction(action, activeTab) });
+  };
+  const setAdminQueueRacerId: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ adminQueueRacerId: resolveStateAction(action, adminQueueRacerId) });
+  };
+  const setAdminQueueOpponentId: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ adminQueueOpponentId: resolveStateAction(action, adminQueueOpponentId) });
+  };
+  const setAdminQueueRequestedType: Dispatch<SetStateAction<"auto-match" | "solo">> = (action) => {
+    setState({
+      adminQueueRequestedType: resolveStateAction(action, adminQueueRequestedType)
+    });
+  };
+  const setRaceDistanceInput: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ raceDistanceInput: resolveStateAction(action, raceDistanceInput) });
+  };
+  const setSearch: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ search: resolveStateAction(action, search) });
+  };
+  const setNewEventName: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ newEventName: resolveStateAction(action, newEventName) });
+  };
+  const setRacerName: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ racerName: resolveStateAction(action, racerName) });
+  };
+  const setRacerEmail: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ racerEmail: resolveStateAction(action, racerEmail) });
+  };
+  const setRacerPhone: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ racerPhone: resolveStateAction(action, racerPhone) });
+  };
+  const setTournamentName: Dispatch<SetStateAction<string>> = (action) => {
+    setState({ tournamentName: resolveStateAction(action, tournamentName) });
+  };
+  const setTournamentPreset: Dispatch<SetStateAction<TournamentPreset>> = (action) => {
+    setState({ tournamentPreset: resolveStateAction(action, tournamentPreset) });
+  };
+  const setTournamentBracketSize: Dispatch<SetStateAction<TournamentBracketSize>> = (action) => {
+    setState({
+      tournamentBracketSize: resolveStateAction(action, tournamentBracketSize)
+    });
+  };
+  const setTournamentBracketSizeTouched: Dispatch<SetStateAction<boolean>> = (action) => {
+    setState({
+      tournamentBracketSizeTouched: resolveStateAction(action, tournamentBracketSizeTouched)
+    });
+  };
+  const setTournamentBracketLayout: Dispatch<SetStateAction<TournamentBracketLayoutMode>> = (
+    action
+  ) => {
+    setState({
+      tournamentBracketLayout: resolveStateAction(action, tournamentBracketLayout)
+    });
+  };
 
-  const filteredRacers = useMemo(() => {
-    if (!snapshot) {
-      return [];
-    }
-
-    const normalized = search.trim().toLowerCase();
-    return snapshot.racers.filter((entry) =>
-      entry.racer.displayName.toLowerCase().includes(normalized)
-    );
-  }, [search, snapshot]);
+  const normalizedRacerSearch = search.trim().toLowerCase();
+  const filteredRacers = snapshot
+    ? snapshot.racers.filter((entry) =>
+        entry.racer.displayName.toLowerCase().includes(normalizedRacerSearch)
+      )
+    : [];
 
   const tournamentPresetSupportsBracketSizing = supportsBracketSizing(tournamentPreset);
   const tournamentPresetSupportsCenterConverging =
     supportsCenterConvergingBracketLayout(tournamentPreset);
-  const tournamentBracketSizeOptions = useMemo(
-    () => (tournamentPresetSupportsBracketSizing ? getBracketSizeOptions(tournamentPreset) : []),
-    [tournamentPreset, tournamentPresetSupportsBracketSizing]
-  );
-  const tournamentBracketLayoutOptions = useMemo(
-    () => getBracketLayoutOptions(tournamentPreset),
-    [tournamentPreset]
-  );
+  const tournamentBracketSizeOptions = tournamentPresetSupportsBracketSizing
+    ? getBracketSizeOptions(tournamentPreset)
+    : [];
+  const tournamentBracketLayoutOptions = getBracketLayoutOptions(tournamentPreset);
   const registeredRacerCount = snapshot?.racers.length ?? 0;
   const suggestedBracketSize =
     tournamentBracketSizeOptions.find((size) => size >= registeredRacerCount) ??

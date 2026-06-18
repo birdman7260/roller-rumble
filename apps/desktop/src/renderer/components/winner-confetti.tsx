@@ -54,5 +54,5 @@ export function WinnerConfetti({
     };
   }, [colors, effectId, winnerKey]);
 
-  return <canvas ref={canvasRef} className="winner-confetti" aria-hidden="true" />;
+  return <canvas ref={canvasRef} className="winner-confetti" />;
 }

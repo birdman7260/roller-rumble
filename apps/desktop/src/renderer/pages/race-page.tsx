@@ -4,7 +4,7 @@ import type {
   RaceRecord,
   TournamentBundle
 } from "@roller-rumble/shared/types";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence, m } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import {
   type BracketPresentationRequest,
@@ -47,6 +47,30 @@ interface PostRaceSequence {
   winnerRacerId: string;
 }
 
+type RaceProjection = NonNullable<AppSnapshot["raceProjection"]>;
+type RaceResultPresentation = NonNullable<RaceProjection["resultPresentation"]>;
+type ProjectorParticipantEntry = ReturnType<typeof buildParticipantEntries>[number];
+
+interface RacePageViewModel {
+  bracketBundle: TournamentBundle | null;
+  bracketHighlightedNodeId: string | null;
+  bracketPresentation: BracketPresentationRequest | null;
+  displayRace: RaceRecord | null;
+  metrics: RaceRecord["metrics"];
+  orientation: RaceProjection["theme"]["orientation"];
+  projection: RaceProjection;
+  qrCodeDataUrl?: string;
+  racers: ProjectorParticipantEntry[];
+  resultPresentation: RaceResultPresentation | null;
+  showRacePanel: boolean;
+  showSignupPrompt: boolean;
+  showTournamentBracket: boolean;
+  snapshot: AppSnapshot;
+  tickerItems: string[];
+  winnerAdvance: BracketWinnerAdvance | null;
+  winnerKey: string | null;
+}
+
 function markSourceWinnerInBundle(sequence: PostRaceSequence): TournamentBundle {
   const afterSourceNode =
     sequence.afterBundle.bracketNodes.find((node) => node.id === sequence.sourceNodeId) ?? null;
@@ -77,7 +101,7 @@ function deriveRaceWinnerId(race: RaceRecord, preferredWinnerId?: string | null)
     return race.winnerRacerId;
   }
 
-  const ranked = [...race.metrics].sort((left, right) => {
+  const ranked = race.metrics.toSorted((left, right) => {
     const leftTime = left.finishedAtMs ?? Number.MAX_SAFE_INTEGER;
     const rightTime = right.finishedAtMs ?? Number.MAX_SAFE_INTEGER;
 
@@ -135,6 +159,147 @@ function buildTickerItems(snapshot: AppSnapshot): string[] {
   return items;
 }
 
+function getDisplayRace({
+  postRaceSequence,
+  race,
+  resultPresentation
+}: {
+  postRaceSequence: PostRaceSequence | null;
+  race: RaceRecord | null;
+  resultPresentation: RaceResultPresentation | null;
+}): RaceRecord | null {
+  return (
+    resultPresentation?.race ??
+    race ??
+    (postRaceSequence?.phase === "confetti" ? postRaceSequence.finishedRace : null) ??
+    null
+  );
+}
+
+function getBracketBundle({
+  activeTournament,
+  currentTournamentBundle,
+  currentTournamentRace,
+  postRaceSequence
+}: {
+  activeTournament: TournamentBundle | null;
+  currentTournamentBundle: TournamentBundle | null;
+  currentTournamentRace: RaceRecord | null;
+  postRaceSequence: PostRaceSequence | null;
+}): TournamentBundle | null {
+  if (postRaceSequence == null) {
+    return currentTournamentRace && TOURNAMENT_PRE_RACE_STATES.includes(currentTournamentRace.state)
+      ? currentTournamentBundle
+      : activeTournament;
+  }
+
+  if (postRaceSequence.phase === "source" || postRaceSequence.phase === "advance") {
+    return markSourceWinnerInBundle(postRaceSequence);
+  }
+
+  return postRaceSequence.afterBundle;
+}
+
+function getBracketHighlightedNodeId({
+  currentTournamentNodeId,
+  postRaceSequence
+}: {
+  currentTournamentNodeId: string | null;
+  postRaceSequence: PostRaceSequence | null;
+}): string | null {
+  if (postRaceSequence == null) {
+    return currentTournamentNodeId;
+  }
+
+  if (postRaceSequence.phase === "source") {
+    return postRaceSequence.sourceNodeId;
+  }
+
+  return postRaceSequence.targetNodeId ?? postRaceSequence.sourceNodeId;
+}
+
+function getBracketPresentation({
+  bracketBundle,
+  currentTournamentNodeId,
+  currentTournamentRace,
+  postRaceSequence
+}: {
+  bracketBundle: TournamentBundle | null;
+  currentTournamentNodeId: string | null;
+  currentTournamentRace: RaceRecord | null;
+  postRaceSequence: PostRaceSequence | null;
+}): BracketPresentationRequest | null {
+  if (!bracketBundle) {
+    return null;
+  }
+
+  if (postRaceSequence) {
+    switch (postRaceSequence.phase) {
+      case "source":
+        return {
+          key: `${postRaceSequence.raceId}:source`,
+          nodeIds: [postRaceSequence.sourceNodeId],
+          padding: 0.95,
+          type: "focus-node"
+        };
+      case "advance":
+        return {
+          durationMs: WINNER_ADVANCE_ANIMATION_MS,
+          key: `${postRaceSequence.raceId}:advance`,
+          nodeIds: postRaceSequence.targetNodeId
+            ? [postRaceSequence.sourceNodeId, postRaceSequence.targetNodeId]
+            : [postRaceSequence.sourceNodeId],
+          padding: postRaceSequence.targetNodeId ? 0.65 : 0.95,
+          type: postRaceSequence.targetNodeId ? "focus-nodes" : "focus-node"
+        };
+      case "hold":
+        return {
+          key: `${postRaceSequence.raceId}:hold`,
+          nodeIds: [postRaceSequence.targetNodeId ?? postRaceSequence.sourceNodeId],
+          padding: 0.88,
+          type: "focus-node"
+        };
+      case "zoom-out":
+        return {
+          durationMs: BRACKET_ZOOM_OUT_MS,
+          key: `${postRaceSequence.raceId}:zoom-out`,
+          padding: 0.18,
+          type: "fit-board"
+        };
+      case "confetti":
+        return null;
+    }
+  }
+
+  if (currentTournamentNodeId && currentTournamentRace) {
+    return {
+      key: `${currentTournamentRace.id}:staged`,
+      nodeIds: [currentTournamentNodeId],
+      padding: 0.95,
+      type: "focus-node"
+    };
+  }
+
+  return {
+    key: `${bracketBundle.tournament.id}:overview`,
+    padding: 0.18,
+    type: "fit-board"
+  };
+}
+
+function getWinnerAdvance(postRaceSequence: PostRaceSequence | null): BracketWinnerAdvance | null {
+  if (postRaceSequence?.phase !== "advance" || postRaceSequence.targetNodeId == null) {
+    return null;
+  }
+
+  return {
+    durationMs: WINNER_ADVANCE_ANIMATION_MS,
+    fromNodeId: postRaceSequence.sourceNodeId,
+    key: `${postRaceSequence.raceId}:winner-advance`,
+    toNodeId: postRaceSequence.targetNodeId
+  };
+}
+
 function ProjectorBrand({
   eventName,
   showEventName
@@ -175,15 +340,11 @@ function LocalLogo() {
   const src = hasLogoCandidate ? LOCAL_LOGO_SOURCES[assetIndex] : null;
 
   return (
-    <span
-      className={`race-page__local-logo ${src == null ? "race-page__local-logo--missing" : ""}`}
-      aria-label="Fiercely Local logo"
-      role="img"
-    >
+    <span className={`race-page__local-logo ${src == null ? "race-page__local-logo--missing" : ""}`}>
       {src ? (
         <img
           src={src}
-          alt=""
+          alt="Fiercely Local"
           draggable={false}
           onError={() => {
             setAssetIndex((current) => current + 1);
@@ -317,16 +478,155 @@ function RacerSignupPrompt({ qrCodeDataUrl }: { qrCodeDataUrl?: string }) {
   );
 }
 
-export function RacePage() {
+function TournamentBracketLayer({ model }: { model: RacePageViewModel }) {
+  if (!model.bracketBundle) {
+    return null;
+  }
+
+  return (
+    <m.div
+      className="race-page__bracket-layer"
+      initial={false}
+      animate={{
+        opacity: model.showTournamentBracket ? 1 : 0,
+        x: model.showTournamentBracket ? "0%" : "-14%"
+      }}
+      transition={{
+        duration: model.showTournamentBracket ? 0.55 : 0.4,
+        ease: model.showTournamentBracket ? [0.22, 0.84, 0.2, 1] : [0.4, 0, 1, 1]
+      }}
+    >
+      <div className="race-page__bracket-stage">
+        <EliminationBracketView
+          snapshot={model.snapshot}
+          bundle={model.bracketBundle}
+          interactive={false}
+          expandMode="container"
+          expanded
+          highlightedNodeId={model.bracketHighlightedNodeId}
+          presentationRequest={model.bracketPresentation}
+          showViewportControls={false}
+          winnerAdvance={model.winnerAdvance}
+        />
+      </div>
+    </m.div>
+  );
+}
+
+function RaceLayer({ model }: { model: RacePageViewModel }) {
+  return (
+    <m.div
+      className={`race-page__race-layer ${
+        model.showSignupPrompt ? "race-page__race-layer--signup-prompt" : ""
+      }`}
+      initial={false}
+      animate={{
+        opacity: model.showRacePanel ? 1 : model.bracketBundle ? 0 : 1,
+        x: model.showRacePanel || model.showSignupPrompt ? "0%" : "12%"
+      }}
+      transition={{
+        duration: model.showRacePanel ? 0.42 : 0.32,
+        ease: model.showRacePanel ? [0.22, 0.84, 0.2, 1] : [0.4, 0, 1, 1]
+      }}
+    >
+      {model.displayRace ? (
+        <RaceGraphic
+          theme={model.projection.theme}
+          racers={model.racers}
+          metrics={model.metrics}
+          targetDistanceMeters={model.displayRace.targetDistanceMeters}
+          laneColorsFlipped={model.snapshot.settings.raceDisplayLaneColorsFlipped}
+        />
+      ) : model.showSignupPrompt ? (
+        <RacerSignupPrompt qrCodeDataUrl={model.qrCodeDataUrl} />
+      ) : !model.bracketBundle ? (
+        <Panel className="panel--glass">
+          <EmptyState
+            title="Projector Ready"
+            body="Stage the next race from the admin screen or arm VirtualDJ to kick off the countdown."
+          />
+        </Panel>
+      ) : null}
+    </m.div>
+  );
+}
+
+function RaceStage({ model }: { model: RacePageViewModel }) {
+  return (
+    <div className="race-page__stage">
+      <TournamentBracketLayer model={model} />
+      <RaceLayer model={model} />
+    </div>
+  );
+}
+
+function RaceResultsLayer({ model }: { model: RacePageViewModel }) {
+  return (
+    <AnimatePresence>
+      {model.resultPresentation ? (
+        <RaceResultsOverlay
+          laneColorsFlipped={model.snapshot.settings.raceDisplayLaneColorsFlipped}
+          race={model.resultPresentation.race}
+          racers={model.snapshot.racers}
+          winnerRacerId={model.resultPresentation.winnerRacerId}
+        />
+      ) : null}
+    </AnimatePresence>
+  );
+}
+
+function RacePageView({ model }: { model: RacePageViewModel }) {
+  return (
+    <div
+      className={`race-page race-page--${model.orientation} ${
+        model.showSignupPrompt ? "race-page--signup-prompt" : ""
+      }`}
+    >
+      <WinnerConfetti
+        winnerKey={model.winnerKey}
+        effectId={model.projection.theme.confettiEffectId}
+        colors={[
+          model.projection.theme.tokens.accent,
+          model.projection.theme.tokens.warning,
+          model.projection.theme.tokens.success,
+          model.projection.theme.tokens.laneA,
+          model.projection.theme.tokens.laneB
+        ]}
+      />
+      <ProjectorBrand
+        eventName={model.snapshot.activeEvent.name}
+        showEventName={model.snapshot.settings.raceDisplayShowEventName}
+      />
+      <LocalMark variant={model.orientation === "horizontal" ? "footer" : "corner"} />
+
+      {model.projection.countdownSecondsRemaining ? (
+        <div className="countdown-overlay">
+          {model.projection.countdownSecondsRemaining > 0
+            ? model.projection.countdownSecondsRemaining
+            : "GO!"}
+        </div>
+      ) : null}
+
+      <RaceStage model={model} />
+      <RaceResultsLayer model={model} />
+      <RaceTicker
+        items={model.tickerItems}
+        speedPixelsPerSecond={model.snapshot.settings.raceDisplayTickerSpeed}
+      />
+    </div>
+  );
+}
+
+function useRacePageViewModel(): RacePageViewModel | null {
   const snapshotQuery = useSnapshotQuery();
   const metaQuery = useMetaQuery();
   const snapshot = snapshotQuery.data ?? null;
   const meta = metaQuery.data ?? null;
   const [postRaceSequence, setPostRaceSequence] = useState<PostRaceSequence | null>(null);
+  const [handledFinishedRaceIds] = useState(() => new Set<string>());
   const previousTournamentRaceRef = useRef<RaceRecord | null>(null);
   const previousTournamentBundleRef = useRef<TournamentBundle | null>(null);
   const latestTournamentWinnerIdRef = useRef<string | null>(null);
-  const handledFinishedRaceIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     document.body.classList.add("route-race");
@@ -392,7 +692,7 @@ export function RacePage() {
       previousRace == null ||
       previousBundle == null ||
       winnerRacerId == null ||
-      handledFinishedRaceIdsRef.current.has(previousRace.id)
+      handledFinishedRaceIds.has(previousRace.id)
     ) {
       return;
     }
@@ -410,7 +710,7 @@ export function RacePage() {
       return;
     }
 
-    handledFinishedRaceIdsRef.current.add(previousRace.id);
+    handledFinishedRaceIds.add(previousRace.id);
 
     setPostRaceSequence({
       afterBundle,
@@ -422,7 +722,7 @@ export function RacePage() {
       targetNodeId: sourceNode.winnerToNodeId ?? null,
       winnerRacerId
     });
-  }, [currentTournamentRace, postRaceSequence, resultPresentation, snapshot]);
+  }, [currentTournamentRace, handledFinishedRaceIds, postRaceSequence, resultPresentation, snapshot]);
 
   useEffect(() => {
     if (!postRaceSequence || projection == null) {
@@ -482,105 +782,31 @@ export function RacePage() {
   }, [postRaceSequence, projection]);
 
   if (snapshot == null || projection == null) {
-    return <p>Loading race display…</p>;
+    return null;
   }
 
-  const displayRace =
-    resultPresentation?.race ??
-    race ??
-    (postRaceSequence?.phase === "confetti" ? postRaceSequence.finishedRace : null) ??
-    null;
+  const displayRace = getDisplayRace({ postRaceSequence, race, resultPresentation });
   const winnerKey = resultPresentation
     ? `${resultPresentation.race.id}:${resultPresentation.winnerRacerId}`
     : null;
-
-  const sourceMarkedBundle = postRaceSequence ? markSourceWinnerInBundle(postRaceSequence) : null;
-  const bracketBundle =
-    postRaceSequence == null
-      ? currentTournamentRace && TOURNAMENT_PRE_RACE_STATES.includes(currentTournamentRace.state)
-        ? currentTournamentBundle
-        : activeTournament
-      : postRaceSequence.phase === "source" || postRaceSequence.phase === "advance"
-        ? sourceMarkedBundle
-        : postRaceSequence.afterBundle;
-  const bracketHighlightedNodeId =
-    postRaceSequence == null
-      ? (currentTournamentNode?.id ?? null)
-      : postRaceSequence.phase === "source"
-        ? postRaceSequence.sourceNodeId
-        : (postRaceSequence.targetNodeId ?? postRaceSequence.sourceNodeId);
-
-  const bracketPresentation: BracketPresentationRequest | null = (() => {
-    if (!bracketBundle) {
-      return null;
-    }
-
-    if (postRaceSequence) {
-      switch (postRaceSequence.phase) {
-        case "source":
-          return {
-            key: `${postRaceSequence.raceId}:source`,
-            nodeIds: [postRaceSequence.sourceNodeId],
-            padding: 0.95,
-            type: "focus-node"
-          };
-        case "advance":
-          return {
-            durationMs: WINNER_ADVANCE_ANIMATION_MS,
-            key: `${postRaceSequence.raceId}:advance`,
-            nodeIds: postRaceSequence.targetNodeId
-              ? [postRaceSequence.sourceNodeId, postRaceSequence.targetNodeId]
-              : [postRaceSequence.sourceNodeId],
-            padding: postRaceSequence.targetNodeId ? 0.65 : 0.95,
-            type: postRaceSequence.targetNodeId ? "focus-nodes" : "focus-node"
-          };
-        case "hold":
-          return {
-            key: `${postRaceSequence.raceId}:hold`,
-            nodeIds: [postRaceSequence.targetNodeId ?? postRaceSequence.sourceNodeId],
-            padding: 0.88,
-            type: "focus-node"
-          };
-        case "zoom-out":
-          return {
-            durationMs: BRACKET_ZOOM_OUT_MS,
-            key: `${postRaceSequence.raceId}:zoom-out`,
-            padding: 0.18,
-            type: "fit-board"
-          };
-        case "confetti":
-          return null;
-      }
-    }
-
-    if (currentTournamentNode && currentTournamentRace) {
-      return {
-        key: `${currentTournamentRace.id}:staged`,
-        nodeIds: [currentTournamentNode.id],
-        padding: 0.95,
-        type: "focus-node"
-      };
-    }
-
-    return {
-      key: `${bracketBundle.tournament.id}:overview`,
-      padding: 0.18,
-      type: "fit-board"
-    };
-  })();
-
-  const winnerAdvance: BracketWinnerAdvance | null = (() => {
-    if (postRaceSequence?.phase !== "advance" || postRaceSequence.targetNodeId == null) {
-      return null;
-    }
-
-    return {
-      durationMs: WINNER_ADVANCE_ANIMATION_MS,
-      fromNodeId: postRaceSequence.sourceNodeId,
-      key: `${postRaceSequence.raceId}:winner-advance`,
-      toNodeId: postRaceSequence.targetNodeId
-    };
-  })();
+  const currentTournamentNodeId = currentTournamentNode?.id ?? null;
+  const bracketBundle = getBracketBundle({
+    activeTournament,
+    currentTournamentBundle,
+    currentTournamentRace,
+    postRaceSequence
+  });
+  const bracketHighlightedNodeId = getBracketHighlightedNodeId({
+    currentTournamentNodeId,
+    postRaceSequence
+  });
+  const bracketPresentation = getBracketPresentation({
+    bracketBundle,
+    currentTournamentNodeId,
+    currentTournamentRace,
+    postRaceSequence
+  });
+  const winnerAdvance = getWinnerAdvance(postRaceSequence);
 
   const showTournamentBracket =
     bracketBundle != null &&
@@ -600,115 +826,29 @@ export function RacePage() {
   // geometry. The bottom ticker still communicates any queued upcoming races.
   const showSignupPrompt = !bracketBundle && displayRace == null;
 
-  return (
-    <div
-      className={`race-page race-page--${orientation} ${
-        showSignupPrompt ? "race-page--signup-prompt" : ""
-      }`}
-    >
-      <WinnerConfetti
-        winnerKey={winnerKey}
-        effectId={projection.theme.confettiEffectId}
-        colors={[
-          projection.theme.tokens.accent,
-          projection.theme.tokens.warning,
-          projection.theme.tokens.success,
-          projection.theme.tokens.laneA,
-          projection.theme.tokens.laneB
-        ]}
-      />
-      <ProjectorBrand
-        eventName={snapshot.activeEvent.name}
-        showEventName={snapshot.settings.raceDisplayShowEventName}
-      />
-      <LocalMark variant={orientation === "horizontal" ? "footer" : "corner"} />
+  return {
+    bracketBundle,
+    bracketHighlightedNodeId,
+    bracketPresentation,
+    displayRace,
+    metrics,
+    orientation,
+    projection,
+    qrCodeDataUrl: meta?.qrCodeDataUrl,
+    racers,
+    resultPresentation,
+    showRacePanel,
+    showSignupPrompt,
+    showTournamentBracket,
+    snapshot,
+    tickerItems,
+    winnerAdvance,
+    winnerKey
+  };
+}
 
-      {projection.countdownSecondsRemaining ? (
-        <div className="countdown-overlay">
-          {projection.countdownSecondsRemaining > 0 ? projection.countdownSecondsRemaining : "GO!"}
-        </div>
-      ) : null}
+export function RacePage() {
+  const model = useRacePageViewModel();
 
-      <div className="race-page__stage">
-        {bracketBundle ? (
-          <motion.div
-            className="race-page__bracket-layer"
-            initial={false}
-            animate={{
-              opacity: showTournamentBracket ? 1 : 0,
-              x: showTournamentBracket ? "0%" : "-14%"
-            }}
-            transition={{
-              duration: showTournamentBracket ? 0.55 : 0.4,
-              ease: showTournamentBracket ? [0.22, 0.84, 0.2, 1] : [0.4, 0, 1, 1]
-            }}
-          >
-            <div className="race-page__bracket-stage">
-              <EliminationBracketView
-                snapshot={snapshot}
-                bundle={bracketBundle}
-                interactive={false}
-                expandMode="container"
-                expanded
-                highlightedNodeId={bracketHighlightedNodeId}
-                presentationRequest={bracketPresentation}
-                showViewportControls={false}
-                winnerAdvance={winnerAdvance}
-              />
-            </div>
-          </motion.div>
-        ) : null}
-
-        <motion.div
-          className={`race-page__race-layer ${
-            showSignupPrompt ? "race-page__race-layer--signup-prompt" : ""
-          }`}
-          initial={false}
-          animate={{
-            opacity: showRacePanel ? 1 : bracketBundle ? 0 : 1,
-            x: showRacePanel || showSignupPrompt ? "0%" : "12%"
-          }}
-          transition={{
-            duration: showRacePanel ? 0.42 : 0.32,
-            ease: showRacePanel ? [0.22, 0.84, 0.2, 1] : [0.4, 0, 1, 1]
-          }}
-        >
-          {displayRace ? (
-            <RaceGraphic
-              theme={projection.theme}
-              racers={racers}
-              metrics={metrics}
-              targetDistanceMeters={displayRace.targetDistanceMeters}
-              laneColorsFlipped={snapshot.settings.raceDisplayLaneColorsFlipped}
-            />
-          ) : showSignupPrompt ? (
-            <RacerSignupPrompt qrCodeDataUrl={meta?.qrCodeDataUrl} />
-          ) : !bracketBundle ? (
-            <Panel className="panel--glass">
-              <EmptyState
-                title="Projector Ready"
-                body="Stage the next race from the admin screen or arm VirtualDJ to kick off the countdown."
-              />
-            </Panel>
-          ) : null}
-        </motion.div>
-      </div>
-
-      <AnimatePresence>
-        {resultPresentation ? (
-          <RaceResultsOverlay
-            laneColorsFlipped={snapshot.settings.raceDisplayLaneColorsFlipped}
-            race={resultPresentation.race}
-            racers={snapshot.racers}
-            winnerRacerId={resultPresentation.winnerRacerId}
-          />
-        ) : null}
-      </AnimatePresence>
-
-      <RaceTicker
-        items={tickerItems}
-        speedPixelsPerSecond={snapshot.settings.raceDisplayTickerSpeed}
-      />
-    </div>
-  );
+  return model ? <RacePageView model={model} /> : <p>Loading race display…</p>;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import { Panel } from "@roller-rumble/shared-ui";
 import { LIGHT_LOOKS, type LightLookDefinition, type LightLookPreview } from "../../light-looks";
 import type { LightSelection } from "../../types";
@@ -122,7 +122,7 @@ export function LightLookWheel({
     return () => clearWheelSettleTimer();
   }, []);
 
-  const handleNativeWheel = useEffectEvent((event: WheelEvent) => {
+  function handleWheel(event: WheelEvent<HTMLDivElement>): void {
     if (disabled) {
       return;
     }
@@ -136,19 +136,7 @@ export function LightLookWheel({
       scheduleWheelSettle(Math.round(nextPosition));
       return nextPosition;
     });
-  });
-
-  useEffect(() => {
-    const wheelElement = wheelElementRef.current;
-    if (!wheelElement) {
-      return undefined;
-    }
-
-    // The picker must own wheel input so trackpads do not scroll the whole kiosk page.
-    const handleWheel = (event: WheelEvent) => handleNativeWheel(event);
-    wheelElement.addEventListener("wheel", handleWheel, { passive: false });
-    return () => wheelElement.removeEventListener("wheel", handleWheel);
-  }, []);
+  }
 
   const visibleLooks = Array.from(
     { length: LIGHT_WHEEL_VISIBLE_RADIUS * 2 + 1 },
@@ -182,19 +170,8 @@ export function LightLookWheel({
               isDragging ? "light-look-wheel light-look-wheel--dragging" : "light-look-wheel"
             }
             ref={wheelElementRef}
-            role="listbox"
-            tabIndex={0}
-            aria-activedescendant={`light-look-${centeredLook.id}-${centeredPosition}`}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowUp") {
-                event.preventDefault();
-                selectPosition(wheelPosition - 1);
-              }
-              if (event.key === "ArrowDown") {
-                event.preventDefault();
-                selectPosition(wheelPosition + 1);
-              }
-            }}
+            aria-label={`Light look selector, ${centeredLook.label} selected`}
+            onWheel={handleWheel}
             onPointerDown={(event) => {
               if (disabled) {
                 return;
@@ -238,9 +215,8 @@ export function LightLookWheel({
                 className={isActive ? "light-look-item light-look-item--active" : "light-look-item"}
                 style={style}
                 type="button"
-                role="option"
                 aria-label={look.label}
-                aria-selected={isActive}
+                aria-pressed={isActive}
                 disabled={disabled}
                 onClick={(event) => {
                   if (suppressClickRef.current) {

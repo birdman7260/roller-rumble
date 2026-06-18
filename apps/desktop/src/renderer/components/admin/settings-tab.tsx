@@ -1,5 +1,6 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
+import type { RefObject } from "react";
 import type {
   AdminNotificationTargetType,
   AppSnapshot,
@@ -39,8 +40,10 @@ const boothHardwareLabels = {
 function parseTickerMessages(value: string): string[] {
   return value
     .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
+    .flatMap((line) => {
+      const trimmedLine = line.trim();
+      return trimmedLine ? [trimmedLine] : [];
+    })
     .slice(0, 20);
 }
 
@@ -118,6 +121,578 @@ function useMasonryGrid() {
   return gridRef;
 }
 
+interface SettingsUiState {
+  cloudflaredInstalling: boolean;
+  labOpenStatus: string | null;
+  notificationBody: string;
+  notificationRacerIds: string[];
+  notificationSendStatus: string | null;
+  notificationTargetType: AdminNotificationTargetType;
+  notificationTitle: string;
+  projectorWindowStatus: string | null;
+  projectorWindowWorking: ProjectorWindowSizePreset | null;
+  runtimeEnvStatus: string | null;
+  runtimeEnvWorking: boolean;
+}
+
+const initialSettingsUiState: SettingsUiState = {
+  cloudflaredInstalling: false,
+  labOpenStatus: null,
+  notificationBody: "",
+  notificationRacerIds: [],
+  notificationSendStatus: null,
+  notificationTargetType: "event",
+  notificationTitle: "",
+  projectorWindowStatus: null,
+  projectorWindowWorking: null,
+  runtimeEnvStatus: null,
+  runtimeEnvWorking: false
+};
+
+function settingsUiReducer(
+  state: SettingsUiState,
+  patch: Partial<SettingsUiState>
+): SettingsUiState {
+  return { ...state, ...patch };
+}
+
+function GeneralSettingsPanel({ snapshot }: { snapshot: AppSnapshot }) {
+  return (
+    <Panel title="Settings">
+      <div className="form-grid">
+        <label>
+          Theme
+          <select
+            value={snapshot.settings.themeId}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ themeId: event.target.value }));
+            }}
+          >
+            {snapshot.themes.map((theme) => (
+              <option key={theme.id} value={theme.id}>
+                {theme.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.os2lEnabled}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ os2lEnabled: event.target.checked }));
+            }}
+          />
+          Enable VirtualDJ cue start
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.autoStageNextRace}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ autoStageNextRace: event.target.checked }));
+            }}
+          />
+          Auto-stage the next queued open time trial race
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.includeAllRaceData}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ includeAllRaceData: event.target.checked }));
+            }}
+          />
+          Seed from all-time race data
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.allowAccountlessRacerSignup}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ allowAccountlessRacerSignup: event.target.checked }));
+            }}
+          />
+          Allow accountless racer signup
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.showPublicRacerInfoWithoutLogin}
+            onChange={(event) => {
+              fireAndForget(
+                updateSettings({ showPublicRacerInfoWithoutLogin: event.target.checked })
+              );
+            }}
+          />
+          Show race info before racer sign-in
+        </label>
+        <label>
+          Max active queue entries per racer
+          <input
+            type="number"
+            min={1}
+            max={10}
+            step={1}
+            value={snapshot.settings.maxActiveQueueEntriesPerRacer}
+            onChange={(event) => {
+              fireAndForget(
+                updateSettings({
+                  maxActiveQueueEntriesPerRacer: Number(event.target.value)
+                })
+              );
+            }}
+          />
+        </label>
+      </div>
+    </Panel>
+  );
+}
+
+function ProjectorDisplayPanel({
+  projectorWindowStatus,
+  projectorWindowWorking,
+  resizeProjectorFromAdmin,
+  snapshot,
+  tickerMessageInputRef
+}: {
+  projectorWindowStatus: string | null;
+  projectorWindowWorking: ProjectorWindowSizePreset | null;
+  resizeProjectorFromAdmin: (preset: ProjectorWindowSizePreset) => Promise<void>;
+  snapshot: AppSnapshot;
+  tickerMessageInputRef: RefObject<HTMLTextAreaElement | null>;
+}) {
+  return (
+    <Panel title="Projector Display">
+      <div className="form-grid">
+        <div className="stack-sm">
+          <p>Resize the projector window for quick 720p or 1080p layout checks.</p>
+          <div className="panel-action-row settings-panel__actions">
+            <Button
+              variant="ghost"
+              disabled={projectorWindowWorking !== null}
+              onClick={() => {
+                fireAndForget(resizeProjectorFromAdmin("720p"), "resize projector to 720p");
+              }}
+            >
+              {projectorWindowWorking === "720p" ? "Resizing..." : "720p (1280x720)"}
+            </Button>
+            <Button
+              variant="ghost"
+              disabled={projectorWindowWorking !== null}
+              onClick={() => {
+                fireAndForget(resizeProjectorFromAdmin("1080p"), "resize projector to 1080p");
+              }}
+            >
+              {projectorWindowWorking === "1080p" ? "Resizing..." : "1080p (1920x1080)"}
+            </Button>
+          </div>
+          {projectorWindowStatus ? <p>{projectorWindowStatus}</p> : null}
+        </div>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.raceDisplayShowEventName}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ raceDisplayShowEventName: event.target.checked }));
+            }}
+          />
+          Show event name under the Roller Rumble title
+        </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.raceDisplayLaneColorsFlipped}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ raceDisplayLaneColorsFlipped: event.target.checked }));
+            }}
+          />
+          Flip projector lane colors
+        </label>
+        <label>
+          Ticker speed
+          <div className="range-control">
+            <input
+              type="range"
+              min={24}
+              max={180}
+              step={4}
+              value={snapshot.settings.raceDisplayTickerSpeed}
+              onChange={(event) => {
+                const nextSpeed = Number(event.target.value);
+                fireAndForget(updateSettings({ raceDisplayTickerSpeed: nextSpeed }));
+              }}
+            />
+            <span>{snapshot.settings.raceDisplayTickerSpeed} px/s</span>
+          </div>
+        </label>
+        <label>
+          Ticker messages
+          <textarea
+            ref={tickerMessageInputRef}
+            key={snapshot.settings.raceDisplayTickerMessages.join("\n")}
+            rows={5}
+            defaultValue={snapshot.settings.raceDisplayTickerMessages.join("\n")}
+            placeholder="One projector ticker message per line"
+          />
+        </label>
+        <div className="button-row">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              if (tickerMessageInputRef.current) {
+                tickerMessageInputRef.current.value = "";
+              }
+              fireAndForget(updateSettings({ raceDisplayTickerMessages: [] }));
+            }}
+          >
+            Clear Messages
+          </Button>
+          <Button
+            onClick={() => {
+              fireAndForget(
+                updateSettings({
+                  raceDisplayTickerMessages: parseTickerMessages(
+                    tickerMessageInputRef.current?.value ?? ""
+                  )
+                })
+              );
+            }}
+          >
+            Save Ticker Messages
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+function NotificationsPanel({
+  notificationBody,
+  notificationConfig,
+  notificationRacerIds,
+  notificationSendStatus,
+  notificationTargetType,
+  notificationTitle,
+  sendNotificationFromAdmin,
+  setUiState,
+  snapshot
+}: {
+  notificationBody: string;
+  notificationConfig: { configured?: boolean; message?: string | null; publicKey?: string | null };
+  notificationRacerIds: string[];
+  notificationSendStatus: string | null;
+  notificationTargetType: AdminNotificationTargetType;
+  notificationTitle: string;
+  sendNotificationFromAdmin: () => Promise<void>;
+  setUiState: (patch: Partial<SettingsUiState>) => void;
+  snapshot: AppSnapshot;
+}) {
+  return (
+    <Panel title="Notifications">
+      <div className="form-grid">
+        <div className="stat-grid">
+          <StatPill label="Web Push" value={notificationConfig.configured ? "Ready" : "Not configured"} />
+          <StatPill label="Public Key" value={notificationConfig.publicKey ? "Present" : "Missing"} />
+        </div>
+        <p>
+          {notificationConfig.message ??
+            "Checking Web Push setup. Private VAPID keys are never shown here."}
+        </p>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.showRacerNotificationDebugList}
+            onChange={(event) => {
+              fireAndForget(
+                updateSettings({ showRacerNotificationDebugList: event.target.checked })
+              );
+            }}
+          />
+          Show racer notification debug list
+        </label>
+        <label>
+          Target
+          <select
+            value={notificationTargetType}
+            onChange={(event) => {
+              setUiState({
+                notificationTargetType: event.target.value as AdminNotificationTargetType
+              });
+            }}
+          >
+            <option value="event">All current event racers</option>
+            <option value="queued">Queued racers</option>
+            <option value="tournament">Active tournament racers</option>
+            <option value="selected">Selected racers</option>
+          </select>
+        </label>
+        {notificationTargetType === "selected" ? (
+          <label>
+            Selected racers
+            <select
+              multiple
+              value={notificationRacerIds}
+              onChange={(event) => {
+                setUiState({
+                  notificationRacerIds: [...event.currentTarget.selectedOptions].map(
+                    (option) => option.value
+                  )
+                });
+              }}
+            >
+              {snapshot.racers.map((entry) => (
+                <option key={entry.racer.id} value={entry.racer.id}>
+                  {entry.racer.displayName}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <label>
+          Message title
+          <input
+            value={notificationTitle}
+            maxLength={80}
+            onChange={(event) => {
+              setUiState({ notificationTitle: event.target.value });
+            }}
+            placeholder="Race update"
+          />
+        </label>
+        <label>
+          Message body
+          <textarea
+            rows={4}
+            maxLength={240}
+            value={notificationBody}
+            onChange={(event) => {
+              setUiState({ notificationBody: event.target.value });
+            }}
+            placeholder="Head to the bikes. Your match is coming up."
+          />
+        </label>
+        <div className="button-row">
+          <Button
+            disabled={
+              !notificationTitle.trim() ||
+              !notificationBody.trim() ||
+              (notificationTargetType === "selected" && notificationRacerIds.length === 0)
+            }
+            onClick={() => {
+              fireAndForget(sendNotificationFromAdmin(), "send notification");
+            }}
+          >
+            Send Notification
+          </Button>
+        </div>
+        {notificationSendStatus ? <p>{notificationSendStatus}</p> : null}
+      </div>
+    </Panel>
+  );
+}
+
+function VirtualDjDiagnosticsPanel({ snapshot }: { snapshot: AppSnapshot }) {
+  return (
+    <Panel className="settings-panel" title="VirtualDJ Diagnostics">
+      <div className="stack-sm">
+        <div className="stat-grid">
+          <StatPill label="Cue Start" value={snapshot.os2l.enabled ? "Enabled" : "Disabled"} />
+          <StatPill label="TCP Listener" value={snapshot.os2l.listening ? "Listening" : "Off"} />
+          <StatPill
+            label="Discovery"
+            value={snapshot.os2l.advertising ? "Advertising" : "Not advertising"}
+          />
+          <StatPill label="Port" value={snapshot.os2l.port} />
+          <StatPill label="Armed Race" value={snapshot.os2l.armedRaceId ? "Ready" : "None"} />
+          <StatPill label="Beats Seen" value={snapshot.os2l.beatMessageCount} />
+          <StatPill label="Accepted" value={snapshot.os2l.acceptedMessageCount} />
+          <StatPill label="Ignored" value={snapshot.os2l.ignoredMessageCount} />
+        </div>
+        <p>
+          VirtualDJ should discover this app as `{snapshot.os2l.serviceName}` over OS2L. If Windows
+          asks about network access, allow Roller Rumble on the private/event network.
+        </p>
+        <p>Last beat message: {diagnosticTimeLabel(snapshot.os2l.lastBeatAt)}</p>
+        <div className="stack-sm">
+          <strong>Last raw OS2L message</strong>
+          <span>{diagnosticTimeLabel(snapshot.os2l.lastRawMessageAt)}</span>
+          <code className="breakable-value">
+            {snapshot.os2l.lastRawMessage ?? "No OS2L messages received yet."}
+          </code>
+        </div>
+        <div className="stack-sm">
+          <strong>Last accepted cue</strong>
+          <span>{diagnosticTimeLabel(snapshot.os2l.lastAcceptedAt)}</span>
+          <code className="breakable-value">
+            {snapshot.os2l.lastAcceptedMessage ?? "No accepted Roller Rumble cue yet."}
+          </code>
+        </div>
+        <div className="stack-sm">
+          <strong>Last ignored message</strong>
+          <span>{diagnosticTimeLabel(snapshot.os2l.lastIgnoredAt)}</span>
+          <span>{snapshot.os2l.lastIgnoredReason ?? "No ignored messages yet."}</span>
+          <code className="breakable-value">
+            {snapshot.os2l.lastIgnoredMessage ?? "No ignored OS2L messages yet."}
+          </code>
+        </div>
+        {snapshot.os2l.lastError ? <p className="form-error">{snapshot.os2l.lastError}</p> : null}
+      </div>
+    </Panel>
+  );
+}
+
+function LabPagesPanel({
+  labOpenStatus,
+  openLabFromAdmin
+}: {
+  labOpenStatus: string | null;
+  openLabFromAdmin: (labId: "bracket" | "notification" | "queue") => Promise<void>;
+}) {
+  return (
+    <Panel className="settings-panel" title="Lab Pages">
+      <div className="stack-sm">
+        <p>Open the built-in test labs in your default browser.</p>
+        <div className="panel-action-row settings-panel__actions">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(openLabFromAdmin("bracket"), "open bracket lab");
+            }}
+          >
+            Open Bracket Lab
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(openLabFromAdmin("queue"), "open queue lab");
+            }}
+          >
+            Open Queue Lab
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(openLabFromAdmin("notification"), "open notification lab");
+            }}
+          >
+            Open Notification Lab
+          </Button>
+        </div>
+        {labOpenStatus ? <p>{labOpenStatus}</p> : null}
+      </div>
+    </Panel>
+  );
+}
+
+function RuntimeEnvironmentPanel({
+  generatePushKeysFromAdmin,
+  notificationConfigured,
+  openRuntimeEnvFromAdmin,
+  runtimeEnvQuery,
+  runtimeEnvStatus,
+  runtimeEnvWorking
+}: {
+  generatePushKeysFromAdmin: () => Promise<void>;
+  notificationConfigured: boolean;
+  openRuntimeEnvFromAdmin: () => Promise<void>;
+  runtimeEnvQuery: ReturnType<typeof useRuntimeEnvQuery>;
+  runtimeEnvStatus: string | null;
+  runtimeEnvWorking: boolean;
+}) {
+  return (
+    <Panel
+      className="settings-panel"
+      title="Environment"
+      actions={
+        <div className="panel-action-row settings-panel__actions">
+          {runtimeEnvQuery.data?.exists ? (
+            <Button
+              variant="ghost"
+              disabled={runtimeEnvWorking}
+              onClick={() => {
+                fireAndForget(openRuntimeEnvFromAdmin(), "open runtime env file");
+              }}
+            >
+              {runtimeEnvWorking ? "Opening..." : "Open Env File"}
+            </Button>
+          ) : (
+            <Button
+              disabled={runtimeEnvWorking}
+              onClick={() => {
+                fireAndForget(openRuntimeEnvFromAdmin(), "create runtime env file");
+              }}
+            >
+              {runtimeEnvWorking ? "Creating..." : "Create & Open Env File"}
+            </Button>
+          )}
+          <Button
+            variant="ghost"
+            disabled={runtimeEnvWorking}
+            onClick={() => {
+              if (
+                notificationConfigured &&
+                !window.confirm(
+                  "Web Push already looks configured. Generating new keys can require racers to enable notifications again. Continue?"
+                )
+              ) {
+                return;
+              }
+              fireAndForget(generatePushKeysFromAdmin(), "generate push keys");
+            }}
+          >
+            Generate Push Keys
+          </Button>
+        </div>
+      }
+    >
+      <div className="stack-sm">
+        <div className="stat-grid">
+          <StatPill
+            label="Local Env File"
+            value={
+              runtimeEnvQuery.isLoading
+                ? "Checking"
+                : runtimeEnvQuery.data?.exists
+                  ? "Present"
+                  : "Missing"
+            }
+          />
+          <StatPill label="Loaded Files" value={runtimeEnvQuery.data?.loadedFiles.length ?? 0} />
+        </div>
+        <p>
+          Runtime variables are read when Roller Rumble starts. Edit this file for installed app
+          secrets and machine-specific settings, then restart the app.
+        </p>
+        <p>
+          Use `Generate Push Keys` to fill in the Web Push notification settings automatically. It
+          creates the file first if needed.
+        </p>
+        <p>
+          Generate keys once during setup. If racers have already enabled notifications, replacing
+          the keys may require them to enable notifications again.
+        </p>
+        {runtimeEnvQuery.data ? (
+          <code className="breakable-value">{runtimeEnvQuery.data.path}</code>
+        ) : null}
+        {runtimeEnvQuery.data?.loadedFiles.length ? (
+          <div className="stack-sm">
+            <strong>Loaded at startup</strong>
+            {runtimeEnvQuery.data.loadedFiles.map((filePath) => (
+              <code className="breakable-value" key={filePath}>
+                {filePath}
+              </code>
+            ))}
+          </div>
+        ) : (
+          <p>No dotenv files were loaded at startup.</p>
+        )}
+        {runtimeEnvStatus ? <p>{runtimeEnvStatus}</p> : null}
+      </div>
+    </Panel>
+  );
+}
+
 export function SettingsTab({
   snapshot,
   meta
@@ -133,86 +708,87 @@ export function SettingsTab({
   const photoBoothAdminStatus = photoBoothStatusQuery.data;
   const photoBoothStatus = photoBoothAdminStatus?.status ?? snapshot.photoBooth;
   const tickerMessageInputRef = useRef<HTMLTextAreaElement | null>(null);
-  const [cloudflaredInstalling, setCloudflaredInstalling] = useState(false);
-  const [runtimeEnvWorking, setRuntimeEnvWorking] = useState(false);
-  const [runtimeEnvStatus, setRuntimeEnvStatus] = useState<string | null>(null);
-  const [labOpenStatus, setLabOpenStatus] = useState<string | null>(null);
-  const [projectorWindowWorking, setProjectorWindowWorking] =
-    useState<ProjectorWindowSizePreset | null>(null);
-  const [projectorWindowStatus, setProjectorWindowStatus] = useState<string | null>(null);
-  const [notificationTargetType, setNotificationTargetType] =
-    useState<AdminNotificationTargetType>("event");
-  const [notificationRacerIds, setNotificationRacerIds] = useState<string[]>([]);
-  const [notificationTitle, setNotificationTitle] = useState("");
-  const [notificationBody, setNotificationBody] = useState("");
-  const [notificationSendStatus, setNotificationSendStatus] = useState<string | null>(null);
+  const [uiState, setUiState] = useReducer(settingsUiReducer, initialSettingsUiState);
+  const {
+    cloudflaredInstalling,
+    labOpenStatus,
+    notificationBody,
+    notificationRacerIds,
+    notificationSendStatus,
+    notificationTargetType,
+    notificationTitle,
+    projectorWindowStatus,
+    projectorWindowWorking,
+    runtimeEnvStatus,
+    runtimeEnvWorking
+  } = uiState;
   const tunnelUrl = meta?.racerPageUrl ?? snapshot.tunnel.publicUrl ?? "Tunnel inactive";
   const canInstallCloudflared =
     snapshot.tunnel.binarySource === "missing" && snapshot.tunnel.status !== "active";
 
   async function installCloudflaredFromAdmin(): Promise<void> {
-    setCloudflaredInstalling(true);
+    setUiState({ cloudflaredInstalling: true });
     try {
       await installCloudflared();
     } finally {
-      setCloudflaredInstalling(false);
+      setUiState({ cloudflaredInstalling: false });
     }
   }
 
   async function ensureRuntimeEnvFromAdmin(openAfterCreate = false): Promise<void> {
-    setRuntimeEnvWorking(true);
-    setRuntimeEnvStatus(null);
+    setUiState({ runtimeEnvStatus: null, runtimeEnvWorking: true });
     try {
       const result = openAfterCreate ? await openRuntimeEnvFile() : await ensureRuntimeEnvFile();
       await queryClient.invalidateQueries({ queryKey: runtimeEnvQueryKey });
-      setRuntimeEnvStatus(
-        openAfterCreate
+      setUiState({
+        runtimeEnvStatus: openAfterCreate
           ? `Opened ${result.path}. Restart Roller Rumble after saving changes.`
           : `Created ${result.path}. Restart Roller Rumble after editing it.`
-      );
+      });
     } finally {
-      setRuntimeEnvWorking(false);
+      setUiState({ runtimeEnvWorking: false });
     }
   }
 
   async function generatePushKeysFromAdmin(): Promise<void> {
-    setRuntimeEnvWorking(true);
-    setRuntimeEnvStatus(null);
+    setUiState({ runtimeEnvStatus: null, runtimeEnvWorking: true });
     try {
       const result = await generateRuntimeEnvPushKeys();
       await queryClient.invalidateQueries({ queryKey: runtimeEnvQueryKey });
-      setRuntimeEnvStatus(
-        `Generated Web Push keys in ${result.path}. Open the env file if you want to change the subject email, then restart Roller Rumble.`
-      );
+      setUiState({
+        runtimeEnvStatus: `Generated Web Push keys in ${result.path}. Open the env file if you want to change the subject email, then restart Roller Rumble.`
+      });
     } finally {
-      setRuntimeEnvWorking(false);
+      setUiState({ runtimeEnvWorking: false });
     }
   }
 
   async function openLabFromAdmin(labId: "bracket" | "notification" | "queue"): Promise<void> {
-    setLabOpenStatus(null);
+    setUiState({ labOpenStatus: null });
     const result = await openLabPage(labId);
-    setLabOpenStatus(`Opened ${result.url}`);
+    setUiState({ labOpenStatus: `Opened ${result.url}` });
   }
 
   async function resizeProjectorFromAdmin(preset: ProjectorWindowSizePreset): Promise<void> {
-    setProjectorWindowWorking(preset);
-    setProjectorWindowStatus(null);
+    setUiState({ projectorWindowStatus: null, projectorWindowWorking: preset });
     try {
       const result = await resizeProjectorWindow(preset);
-      setProjectorWindowStatus(`Projector window set to ${result.width}x${result.height}.`);
+      setUiState({
+        projectorWindowStatus: `Projector window set to ${result.width}x${result.height}.`
+      });
     } catch (error) {
-      setProjectorWindowStatus(
-        error instanceof Error ? error.message : "Projector window could not be resized."
-      );
+      setUiState({
+        projectorWindowStatus:
+          error instanceof Error ? error.message : "Projector window could not be resized."
+      });
       throw error;
     } finally {
-      setProjectorWindowWorking(null);
+      setUiState({ projectorWindowWorking: null });
     }
   }
 
   async function sendNotificationFromAdmin(): Promise<void> {
-    setNotificationSendStatus(null);
+    setUiState({ notificationSendStatus: null });
     const result = await sendAdminNotification({
       targetType: notificationTargetType,
       racerIds: notificationTargetType === "selected" ? notificationRacerIds : undefined,
@@ -220,481 +796,49 @@ export function SettingsTab({
       body: notificationBody,
       url: "/racer"
     });
-    setNotificationSendStatus(
-      `Sent to ${result.targetCount} racer${result.targetCount === 1 ? "" : "s"}.`
-    );
-    setNotificationTitle("");
-    setNotificationBody("");
+    setUiState({
+      notificationBody: "",
+      notificationSendStatus: `Sent to ${result.targetCount} racer${result.targetCount === 1 ? "" : "s"}.`,
+      notificationTitle: ""
+    });
   }
 
   return (
     <div ref={masonryGridRef} className="page-grid settings-page-grid">
-      <Panel title="Settings">
-        <div className="form-grid">
-          <label>
-            Theme
-            <select
-              value={snapshot.settings.themeId}
-              onChange={(event) => {
-                fireAndForget(updateSettings({ themeId: event.target.value }));
-              }}
-            >
-              {snapshot.themes.map((theme) => (
-                <option key={theme.id} value={theme.id}>
-                  {theme.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.os2lEnabled}
-              onChange={(event) => {
-                fireAndForget(updateSettings({ os2lEnabled: event.target.checked }));
-              }}
-            />
-            Enable VirtualDJ cue start
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.autoStageNextRace}
-              onChange={(event) => {
-                fireAndForget(updateSettings({ autoStageNextRace: event.target.checked }));
-              }}
-            />
-            Auto-stage the next queued open time trial race
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.includeAllRaceData}
-              onChange={(event) => {
-                fireAndForget(updateSettings({ includeAllRaceData: event.target.checked }));
-              }}
-            />
-            Seed from all-time race data
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.allowAccountlessRacerSignup}
-              onChange={(event) => {
-                fireAndForget(
-                  updateSettings({ allowAccountlessRacerSignup: event.target.checked })
-                );
-              }}
-            />
-            Allow accountless racer signup
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.showPublicRacerInfoWithoutLogin}
-              onChange={(event) => {
-                fireAndForget(
-                  updateSettings({ showPublicRacerInfoWithoutLogin: event.target.checked })
-                );
-              }}
-            />
-            Show race info before racer sign-in
-          </label>
-          <label>
-            Max active queue entries per racer
-            <input
-              type="number"
-              min={1}
-              max={10}
-              step={1}
-              value={snapshot.settings.maxActiveQueueEntriesPerRacer}
-              onChange={(event) => {
-                fireAndForget(
-                  updateSettings({
-                    maxActiveQueueEntriesPerRacer: Number(event.target.value)
-                  })
-                );
-              }}
-            />
-          </label>
-        </div>
-      </Panel>
+      <GeneralSettingsPanel snapshot={snapshot} />
 
-      <Panel title="Projector Display">
-        <div className="form-grid">
-          <div className="stack-sm">
-            <p>Resize the projector window for quick 720p or 1080p layout checks.</p>
-            <div className="panel-action-row settings-panel__actions">
-              <Button
-                variant="ghost"
-                disabled={projectorWindowWorking !== null}
-                onClick={() => {
-                  fireAndForget(resizeProjectorFromAdmin("720p"), "resize projector to 720p");
-                }}
-              >
-                {projectorWindowWorking === "720p" ? "Resizing..." : "720p (1280x720)"}
-              </Button>
-              <Button
-                variant="ghost"
-                disabled={projectorWindowWorking !== null}
-                onClick={() => {
-                  fireAndForget(resizeProjectorFromAdmin("1080p"), "resize projector to 1080p");
-                }}
-              >
-                {projectorWindowWorking === "1080p" ? "Resizing..." : "1080p (1920x1080)"}
-              </Button>
-            </div>
-            {projectorWindowStatus ? <p>{projectorWindowStatus}</p> : null}
-          </div>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.raceDisplayShowEventName}
-              onChange={(event) => {
-                fireAndForget(updateSettings({ raceDisplayShowEventName: event.target.checked }));
-              }}
-            />
-            Show event name under the Roller Rumble title
-          </label>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.raceDisplayLaneColorsFlipped}
-              onChange={(event) => {
-                fireAndForget(
-                  updateSettings({ raceDisplayLaneColorsFlipped: event.target.checked })
-                );
-              }}
-            />
-            Flip projector lane colors
-          </label>
-          <label>
-            Ticker speed
-            <div className="range-control">
-              <input
-                type="range"
-                min={24}
-                max={180}
-                step={4}
-                value={snapshot.settings.raceDisplayTickerSpeed}
-                onChange={(event) => {
-                  const nextSpeed = Number(event.target.value);
-                  fireAndForget(updateSettings({ raceDisplayTickerSpeed: nextSpeed }));
-                }}
-              />
-              <span>{snapshot.settings.raceDisplayTickerSpeed} px/s</span>
-            </div>
-          </label>
-          <label>
-            Ticker messages
-            <textarea
-              ref={tickerMessageInputRef}
-              key={snapshot.settings.raceDisplayTickerMessages.join("\n")}
-              rows={5}
-              defaultValue={snapshot.settings.raceDisplayTickerMessages.join("\n")}
-              placeholder="One projector ticker message per line"
-            />
-          </label>
-          <div className="button-row">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                if (tickerMessageInputRef.current) {
-                  tickerMessageInputRef.current.value = "";
-                }
-                fireAndForget(updateSettings({ raceDisplayTickerMessages: [] }));
-              }}
-            >
-              Clear Messages
-            </Button>
-            <Button
-              onClick={() => {
-                fireAndForget(
-                  updateSettings({
-                    raceDisplayTickerMessages: parseTickerMessages(
-                      tickerMessageInputRef.current?.value ?? ""
-                    )
-                  })
-                );
-              }}
-            >
-              Save Ticker Messages
-            </Button>
-          </div>
-        </div>
-      </Panel>
+      <ProjectorDisplayPanel
+        projectorWindowStatus={projectorWindowStatus}
+        projectorWindowWorking={projectorWindowWorking}
+        resizeProjectorFromAdmin={resizeProjectorFromAdmin}
+        snapshot={snapshot}
+        tickerMessageInputRef={tickerMessageInputRef}
+      />
 
-      <Panel title="Notifications">
-        <div className="form-grid">
-          <div className="stat-grid">
-            <StatPill
-              label="Web Push"
-              value={notificationConfigQuery.data?.configured ? "Ready" : "Not configured"}
-            />
-            <StatPill
-              label="Public Key"
-              value={notificationConfigQuery.data?.publicKey ? "Present" : "Missing"}
-            />
-          </div>
-          <p>
-            {notificationConfigQuery.data?.message ??
-              "Checking Web Push setup. Private VAPID keys are never shown here."}
-          </p>
-          <label className="toggle">
-            <input
-              type="checkbox"
-              checked={snapshot.settings.showRacerNotificationDebugList}
-              onChange={(event) => {
-                fireAndForget(
-                  updateSettings({ showRacerNotificationDebugList: event.target.checked })
-                );
-              }}
-            />
-            Show racer notification debug list
-          </label>
-          <label>
-            Target
-            <select
-              value={notificationTargetType}
-              onChange={(event) => {
-                setNotificationTargetType(event.target.value as AdminNotificationTargetType);
-              }}
-            >
-              <option value="event">All current event racers</option>
-              <option value="queued">Queued racers</option>
-              <option value="tournament">Active tournament racers</option>
-              <option value="selected">Selected racers</option>
-            </select>
-          </label>
-          {notificationTargetType === "selected" ? (
-            <label>
-              Selected racers
-              <select
-                multiple
-                value={notificationRacerIds}
-                onChange={(event) => {
-                  setNotificationRacerIds(
-                    [...event.currentTarget.selectedOptions].map((option) => option.value)
-                  );
-                }}
-              >
-                {snapshot.racers.map((entry) => (
-                  <option key={entry.racer.id} value={entry.racer.id}>
-                    {entry.racer.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-          <label>
-            Message title
-            <input
-              value={notificationTitle}
-              maxLength={80}
-              onChange={(event) => {
-                setNotificationTitle(event.target.value);
-              }}
-              placeholder="Race update"
-            />
-          </label>
-          <label>
-            Message body
-            <textarea
-              rows={4}
-              maxLength={240}
-              value={notificationBody}
-              onChange={(event) => {
-                setNotificationBody(event.target.value);
-              }}
-              placeholder="Head to the bikes. Your match is coming up."
-            />
-          </label>
-          <div className="button-row">
-            <Button
-              disabled={
-                !notificationTitle.trim() ||
-                !notificationBody.trim() ||
-                (notificationTargetType === "selected" && notificationRacerIds.length === 0)
-              }
-              onClick={() => {
-                fireAndForget(sendNotificationFromAdmin(), "send notification");
-              }}
-            >
-              Send Notification
-            </Button>
-          </div>
-          {notificationSendStatus ? <p>{notificationSendStatus}</p> : null}
-        </div>
-      </Panel>
+      <NotificationsPanel
+        notificationBody={notificationBody}
+        notificationConfig={notificationConfigQuery.data ?? {}}
+        notificationRacerIds={notificationRacerIds}
+        notificationSendStatus={notificationSendStatus}
+        notificationTargetType={notificationTargetType}
+        notificationTitle={notificationTitle}
+        sendNotificationFromAdmin={sendNotificationFromAdmin}
+        setUiState={setUiState}
+        snapshot={snapshot}
+      />
 
-      <Panel className="settings-panel" title="VirtualDJ Diagnostics">
-        <div className="stack-sm">
-          <div className="stat-grid">
-            <StatPill label="Cue Start" value={snapshot.os2l.enabled ? "Enabled" : "Disabled"} />
-            <StatPill label="TCP Listener" value={snapshot.os2l.listening ? "Listening" : "Off"} />
-            <StatPill
-              label="Discovery"
-              value={snapshot.os2l.advertising ? "Advertising" : "Not advertising"}
-            />
-            <StatPill label="Port" value={snapshot.os2l.port} />
-            <StatPill label="Armed Race" value={snapshot.os2l.armedRaceId ? "Ready" : "None"} />
-            <StatPill label="Beats Seen" value={snapshot.os2l.beatMessageCount} />
-            <StatPill label="Accepted" value={snapshot.os2l.acceptedMessageCount} />
-            <StatPill label="Ignored" value={snapshot.os2l.ignoredMessageCount} />
-          </div>
-          <p>
-            VirtualDJ should discover this app as `{snapshot.os2l.serviceName}` over OS2L. If
-            Windows asks about network access, allow Roller Rumble on the private/event network.
-          </p>
-          <p>Last beat message: {diagnosticTimeLabel(snapshot.os2l.lastBeatAt)}</p>
-          <div className="stack-sm">
-            <strong>Last raw OS2L message</strong>
-            <span>{diagnosticTimeLabel(snapshot.os2l.lastRawMessageAt)}</span>
-            <code className="breakable-value">
-              {snapshot.os2l.lastRawMessage ?? "No OS2L messages received yet."}
-            </code>
-          </div>
-          <div className="stack-sm">
-            <strong>Last accepted cue</strong>
-            <span>{diagnosticTimeLabel(snapshot.os2l.lastAcceptedAt)}</span>
-            <code className="breakable-value">
-              {snapshot.os2l.lastAcceptedMessage ?? "No accepted Roller Rumble cue yet."}
-            </code>
-          </div>
-          <div className="stack-sm">
-            <strong>Last ignored message</strong>
-            <span>{diagnosticTimeLabel(snapshot.os2l.lastIgnoredAt)}</span>
-            <span>{snapshot.os2l.lastIgnoredReason ?? "No ignored messages yet."}</span>
-            <code className="breakable-value">
-              {snapshot.os2l.lastIgnoredMessage ?? "No ignored OS2L messages yet."}
-            </code>
-          </div>
-          {snapshot.os2l.lastError ? <p className="form-error">{snapshot.os2l.lastError}</p> : null}
-        </div>
-      </Panel>
+      <VirtualDjDiagnosticsPanel snapshot={snapshot} />
 
-      <Panel className="settings-panel" title="Lab Pages">
-        <div className="stack-sm">
-          <p>Open the built-in test labs in your default browser.</p>
-          <div className="panel-action-row settings-panel__actions">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                fireAndForget(openLabFromAdmin("bracket"), "open bracket lab");
-              }}
-            >
-              Open Bracket Lab
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                fireAndForget(openLabFromAdmin("queue"), "open queue lab");
-              }}
-            >
-              Open Queue Lab
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                fireAndForget(openLabFromAdmin("notification"), "open notification lab");
-              }}
-            >
-              Open Notification Lab
-            </Button>
-          </div>
-          {labOpenStatus ? <p>{labOpenStatus}</p> : null}
-        </div>
-      </Panel>
+      <LabPagesPanel labOpenStatus={labOpenStatus} openLabFromAdmin={openLabFromAdmin} />
 
-      <Panel
-        className="settings-panel"
-        title="Environment"
-        actions={
-          <div className="panel-action-row settings-panel__actions">
-            {runtimeEnvQuery.data?.exists ? (
-              <Button
-                variant="ghost"
-                disabled={runtimeEnvWorking}
-                onClick={() => {
-                  fireAndForget(ensureRuntimeEnvFromAdmin(true), "open runtime env file");
-                }}
-              >
-                {runtimeEnvWorking ? "Opening..." : "Open Env File"}
-              </Button>
-            ) : (
-              <Button
-                disabled={runtimeEnvWorking}
-                onClick={() => {
-                  fireAndForget(ensureRuntimeEnvFromAdmin(true), "create runtime env file");
-                }}
-              >
-                {runtimeEnvWorking ? "Creating..." : "Create & Open Env File"}
-              </Button>
-            )}
-            <Button
-              variant="ghost"
-              disabled={runtimeEnvWorking}
-              onClick={() => {
-                if (
-                  notificationConfigQuery.data?.configured &&
-                  !window.confirm(
-                    "Web Push already looks configured. Generating new keys can require racers to enable notifications again. Continue?"
-                  )
-                ) {
-                  return;
-                }
-                fireAndForget(generatePushKeysFromAdmin(), "generate push keys");
-              }}
-            >
-              Generate Push Keys
-            </Button>
-          </div>
-        }
-      >
-        <div className="stack-sm">
-          <div className="stat-grid">
-            <StatPill
-              label="Local Env File"
-              value={
-                runtimeEnvQuery.isLoading
-                  ? "Checking"
-                  : runtimeEnvQuery.data?.exists
-                    ? "Present"
-                    : "Missing"
-              }
-            />
-            <StatPill label="Loaded Files" value={runtimeEnvQuery.data?.loadedFiles.length ?? 0} />
-          </div>
-          <p>
-            Runtime variables are read when Roller Rumble starts. Edit this file for installed app
-            secrets and machine-specific settings, then restart the app.
-          </p>
-          <p>
-            Use `Generate Push Keys` to fill in the Web Push notification settings automatically. It
-            creates the file first if needed.
-          </p>
-          <p>
-            Generate keys once during setup. If racers have already enabled notifications, replacing
-            the keys may require them to enable notifications again.
-          </p>
-          {runtimeEnvQuery.data ? (
-            <code className="breakable-value">{runtimeEnvQuery.data.path}</code>
-          ) : null}
-          {runtimeEnvQuery.data?.loadedFiles.length ? (
-            <div className="stack-sm">
-              <strong>Loaded at startup</strong>
-              {runtimeEnvQuery.data.loadedFiles.map((filePath) => (
-                <code className="breakable-value" key={filePath}>
-                  {filePath}
-                </code>
-              ))}
-            </div>
-          ) : (
-            <p>No dotenv files were loaded at startup.</p>
-          )}
-          {runtimeEnvStatus ? <p>{runtimeEnvStatus}</p> : null}
-        </div>
-      </Panel>
+      <RuntimeEnvironmentPanel
+        generatePushKeysFromAdmin={generatePushKeysFromAdmin}
+        notificationConfigured={Boolean(notificationConfigQuery.data?.configured)}
+        openRuntimeEnvFromAdmin={() => ensureRuntimeEnvFromAdmin(true)}
+        runtimeEnvQuery={runtimeEnvQuery}
+        runtimeEnvStatus={runtimeEnvStatus}
+        runtimeEnvWorking={runtimeEnvWorking}
+      />
 
       <Panel
         className="settings-panel"
@@ -759,7 +903,7 @@ export function SettingsTab({
             <span className="breakable-value">{snapshot.tunnel.lastError}</span>
           ) : null}
           {meta?.qrCodeDataUrl ? (
-            <img className="qr-code" src={meta.qrCodeDataUrl} alt="QR code for racer page" />
+            <img className="qr-code" src={meta.qrCodeDataUrl} alt="Racer page signup" />
           ) : null}
         </div>
       </Panel>
@@ -824,7 +968,7 @@ export function SettingsTab({
               <img
                 className="qr-code"
                 src={photoBoothAdminStatus.pairingQrCodeDataUrl}
-                alt="QR code for photo booth pairing"
+                alt="Pairing code"
               />
             ) : null}
           </div>

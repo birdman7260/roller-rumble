@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
@@ -96,25 +96,28 @@ export interface SearchableSelectOption {
 }
 
 export function SearchableSelect({
+  id,
   value,
   options,
   onValueChange,
   placeholder,
   disabled = false,
-  noResultsText = "No matching options"
+  noResultsText = "No matching options",
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy
 }: {
+  id?: string;
   value: string;
   options: SearchableSelectOption[];
   onValueChange: (value: string) => void;
   placeholder: string;
   disabled?: boolean;
   noResultsText?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const selectedOption = useMemo(
-    () => options.find((option) => option.value === value) ?? null,
-    [options, value]
-  );
+  const selectedOption = options.find((option) => option.value === value) ?? null;
   const [draftText, setDraftText] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   // The text box can temporarily drift into a search query while the parent still owns the stable
@@ -138,13 +141,9 @@ export function SearchableSelect({
   }, []);
 
   const normalizedQuery = query.trim().toLowerCase();
-  const filteredOptions = useMemo(() => {
-    if (!normalizedQuery) {
-      return options;
-    }
-
-    return options.filter((option) => option.label.toLowerCase().includes(normalizedQuery));
-  }, [normalizedQuery, options]);
+  const filteredOptions = normalizedQuery
+    ? options.filter((option) => option.label.toLowerCase().includes(normalizedQuery))
+    : options;
 
   function selectOption(option: SearchableSelectOption): void {
     onValueChange(option.value);
@@ -155,8 +154,11 @@ export function SearchableSelect({
   return (
     <div ref={rootRef} className={cx("search-select", disabled && "search-select--disabled")}>
       <input
+        id={id}
         value={query}
         disabled={disabled}
+        aria-label={ariaLabel}
+        aria-labelledby={ariaLabelledBy}
         className="search-select__input"
         placeholder={placeholder}
         onFocus={() => {

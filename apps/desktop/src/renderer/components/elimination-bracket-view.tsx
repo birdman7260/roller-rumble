@@ -10,7 +10,7 @@ import {
 } from "@xyflow/react";
 import type { NodeTypes, EdgeTypes } from "@xyflow/react";
 import type { AppSnapshot, TournamentBundle } from "@roller-rumble/shared/types";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { TournamentConnectorEdge } from "./tournament-connector-edge";
 import { TournamentMatchNode } from "./tournament-match-node";
 import {
@@ -182,40 +182,30 @@ function BracketCanvas({
   const winnerAdvanceFromNodeId = winnerAdvance?.fromNodeId;
   const winnerAdvanceKey = winnerAdvance?.key;
   const winnerAdvanceToNodeId = winnerAdvance?.toNodeId;
-  const animatedAdvancementEdge = useMemo(
-    () =>
-      winnerAdvanceToNodeId && winnerAdvanceFromNodeId && winnerAdvanceKey
-        ? {
-            durationMs: winnerAdvanceDurationMs,
-            fromNodeId: winnerAdvanceFromNodeId,
-            key: winnerAdvanceKey,
-            toNodeId: winnerAdvanceToNodeId
-          }
-        : null,
-    [winnerAdvanceDurationMs, winnerAdvanceFromNodeId, winnerAdvanceKey, winnerAdvanceToNodeId]
-  );
-  const flow = useMemo(
-    () =>
-      buildBracketFlow(snapshot, bundle, interactive, {
-        animatedAdvancementEdge,
-        highlightedNodeId
-      }),
-    [animatedAdvancementEdge, bundle, highlightedNodeId, interactive, snapshot]
-  );
-  const nodes = useMemo(
-    () => withMatchSelectCallbacks(flow.nodes, onMatchSelect),
-    [flow.nodes, onMatchSelect]
-  );
+  const animatedAdvancementEdge =
+    winnerAdvanceToNodeId && winnerAdvanceFromNodeId && winnerAdvanceKey
+      ? {
+          durationMs: winnerAdvanceDurationMs,
+          fromNodeId: winnerAdvanceFromNodeId,
+          key: winnerAdvanceKey,
+          toNodeId: winnerAdvanceToNodeId
+        }
+      : null;
+  const flow = buildBracketFlow(snapshot, bundle, interactive, {
+    animatedAdvancementEdge,
+    highlightedNodeId
+  });
+  const nodes = withMatchSelectCallbacks(flow.nodes, onMatchSelect);
   const updateNodeInternals = useUpdateNodeInternals();
 
-  const syncBracketGeometry = useCallback(() => {
+  const syncBracketGeometry = useEffectEvent(() => {
     const nodeIds = flow.nodes.map((node) => node.id);
     if (nodeIds.length === 0) {
       return;
     }
 
     updateNodeInternals(nodeIds);
-  }, [flow.nodes, updateNodeInternals]);
+  });
 
   useEffect(() => {
     let frameId = 0;
@@ -243,7 +233,7 @@ function BracketCanvas({
       cancelAnimationFrame(frameId);
       window.clearTimeout(settleTimer);
     };
-  }, [expandMode, expanded, syncBracketGeometry]);
+  }, [expandMode, expanded]);
 
   useEffect(() => {
     const shell = shellRef.current;
@@ -259,7 +249,7 @@ function BracketCanvas({
     return () => {
       observer.disconnect();
     };
-  }, [syncBracketGeometry]);
+  }, []);
 
   return (
     <div
@@ -352,18 +342,19 @@ export function EliminationBracketView({
   const [uncontrolledExpanded, setUncontrolledExpanded] = useState(false);
   const expanded = controlledExpanded ?? uncontrolledExpanded;
 
-  const setExpanded = useCallback(
-    (nextValue: boolean | ((current: boolean) => boolean)): void => {
-      const resolvedValue = typeof nextValue === "function" ? nextValue(expanded) : nextValue;
+  function setExpanded(nextValue: boolean | ((current: boolean) => boolean)): void {
+    const resolvedValue = typeof nextValue === "function" ? nextValue(expanded) : nextValue;
 
-      if (controlledExpanded == null) {
-        setUncontrolledExpanded(resolvedValue);
-      }
+    if (controlledExpanded == null) {
+      setUncontrolledExpanded(resolvedValue);
+    }
 
-      onExpandedChange?.(resolvedValue);
-    },
-    [controlledExpanded, expanded, onExpandedChange]
-  );
+    onExpandedChange?.(resolvedValue);
+  }
+
+  const closeExpanded = useEffectEvent(() => {
+    setExpanded(false);
+  });
 
   useEffect(() => {
     if (!expanded) {
@@ -372,7 +363,7 @@ export function EliminationBracketView({
 
     function handleKeyDown(event: KeyboardEvent): void {
       if (event.key === "Escape") {
-        setExpanded(false);
+        closeExpanded();
       }
     }
 
@@ -380,7 +371,7 @@ export function EliminationBracketView({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [expanded, setExpanded]);
+  }, [expanded]);
 
   return (
     <ReactFlowProvider>

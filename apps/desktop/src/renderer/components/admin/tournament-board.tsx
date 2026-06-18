@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useReducer } from "react";
 import type {
   AppSnapshot,
   BracketNode,
@@ -38,6 +38,334 @@ function getNodeMatchupLabel(
   )} vs ${resolveTournamentRacerName(snapshot, bundle, node.racerBId)}`;
 }
 
+interface TournamentBoardState {
+  boardMessage: string | null;
+  busy: boolean;
+  byeFillDialog: { nodeId: string } | null;
+  byeFillOptions: TournamentByeFillOptionsResponse | null;
+  menuNodeId: string | null;
+  removalOptions: TournamentRacerRemovalOptionsResponse | null;
+  removeDialog: {
+    nodeId: string;
+    racerId: string;
+  } | null;
+  selectedByeFillRacerId: string;
+  selectedReplacementRacerId: string;
+}
+
+const initialTournamentBoardState: TournamentBoardState = {
+  boardMessage: null,
+  busy: false,
+  byeFillDialog: null,
+  byeFillOptions: null,
+  menuNodeId: null,
+  removalOptions: null,
+  removeDialog: null,
+  selectedByeFillRacerId: "",
+  selectedReplacementRacerId: ""
+};
+
+function tournamentBoardReducer(
+  state: TournamentBoardState,
+  patch: Partial<TournamentBoardState>
+): TournamentBoardState {
+  return { ...state, ...patch };
+}
+
+function TournamentMatchActionPopover({
+  busy,
+  bundle,
+  capabilities,
+  menuActionCount,
+  menuNode,
+  onStageMatch,
+  onUndoMatch,
+  openByeFillDialog,
+  openRemoveDialog,
+  removableRacerIds,
+  setState,
+  snapshot
+}: {
+  busy: boolean;
+  bundle: TournamentBundle;
+  capabilities: {
+    canFillMenuNode: boolean;
+    canStageMatches: boolean;
+    canStageMenuNode: boolean;
+    canUndoMenuNode: boolean;
+  };
+  menuActionCount: number;
+  menuNode: BracketNode;
+  onStageMatch?: (nodeId: string) => void;
+  onUndoMatch?: (nodeId: string) => void;
+  openByeFillDialog: (nodeId: string) => Promise<void>;
+  openRemoveDialog: (nodeId: string, racerId: string) => Promise<void>;
+  removableRacerIds: string[];
+  setState: (patch: Partial<TournamentBoardState>) => void;
+  snapshot: AppSnapshot;
+}) {
+  const { canFillMenuNode, canStageMatches, canStageMenuNode, canUndoMenuNode } = capabilities;
+
+  return (
+    <dialog className="tournament-match-action-popover" open>
+      <button
+        className="tournament-match-action-popover__backdrop"
+        type="button"
+        aria-label="Close tournament match actions"
+        onClick={() => {
+          setState({ menuNodeId: null });
+        }}
+      />
+      <div className="tournament-match-action-popover__card">
+        <div>
+          <p className="eyebrow">{menuNode.slotLabel}</p>
+          <h3>{getNodeMatchupLabel(snapshot, bundle, menuNode)}</h3>
+        </div>
+        {menuActionCount === 0 ? (
+          <p className="muted">No admin actions are available for this match yet.</p>
+        ) : (
+          <div className="tournament-match-action-popover__actions">
+            {canStageMenuNode ? (
+              <Button
+                disabled={!canStageMatches}
+                onClick={() => {
+                  setState({ menuNodeId: null });
+                  onStageMatch?.(menuNode.id);
+                }}
+              >
+                Stage Match
+              </Button>
+            ) : null}
+            {canUndoMenuNode ? (
+              <Button
+                variant="ghost"
+                disabled={!canStageMatches}
+                onClick={() => {
+                  setState({ menuNodeId: null });
+                  onUndoMatch?.(menuNode.id);
+                }}
+              >
+                Undo Result
+              </Button>
+            ) : null}
+            {canFillMenuNode ? (
+              <Button
+                variant="ghost"
+                disabled={!canStageMatches || busy}
+                onClick={() => {
+                  fireAndForget(openByeFillDialog(menuNode.id), "load BYE fill options");
+                }}
+              >
+                Fill BYE Slot
+              </Button>
+            ) : null}
+            {removableRacerIds.map((racerId) => (
+              <Button
+                key={racerId}
+                variant="ghost"
+                disabled={!canStageMatches || busy}
+                onClick={() => {
+                  fireAndForget(
+                    openRemoveDialog(menuNode.id, racerId),
+                    "load tournament racer removal options"
+                  );
+                }}
+              >
+                Remove {resolveTournamentRacerName(snapshot, bundle, racerId)}
+              </Button>
+            ))}
+          </div>
+        )}
+        {!canStageMatches && menuActionCount > 0 ? (
+          <p className="muted">Clear the currently staged race before changing bracket matchups.</p>
+        ) : null}
+        <div className="button-row">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              setState({ menuNodeId: null });
+            }}
+          >
+            Close
+          </Button>
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+function RemoveRacerDialog({
+  boardMessage,
+  bundle,
+  busy,
+  closeTournamentDialogs,
+  confirmRemoveRacer,
+  removalOptions,
+  removeDialog,
+  removeNode,
+  replacementCandidateOptions,
+  selectedReplacementRacerId,
+  setState,
+  snapshot
+}: {
+  boardMessage: string | null;
+  bundle: TournamentBundle;
+  busy: boolean;
+  closeTournamentDialogs: () => void;
+  confirmRemoveRacer: (replacementMode: "racer" | "bye") => Promise<void>;
+  removalOptions: TournamentRacerRemovalOptionsResponse | null;
+  removeDialog: { nodeId: string; racerId: string };
+  removeNode: BracketNode | null;
+  replacementCandidateOptions: { label: string; value: string }[];
+  selectedReplacementRacerId: string;
+  setState: (patch: Partial<TournamentBoardState>) => void;
+  snapshot: AppSnapshot;
+}) {
+  return (
+    <dialog className="tournament-action-modal" open>
+      <div className="tournament-action-modal__card">
+        <div>
+          <p className="eyebrow">Remove racer</p>
+          <h3>{resolveTournamentRacerName(snapshot, bundle, removeDialog.racerId)}</h3>
+          <p>
+            {removeNode
+              ? `${removeNode.slotLabel}: ${getNodeMatchupLabel(snapshot, bundle, removeNode)}`
+              : "Choose how this racer's future tournament slot should be handled."}
+          </p>
+        </div>
+        <div className="stack-md">
+          {removalOptions ? (
+            <>
+              {replacementCandidateOptions.length > 0 ? (
+                <label htmlFor="tournament-replacement-racer">
+                  Replacement racer
+                  <SearchableSelect
+                    id="tournament-replacement-racer"
+                    value={selectedReplacementRacerId}
+                    options={replacementCandidateOptions}
+                    onValueChange={(value) => {
+                      setState({ selectedReplacementRacerId: value });
+                    }}
+                    placeholder="Search replacement racers"
+                    disabled={busy}
+                  />
+                </label>
+              ) : (
+                <p className="muted">No eligible replacement racers are available.</p>
+              )}
+              <div className="button-row">
+                <Button
+                  disabled={
+                    busy || !selectedReplacementRacerId || replacementCandidateOptions.length === 0
+                  }
+                  onClick={() => {
+                    fireAndForget(
+                      confirmRemoveRacer("racer"),
+                      "remove tournament racer with replacement"
+                    );
+                  }}
+                >
+                  Replace Racer
+                </Button>
+                <Button
+                  variant="ghost"
+                  disabled={busy}
+                  onClick={() => {
+                    fireAndForget(confirmRemoveRacer("bye"), "remove tournament racer with bye");
+                  }}
+                >
+                  Make BYE
+                </Button>
+                <Button variant="ghost" disabled={busy} onClick={closeTournamentDialogs}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="muted">{busy ? "Loading removal options..." : boardMessage}</p>
+          )}
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
+function ByeFillDialog({
+  boardMessage,
+  busy,
+  byeFillCandidateOptions,
+  byeFillNode,
+  byeFillOptions,
+  closeTournamentDialogs,
+  confirmFillByeSlot,
+  selectedByeFillRacerId,
+  setState
+}: {
+  boardMessage: string | null;
+  busy: boolean;
+  byeFillCandidateOptions: { label: string; value: string }[];
+  byeFillNode: BracketNode | null;
+  byeFillOptions: TournamentByeFillOptionsResponse | null;
+  closeTournamentDialogs: () => void;
+  confirmFillByeSlot: () => Promise<void>;
+  selectedByeFillRacerId: string;
+  setState: (patch: Partial<TournamentBoardState>) => void;
+}) {
+  return (
+    <dialog className="tournament-action-modal" open>
+      <div className="tournament-action-modal__card">
+        <div>
+          <p className="eyebrow">Fill BYE slot</p>
+          <h3>{byeFillNode ? byeFillNode.slotLabel : "Tournament match"}</h3>
+          <p>
+            Choose an eligible racer to take the empty BYE side, or cancel and leave the match
+            as-is.
+          </p>
+        </div>
+        <div className="stack-md">
+          {byeFillOptions ? (
+            <>
+              {byeFillCandidateOptions.length > 0 ? (
+                <label htmlFor="tournament-bye-fill-racer">
+                  Racer to add
+                  <SearchableSelect
+                    id="tournament-bye-fill-racer"
+                    value={selectedByeFillRacerId}
+                    options={byeFillCandidateOptions}
+                    onValueChange={(value) => {
+                      setState({ selectedByeFillRacerId: value });
+                    }}
+                    placeholder="Search eligible racers"
+                    disabled={busy}
+                    noResultsText="No eligible racers"
+                  />
+                </label>
+              ) : (
+                <p className="muted">No eligible racers are available for this BYE slot.</p>
+              )}
+              <div className="button-row">
+                <Button
+                  disabled={busy || !selectedByeFillRacerId || byeFillCandidateOptions.length === 0}
+                  onClick={() => {
+                    fireAndForget(confirmFillByeSlot(), "fill tournament BYE slot");
+                  }}
+                >
+                  Fill BYE Slot
+                </Button>
+                <Button variant="ghost" disabled={busy} onClick={closeTournamentDialogs}>
+                  Cancel
+                </Button>
+              </div>
+            </>
+          ) : (
+            <p className="muted">{busy ? "Loading BYE slot options..." : boardMessage}</p>
+          )}
+        </div>
+      </div>
+    </dialog>
+  );
+}
+
 export function TournamentBracketBoard({
   snapshot,
   bundle,
@@ -61,21 +389,18 @@ export function TournamentBracketBoard({
   presentationRequest?: BracketPresentationRequest | null;
   showViewportControls?: boolean;
 }) {
-  const [menuNodeId, setMenuNodeId] = useState<string | null>(null);
-  const [removeDialog, setRemoveDialog] = useState<{
-    nodeId: string;
-    racerId: string;
-  } | null>(null);
-  const [removalOptions, setRemovalOptions] =
-    useState<TournamentRacerRemovalOptionsResponse | null>(null);
-  const [selectedReplacementRacerId, setSelectedReplacementRacerId] = useState("");
-  const [byeFillDialog, setByeFillDialog] = useState<{ nodeId: string } | null>(null);
-  const [byeFillOptions, setByeFillOptions] = useState<TournamentByeFillOptionsResponse | null>(
-    null
-  );
-  const [selectedByeFillRacerId, setSelectedByeFillRacerId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [boardMessage, setBoardMessage] = useState<string | null>(null);
+  const [state, setState] = useReducer(tournamentBoardReducer, initialTournamentBoardState);
+  const {
+    boardMessage,
+    busy,
+    byeFillDialog,
+    byeFillOptions,
+    menuNodeId,
+    removalOptions,
+    removeDialog,
+    selectedByeFillRacerId,
+    selectedReplacementRacerId
+  } = state;
   const menuNode = menuNodeId
     ? (bundle.bracketNodes.find((node) => node.id === menuNodeId) ?? null)
     : null;
@@ -114,31 +439,38 @@ export function TournamentBracketBoard({
     removableRacerIds.length;
 
   function closeTournamentDialogs(): void {
-    setMenuNodeId(null);
-    setRemoveDialog(null);
-    setRemovalOptions(null);
-    setSelectedReplacementRacerId("");
-    setByeFillDialog(null);
-    setByeFillOptions(null);
-    setSelectedByeFillRacerId("");
+    setState({
+      byeFillDialog: null,
+      byeFillOptions: null,
+      menuNodeId: null,
+      removalOptions: null,
+      removeDialog: null,
+      selectedByeFillRacerId: "",
+      selectedReplacementRacerId: ""
+    });
   }
 
   async function openRemoveDialog(nodeId: string, racerId: string): Promise<void> {
-    setMenuNodeId(null);
-    setRemoveDialog({ nodeId, racerId });
-    setRemovalOptions(null);
-    setSelectedReplacementRacerId("");
-    setBoardMessage(null);
-    setBusy(true);
+    setState({
+      boardMessage: null,
+      busy: true,
+      menuNodeId: null,
+      removalOptions: null,
+      removeDialog: { nodeId, racerId },
+      selectedReplacementRacerId: ""
+    });
 
     try {
-      setRemovalOptions(await fetchTournamentRacerRemovalOptions(bundle.tournament.id, racerId));
+      setState({
+        removalOptions: await fetchTournamentRacerRemovalOptions(bundle.tournament.id, racerId)
+      });
     } catch (error) {
-      setBoardMessage(
-        error instanceof Error ? error.message : "Could not load tournament removal options."
-      );
+      setState({
+        boardMessage:
+          error instanceof Error ? error.message : "Could not load tournament removal options."
+      });
     } finally {
-      setBusy(false);
+      setState({ busy: false });
     }
   }
 
@@ -147,8 +479,7 @@ export function TournamentBracketBoard({
       return;
     }
 
-    setBusy(true);
-    setBoardMessage(null);
+    setState({ boardMessage: null, busy: true });
 
     try {
       const result = await removeRacerFromTournament(bundle.tournament.id, removalOptions.racerId, {
@@ -156,30 +487,36 @@ export function TournamentBracketBoard({
         replacementRacerId: replacementMode === "racer" ? selectedReplacementRacerId : null
       });
       closeTournamentDialogs();
-      setBoardMessage(result.message);
+      setState({ boardMessage: result.message });
     } catch (error) {
-      setBoardMessage(
-        error instanceof Error ? error.message : "Could not remove tournament racer."
-      );
+      setState({
+        boardMessage: error instanceof Error ? error.message : "Could not remove tournament racer."
+      });
     } finally {
-      setBusy(false);
+      setState({ busy: false });
     }
   }
 
   async function openByeFillDialog(nodeId: string): Promise<void> {
-    setMenuNodeId(null);
-    setByeFillDialog({ nodeId });
-    setByeFillOptions(null);
-    setSelectedByeFillRacerId("");
-    setBoardMessage(null);
-    setBusy(true);
+    setState({
+      boardMessage: null,
+      busy: true,
+      byeFillDialog: { nodeId },
+      byeFillOptions: null,
+      menuNodeId: null,
+      selectedByeFillRacerId: ""
+    });
 
     try {
-      setByeFillOptions(await fetchTournamentByeFillOptions(bundle.tournament.id, nodeId));
+      setState({
+        byeFillOptions: await fetchTournamentByeFillOptions(bundle.tournament.id, nodeId)
+      });
     } catch (error) {
-      setBoardMessage(error instanceof Error ? error.message : "Could not load BYE fill options.");
+      setState({
+        boardMessage: error instanceof Error ? error.message : "Could not load BYE fill options."
+      });
     } finally {
-      setBusy(false);
+      setState({ busy: false });
     }
   }
 
@@ -188,19 +525,20 @@ export function TournamentBracketBoard({
       return;
     }
 
-    setBusy(true);
-    setBoardMessage(null);
+    setState({ boardMessage: null, busy: true });
 
     try {
       const result = await fillTournamentByeSlot(bundle.tournament.id, byeFillDialog.nodeId, {
         replacementRacerId: selectedByeFillRacerId
       });
       closeTournamentDialogs();
-      setBoardMessage(result.message);
+      setState({ boardMessage: result.message });
     } catch (error) {
-      setBoardMessage(error instanceof Error ? error.message : "Could not fill this BYE slot.");
+      setState({
+        boardMessage: error instanceof Error ? error.message : "Could not fill this BYE slot."
+      });
     } finally {
-      setBusy(false);
+      setState({ busy: false });
     }
   }
 
@@ -236,218 +574,58 @@ export function TournamentBracketBoard({
         presentationRequest={presentationRequest}
         showViewportControls={showViewportControls}
         onMatchSelect={(nodeId) => {
-          setBoardMessage(null);
-          setMenuNodeId(nodeId);
+          setState({ boardMessage: null, menuNodeId: nodeId });
         }}
       />
       {menuNode ? (
-        <div className="tournament-match-action-popover" role="dialog" aria-modal="true">
-          <button
-            className="tournament-match-action-popover__backdrop"
-            type="button"
-            aria-label="Close tournament match actions"
-            onClick={() => {
-              setMenuNodeId(null);
-            }}
-          />
-          <div className="tournament-match-action-popover__card">
-            <div>
-              <p className="eyebrow">{menuNode.slotLabel}</p>
-              <h3>{getNodeMatchupLabel(snapshot, bundle, menuNode)}</h3>
-            </div>
-            {menuActionCount === 0 ? (
-              <p className="muted">No admin actions are available for this match yet.</p>
-            ) : (
-              <div className="tournament-match-action-popover__actions">
-                {canStageMenuNode ? (
-                  <Button
-                    disabled={!canStageMatches}
-                    onClick={() => {
-                      setMenuNodeId(null);
-                      onStageMatch?.(menuNode.id);
-                    }}
-                  >
-                    Stage Match
-                  </Button>
-                ) : null}
-                {canUndoMenuNode ? (
-                  <Button
-                    variant="ghost"
-                    disabled={!canStageMatches}
-                    onClick={() => {
-                      setMenuNodeId(null);
-                      onUndoMatch?.(menuNode.id);
-                    }}
-                  >
-                    Undo Result
-                  </Button>
-                ) : null}
-                {canFillMenuNode ? (
-                  <Button
-                    variant="ghost"
-                    disabled={!canStageMatches || busy}
-                    onClick={() => {
-                      fireAndForget(openByeFillDialog(menuNode.id), "load BYE fill options");
-                    }}
-                  >
-                    Fill BYE Slot
-                  </Button>
-                ) : null}
-                {removableRacerIds.map((racerId) => (
-                  <Button
-                    key={racerId}
-                    variant="ghost"
-                    disabled={!canStageMatches || busy}
-                    onClick={() => {
-                      fireAndForget(
-                        openRemoveDialog(menuNode.id, racerId),
-                        "load tournament racer removal options"
-                      );
-                    }}
-                  >
-                    Remove {resolveTournamentRacerName(snapshot, bundle, racerId)}
-                  </Button>
-                ))}
-              </div>
-            )}
-            {!canStageMatches && menuActionCount > 0 ? (
-              <p className="muted">
-                Clear the currently staged race before changing bracket matchups.
-              </p>
-            ) : null}
-            <div className="button-row">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  setMenuNodeId(null);
-                }}
-              >
-                Close
-              </Button>
-            </div>
-          </div>
-        </div>
+        <TournamentMatchActionPopover
+          busy={busy}
+          bundle={bundle}
+          capabilities={{
+            canFillMenuNode,
+            canStageMatches,
+            canStageMenuNode,
+            canUndoMenuNode
+          }}
+          menuActionCount={menuActionCount}
+          menuNode={menuNode}
+          onStageMatch={onStageMatch}
+          onUndoMatch={onUndoMatch}
+          openByeFillDialog={openByeFillDialog}
+          openRemoveDialog={openRemoveDialog}
+          removableRacerIds={removableRacerIds}
+          setState={setState}
+          snapshot={snapshot}
+        />
       ) : null}
       {removeDialog ? (
-        <div className="tournament-action-modal" role="dialog" aria-modal="true">
-          <div className="tournament-action-modal__card">
-            <div>
-              <p className="eyebrow">Remove racer</p>
-              <h3>{resolveTournamentRacerName(snapshot, bundle, removeDialog.racerId)}</h3>
-              <p>
-                {removeNode
-                  ? `${removeNode.slotLabel}: ${getNodeMatchupLabel(snapshot, bundle, removeNode)}`
-                  : "Choose how this racer's future tournament slot should be handled."}
-              </p>
-            </div>
-            <div className="stack-md">
-              {removalOptions ? (
-                <>
-                  {replacementCandidateOptions.length > 0 ? (
-                    <label>
-                      Replacement racer
-                      <SearchableSelect
-                        value={selectedReplacementRacerId}
-                        options={replacementCandidateOptions}
-                        onValueChange={setSelectedReplacementRacerId}
-                        placeholder="Search replacement racers"
-                        disabled={busy}
-                      />
-                    </label>
-                  ) : (
-                    <p className="muted">No eligible replacement racers are available.</p>
-                  )}
-                  <div className="button-row">
-                    <Button
-                      disabled={
-                        busy ||
-                        !selectedReplacementRacerId ||
-                        replacementCandidateOptions.length === 0
-                      }
-                      onClick={() => {
-                        fireAndForget(
-                          confirmRemoveRacer("racer"),
-                          "remove tournament racer with replacement"
-                        );
-                      }}
-                    >
-                      Replace Racer
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      disabled={busy}
-                      onClick={() => {
-                        fireAndForget(
-                          confirmRemoveRacer("bye"),
-                          "remove tournament racer with bye"
-                        );
-                      }}
-                    >
-                      Make BYE
-                    </Button>
-                    <Button variant="ghost" disabled={busy} onClick={closeTournamentDialogs}>
-                      Cancel
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <p className="muted">{busy ? "Loading removal options..." : boardMessage}</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <RemoveRacerDialog
+          boardMessage={boardMessage}
+          bundle={bundle}
+          busy={busy}
+          closeTournamentDialogs={closeTournamentDialogs}
+          confirmRemoveRacer={confirmRemoveRacer}
+          removalOptions={removalOptions}
+          removeDialog={removeDialog}
+          removeNode={removeNode}
+          replacementCandidateOptions={replacementCandidateOptions}
+          selectedReplacementRacerId={selectedReplacementRacerId}
+          setState={setState}
+          snapshot={snapshot}
+        />
       ) : null}
       {byeFillDialog ? (
-        <div className="tournament-action-modal" role="dialog" aria-modal="true">
-          <div className="tournament-action-modal__card">
-            <div>
-              <p className="eyebrow">Fill BYE slot</p>
-              <h3>{byeFillNode ? byeFillNode.slotLabel : "Tournament match"}</h3>
-              <p>
-                Choose an eligible racer to take the empty BYE side, or cancel and leave the match
-                as-is.
-              </p>
-            </div>
-            <div className="stack-md">
-              {byeFillOptions ? (
-                <>
-                  {byeFillCandidateOptions.length > 0 ? (
-                    <label>
-                      Racer to add
-                      <SearchableSelect
-                        value={selectedByeFillRacerId}
-                        options={byeFillCandidateOptions}
-                        onValueChange={setSelectedByeFillRacerId}
-                        placeholder="Search eligible racers"
-                        disabled={busy}
-                        noResultsText="No eligible racers"
-                      />
-                    </label>
-                  ) : (
-                    <p className="muted">No eligible racers are available for this BYE slot.</p>
-                  )}
-                  <div className="button-row">
-                    <Button
-                      disabled={
-                        busy || !selectedByeFillRacerId || byeFillCandidateOptions.length === 0
-                      }
-                      onClick={() => {
-                        fireAndForget(confirmFillByeSlot(), "fill tournament BYE slot");
-                      }}
-                    >
-                      Fill BYE Slot
-                    </Button>
-                    <Button variant="ghost" disabled={busy} onClick={closeTournamentDialogs}>
-                      Cancel
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <p className="muted">{busy ? "Loading BYE slot options..." : boardMessage}</p>
-              )}
-            </div>
-          </div>
-        </div>
+        <ByeFillDialog
+          boardMessage={boardMessage}
+          busy={busy}
+          byeFillCandidateOptions={byeFillCandidateOptions}
+          byeFillNode={byeFillNode}
+          byeFillOptions={byeFillOptions}
+          closeTournamentDialogs={closeTournamentDialogs}
+          confirmFillByeSlot={confirmFillByeSlot}
+          selectedByeFillRacerId={selectedByeFillRacerId}
+          setState={setState}
+        />
       ) : null}
     </div>
   );

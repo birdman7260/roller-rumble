@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import { useState } from "react";
+import { useReducer } from "react";
 import type { AppSnapshot, RaceRecord, TournamentBundle } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel, StatPill, TextInput } from "@roller-rumble/shared-ui";
 import { STRIPE_MIN_PAYMENT_AMOUNT_CENTS } from "@roller-rumble/shared/constants";
@@ -7,15 +7,22 @@ import { createEvent, testStripeConnection, updateEventPaymentConfig } from "../
 import { formatRacerNames } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 
+const usdPaymentAmountFormatter = new Intl.NumberFormat(undefined, {
+  style: "currency",
+  currency: "USD"
+});
+
 function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
   if (typeof amountCents !== "number") {
     return "Not set";
   }
 
-  return new Intl.NumberFormat(undefined, {
-    style: "currency",
-    currency: currency.toUpperCase()
-  }).format(amountCents / 100);
+  const normalizedCurrency = currency.toUpperCase();
+  if (normalizedCurrency === "USD") {
+    return usdPaymentAmountFormatter.format(amountCents / 100);
+  }
+
+  return `${normalizedCurrency} ${(amountCents / 100).toFixed(2)}`;
 }
 
 function parseDollarAmountToCents(value: string): number | null {
@@ -30,16 +37,56 @@ function formatPaymentInput(amountCents: number | null | undefined): string {
   return typeof amountCents === "number" ? (amountCents / 100).toFixed(2) : "";
 }
 
+interface EventPaymentsState {
+  paymentAmountDraft: string | null;
+  paymentMessage: string | null;
+  paymentRequiredDraft: boolean | null;
+  stripeTestMessage: string | null;
+  stripeTestRunning: boolean;
+}
+
+type EventPaymentsAction =
+  | { type: "set-payment-amount"; value: string }
+  | { type: "set-payment-required"; value: boolean }
+  | { type: "set-payment-message"; value: string | null }
+  | { type: "set-stripe-test-message"; value: string | null }
+  | { type: "set-stripe-test-running"; value: boolean };
+
+const initialEventPaymentsState: EventPaymentsState = {
+  paymentAmountDraft: null,
+  paymentMessage: null,
+  paymentRequiredDraft: null,
+  stripeTestMessage: null,
+  stripeTestRunning: false
+};
+
+function eventPaymentsReducer(
+  state: EventPaymentsState,
+  action: EventPaymentsAction
+): EventPaymentsState {
+  switch (action.type) {
+    case "set-payment-amount":
+      return { ...state, paymentAmountDraft: action.value, paymentMessage: null };
+    case "set-payment-required":
+      return { ...state, paymentRequiredDraft: action.value, paymentMessage: null };
+    case "set-payment-message":
+      return { ...state, paymentMessage: action.value };
+    case "set-stripe-test-message":
+      return { ...state, stripeTestMessage: action.value };
+    case "set-stripe-test-running":
+      return { ...state, stripeTestRunning: action.value };
+    default:
+      return state;
+  }
+}
+
 function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
-  const [paymentAmountInput, setPaymentAmountInput] = useState(
-    formatPaymentInput(snapshot.activeEvent.paymentAmountCents)
-  );
-  const [paymentRequiredInput, setPaymentRequiredInput] = useState(
-    snapshot.activeEvent.paymentRequiredForQueue
-  );
-  const [paymentMessage, setPaymentMessage] = useState<string | null>(null);
-  const [stripeTestMessage, setStripeTestMessage] = useState<string | null>(null);
-  const [stripeTestRunning, setStripeTestRunning] = useState(false);
+  const [state, dispatch] = useReducer(eventPaymentsReducer, initialEventPaymentsState);
+  const paymentAmountInput =
+    state.paymentAmountDraft ?? formatPaymentInput(snapshot.activeEvent.paymentAmountCents);
+  const paymentRequiredInput =
+    state.paymentRequiredDraft ?? snapshot.activeEvent.paymentRequiredForQueue;
+  const paymentAmountInputId = "event-payment-amount";
   const paymentAmountCents = parseDollarAmountToCents(paymentAmountInput);
   const paymentAmountIsValid =
     !paymentRequiredInput ||
@@ -47,7 +94,10 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
 
   async function savePaymentSettings(): Promise<void> {
     if (!paymentAmountIsValid) {
-      setPaymentMessage("Set an entrance fee of at least $0.50 before requiring payment.");
+      dispatch({
+        type: "set-payment-message",
+        value: "Set an entrance fee of at least $0.50 before requiring payment."
+      });
       return;
     }
 
@@ -56,35 +106,36 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
       paymentAmountCents: paymentAmountCents,
       paymentCurrency: snapshot.activeEvent.paymentCurrency
     });
-    setPaymentMessage("Payment settings saved.");
+    dispatch({ type: "set-payment-message", value: "Payment settings saved." });
   }
 
   async function runStripeConnectionTest(): Promise<void> {
-    setStripeTestRunning(true);
-    setStripeTestMessage(null);
+    dispatch({ type: "set-stripe-test-running", value: true });
+    dispatch({ type: "set-stripe-test-message", value: null });
     try {
       const result = await testStripeConnection();
       const requestHint = result.requestId ? ` Request ID: ${result.requestId}.` : "";
-      setStripeTestMessage(`${result.message}${requestHint}`);
+      dispatch({ type: "set-stripe-test-message", value: `${result.message}${requestHint}` });
     } catch (error) {
-      setStripeTestMessage(
-        error instanceof Error ? error.message : "Could not test the Stripe connection."
-      );
+      dispatch({
+        type: "set-stripe-test-message",
+        value: error instanceof Error ? error.message : "Could not test the Stripe connection."
+      });
     } finally {
-      setStripeTestRunning(false);
+      dispatch({ type: "set-stripe-test-running", value: false });
     }
   }
 
   return (
     <Panel title="Event Payments">
       <div className="form-grid">
-        <label>
+        <label htmlFor={paymentAmountInputId}>
           Entrance fee
           <TextInput
+            id={paymentAmountInputId}
             value={paymentAmountInput}
             onChange={(event) => {
-              setPaymentAmountInput(event.target.value);
-              setPaymentMessage(null);
+              dispatch({ type: "set-payment-amount", value: event.target.value });
             }}
             placeholder="10.00"
           />
@@ -94,8 +145,7 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
             type="checkbox"
             checked={paymentRequiredInput}
             onChange={(event) => {
-              setPaymentRequiredInput(event.target.checked);
-              setPaymentMessage(null);
+              dispatch({ type: "set-payment-required", value: event.target.checked });
             }}
           />
           Require entrance fee before racer queue signup
@@ -129,10 +179,12 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
         {snapshot.paymentProvider.stripe.publicRacerUrl ? (
           <p>Checkout return URL: {snapshot.paymentProvider.stripe.publicRacerUrl}/racer</p>
         ) : null}
-        {paymentMessage ? (
-          <p className={paymentAmountIsValid ? "form-success" : "form-error"}>{paymentMessage}</p>
+        {state.paymentMessage ? (
+          <p className={paymentAmountIsValid ? "form-success" : "form-error"}>
+            {state.paymentMessage}
+          </p>
         ) : null}
-        {stripeTestMessage ? <p>{stripeTestMessage}</p> : null}
+        {state.stripeTestMessage ? <p>{state.stripeTestMessage}</p> : null}
         <div className="panel-action-row">
           <Button
             disabled={!paymentAmountIsValid}
@@ -144,12 +196,12 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
           </Button>
           <Button
             variant="ghost"
-            disabled={stripeTestRunning}
+            disabled={state.stripeTestRunning}
             onClick={() => {
               fireAndForget(runStripeConnectionTest(), "test stripe connection");
             }}
           >
-            {stripeTestRunning ? "Testing..." : "Test Stripe Connection"}
+            {state.stripeTestRunning ? "Testing..." : "Test Stripe Connection"}
           </Button>
         </div>
       </div>

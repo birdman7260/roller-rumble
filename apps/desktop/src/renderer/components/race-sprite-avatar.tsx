@@ -34,11 +34,11 @@ export function RaceSpriteAvatar({
   } satisfies CSSProperties & Record<`--${string}`, string>;
 
   return (
-    <span
-      aria-label={`${label} ${speedState} race avatar`}
+    <img
+      alt={`${label} ${speedState} race avatar`}
       className="race-sprite-avatar"
       data-sprite-speed={speedState}
-      role="img"
+      src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
       style={style}
     />
   );

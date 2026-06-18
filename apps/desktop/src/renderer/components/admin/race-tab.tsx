@@ -41,6 +41,9 @@ export function RaceTab({
   setAdminQueueRequestedType: Dispatch<SetStateAction<"auto-match" | "solo">>;
   onAdminQueueSignup: () => void;
 }) {
+  const queueRacerSelectId = "admin-queue-racer";
+  const queueTypeSelectId = "admin-queue-type";
+  const queueOpponentSelectId = "admin-queue-opponent";
   // Queue entries do not know which race owns them; the current race keeps that link.
   const stagedQueueEntryId =
     currentRace && ["scheduled", "staging", "countdown", "active"].includes(currentRace.state)
@@ -82,9 +85,10 @@ export function RaceTab({
 
       <Panel title="Add To Queue">
         <div className="form-grid">
-          <label>
+          <label htmlFor={queueRacerSelectId}>
             Racer
             <SearchableSelect
+              id={queueRacerSelectId}
               value={adminQueueRacerId}
               placeholder="Type to find a racer"
               options={snapshot.racers.map((entry) => ({
@@ -100,9 +104,10 @@ export function RaceTab({
               noResultsText="No racers match that search"
             />
           </label>
-          <label>
+          <label htmlFor={queueTypeSelectId}>
             Queue as
             <select
+              id={queueTypeSelectId}
               value={adminQueueRequestedType}
               onChange={(event) => {
                 const nextType = event.target.value as "auto-match" | "solo";
@@ -116,9 +121,10 @@ export function RaceTab({
               <option value="solo">Solo run</option>
             </select>
           </label>
-          <label>
+          <label htmlFor={queueOpponentSelectId}>
             Opponent
             <SearchableSelect
+              id={queueOpponentSelectId}
               value={adminQueueOpponentId}
               disabled={!adminQueueRacerId || adminQueueRequestedType === "solo"}
               placeholder={
@@ -126,12 +132,16 @@ export function RaceTab({
                   ? "Solo runs do not need an opponent"
                   : "Type to find an opponent"
               }
-              options={snapshot.racers
-                .filter((entry) => entry.racer.id !== adminQueueRacerId)
-                .map((entry) => ({
-                  value: entry.racer.id,
-                  label: entry.racer.displayName
-                }))}
+              options={snapshot.racers.flatMap((entry) =>
+                entry.racer.id === adminQueueRacerId
+                  ? []
+                  : [
+                      {
+                        value: entry.racer.id,
+                        label: entry.racer.displayName
+                      }
+                    ]
+              )}
               onValueChange={(nextOpponentId) => {
                 setAdminQueueOpponentId(nextOpponentId);
               }}

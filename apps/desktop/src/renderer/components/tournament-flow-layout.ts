@@ -397,6 +397,7 @@ export function buildBracketFlow(
     if (!sourceNode) {
       continue;
     }
+    const sourceSide = sourceNode.data.side;
 
     if (node.winnerToNodeId) {
       const targetNode = nodeById.get(node.winnerToNodeId);
@@ -410,10 +411,10 @@ export function buildBracketFlow(
           type: "tournamentConnector",
           source: node.id,
           target: node.winnerToNodeId,
-          sourceHandle: getSourceHandle(sourceNode.data.side),
+          sourceHandle: getSourceHandle(sourceSide),
           targetHandle: getTargetHandle(
             targetNode.data.side,
-            sourceNode.data.side === "right" ? "right" : "left"
+            sourceSide === "right" ? "right" : "left"
           ),
           data: {
             animationDurationMs: drawAnimated ? animatedAdvancementEdge.durationMs : undefined,
@@ -438,7 +439,7 @@ export function buildBracketFlow(
           type: "tournamentConnector",
           source: node.id,
           target: node.loserToNodeId,
-          sourceHandle: getSourceHandle(sourceNode.data.side),
+          sourceHandle: getSourceHandle(sourceSide),
           targetHandle: getTargetHandle(targetNode.data.side),
           data: {
             completed: Boolean(node.winnerRacerId) && node.state === "finished",
@@ -461,7 +462,7 @@ export function buildBracketFlow(
           type: "tournamentConnector",
           source: node.id,
           target: resetNodeId,
-          sourceHandle: getSourceHandle(sourceNode.data.side),
+          sourceHandle: getSourceHandle(sourceSide),
           targetHandle: getTargetHandle(resetNode.data.side),
           data: {
             completed: node.state === "finished" && resetNode.data.state !== "pending",

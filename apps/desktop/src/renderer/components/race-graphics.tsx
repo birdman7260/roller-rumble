@@ -1,4 +1,4 @@
-import { motion, useReducedMotion } from "framer-motion";
+import { m, useReducedMotion } from "framer-motion";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type {
   RaceMetricsSnapshot,
@@ -31,7 +31,6 @@ function useViewportHeight(): number {
       setHeight(window.innerHeight);
     }
 
-    handleResize();
     window.addEventListener("resize", handleResize);
     return () => {
       window.removeEventListener("resize", handleResize);
@@ -240,14 +239,14 @@ export function RaceGraphic({
               className={getLaneClassName("climb-lane", index, laneColorsFlipped)}
             >
               <div className="climb-lane__track">
-                <motion.div
+                <m.div
                   className="climb-lane__fill"
                   data-race-motion="true"
                   initial={false}
                   animate={{ height: percentageValue }}
                   transition={progressTransition}
                 />
-                <motion.div
+                <m.div
                   className="climb-lane__rider"
                   data-race-motion="true"
                   initial={false}
@@ -261,7 +260,7 @@ export function RaceGraphic({
                     metric={metric}
                     theme={theme}
                   />
-                </motion.div>
+                </m.div>
               </div>
               <div className="climb-lane__summary">
                 <LaneIdentity racer={entry.racer} />
@@ -307,7 +306,7 @@ export function RaceGraphic({
                   <span>{raceGraphic.markers?.middle ?? "Mid"}</span>
                   <span>{raceGraphic.markers?.finish ?? "Finish"}</span>
                 </div>
-                <motion.div
+                <m.div
                   className="ledger-lane__marker"
                   data-race-motion="true"
                   initial={false}
@@ -321,7 +320,7 @@ export function RaceGraphic({
                     metric={metric}
                     theme={theme}
                   />
-                </motion.div>
+                </m.div>
               </div>
             </div>
           );
@@ -361,7 +360,7 @@ export function RaceGraphic({
                   <span />
                   <span />
                 </div>
-                <motion.div
+                <m.div
                   className="wagon-lane__marker"
                   data-race-motion="true"
                   initial={false}
@@ -375,7 +374,7 @@ export function RaceGraphic({
                     metric={metric}
                     theme={theme}
                   />
-                </motion.div>
+                </m.div>
               </div>
             </div>
           );
@@ -406,14 +405,14 @@ export function RaceGraphic({
               <LaneReadout metric={metric} targetDistanceMeters={targetDistanceMeters} />
             </div>
             <div className="track-lane__bar">
-              <motion.div
+              <m.div
                 className="track-lane__fill"
                 data-race-motion="true"
                 initial={false}
                 animate={{ width: percentageValue }}
                 transition={progressTransition}
               />
-              <motion.div
+              <m.div
                 className="track-lane__marker"
                 data-race-motion="true"
                 initial={false}
@@ -427,7 +426,7 @@ export function RaceGraphic({
                   metric={metric}
                   theme={theme}
                 />
-              </motion.div>
+              </m.div>
             </div>
           </div>
         );

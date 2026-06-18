@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useReducer } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { RACER_NOTIFICATION_TYPES } from "@roller-rumble/shared/constants";
 import type {
@@ -13,6 +13,37 @@ import { snapshotQueryKey, useNotificationConfigQuery, useSnapshotQuery } from "
 interface NotificationTemplate {
   body: string;
   title: string;
+}
+
+interface NotificationLabState {
+  body: string;
+  notificationType: RacerNotificationType;
+  racerSearch: string;
+  selectedRacerIds: string[];
+  sendBusy: boolean;
+  sendStatus: string | null;
+  targetType: AdminNotificationTargetType;
+  title: string;
+  url: string;
+}
+
+const initialNotificationLabState: NotificationLabState = {
+  body: "Head over to the bikes when you can.",
+  notificationType: "admin_message",
+  racerSearch: "",
+  selectedRacerIds: [],
+  sendBusy: false,
+  sendStatus: null,
+  targetType: "selected",
+  title: "Race Update",
+  url: "/racer"
+};
+
+function notificationLabReducer(
+  state: NotificationLabState,
+  patch: Partial<NotificationLabState>
+): NotificationLabState {
+  return { ...state, ...patch };
 }
 
 const targetOptions: {
@@ -113,25 +144,26 @@ export function NotificationLabPage() {
   const notificationConfigQuery = useNotificationConfigQuery();
   const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
-  const [notificationType, setNotificationType] = useState<RacerNotificationType>("admin_message");
-  const [targetType, setTargetType] = useState<AdminNotificationTargetType>("selected");
-  const [selectedRacerIds, setSelectedRacerIds] = useState<string[]>([]);
-  const [racerSearch, setRacerSearch] = useState("");
-  const [title, setTitle] = useState(notificationTemplates.admin_message.title);
-  const [body, setBody] = useState(notificationTemplates.admin_message.body);
-  const [url, setUrl] = useState("/racer");
-  const [sendStatus, setSendStatus] = useState<string | null>(null);
-  const [sendBusy, setSendBusy] = useState(false);
+  const [state, setState] = useReducer(notificationLabReducer, initialNotificationLabState);
+  const {
+    body,
+    notificationType,
+    racerSearch,
+    selectedRacerIds,
+    sendBusy,
+    sendStatus,
+    targetType,
+    title,
+    url
+  } = state;
 
-  const racerOptions = useMemo(() => {
-    const normalizedSearch = racerSearch.trim().toLowerCase();
-    return (snapshot?.racers ?? []).filter((entry) => {
-      if (!normalizedSearch) {
-        return true;
-      }
-      return entry.racer.displayName.toLowerCase().includes(normalizedSearch);
-    });
-  }, [racerSearch, snapshot?.racers]);
+  const normalizedRacerSearch = racerSearch.trim().toLowerCase();
+  const racerOptions = (snapshot?.racers ?? []).filter((entry) => {
+    if (!normalizedRacerSearch) {
+      return true;
+    }
+    return entry.racer.displayName.toLowerCase().includes(normalizedRacerSearch);
+  });
 
   if (!snapshot) {
     return <p>Loading notification lab...</p>;
@@ -140,25 +172,27 @@ export function NotificationLabPage() {
   const targetRacerIds = resolveTargetRacerIds(snapshot, targetType, selectedRacerIds);
   const targetRacerNames = targetRacerIds.map((racerId) => getRacerName(snapshot, racerId));
   const canSend = title.trim() !== "" && body.trim() !== "" && targetRacerIds.length > 0;
+  const notificationTypeSelectId = "notification-lab-type";
+  const targetGroupSelectId = "notification-lab-target-group";
+  const titleInputId = "notification-lab-title";
+  const bodyInputId = "notification-lab-body";
+  const urlInputId = "notification-lab-url";
 
   function applyTemplate(type: RacerNotificationType): void {
     const template = notificationTemplates[type];
-    setNotificationType(type);
-    setTitle(template.title);
-    setBody(template.body);
+    setState({ body: template.body, notificationType: type, title: template.title });
   }
 
   function toggleRacer(racerId: string): void {
-    setSelectedRacerIds((currentIds) =>
-      currentIds.includes(racerId)
-        ? currentIds.filter((currentId) => currentId !== racerId)
-        : [...currentIds, racerId]
-    );
+    setState({
+      selectedRacerIds: selectedRacerIds.includes(racerId)
+        ? selectedRacerIds.filter((currentId) => currentId !== racerId)
+        : [...selectedRacerIds, racerId]
+    });
   }
 
   async function sendLabNotification(): Promise<void> {
-    setSendBusy(true);
-    setSendStatus(null);
+    setState({ sendBusy: true, sendStatus: null });
     try {
       const result = await sendAdminNotification({
         body: body.trim(),
@@ -169,15 +203,17 @@ export function NotificationLabPage() {
         url: url.trim() || "/racer"
       });
       queryClient.setQueryData(snapshotQueryKey, result.snapshot);
-      setSendStatus(
-        `Sent ${notificationTypeLabels[notificationType]} to ${result.targetCount} racer${
+      setState({
+        sendStatus: `Sent ${notificationTypeLabels[notificationType]} to ${result.targetCount} racer${
           result.targetCount === 1 ? "" : "s"
         }.`
-      );
+      });
     } catch (error) {
-      setSendStatus(error instanceof Error ? error.message : "Notification send failed.");
+      setState({
+        sendStatus: error instanceof Error ? error.message : "Notification send failed."
+      });
     } finally {
-      setSendBusy(false);
+      setState({ sendBusy: false });
     }
   }
 
@@ -205,9 +241,10 @@ export function NotificationLabPage() {
       <div className="notification-lab__grid">
         <Panel title="Message Builder" className="notification-lab__builder">
           <div className="notification-lab__stack">
-            <label>
+            <label htmlFor={notificationTypeSelectId}>
               Notification type
               <select
+                id={notificationTypeSelectId}
                 value={notificationType}
                 onChange={(event) => {
                   applyTemplate(event.target.value as RacerNotificationType);
@@ -235,35 +272,38 @@ export function NotificationLabPage() {
               ))}
             </div>
 
-            <label>
+            <label htmlFor={titleInputId}>
               Title
               <TextInput
+                id={titleInputId}
                 maxLength={80}
                 value={title}
                 onChange={(event) => {
-                  setTitle(event.target.value);
+                  setState({ title: event.target.value });
                 }}
               />
             </label>
 
-            <label>
+            <label htmlFor={bodyInputId}>
               Body
               <textarea
+                id={bodyInputId}
                 maxLength={240}
                 rows={5}
                 value={body}
                 onChange={(event) => {
-                  setBody(event.target.value);
+                  setState({ body: event.target.value });
                 }}
               />
             </label>
 
-            <label>
+            <label htmlFor={urlInputId}>
               Open URL
               <TextInput
+                id={urlInputId}
                 value={url}
                 onChange={(event) => {
-                  setUrl(event.target.value);
+                  setState({ url: event.target.value });
                 }}
                 placeholder="/racer"
               />
@@ -284,12 +324,13 @@ export function NotificationLabPage() {
 
         <Panel title="Targets" className="notification-lab__targets">
           <div className="notification-lab__stack">
-            <label>
+            <label htmlFor={targetGroupSelectId}>
               Target group
               <select
+                id={targetGroupSelectId}
                 value={targetType}
                 onChange={(event) => {
-                  setTargetType(event.target.value as AdminNotificationTargetType);
+                  setState({ targetType: event.target.value as AdminNotificationTargetType });
                 }}
               >
                 {targetOptions.map((option) => (
@@ -309,14 +350,16 @@ export function NotificationLabPage() {
                   <TextInput
                     value={racerSearch}
                     onChange={(event) => {
-                      setRacerSearch(event.target.value);
+                      setState({ racerSearch: event.target.value });
                     }}
                     placeholder="Filter racers"
                   />
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      setSelectedRacerIds(snapshot.racers.map((entry) => entry.racer.id));
+                      setState({
+                        selectedRacerIds: snapshot.racers.map((entry) => entry.racer.id)
+                      });
                     }}
                   >
                     Select All
@@ -324,7 +367,7 @@ export function NotificationLabPage() {
                   <Button
                     variant="ghost"
                     onClick={() => {
-                      setSelectedRacerIds([]);
+                      setState({ selectedRacerIds: [] });
                     }}
                   >
                     Clear

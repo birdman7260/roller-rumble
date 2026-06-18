@@ -1,16 +1,35 @@
 import type { BracketNode, TournamentBundle } from "@roller-rumble/shared/types";
 
 export function getRacerIdsWithIncompleteTournamentMatches(bundle: TournamentBundle): Set<string> {
-  return new Set(
-    [
-      ...bundle.bracketNodes
-        .filter((node) => !node.winnerRacerId && node.state !== "finished")
-        .flatMap((node) => [node.racerAId, node.racerBId]),
-      ...bundle.groupMatches
-        .filter((match) => !match.winnerRacerId)
-        .flatMap((match) => [match.racerAId, match.racerBId])
-    ].filter((racerId): racerId is string => Boolean(racerId))
-  );
+  const racerIds = new Set<string>();
+
+  for (const node of bundle.bracketNodes) {
+    if (node.winnerRacerId || node.state === "finished") {
+      continue;
+    }
+
+    if (node.racerAId) {
+      racerIds.add(node.racerAId);
+    }
+    if (node.racerBId) {
+      racerIds.add(node.racerBId);
+    }
+  }
+
+  for (const match of bundle.groupMatches) {
+    if (match.winnerRacerId) {
+      continue;
+    }
+
+    if (match.racerAId) {
+      racerIds.add(match.racerAId);
+    }
+    if (match.racerBId) {
+      racerIds.add(match.racerBId);
+    }
+  }
+
+  return racerIds;
 }
 
 function targetHasResult(nodes: BracketNode[], nodeId?: string | null): boolean {

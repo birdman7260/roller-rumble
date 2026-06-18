@@ -1,6 +1,6 @@
 export const WHEEL_ITEM_PITCH = 94;
 
-export function normalizeWheelDeltaY(event: WheelEvent): number {
+export function normalizeWheelDeltaY(event: Pick<WheelEvent, "deltaMode" | "deltaY">): number {
   if (event.deltaMode === 1) {
     return event.deltaY * 16;
   }

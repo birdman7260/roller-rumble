@@ -11,7 +11,7 @@ import type {
   TournamentBundle,
   TournamentStage
 } from "@roller-rumble/shared/types";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useReducer, useRef } from "react";
 import { getTheme, themes } from "@roller-rumble/shared/themes";
 import {
   type BracketPresentationRequest,
@@ -546,12 +546,28 @@ function buildLabWinnerRace(themeId: string): RaceRecord {
 }
 
 export function BracketAnimationLabPage() {
-  const [themeId, setThemeId] = useState(themes[0].id);
-  const [layout, setLayout] = useState<TournamentBracketLayoutMode>("center-converging");
-  const [scenarioId, setScenarioId] = useState<LabScenario["id"]>("round-one");
-  const [phase, setPhase] = useState<LabPhase>("overview");
-  const [runKey, setRunKey] = useState(0);
-  const [showDummyWinnerModal, setShowDummyWinnerModal] = useState(false);
+  const [state, setState] = useReducer(
+    (
+      currentState: {
+        layout: TournamentBracketLayoutMode;
+        phase: LabPhase;
+        runKey: number;
+        scenarioId: LabScenario["id"];
+        showDummyWinnerModal: boolean;
+        themeId: string;
+      },
+      patch: Partial<typeof currentState>
+    ) => ({ ...currentState, ...patch }),
+    {
+      layout: "center-converging",
+      phase: "overview",
+      runKey: 0,
+      scenarioId: "round-one",
+      showDummyWinnerModal: false,
+      themeId: themes[0].id
+    }
+  );
+  const { layout, phase, runKey, scenarioId, showDummyWinnerModal, themeId } = state;
   const timersRef = useRef<number[]>([]);
   const selectedTheme = getTheme(themeId);
   const scenario = labScenarios.find((candidate) => candidate.id === scenarioId) ?? labScenarios[0];
@@ -600,7 +616,7 @@ export function BracketAnimationLabPage() {
 
     function closeDummyWinnerModal(event: KeyboardEvent): void {
       if (event.key === "Escape") {
-        setShowDummyWinnerModal(false);
+        setState({ showDummyWinnerModal: false });
       }
     }
 
@@ -628,20 +644,17 @@ export function BracketAnimationLabPage() {
 
   function setManualPhase(nextPhase: LabPhase): void {
     clearSequenceTimers();
-    setRunKey((current) => current + 1);
-    setPhase(nextPhase);
+    setState({ phase: nextPhase, runKey: runKey + 1 });
   }
 
   function resetBoardView(): void {
     clearSequenceTimers();
-    setPhase("overview");
-    setRunKey((current) => current + 1);
+    setState({ phase: "overview", runKey: runKey + 1 });
   }
 
   function playSequence(): void {
     clearSequenceTimers();
-    setRunKey((current) => current + 1);
-    setPhase("hidden");
+    setState({ phase: "hidden", runKey: runKey + 1 });
 
     // Mirrors the projector handoff: stay hidden, return to source, draw the path, hold, zoom out.
     const sequence: {
@@ -657,7 +670,7 @@ export function BracketAnimationLabPage() {
 
     timersRef.current = sequence.map((step) =>
       window.setTimeout(() => {
-        setPhase(step.phase);
+        setState({ phase: step.phase });
       }, step.delayMs)
     );
   }
@@ -686,7 +699,7 @@ export function BracketAnimationLabPage() {
           <select
             value={themeId}
             onChange={(event) => {
-              setThemeId(event.target.value);
+              setState({ themeId: event.target.value });
             }}
           >
             {themes.map((theme) => (
@@ -702,7 +715,7 @@ export function BracketAnimationLabPage() {
           <select
             value={layout}
             onChange={(event) => {
-              setLayout(event.target.value as TournamentBracketLayoutMode);
+              setState({ layout: event.target.value as TournamentBracketLayoutMode });
               resetBoardView();
             }}
           >
@@ -719,7 +732,7 @@ export function BracketAnimationLabPage() {
           <select
             value={scenarioId}
             onChange={(event) => {
-              setScenarioId(event.target.value as LabScenario["id"]);
+              setState({ scenarioId: event.target.value as LabScenario["id"] });
               resetBoardView();
             }}
           >
@@ -738,7 +751,7 @@ export function BracketAnimationLabPage() {
         <Button
           variant="ghost"
           onClick={() => {
-            setShowDummyWinnerModal((current) => !current);
+            setState({ showDummyWinnerModal: !showDummyWinnerModal });
           }}
         >
           {showDummyWinnerModal ? "Hide Dummy Winner Modal" : "Show Dummy Winner Modal"}

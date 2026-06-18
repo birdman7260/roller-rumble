@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type WheelEvent } from "react";
 import type { PointerEvent as ReactPointerEvent } from "react";
 import { Button, Panel } from "@roller-rumble/shared-ui";
 import type { UmbrellaState } from "../../types";
@@ -139,16 +139,10 @@ export function UmbrellaPanelPicker({
   };
 
   useEffect(() => {
-    if (!isDragging && umbrella.currentPanel !== null) {
-      lastCommandedPanelRef.current = selectedPanel;
-    }
-  }, [isDragging, selectedPanel, umbrella.currentPanel]);
-
-  useEffect(() => {
     return () => clearCommandTimer();
   }, []);
 
-  const handleNativePanelWheel = useEffectEvent((event: WheelEvent) => {
+  function handleWheel(event: WheelEvent<HTMLDivElement>): void {
     if (disabled) {
       return;
     }
@@ -163,19 +157,7 @@ export function UmbrellaPanelPicker({
       schedulePanelSettle(Math.round(nextPosition));
       return nextPosition;
     });
-  });
-
-  useEffect(() => {
-    const wheelElement = wheelElementRef.current;
-    if (!wheelElement) {
-      return undefined;
-    }
-
-    // The picker captures wheel input so the motor command follows the selected slice, not page scroll.
-    const handleWheel = (event: WheelEvent) => handleNativePanelWheel(event);
-    wheelElement.addEventListener("wheel", handleWheel, { passive: false });
-    return () => wheelElement.removeEventListener("wheel", handleWheel);
-  }, []);
+  }
 
   const wheelPanels = UMBRELLA_PANELS.map((panel, panelIndex) => {
     const isActive = panelIndex === selectedLogicalPanel;
@@ -202,19 +184,8 @@ export function UmbrellaPanelPicker({
             ? "umbrella-panel-picker umbrella-panel-picker--dragging"
             : "umbrella-panel-picker"
         }
-        role="listbox"
-        tabIndex={0}
-        aria-activedescendant={`umbrella-panel-${UMBRELLA_PANELS[selectedLogicalPanel]?.id}`}
-        onKeyDown={(event) => {
-          if (event.key === "ArrowLeft") {
-            event.preventDefault();
-            selectPanelPosition(panelPosition - 1);
-          }
-          if (event.key === "ArrowRight") {
-            event.preventDefault();
-            selectPanelPosition(panelPosition + 1);
-          }
-        }}
+        aria-label={`Umbrella panel selector, ${UMBRELLA_PANELS[selectedLogicalPanel]?.label ?? "panel"} selected`}
+        onWheel={handleWheel}
         onPointerDown={(event) => {
           if (disabled) {
             return;
@@ -268,9 +239,8 @@ export function UmbrellaPanelPicker({
               }
               style={style}
               type="button"
-              role="option"
               aria-label={panel.label}
-              aria-selected={isActive}
+              aria-pressed={isActive}
               disabled={disabled}
               onClick={(event) => {
                 if (suppressPanelClickRef.current) {

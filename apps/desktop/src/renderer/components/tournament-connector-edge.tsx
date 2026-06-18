@@ -1,6 +1,6 @@
 import { getSmoothStepPath } from "@xyflow/react";
 import type { EdgeProps } from "@xyflow/react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { BracketFlowEdge } from "./tournament-flow-layout";
 
 export function TournamentConnectorEdge({
@@ -44,7 +44,7 @@ export function TournamentConnectorEdge({
         <path className="tournament-connector-edge__progress" d={edgePath} />
       ) : null}
       {drawAnimated ? (
-        <motion.path
+        <m.path
           key={data?.animationKey ?? id}
           className="tournament-connector-edge__draw"
           d={edgePath}

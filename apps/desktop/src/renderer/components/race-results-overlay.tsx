@@ -5,7 +5,7 @@ import type {
   RacerSummary
 } from "@roller-rumble/shared/types";
 import { Panel } from "@roller-rumble/shared-ui";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../lib/assets";
 
 type RaceResultLaneColor = "orange" | "purple";
@@ -61,7 +61,9 @@ function getOrderedResultParticipants(race: RaceRecord): RaceParticipant[] {
     right: 1
   };
 
-  return [...race.participants].sort((left, right) => laneOrder[left.lane] - laneOrder[right.lane]);
+  return race.participants.toSorted(
+    (left, right) => laneOrder[left.lane] - laneOrder[right.lane]
+  );
 }
 
 export function RaceResultsOverlay({
@@ -80,7 +82,7 @@ export function RaceResultsOverlay({
   const resultParticipants = getOrderedResultParticipants(race);
 
   return (
-    <motion.div
+    <m.div
       className={`race-page__results-overlay${
         fullscreen ? " race-page__results-overlay--fullscreen" : ""
       }`}
@@ -174,6 +176,6 @@ export function RaceResultsOverlay({
           })}
         </div>
       </div>
-    </motion.div>
+    </m.div>
   );
 }
