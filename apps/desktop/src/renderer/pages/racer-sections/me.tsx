@@ -1,4 +1,10 @@
-import type { PhotoBoothTokenResponse, QueueEntry, RacerNotification, RacerSummary, TournamentBundle } from "@roller-rumble/shared/types";
+import type {
+  PhotoBoothTokenResponse,
+  QueueEntry,
+  RacerNotification,
+  RacerSummary,
+  TournamentBundle
+} from "@roller-rumble/shared/types";
 import { Button, Panel, TextInput } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { useEffect, useState } from "react";

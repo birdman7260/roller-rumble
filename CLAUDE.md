@@ -32,6 +32,7 @@ pnpm rebuild:native    # Rebuild better-sqlite3 for Electron after ABI changes
 ```
 
 **Quality gate before handing off work:**
+
 ```bash
 pnpm format && pnpm quality && pnpm typecheck && pnpm test && pnpm build
 ```
@@ -50,13 +51,13 @@ The backend holds all mutable state in SQLite and derives an `AppSnapshot` that 
 
 ### Workspace packages
 
-| Package | Path | Role |
-|---|---|---|
-| `@roller-rumble/desktop` | `apps/desktop` | Electron shell, Express backend, React renderer, Drizzle config |
-| `@roller-rumble/shared` | `packages/shared` | Types, constants, validation, themes, presets — used by all packages |
-| `@roller-rumble/shared-ui` | `packages/shared-ui` | React UI primitives, shared CSS contract, theme DOM helper |
-| _(isolated)_ | `tools/photo-booth-agent` | Raspberry Pi kiosk agent — own Node-built `better-sqlite3`, camera/light adapters, SQLite upload queue |
-| _(isolated)_ | `tools/db-studio` | Drizzle Studio with isolated Node-built sqlite dependency |
+| Package                    | Path                      | Role                                                                                                   |
+| -------------------------- | ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `@roller-rumble/desktop`   | `apps/desktop`            | Electron shell, Express backend, React renderer, Drizzle config                                        |
+| `@roller-rumble/shared`    | `packages/shared`         | Types, constants, validation, themes, presets — used by all packages                                   |
+| `@roller-rumble/shared-ui` | `packages/shared-ui`      | React UI primitives, shared CSS contract, theme DOM helper                                             |
+| _(isolated)_               | `tools/photo-booth-agent` | Raspberry Pi kiosk agent — own Node-built `better-sqlite3`, camera/light adapters, SQLite upload queue |
+| _(isolated)_               | `tools/db-studio`         | Drizzle Studio with isolated Node-built sqlite dependency                                              |
 
 The photo booth agent and db-studio are intentionally isolated (`--ignore-workspace`) so their Node-built native binaries never overwrite the Electron-built ones used by the desktop app.
 

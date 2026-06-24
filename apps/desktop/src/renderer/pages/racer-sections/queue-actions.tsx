@@ -84,10 +84,7 @@ export function QueueActions({
           variant="accent"
           disabled={!selectedOpponent}
           onClick={() => {
-            fireAndForget(
-              onQueueSignup({ opponentRacerId: selectedOpponent }),
-              "challenge racer"
-            );
+            fireAndForget(onQueueSignup({ opponentRacerId: selectedOpponent }), "challenge racer");
           }}
         >
           Challenge

@@ -2,15 +2,7 @@ import type { QueueEntry, RacerSummary, TournamentBundle } from "@roller-rumble/
 import { describeQueueEntry } from "../../lib/snapshot-display";
 import { formatFinishTime } from "./shared";
 
-function RacerStat({
-  detail,
-  label,
-  value
-}: {
-  detail?: string;
-  label: string;
-  value: string;
-}) {
+function RacerStat({ detail, label, value }: { detail?: string; label: string; value: string }) {
   return (
     <div className="racer-detail-stat">
       <span>{label}</span>
@@ -49,10 +41,7 @@ export function ExpandedRacerStats({
         />
         <RacerStat label="Best Finish" value={formatFinishTime(entry.stats.bestFinishTimeMs)} />
         <RacerStat label="Top Speed" value={`${entry.stats.topSpeedKph.toFixed(1)} km/h`} />
-        <RacerStat
-          label="Average Speed"
-          value={`${entry.stats.averageSpeedKph.toFixed(1)} km/h`}
-        />
+        <RacerStat label="Average Speed" value={`${entry.stats.averageSpeedKph.toFixed(1)} km/h`} />
         <RacerStat label="Peak Power" value={`${entry.stats.maxWattage.toFixed(0)}W`} />
         <RacerStat label="Events Raced" value={String(entry.stats.careerEventCount)} />
       </div>

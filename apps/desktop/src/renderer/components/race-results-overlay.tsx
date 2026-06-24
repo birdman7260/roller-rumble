@@ -61,9 +61,7 @@ function getOrderedResultParticipants(race: RaceRecord): RaceParticipant[] {
     right: 1
   };
 
-  return race.participants.toSorted(
-    (left, right) => laneOrder[left.lane] - laneOrder[right.lane]
-  );
+  return race.participants.toSorted((left, right) => laneOrder[left.lane] - laneOrder[right.lane]);
 }
 
 export function RaceResultsOverlay({

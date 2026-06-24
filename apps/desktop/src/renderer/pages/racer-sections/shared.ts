@@ -51,7 +51,10 @@ export interface SectionMotionProps {
   supportingCardMotion: MotionProps;
 }
 
-export function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
+export function formatPaymentAmount(
+  amountCents: number | null | undefined,
+  currency: string
+): string {
   if (typeof amountCents !== "number") {
     return "fee not set";
   }

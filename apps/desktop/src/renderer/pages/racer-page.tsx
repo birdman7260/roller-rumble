@@ -462,11 +462,7 @@ function useRacerPageViewModel({
   const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
   const notificationConfigQuery = useNotificationConfigQuery();
-  const [state, setState] = useReducer(
-    racerPageReducer,
-    initialTab,
-    createInitialRacerPageState
-  );
+  const [state, setState] = useReducer(racerPageReducer, initialTab, createInitialRacerPageState);
   const {
     accountlessDisplayName,
     activeTab,

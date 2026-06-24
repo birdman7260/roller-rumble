@@ -21,6 +21,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Winner results now use the full projector screen with spacing while keeping the bottom ticker visible.
 - The URL on the QR code page is removed.
 - More logic for queueing and challenging
+- Refactored the race lifecycle code
 
 ### Fixed
 

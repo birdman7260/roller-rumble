@@ -46,6 +46,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@tanstack/eslint-plugin-query": "^5.100.6",
+    "@vitest/eslint-plugin": "^1.6.20",
     "eslint": "^10.2.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-doctor": "^0.5.6",

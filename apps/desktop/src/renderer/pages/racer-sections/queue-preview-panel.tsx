@@ -31,7 +31,9 @@ export function QueuePreviewPanel({
             <div key={entry.id} className="list-row">
               <strong>
                 #{entry.position}{" "}
-                {entry.racerIds.map((racerId) => resolveRacerName(liveSnapshot, racerId)).join(" vs ")}
+                {entry.racerIds
+                  .map((racerId) => resolveRacerName(liveSnapshot, racerId))
+                  .join(" vs ")}
               </strong>
               <span>{describeQueueEntry(entry)}</span>
             </div>

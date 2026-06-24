@@ -392,8 +392,14 @@ function NotificationsPanel({
     <Panel title="Notifications">
       <div className="form-grid">
         <div className="stat-grid">
-          <StatPill label="Web Push" value={notificationConfig.configured ? "Ready" : "Not configured"} />
-          <StatPill label="Public Key" value={notificationConfig.publicKey ? "Present" : "Missing"} />
+          <StatPill
+            label="Web Push"
+            value={notificationConfig.configured ? "Ready" : "Not configured"}
+          />
+          <StatPill
+            label="Public Key"
+            value={notificationConfig.publicKey ? "Present" : "Missing"}
+          />
         </div>
         <p>
           {notificationConfig.message ??

@@ -1,4 +1,10 @@
-import type { AppSnapshot, QueueEntry, RaceRecord, RacerSummary, TournamentBundle } from "@roller-rumble/shared/types";
+import type {
+  AppSnapshot,
+  QueueEntry,
+  RaceRecord,
+  RacerSummary,
+  TournamentBundle
+} from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
 import { resolveBackendAssetUrl } from "../../lib/assets";

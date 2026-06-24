@@ -1,4 +1,9 @@
-import type { AppSnapshot, QueueEntry, RacerSummary, TournamentBundle } from "@roller-rumble/shared/types";
+import type {
+  AppSnapshot,
+  QueueEntry,
+  RacerSummary,
+  TournamentBundle
+} from "@roller-rumble/shared/types";
 import { Button, Panel } from "@roller-rumble/shared-ui";
 import { AnimatePresence, m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../../lib/assets";
@@ -74,8 +79,8 @@ export function RacersTab({
                       <strong>{entry.racer.displayName}</strong>
                       {!isExpanded ? (
                         <p>
-                          {entry.stats.races} races - {entry.stats.topSpeedKph.toFixed(1)} km/h
-                          top speed - {entry.stats.maxWattage.toFixed(0)}W peak
+                          {entry.stats.races} races - {entry.stats.topSpeedKph.toFixed(1)} km/h top
+                          speed - {entry.stats.maxWattage.toFixed(0)}W peak
                         </p>
                       ) : null}
                     </span>

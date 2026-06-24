@@ -6,6 +6,7 @@ import reactDoctor from "eslint-plugin-react-doctor";
 import reactHooks from "eslint-plugin-react-hooks";
 import reactRefresh from "eslint-plugin-react-refresh";
 import unusedImports from "eslint-plugin-unused-imports";
+import vitest from "@vitest/eslint-plugin";
 import tseslint from "typescript-eslint";
 
 const typedFiles = [
@@ -39,6 +40,8 @@ export default tseslint.config(
       "node_modules/**",
       "coverage/**",
       ".vite/**",
+      ".claude/**",
+      ".agents/**",
       "apps/desktop/src/renderer/routeTree.gen.ts"
     ]
   },
@@ -194,6 +197,9 @@ export default tseslint.config(
   },
   {
     files: ["**/*.test.ts", "apps/desktop/src/renderer/test/**/*.ts"],
+    plugins: {
+      vitest
+    },
     languageOptions: {
       globals: {
         ...globals.node,
@@ -204,7 +210,9 @@ export default tseslint.config(
     rules: {
       "@typescript-eslint/no-magic-numbers": "off",
       "@typescript-eslint/no-non-null-assertion": "off",
-      "@typescript-eslint/require-await": "off"
+      "@typescript-eslint/require-await": "off",
+      "@typescript-eslint/unbound-method": "off",
+      "vitest/unbound-method": "error"
     }
   }
 );

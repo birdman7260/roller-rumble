@@ -34,11 +34,11 @@ export function RaceSpriteAvatar({
   } satisfies CSSProperties & Record<`--${string}`, string>;
 
   return (
-    <img
-      alt={`${label} ${speedState} race avatar`}
+    <div
+      aria-label={`${label} ${speedState} race avatar`}
       className="race-sprite-avatar"
       data-sprite-speed={speedState}
-      src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+      role="img" // eslint-disable-line react-doctor/prefer-tag-over-role -- sprite is CSS background-image; background-image does not render on replaced elements like <img>
       style={style}
     />
   );

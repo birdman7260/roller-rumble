@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture Review — Roller Rumble</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam-line {
+        stroke-dasharray: 5 4;
+        stroke: #94a3b8;
+        stroke-width: 1.5;
+      }
+      .leak-line {
+        stroke: #dc2626;
+        stroke-width: 2;
+        marker-end: url(#arrowRed);
+      }
+      .flow-line {
+        stroke: #475569;
+        stroke-width: 1.5;
+        marker-end: url(#arrow);
+      }
+      .deep-box {
+        background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+      }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-14">
+      <!-- Header -->
+      <header class="border-b border-slate-200 pb-8">
+        <div class="flex items-baseline justify-between">
+          <h1 class="text-3xl font-bold tracking-tight">Roller Rumble</h1>
+          <span class="text-sm text-slate-400 font-mono">architecture review · June 2026</span>
+        </div>
+        <p class="mt-2 text-slate-500 text-sm">
+          Deepening opportunities — refactors that increase leverage and locality.
+        </p>
+        <div class="mt-4 flex gap-6 text-xs text-slate-500">
+          <span class="flex items-center gap-1.5"
+            ><span class="inline-block w-4 h-4 border-2 border-slate-700 rounded-sm"></span>
+            module</span
+          >
+          <span class="flex items-center gap-1.5"
+            ><svg width="28" height="10">
+              <line
+                x1="0"
+                y1="5"
+                x2="28"
+                y2="5"
+                stroke="#94a3b8"
+                stroke-dasharray="4 3"
+                stroke-width="1.5"
+              />
+            </svg>
+            seam</span
+          >
+          <span class="flex items-center gap-1.5"
+            ><svg width="28" height="10">
+              <line x1="0" y1="5" x2="24" y2="5" stroke="#dc2626" stroke-width="2" />
+              <polygon points="24,2 28,5 24,8" fill="#dc2626" />
+            </svg>
+            leakage</span
+          >
+          <span class="flex items-center gap-1.5"
+            ><span
+              class="inline-block w-4 h-4 rounded-sm"
+              style="background: linear-gradient(135deg, #0f172a, #1e293b)"
+            ></span>
+            deep module</span
+          >
+        </div>
+      </header>
+
+      <!-- Candidates -->
+      <section id="candidates" class="space-y-14">
+        <!-- ── Candidate 1: Race Lifecycle ── -->
+        <article id="race-lifecycle" class="space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-bold">
+              1 · Concentrate the race lifecycle into one deep module
+            </h2>
+            <div class="flex gap-2 shrink-0">
+              <span
+                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"
+                >Strong</span
+              >
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-600"
+                >in-process</span
+              >
+            </div>
+          </div>
+          <p class="font-mono text-xs text-slate-500">
+            apps/desktop/src/backend/services/app.ts · lines 2833–2990
+          </p>
+
+          <!-- Before / After diagrams -->
+          <div class="grid grid-cols-2 gap-4">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">Before</p>
+              <pre class="mermaid text-sm">
+flowchart TD
+  A["activateRace() · 2833"]
+  B["handleRotation() · 2870"]
+  C["reconcileRuntime\nTargetDistance() · 2895"]
+  D["finishLaneTelemetry\nState() · 2902"]
+  E["finalizeCurrentRace() · 2948"]
+  F[("SQLite")]
+
+  A -->|"creates LaneTelemetry\nState objects"| B
+  B -->|"each sensor tick"| C
+  C -->|"when target hit"| D
+  D -->|"justFinished check"| E
+  E --> F
+
+  classDef shallow fill:#f1f5f9,stroke:#cbd5e1
+  classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2
+  class A,B,C,D,E shallow
+          </pre
+              >
+            </div>
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">After</p>
+              <div class="flex flex-col gap-3 h-full">
+                <!-- Shallow caller -->
+                <div class="border border-slate-300 rounded p-2 text-center">
+                  <p class="text-xs uppercase tracking-wider text-slate-400">RollerRumbleApp</p>
+                  <p class="text-xs font-mono text-slate-600 mt-1">
+                    race.start() · race.tick(rpm) · race.finalize()
+                  </p>
+                </div>
+                <!-- Seam arrow -->
+                <div class="flex justify-center">
+                  <svg width="2" height="28">
+                    <line
+                      x1="1"
+                      y1="0"
+                      x2="1"
+                      y2="28"
+                      stroke="#94a3b8"
+                      stroke-dasharray="4 3"
+                      stroke-width="1.5"
+                    />
+                  </svg>
+                </div>
+                <!-- Deep module -->
+                <div class="rounded-lg p-4 flex-1 deep-box text-white">
+                  <p class="text-xs uppercase tracking-wider text-slate-400">ActiveRace module</p>
+                  <div class="mt-3 space-y-1 text-xs font-mono text-slate-300 opacity-70">
+                    <p>· LaneTelemetryState[]</p>
+                    <p>· rotation → metrics</p>
+                    <p>· target distance check</p>
+                    <p>· justFinished logic</p>
+                    <p>· winner assignment</p>
+                    <p>· result persistence</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Problem</p>
+              <p class="text-slate-600">
+                Understanding "when does a race end" requires tracing 4 functions across 150 lines.
+                The lifecycle seam is invisible — callers see individual steps, not one module.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Solution</p>
+              <p class="text-slate-600">
+                Extract an <code class="text-xs bg-slate-100 px-1 rounded">ActiveRace</code> module
+                whose interface is
+                <code class="text-xs bg-slate-100 px-1 rounded">start / tick(rpm) / finalize</code>.
+                Implementation owns all lane state, metric computation, and result persistence.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Wins</p>
+              <ul class="space-y-1 text-slate-600">
+                <li>· locality: race bugs concentrate in one module</li>
+                <li>· leverage: tests hit the full lifecycle through 3 methods</li>
+                <li>· interface shrinks from 5 call sites to 1</li>
+                <li>
+                  · <code class="text-xs bg-slate-100 px-1 rounded">handleRotation</code> becomes an
+                  internal seam
+                </li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <hr class="border-slate-200" />
+
+        <!-- ── Candidate 2: Snapshot Assembly ── -->
+        <article id="snapshot-assembly" class="space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-bold">
+              2 · Deepen snapshot assembly — one module owns the full snapshot
+            </h2>
+            <div class="flex gap-2 shrink-0">
+              <span
+                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"
+                >Strong</span
+              >
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-600"
+                >in-process</span
+              >
+            </div>
+          </div>
+          <p class="font-mono text-xs text-slate-500">
+            apps/desktop/src/backend/services/app.ts · lines 701–867 · server.ts · lines 85–149
+          </p>
+
+          <!-- Cross-section diagram -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                Before — scattered assembly
+              </p>
+              <div class="space-y-1.5">
+                <div
+                  class="h-10 border-l-4 border-slate-300 bg-slate-50 rounded-r flex items-center px-3 text-xs font-mono text-slate-500"
+                >
+                  getSnapshot() reads 10+ DB tables
+                </div>
+                <div
+                  class="h-10 border-l-4 border-slate-300 bg-slate-50 rounded-r flex items-center px-3 text-xs font-mono text-slate-500"
+                >
+                  buildRacerSummaries() computes stats
+                </div>
+                <div
+                  class="h-10 border-l-4 border-slate-300 bg-slate-50 rounded-r flex items-center px-3 text-xs font-mono text-slate-500"
+                >
+                  reconcileQueueRaceStatuses() fixes state
+                </div>
+                <div
+                  class="h-10 border-l-4 border-red-400 bg-red-50 rounded-r flex items-center px-3 text-xs font-mono text-red-600"
+                >
+                  server.ts: createRacerSnapshotPayload() re-filters
+                </div>
+                <div
+                  class="h-10 border-l-4 border-red-400 bg-red-50 rounded-r flex items-center px-3 text-xs font-mono text-red-600"
+                >
+                  server.ts: SnapshotStreamClientState throttles
+                </div>
+              </div>
+              <p class="text-xs text-red-500 mt-2">snapshot shape knowledge leaks into server.ts</p>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                After — one deep module
+              </p>
+              <div class="space-y-1.5">
+                <div
+                  class="h-10 border-l-4 border-slate-300 bg-slate-50 rounded-r flex items-center px-3 text-xs font-mono text-slate-500"
+                >
+                  server.ts: snapshot.forAdmin() · snapshot.forRacer(id)
+                </div>
+                <svg class="ml-3" width="2" height="20">
+                  <line
+                    x1="1"
+                    y1="0"
+                    x2="1"
+                    y2="20"
+                    stroke="#94a3b8"
+                    stroke-dasharray="4 3"
+                    stroke-width="1.5"
+                  />
+                </svg>
+                <div class="rounded-lg p-3 deep-box">
+                  <p class="text-xs uppercase tracking-wider text-slate-400 mb-2">
+                    SnapshotAssembler module
+                  </p>
+                  <div class="space-y-1 text-xs font-mono text-slate-400 opacity-70">
+                    <p>· DB reads</p>
+                    <p>· stat computation</p>
+                    <p>· queue reconcile</p>
+                    <p>· racer payload filter</p>
+                    <p>· throttle/diff state</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Problem</p>
+              <p class="text-slate-600">
+                Snapshot shape knowledge leaks across the seam:
+                <code class="text-xs bg-slate-100 px-1 rounded">server.ts</code> re-filters the
+                snapshot for racer clients and throttles per-client diffs. Changing snapshot shape
+                requires touching two files.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Solution</p>
+              <p class="text-slate-600">
+                A deep
+                <code class="text-xs bg-slate-100 px-1 rounded">SnapshotAssembler</code> module
+                exposes <code class="text-xs bg-slate-100 px-1 rounded">forAdmin()</code> and
+                <code class="text-xs bg-slate-100 px-1 rounded">forRacer(id)</code>. Throttle state,
+                racer payload filtering, and stat computation are implementation details.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Wins</p>
+              <ul class="space-y-1 text-slate-600">
+                <li>· locality: snapshot shape concentrated in one module</li>
+                <li>· seam leak from server.ts eliminated</li>
+                <li>· leverage: add a new surface without touching server.ts</li>
+                <li>· tests can assert racer vs admin payloads directly</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <hr class="border-slate-200" />
+
+        <!-- ── Candidate 3: RollerRumbleApp God Class ── -->
+        <article id="god-class" class="space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-bold">
+              3 · Split the RollerRumbleApp god class at its natural seams
+            </h2>
+            <div class="flex gap-2 shrink-0">
+              <span
+                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800"
+                >Strong</span
+              >
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-600"
+                >in-process</span
+              >
+            </div>
+          </div>
+          <p class="font-mono text-xs text-slate-500">
+            apps/desktop/src/backend/services/app.ts · ~3 500 lines · 80+ public methods
+          </p>
+
+          <!-- Mass diagram -->
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                Before — interface width ≈ implementation width
+              </p>
+              <div class="flex gap-3 items-end justify-center h-52">
+                <!-- Interface bar -->
+                <div class="flex flex-col items-center gap-1">
+                  <div
+                    class="w-16 bg-slate-300 rounded-t"
+                    style="height: 170px; position: relative"
+                  >
+                    <div class="absolute inset-x-0 top-0 text-center py-1">
+                      <span class="text-xs text-slate-600 font-mono leading-tight block"
+                        >80+<br />methods</span
+                      >
+                    </div>
+                  </div>
+                  <p class="text-xs text-slate-500">interface</p>
+                </div>
+                <!-- Implementation bar -->
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-16 rounded-t deep-box" style="height: 180px; position: relative">
+                    <div class="absolute inset-x-0 top-0 text-center py-1">
+                      <span class="text-xs text-slate-300 font-mono leading-tight block"
+                        >3 500<br />lines</span
+                      >
+                    </div>
+                  </div>
+                  <p class="text-xs text-slate-500">implementation</p>
+                </div>
+                <p class="text-xs text-red-500 self-center ml-2">← almost as tall<br />= shallow</p>
+              </div>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                After — five deep modules, small interfaces
+              </p>
+              <div class="flex gap-2 items-end justify-center h-52">
+                <!-- Each module: short interface, taller implementation -->
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-10 bg-slate-200 rounded-t" style="height: 30px"></div>
+                  <div class="w-10 rounded-t deep-box" style="height: 110px"></div>
+                  <p class="text-xs text-slate-500 text-center leading-tight">Active<br />Race</p>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-10 bg-slate-200 rounded-t" style="height: 28px"></div>
+                  <div class="w-10 rounded-t deep-box" style="height: 100px"></div>
+                  <p class="text-xs text-slate-500 text-center leading-tight">Queue<br />Service</p>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-10 bg-slate-200 rounded-t" style="height: 26px"></div>
+                  <div class="w-10 rounded-t deep-box" style="height: 90px"></div>
+                  <p class="text-xs text-slate-500 text-center leading-tight">
+                    Tournament<br />Service
+                  </p>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-10 bg-slate-200 rounded-t" style="height: 24px"></div>
+                  <div class="w-10 rounded-t deep-box" style="height: 80px"></div>
+                  <p class="text-xs text-slate-500 text-center leading-tight">
+                    Payment<br />Service
+                  </p>
+                </div>
+                <div class="flex flex-col items-center gap-1">
+                  <div class="w-10 bg-slate-200 rounded-t" style="height: 22px"></div>
+                  <div class="w-10 rounded-t deep-box" style="height: 70px"></div>
+                  <p class="text-xs text-slate-500 text-center leading-tight">Auth<br />Service</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Responsibility map -->
+          <div class="rounded-lg border border-slate-200 bg-white p-4">
+            <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+              Current responsibilities in one class
+            </p>
+            <div class="grid grid-cols-5 gap-2 text-xs">
+              <div class="bg-emerald-50 border border-emerald-200 rounded p-2">
+                <p class="font-semibold text-emerald-800 mb-1">Race lifecycle</p>
+                <p class="text-emerald-700 font-mono">
+                  activateRace · handleRotation · finalizeCurrentRace · showResultPresentation
+                </p>
+              </div>
+              <div class="bg-blue-50 border border-blue-200 rounded p-2">
+                <p class="font-semibold text-blue-800 mb-1">Queue</p>
+                <p class="text-blue-700 font-mono">
+                  signUpQueue · removeFromQueue · stageNextRace · reconcileQueueRace
+                </p>
+              </div>
+              <div class="bg-violet-50 border border-violet-200 rounded p-2">
+                <p class="font-semibold text-violet-800 mb-1">Tournament</p>
+                <p class="text-violet-700 font-mono">
+                  stageTournamentRace · applyOutcome · syncGroupsToFinals · markComplete
+                </p>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 rounded p-2">
+                <p class="font-semibold text-amber-800 mb-1">Payments</p>
+                <p class="text-amber-700 font-mono">
+                  createStripeCheckout · completeStripeCheckout · resolvePaymentIntent
+                </p>
+              </div>
+              <div class="bg-red-50 border border-red-200 rounded p-2">
+                <p class="font-semibold text-red-800 mb-1">Auth</p>
+                <p class="text-red-700 font-mono">
+                  passkeyChallenges · verifyPasskey · createSession · accountlessSignup
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Problem</p>
+              <p class="text-slate-600">
+                The class is shallow relative to its interface: 80+ public methods expose almost as
+                much surface as the implementation has. No single seam lets you test payment logic
+                without pulling in race lifecycle code.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Solution</p>
+              <p class="text-slate-600">
+                Extract five deep modules along the coloured seams above.
+                <code class="text-xs bg-slate-100 px-1 rounded">RollerRumbleApp</code> becomes a
+                thin coordinator — each module owns its own interface and tests.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Wins</p>
+              <ul class="space-y-1 text-slate-600">
+                <li>· locality: auth bugs stay in AuthService</li>
+                <li>· leverage: PaymentService testable without a staged race</li>
+                <li>· interface per module shrinks from 80 methods to ~8</li>
+                <li>· two Stripe adapters would justify a real seam</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <hr class="border-slate-200" />
+
+        <!-- ── Candidate 4: Result Presentation Side Effects ── -->
+        <article id="result-presentation" class="space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-bold">4 · Make result presentation side effects explicit</h2>
+            <div class="flex gap-2 shrink-0">
+              <span
+                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-800"
+                >Worth exploring</span
+              >
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-600"
+                >in-process</span
+              >
+            </div>
+          </div>
+          <p class="font-mono text-xs text-slate-500">
+            apps/desktop/src/backend/services/app.ts · lines 769–815
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                Before — side effects hidden in "clear"
+              </p>
+              <pre class="mermaid text-sm">
+sequenceDiagram
+  participant C as Caller
+  participant A as app.ts
+
+  C->>A: clearRaceResultPresentation()
+  Note over A: 1. clears modal state
+  Note over A: 2. marks queue entry COMPLETE
+  Note over A: 3. conditionally auto-stages next race
+  Note over A: 4. conditionally dispatches notifications
+  A-->>C: (void)
+
+  Note over C,A: caller sees "clear", not the cascade
+          </pre
+              >
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                After — one method, named for what it does
+              </p>
+              <pre class="mermaid text-sm">
+sequenceDiagram
+  participant C as Caller
+  participant A as app.ts
+
+  C->>A: dismissResultAndAdvanceQueue()
+  Note over A: all four effects happen,
+  Note over A: all named in one place
+  A-->>C: (void)
+
+  Note over C,A: interface names the full behaviour
+          </pre
+              >
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Problem</p>
+              <p class="text-slate-600">
+                <code class="text-xs bg-slate-100 px-1 rounded">clearRaceResultPresentation()</code>
+                names only one of four effects. The other three (queue completion, auto-stage,
+                notifications) are invisible at the call site — the interface misrepresents the
+                implementation.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Solution</p>
+              <p class="text-slate-600">
+                Rename to
+                <code class="text-xs bg-slate-100 px-1 rounded"
+                  >dismissResultAndAdvanceQueue()</code
+                >
+                and consolidate the three implicit triggers into one explicit place. The interface
+                then matches the implementation's actual depth.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Wins</p>
+              <ul class="space-y-1 text-slate-600">
+                <li>· interface matches implementation depth</li>
+                <li>· test name becomes accurate ("dismiss triggers auto-stage")</li>
+                <li>· locality: all four effects in one function</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <hr class="border-slate-200" />
+
+        <!-- ── Candidate 5: useSnapshotStream coupling ── -->
+        <article id="snapshot-stream" class="space-y-6">
+          <div class="flex items-start justify-between gap-4">
+            <h2 class="text-xl font-bold">
+              5 · Decouple useSnapshotStream from specific query keys
+            </h2>
+            <div class="flex gap-2 shrink-0">
+              <span
+                class="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-slate-200 text-slate-700"
+                >Speculative</span
+              >
+              <span class="px-2.5 py-0.5 rounded-full text-xs font-mono bg-slate-100 text-slate-600"
+                >in-process</span
+              >
+            </div>
+          </div>
+          <p class="font-mono text-xs text-slate-500">
+            apps/desktop/src/renderer/lib/query.tsx · lines 101–148
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                Before — stream knows query keys
+              </p>
+              <pre class="mermaid text-sm">
+flowchart TD
+  WS[WebSocket stream]
+  SD{snapshot diff}
+  QK1["queryClient.invalidate('tunnel')"]
+  QK2["queryClient.invalidate('notifications')"]
+  QK3["queryClient.invalidate('runtimeEnv')"]
+
+  WS --> SD
+  SD -->|"tunnelUrl changed"| QK1
+  SD -->|"notifRevision changed"| QK2
+  SD -->|"env changed"| QK3
+
+  classDef coupled stroke:#dc2626,stroke-width:2px,fill:#fef2f2
+  class WS coupled
+          </pre
+              >
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <p class="text-xs uppercase tracking-wider text-slate-400 mb-3">
+                After — stream emits events; queries self-subscribe
+              </p>
+              <pre class="mermaid text-sm">
+flowchart TD
+  WS[WebSocket stream]
+  EB[snapshotEvents emitter]
+  Q1["useTunnelQuery — subscribes to 'tunnel'"]
+  Q2["useNotifQuery — subscribes to 'notification'"]
+  Q3["useEnvQuery — subscribes to 'env'"]
+
+  WS -->|"emits typed events"| EB
+  EB --> Q1
+  EB --> Q2
+  EB --> Q3
+          </pre
+              >
+            </div>
+          </div>
+
+          <div class="grid grid-cols-3 gap-4 text-sm">
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Problem</p>
+              <p class="text-slate-600">
+                The stream hook is shallow: its interface is simple, but it contains growing
+                knowledge of which query keys to invalidate for each snapshot field. Adding a new
+                derived query requires modifying the stream.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Solution</p>
+              <p class="text-slate-600">
+                The stream emits typed events. Each query hook subscribes to the relevant event.
+                Adding a new query does not touch the stream module — it's a new subscriber at the
+                seam, not a modification of it.
+              </p>
+            </div>
+            <div>
+              <p class="font-semibold text-slate-700 mb-1">Wins</p>
+              <ul class="space-y-1 text-slate-600">
+                <li>· leverage: stream seam stays stable as queries grow</li>
+                <li>· two subscriber shapes justify the seam</li>
+                <li>· speculative: current query count may not warrant this yet</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <!-- Top Recommendation -->
+      <section
+        id="top-recommendation"
+        class="rounded-xl border-2 border-emerald-300 bg-emerald-50 p-8 space-y-3"
+      >
+        <p class="text-xs uppercase tracking-wider text-emerald-600 font-semibold">
+          Top recommendation
+        </p>
+        <h2 class="text-2xl font-bold text-emerald-900">Start with the race lifecycle module</h2>
+        <p class="text-emerald-800 max-w-2xl">
+          Candidate 1 —
+          <a href="#race-lifecycle" class="underline">Concentrate the race lifecycle</a> — is the
+          highest-leverage first move. It's the most-tested, most-changed code path; extracting it
+          into one deep <code class="bg-emerald-100 px-1 rounded text-sm">ActiveRace</code> module
+          immediately improves locality for the most active bugs, creates a natural test surface for
+          the full race arc, and unblocks Candidate 3 (god class split) by pulling the biggest, most
+          tangled slice out first.
+        </p>
+        <p class="text-sm text-emerald-700">
+          Candidates 2 and 3 should follow in sequence — each deepening makes the next cut easier.
+        </p>
+      </section>
+    </main>
+  </body>
+</html>

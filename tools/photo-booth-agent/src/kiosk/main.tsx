@@ -6,7 +6,12 @@ import { applyThemeToDocument } from "@roller-rumble/shared-ui/theme";
 import { themes } from "@roller-rumble/shared/themes";
 import type { ThemeDefinition } from "@roller-rumble/shared/types";
 import { DEFAULT_LIGHT_LOOK } from "../light-looks";
-import type { DiagnosticsResult, HardwareComponentHealth, LightSelection, UmbrellaState } from "../types";
+import type {
+  DiagnosticsResult,
+  HardwareComponentHealth,
+  LightSelection,
+  UmbrellaState
+} from "../types";
 import { DiagnosticsPanel, HardwareBadge } from "./components/hardware-status";
 import { LightLookWheel } from "./components/light-look-wheel";
 import { UmbrellaPanelPicker } from "./components/umbrella-panel-picker";
@@ -229,10 +234,7 @@ function App() {
       ) : null}
 
       <footer>
-        <Button
-          variant="ghost"
-          onClick={() => setUiState({ showDiagnostics: !showDiagnostics })}
-        >
+        <Button variant="ghost" onClick={() => setUiState({ showDiagnostics: !showDiagnostics })}>
           {showDiagnostics ? "Hide Diagnostics" : "Diagnostics"}
         </Button>
       </footer>

@@ -378,7 +378,9 @@ function QueueLabNextRacePanel({
     <Panel
       title="Next Race"
       className="queue-lab__next"
-      actions={nextReadyEntry ? <StatPill label="Position" value={nextReadyEntry.position} /> : null}
+      actions={
+        nextReadyEntry ? <StatPill label="Position" value={nextReadyEntry.position} /> : null
+      }
     >
       {nextReadyEntry ? (
         <div className="queue-lab__next-race">
@@ -438,7 +440,9 @@ function QueueLabProjectedQueuePanel({
                     className="queue-lab__entry-racer"
                   >
                     <strong>{getRacerName(racers, racerId)}</strong>
-                    <span>{getOccurrenceSummary(occurrences, entry.occurrenceIds[index] ?? "")}</span>
+                    <span>
+                      {getOccurrenceSummary(occurrences, entry.occurrenceIds[index] ?? "")}
+                    </span>
                     <Button
                       variant="ghost"
                       onClick={() => {

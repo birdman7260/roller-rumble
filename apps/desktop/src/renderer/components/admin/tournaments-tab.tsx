@@ -175,7 +175,8 @@ function TournamentSummaryPanel({
           <div className="stack-sm">
             <strong>{getPresetLabel(tournamentPreset)}</strong>
             <span>
-              {selectedPreset?.description ?? "Choose a tournament format to seed from event results."}
+              {selectedPreset?.description ??
+                "Choose a tournament format to seed from event results."}
             </span>
             {selectedBracketSize ? (
               <span>
@@ -326,9 +327,7 @@ export function TournamentsTab({
                 tournamentPreset={tournamentPreset}
                 tournamentPresetOptions={tournamentPresetOptions}
                 tournamentPresetSupportsBracketSizing={tournamentPresetSupportsBracketSizing}
-                tournamentPresetSupportsCenterConverging={
-                  tournamentPresetSupportsCenterConverging
-                }
+                tournamentPresetSupportsCenterConverging={tournamentPresetSupportsCenterConverging}
               />
             </m.div>
           ) : null}

@@ -76,12 +76,7 @@ import {
 import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
 import { SimulatorSensorAdapter } from "../adapters/sensor-simulator";
-import {
-  applyRotationSample,
-  createLaneTelemetryState,
-  finishLaneTelemetryState,
-  type LaneTelemetryState
-} from "./metrics";
+import { ActiveRace, type FinalizedRaceResult } from "./active-race";
 import { CloudflaredTunnelManager } from "./cloudflared";
 import {
   advanceDoubleElimination,
@@ -234,17 +229,6 @@ interface PasskeyChallenge {
   phone?: string;
 }
 
-interface CurrentRaceRuntime {
-  // High-frequency telemetry stays in memory while the DB stores UI-ready snapshots.
-  raceId: string;
-  targetDistanceMeters: number;
-  winnerRacerId: string | null;
-  finished: boolean;
-  startedAtMs: number;
-  laneStates: Map<string, LaneTelemetryState>;
-  finalizeTimer: NodeJS.Timeout | null;
-}
-
 interface AppServiceOptions {
   dataDir: string;
   serverPort?: number;
@@ -365,7 +349,7 @@ export class RollerRumbleApp extends EventEmitter {
   private countdownTicker: NodeJS.Timeout | null = null;
   private countdownStartTimer: NodeJS.Timeout | null = null;
   private countdownRuntime: { raceId: string; durationMs: number } | null = null;
-  private currentRuntime: CurrentRaceRuntime | null = null;
+  private currentActiveRace: ActiveRace | null = null;
   private resultPresentation: RaceResultPresentation | null = null;
   private resultPresentationTimer: NodeJS.Timeout | null = null;
   private autoStagePausedUntilManualStage = false;
@@ -392,9 +376,10 @@ export class RollerRumbleApp extends EventEmitter {
     this.os2lTrigger.onDiagnosticsChange(() => this.emitSnapshot());
     this.os2lTrigger.start((source, options) => this.startCountdown(source, options));
     this.os2lTrigger.setEnabled(settings.os2lEnabled);
-    this.sensorAdapter.connect((event) =>
-      this.handleRotation(event.racerId, event.timestampMs, event.deltaRotations)
-    );
+    this.sensorAdapter.connect((event) => {
+      this.currentActiveRace?.tick(event.racerId, event.timestampMs, event.deltaRotations);
+      this.emitSnapshot();
+    });
     if (!this.maybeAutoStageNextRace()) {
       this.syncOs2lArmingForCurrentRace(settings);
       this.emitSnapshot();
@@ -411,9 +396,7 @@ export class RollerRumbleApp extends EventEmitter {
       this.countdownTicker = null;
     }
     this.clearCountdownStartTimer();
-    if (this.currentRuntime?.finalizeTimer) {
-      clearTimeout(this.currentRuntime.finalizeTimer);
-    }
+    this.currentActiveRace?.dispose();
     if (this.resultPresentationTimer) {
       clearTimeout(this.resultPresentationTimer);
       this.resultPresentationTimer = null;
@@ -2140,15 +2123,6 @@ export class RollerRumbleApp extends EventEmitter {
     this.db.updateRace(currentRace.id, {
       targetDistanceMeters
     });
-
-    const runtime = this.currentRuntime;
-    if (runtime?.raceId !== currentRace.id) {
-      return;
-    }
-
-    runtime.targetDistanceMeters = targetDistanceMeters;
-    // Lowering the target can instantly end a live race, so re-evaluate against current telemetry.
-    this.reconcileRuntimeTargetDistance(Date.now());
   }
 
   private getQueueRacerStatsById(eventId: string): Map<string, { raceCount: number }> {
@@ -2697,10 +2671,8 @@ export class RollerRumbleApp extends EventEmitter {
     }
     this.clearCountdownStartTimer();
     this.countdownRuntime = null;
-    if (this.currentRuntime?.finalizeTimer) {
-      clearTimeout(this.currentRuntime.finalizeTimer);
-    }
-    this.currentRuntime = null;
+    this.currentActiveRace?.dispose();
+    this.currentActiveRace = null;
     this.sensorAdapter.endRace();
     this.os2lTrigger.disarmRace();
   }
@@ -2835,187 +2807,25 @@ export class RollerRumbleApp extends EventEmitter {
     if (race?.state !== "countdown") {
       return;
     }
-
-    const startedAt = nowIso();
-    const startedAtMs = new Date(startedAt).getTime();
-    const activeRace = this.db.updateRace(race.id, {
-      state: "active",
-      startedAt
-    });
-
-    const laneStates = new Map<string, LaneTelemetryState>();
-    for (const participant of activeRace.participants) {
-      laneStates.set(participant.racerId, createLaneTelemetryState(participant, startedAtMs));
-    }
-
-    // Runtime-only state keeps sensor ingestion cheap while the persisted race record remains recoverable.
-    this.currentRuntime = {
-      raceId: activeRace.id,
-      targetDistanceMeters: activeRace.targetDistanceMeters,
-      winnerRacerId: null,
-      finished: false,
-      startedAtMs,
-      laneStates,
-      finalizeTimer: null
-    };
-
-    if (activeRace.queueEntryId) {
-      this.db.markQueueEntryStatus(activeRace.queueEntryId, "racing");
-    }
-    this.sensorAdapter.beginRace(activeRace.participants);
-    this.runQueueNotificationTriggers(activeRace.eventId);
-    this.emitSnapshot();
-  }
-
-  private handleRotation(racerId: string, timestampMs: number, deltaRotations: number): void {
-    const runtime = this.currentRuntime;
-    if (!runtime || runtime.finished) {
-      return;
-    }
-
-    const laneState = runtime.laneStates.get(racerId);
-    if (!laneState) {
-      return;
-    }
-
-    const next = applyRotationSample(laneState, {
-      timestampMs,
-      deltaRotations
-    });
-    runtime.laneStates.set(racerId, next);
-
-    const metrics = [...runtime.laneStates.values()].map((state) => state.snapshot);
-    this.db.updateRace(runtime.raceId, {
-      metrics
-    });
-
-    const justFinished =
-      next.snapshot.finishedAtMs == null &&
-      next.snapshot.distanceMeters >= runtime.targetDistanceMeters;
-
-    if (justFinished) {
-      const finishedState = finishLaneTelemetryState(next, timestampMs);
-      runtime.laneStates.set(racerId, finishedState);
-      runtime.winnerRacerId ??= racerId;
-      // Allow a short grace period so the other lane can contribute one last sample before final ordering.
-      runtime.finalizeTimer ??= setTimeout(() => this.finalizeCurrentRace(), 1500);
-    }
-
-    this.db.updateRace(runtime.raceId, {
-      metrics: [...runtime.laneStates.values()].map((state) => state.snapshot),
-      winnerRacerId: runtime.winnerRacerId
-    });
-    this.emitSnapshot();
-  }
-
-  private reconcileRuntimeTargetDistance(timestampMs: number): void {
-    const runtime = this.currentRuntime;
-    if (!runtime || runtime.finished) {
-      return;
-    }
-
-    let reachedTarget = false;
-    for (const [racerId, laneState] of runtime.laneStates.entries()) {
-      if (
-        laneState.snapshot.finishedAtMs == null &&
-        laneState.snapshot.distanceMeters >= runtime.targetDistanceMeters
-      ) {
-        runtime.laneStates.set(racerId, finishLaneTelemetryState(laneState, timestampMs));
-        reachedTarget = true;
-      }
-    }
-
-    const snapshots = [...runtime.laneStates.values()].map((state) => state.snapshot);
-    if (reachedTarget) {
-      const leader = [...snapshots].sort((left, right) => {
-        if (right.distanceMeters !== left.distanceMeters) {
-          return right.distanceMeters - left.distanceMeters;
-        }
-        return left.elapsedMs - right.elapsedMs;
-      })[0];
-
-      runtime.winnerRacerId ??= leader.racerId;
-      runtime.finalizeTimer ??= setTimeout(() => this.finalizeCurrentRace(), 500);
-    }
-
-    this.db.updateRace(runtime.raceId, {
-      targetDistanceMeters: runtime.targetDistanceMeters,
-      metrics: snapshots,
-      winnerRacerId: runtime.winnerRacerId
-    });
-  }
-
-  finalizeCurrentRace(): AppSnapshot {
-    const runtime = this.currentRuntime;
-    if (!runtime || runtime.finished) {
-      return this.getSnapshot();
-    }
-
-    runtime.finished = true;
-    if (runtime.finalizeTimer) {
-      clearTimeout(runtime.finalizeTimer);
-      runtime.finalizeTimer = null;
-    }
-
-    this.sensorAdapter.endRace();
-    const race = this.db.getRace(runtime.raceId);
-    if (!race) {
-      this.currentRuntime = null;
-      return this.getSnapshot();
-    }
-
-    const finalizedMetrics = [...runtime.laneStates.values()].map((state) => {
-      if (state.snapshot.finishedAtMs != null) {
-        return state.snapshot;
-      }
-      return finishLaneTelemetryState(state, Date.now()).snapshot;
-    });
-
-    // Ranking falls back to furthest distance when a racer never fully crossed the line.
-    const ordered = [...finalizedMetrics].sort((left, right) => {
-      const leftTime = left.finishedAtMs ?? Number.MAX_SAFE_INTEGER;
-      const rightTime = right.finishedAtMs ?? Number.MAX_SAFE_INTEGER;
-      if (leftTime !== rightTime) {
-        return leftTime - rightTime;
-      }
-      return right.distanceMeters - left.distanceMeters;
-    });
-
-    const winnerRacerId = runtime.winnerRacerId ?? (ordered.length > 0 ? ordered[0].racerId : null);
-    const finishedRace = this.db.updateRace(runtime.raceId, {
-      state: "finished",
-      metrics: finalizedMetrics,
-      winnerRacerId,
-      finishedAt: nowIso()
-    });
-
-    if (race.queueEntryId) {
-      this.db.markQueueEntryStatus(race.queueEntryId, "completed");
-    }
-
-    this.db.createResults(
-      ordered.map((metric, index) => ({
-        eventId: race.eventId,
-        raceId: race.id,
-        racerId: metric.racerId,
-        lane: metric.lane,
-        placement: index + 1,
-        finishTimeMs: metric.finishedAtMs ?? metric.elapsedMs,
-        distanceMeters: metric.distanceMeters,
-        avgSpeedKph: metric.averageSpeedKph,
-        topSpeedKph: metric.topSpeedKph,
-        maxWattage: metric.maxWattage
-      }))
+    this.currentActiveRace = ActiveRace.start(race, this.db, this.sensorAdapter, (result) =>
+      this.handleRaceFinalized(result)
     );
+    this.runQueueNotificationTriggers(race.eventId);
+    this.emitSnapshot();
+  }
 
-    this.applyTournamentRaceOutcome(finishedRace, winnerRacerId);
-    this.showRaceResultPresentation(finishedRace, winnerRacerId);
-
-    this.currentRuntime = null;
+  private handleRaceFinalized({ race, winnerRacerId }: FinalizedRaceResult): void {
+    this.currentActiveRace = null;
+    this.applyTournamentRaceOutcome(race, winnerRacerId);
+    this.showRaceResultPresentation(race, winnerRacerId);
     if (!this.maybeAutoStageNextRace()) {
       this.runQueueNotificationTriggers(race.eventId);
       this.emitSnapshot();
     }
+  }
+
+  finalizeCurrentRace(): AppSnapshot {
+    this.currentActiveRace?.finalize();
     return this.getSnapshot();
   }
 
@@ -3045,38 +2855,9 @@ export class RollerRumbleApp extends EventEmitter {
     if (race?.state !== "interrupted") {
       return this.getSnapshot();
     }
-
-    const startedAtMs = race.startedAt ? new Date(race.startedAt).getTime() : Date.now();
-    const laneStates = new Map<string, LaneTelemetryState>();
-    for (const participant of race.participants) {
-      // Resume rehydrates each lane from the persisted metric snapshot instead of starting over.
-      const snapshot =
-        race.metrics.find((metric) => metric.racerId === participant.racerId) ??
-        createLaneTelemetryState(participant, startedAtMs).snapshot;
-
-      laneStates.set(participant.racerId, {
-        participant,
-        startedAtMs,
-        lastSampleAtMs: Date.now(),
-        snapshot
-      });
-    }
-
-    this.currentRuntime = {
-      raceId: race.id,
-      targetDistanceMeters: race.targetDistanceMeters,
-      winnerRacerId: race.winnerRacerId ?? null,
-      finished: false,
-      startedAtMs,
-      laneStates,
-      finalizeTimer: null
-    };
-
-    this.db.updateRace(race.id, {
-      state: "active",
-      startedAt: race.startedAt ?? nowIso()
-    });
-    this.sensorAdapter.beginRace(race.participants);
+    this.currentActiveRace = ActiveRace.resume(race, this.db, this.sensorAdapter, (result) =>
+      this.handleRaceFinalized(result)
+    );
     this.emitSnapshot();
     return this.getSnapshot();
   }
@@ -3087,35 +2868,11 @@ export class RollerRumbleApp extends EventEmitter {
     if (race?.state !== "interrupted") {
       return this.getSnapshot();
     }
-
-    this.currentRuntime = {
-      raceId: race.id,
-      targetDistanceMeters: race.targetDistanceMeters,
-      winnerRacerId:
-        race.winnerRacerId ??
-        (race.metrics.length > 0
-          ? race.metrics.sort((left, right) => right.distanceMeters - left.distanceMeters)[0]
-              .racerId
-          : null) ??
-        null,
-      finished: false,
-      startedAtMs: race.startedAt ? new Date(race.startedAt).getTime() : Date.now(),
-      laneStates: new Map(
-        race.participants.map((participant) => [
-          participant.racerId,
-          {
-            participant,
-            startedAtMs: race.startedAt ? new Date(race.startedAt).getTime() : Date.now(),
-            lastSampleAtMs: Date.now(),
-            snapshot:
-              race.metrics.find((metric) => metric.racerId === participant.racerId) ??
-              createLaneTelemetryState(participant, Date.now()).snapshot
-          }
-        ])
-      ),
-      finalizeTimer: null
-    };
-    return this.finalizeCurrentRace();
+    this.currentActiveRace = ActiveRace.resume(race, this.db, this.sensorAdapter, (result) =>
+      this.handleRaceFinalized(result)
+    );
+    this.currentActiveRace.finalize();
+    return this.getSnapshot();
   }
 
   private stageTournamentRace(input: {

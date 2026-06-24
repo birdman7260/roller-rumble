@@ -340,7 +340,9 @@ function LocalLogo() {
   const src = hasLogoCandidate ? LOCAL_LOGO_SOURCES[assetIndex] : null;
 
   return (
-    <span className={`race-page__local-logo ${src == null ? "race-page__local-logo--missing" : ""}`}>
+    <span
+      className={`race-page__local-logo ${src == null ? "race-page__local-logo--missing" : ""}`}
+    >
       {src ? (
         <img
           src={src}
@@ -722,7 +724,13 @@ function useRacePageViewModel(): RacePageViewModel | null {
       targetNodeId: sourceNode.winnerToNodeId ?? null,
       winnerRacerId
     });
-  }, [currentTournamentRace, handledFinishedRaceIds, postRaceSequence, resultPresentation, snapshot]);
+  }, [
+    currentTournamentRace,
+    handledFinishedRaceIds,
+    postRaceSequence,
+    resultPresentation,
+    snapshot
+  ]);
 
   useEffect(() => {
     if (!postRaceSequence || projection == null) {

@@ -1401,11 +1401,9 @@ export class AppDatabase {
       newestReadAt: string | null;
     };
 
-    return [
-      String(row.deliveryCount),
-      row.newestNotificationAt ?? "",
-      row.newestReadAt ?? ""
-    ].join(":");
+    return [String(row.deliveryCount), row.newestNotificationAt ?? "", row.newestReadAt ?? ""].join(
+      ":"
+    );
   }
 
   markNotificationRead(racerId: string, notificationId: string): void {

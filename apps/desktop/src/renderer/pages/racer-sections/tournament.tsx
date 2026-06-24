@@ -3,7 +3,10 @@ import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { AnimatePresence, m } from "framer-motion";
 import type { MotionProps } from "framer-motion";
 import type { ReactElement } from "react";
-import { EliminationBracketView, type BracketPresentationRequest } from "../../components/elimination-bracket-view";
+import {
+  EliminationBracketView,
+  type BracketPresentationRequest
+} from "../../components/elimination-bracket-view";
 import { TournamentBracketBoard } from "../../components/admin/tournament-board";
 import { getCurrentMatchNodeId } from "../../components/tournament-flow-layout";
 import { resolveRacerName } from "../../lib/snapshot-display";
