@@ -6,3 +6,6 @@ package-lock.json
 pnpm-lock.yaml
 tools/db-studio/pnpm-lock.yaml
 apps/desktop/src/renderer/routeTree.gen.ts
+
+# Golden snapshot fixtures — byte-exact wire-shape captures, must not be reformatted
+apps/desktop/src/backend/services/__fixtures__/snapshot-*.json
