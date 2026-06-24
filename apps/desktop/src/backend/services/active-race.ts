@@ -35,7 +35,7 @@ export class ActiveRace {
     isResume = false
   ) {
     this.raceId = race.id;
-    this.queueEntryId = race.queueEntryId;
+    this.queueEntryId = race.queueEntryId ?? null;
     this.targetDistanceMeters = race.targetDistanceMeters;
     this.db = db;
     this.sensor = sensor;

@@ -1,0 +1,597 @@
+{
+  "generatedAt": "2026-06-24T12:00:00.000Z",
+  "notificationRevision": "revision-1",
+  "settings": {
+    "mode": "open-time-trial",
+    "themeId": "neon-night",
+    "os2lEnabled": true,
+    "autoStageNextRace": false,
+    "includeAllRaceData": false,
+    "allowAccountlessRacerSignup": true,
+    "showPublicRacerInfoWithoutLogin": true,
+    "showRacerNotificationDebugList": false,
+    "raceDisplayLaneColorsFlipped": false,
+    "raceDisplayShowEventName": true,
+    "raceDisplayTickerMessages": [
+      "Welcome to Roller Rumble",
+      "Next up: finals"
+    ],
+    "raceDisplayTickerSpeed": 40,
+    "maxActiveQueueEntriesPerRacer": 2,
+    "targetDistanceMeters": 250,
+    "serverPort": 3187
+  },
+  "activeEvent": {
+    "id": "event-1",
+    "name": "Friday Night Rumble",
+    "includeAllRaceData": false,
+    "paymentRequiredForQueue": false,
+    "paymentAmountCents": null,
+    "paymentCurrency": "usd",
+    "active": true,
+    "createdAt": "2026-06-01T00:00:00.000Z",
+    "updatedAt": "2026-06-24T11:00:00.000Z"
+  },
+  "racers": [
+    {
+      "racer": {
+        "id": "racer-1",
+        "displayName": "Ada",
+        "avatarUrl": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z",
+        "identities": []
+      },
+      "stats": {
+        "races": 1,
+        "wins": 1,
+        "eventRaces": 1,
+        "eventWins": 1,
+        "careerRaces": 2,
+        "careerEventCount": 2,
+        "bestFinishTimeMs": 60000,
+        "topSpeedKph": 40,
+        "averageSpeedKph": 35,
+        "maxWattage": 300
+      },
+      "payment": {
+        "status": "paid",
+        "paidAt": "2026-06-24T10:00:00.000Z",
+        "updatedAt": "2026-06-24T10:00:00.000Z",
+        "note": null,
+        "providerReference": "pi_test_123"
+      }
+    },
+    {
+      "racer": {
+        "id": "racer-2",
+        "displayName": "Grace",
+        "avatarUrl": null,
+        "createdAt": "2026-01-01T00:00:00.000Z",
+        "updatedAt": "2026-01-01T00:00:00.000Z",
+        "identities": []
+      },
+      "stats": {
+        "races": 1,
+        "wins": 0,
+        "eventRaces": 1,
+        "eventWins": 0,
+        "careerRaces": 1,
+        "careerEventCount": 1,
+        "bestFinishTimeMs": 65000,
+        "topSpeedKph": 38,
+        "averageSpeedKph": 33,
+        "maxWattage": 280
+      },
+      "payment": {
+        "status": "paid",
+        "paidAt": "2026-06-24T10:00:00.000Z",
+        "updatedAt": "2026-06-24T10:00:00.000Z",
+        "note": null,
+        "providerReference": "pi_test_123"
+      }
+    }
+  ],
+  "queue": [
+    {
+      "id": "queue-1",
+      "eventId": "event-1",
+      "type": "match",
+      "requestedType": "auto-match",
+      "lockType": "flex",
+      "position": 1,
+      "racerIds": [
+        "racer-1",
+        "racer-2"
+      ],
+      "occurrenceIds": [
+        "occ-1",
+        "occ-2"
+      ],
+      "priorityScore": 0,
+      "status": "queued",
+      "createdAt": "2026-06-24T11:00:00.000Z",
+      "updatedAt": "2026-06-24T11:00:00.000Z"
+    },
+    {
+      "id": "queue-2",
+      "eventId": "event-1",
+      "type": "match",
+      "requestedType": "auto-match",
+      "lockType": "flex",
+      "position": 2,
+      "racerIds": [
+        "racer-1"
+      ],
+      "occurrenceIds": [
+        "occ-3"
+      ],
+      "priorityScore": 0,
+      "status": "staging",
+      "createdAt": "2026-06-24T11:05:00.000Z",
+      "updatedAt": "2026-06-24T11:05:00.000Z"
+    }
+  ],
+  "tournaments": [],
+  "tunnel": {
+    "status": "active",
+    "mode": "quick",
+    "publicUrl": "https://race.example.test",
+    "tunnelName": "rumble-tunnel",
+    "binarySource": "managed",
+    "cloudflaredVersion": "2026.6.0",
+    "message": "Tunnel ready",
+    "lastError": null
+  },
+  "os2l": {
+    "enabled": true,
+    "listening": true,
+    "advertising": true,
+    "port": 8088,
+    "serviceName": "Roller Rumble",
+    "armedRaceId": "race-current",
+    "acceptedMessageCount": 12,
+    "ignoredMessageCount": 3,
+    "beatMessageCount": 480,
+    "lastBeatAt": "2026-06-24T11:59:59.000Z",
+    "lastRawMessage": "{\"evt\":\"beat\"}",
+    "lastRawMessageAt": "2026-06-24T11:59:59.000Z",
+    "lastAcceptedMessage": "{\"evt\":\"btn\"}",
+    "lastAcceptedAt": "2026-06-24T11:59:50.000Z",
+    "lastIgnoredMessage": "{\"evt\":\"noop\"}",
+    "lastIgnoredAt": "2026-06-24T11:59:40.000Z",
+    "lastIgnoredReason": "not armed",
+    "lastError": null
+  },
+  "photoBooth": {
+    "boothId": "booth-1",
+    "status": "online",
+    "lastSeenAt": "2026-06-24T11:59:55.000Z",
+    "lastCaptureAt": "2026-06-24T11:58:00.000Z",
+    "pendingUploadCount": 2,
+    "message": "Camera ready"
+  },
+  "paymentProvider": {
+    "stripe": {
+      "configured": true,
+      "hasSecretKey": true,
+      "hasWebhookSecret": true,
+      "hasExtraCaCertFile": false,
+      "extraCaCertFile": null,
+      "publicRacerUrl": "https://pay.example.test",
+      "message": "Stripe configured"
+    }
+  },
+  "themes": [
+    {
+      "id": "neon-night",
+      "label": "Neon Night",
+      "description": "Fast, horizontal race lanes with arcade energy.",
+      "orientation": "horizontal",
+      "surfaceStyle": "default",
+      "uiStyle": "rounded",
+      "connectorStyle": "glow",
+      "fontFamily": "\"Space Grotesk\", \"Avenir Next\", sans-serif",
+      "raceGraphic": {
+        "variant": "track"
+      },
+      "confettiEffectId": "burst",
+      "spriteSheet": {
+        "id": "neon-rider",
+        "speedThresholdKph": 24,
+        "slowAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 0,
+          "durationMs": 760
+        },
+        "fastAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 1,
+          "durationMs": 360
+        }
+      },
+      "tokens": {
+        "surface": "#08111d",
+        "surfaceAlt": "#112338",
+        "accent": "#3cf2d2",
+        "accentSoft": "rgba(60, 242, 210, 0.16)",
+        "text": "#f7fbff",
+        "textMuted": "#b8d6e8",
+        "success": "#47ff98",
+        "warning": "#ffca57",
+        "danger": "#ff6f91",
+        "laneA": "#38bdf8",
+        "laneB": "#fb7185"
+      }
+    },
+    {
+      "id": "summit-sprint",
+      "label": "Summit Sprint",
+      "description": "Vertical hill-climb presentation with warm mountain tones.",
+      "orientation": "vertical",
+      "surfaceStyle": "default",
+      "uiStyle": "rounded",
+      "connectorStyle": "shadow",
+      "fontFamily": "\"Sora\", \"Avenir Next\", sans-serif",
+      "raceGraphic": {
+        "variant": "climb"
+      },
+      "confettiEffectId": "burst",
+      "spriteSheet": {
+        "id": "summit-rider",
+        "speedThresholdKph": 24,
+        "slowAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 0,
+          "durationMs": 760
+        },
+        "fastAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 1,
+          "durationMs": 360
+        }
+      },
+      "tokens": {
+        "surface": "#20140f",
+        "surfaceAlt": "#3a251b",
+        "accent": "#ffb04f",
+        "accentSoft": "rgba(255, 176, 79, 0.14)",
+        "text": "#fff7ef",
+        "textMuted": "#efceb2",
+        "success": "#71f79f",
+        "warning": "#ffd166",
+        "danger": "#ff7b54",
+        "laneA": "#f7b267",
+        "laneB": "#7bdff2"
+      }
+    },
+    {
+      "id": "frontier-trail",
+      "label": "Frontier Trail",
+      "description": "Dusty wagon-route presentation with rustic frontier colors.",
+      "orientation": "horizontal",
+      "surfaceStyle": "frontier",
+      "uiStyle": "rounded",
+      "connectorStyle": "trail",
+      "fontFamily": "\"Rockwell\", \"Georgia\", serif",
+      "raceGraphic": {
+        "variant": "trail",
+        "laneLabels": {
+          "default": "Heading west"
+        },
+        "markers": {
+          "start": "Camp",
+          "finish": "Fort"
+        }
+      },
+      "confettiEffectId": "burst",
+      "spriteSheet": {
+        "id": "frontier-wagon",
+        "speedThresholdKph": 24,
+        "slowAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 0,
+          "durationMs": 760
+        },
+        "fastAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 1,
+          "durationMs": 360
+        }
+      },
+      "tokens": {
+        "surface": "#1b120d",
+        "surfaceAlt": "#3d281b",
+        "accent": "#d8a15d",
+        "accentSoft": "rgba(216, 161, 93, 0.16)",
+        "text": "#fff4de",
+        "textMuted": "#d9c1a4",
+        "success": "#8ec07c",
+        "warning": "#f2c572",
+        "danger": "#d46a4b",
+        "laneA": "#c97a3d",
+        "laneB": "#8f5a32"
+      }
+    },
+    {
+      "id": "oregon-trail-90",
+      "label": "Oregon Trail '90",
+      "description": "DOS-era classroom trail sim styling with a mostly black screen, VGA lettering, and CGA-inspired accents.",
+      "orientation": "horizontal",
+      "surfaceStyle": "black",
+      "uiStyle": "pixel",
+      "connectorStyle": "pixel",
+      "fontFamily": "\"WebPlus IBM VGA 8x16\", \"Courier New\", monospace",
+      "raceGraphic": {
+        "variant": "ledger",
+        "laneLabels": {
+          "solo": "Lead wagon",
+          "laneA": "Trail party A",
+          "laneB": "Trail party B"
+        },
+        "markers": {
+          "start": "INDEP.",
+          "middle": "FORT",
+          "finish": "OREGON"
+        }
+      },
+      "confettiEffectId": "burst",
+      "spriteSheet": {
+        "id": "oregon-wagon",
+        "speedThresholdKph": 24,
+        "slowAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 0,
+          "durationMs": 760
+        },
+        "fastAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 1,
+          "durationMs": 360
+        }
+      },
+      "tokens": {
+        "surface": "#000000",
+        "surfaceAlt": "#000000",
+        "accent": "#d4b06a",
+        "accentSoft": "rgba(212, 176, 106, 0.1)",
+        "text": "#f3e1b7",
+        "textMuted": "#bba97d",
+        "success": "#6f9f6a",
+        "warning": "#d8bf67",
+        "danger": "#b76243",
+        "laneA": "#5d97a4",
+        "laneB": "#b77845"
+      }
+    }
+  ],
+  "raceProjection": {
+    "race": {
+      "id": "race-current",
+      "eventId": "event-1",
+      "queueEntryId": "queue-0",
+      "tournamentId": null,
+      "stageId": null,
+      "mode": "open-time-trial",
+      "format": "match",
+      "state": "active",
+      "targetDistanceMeters": 250,
+      "themeId": "neon-night",
+      "participants": [
+        {
+          "racerId": "racer-1",
+          "lane": "left"
+        },
+        {
+          "racerId": "racer-2",
+          "lane": "right"
+        }
+      ],
+      "metrics": [
+        {
+          "racerId": "racer-1",
+          "lane": "left",
+          "rotationCount": 80,
+          "elapsedMs": 12000,
+          "distanceMeters": 168,
+          "currentSpeedKph": 34,
+          "topSpeedKph": 41,
+          "averageSpeedKph": 33.5,
+          "wattage": 260,
+          "maxWattage": 310,
+          "finishedAtMs": null
+        },
+        {
+          "racerId": "racer-2",
+          "lane": "right",
+          "rotationCount": 72,
+          "elapsedMs": 12000,
+          "distanceMeters": 151,
+          "currentSpeedKph": 31,
+          "topSpeedKph": 38,
+          "averageSpeedKph": 30.2,
+          "wattage": 230,
+          "maxWattage": 290,
+          "finishedAtMs": null
+        }
+      ],
+      "winnerRacerId": null,
+      "countdownStartedAt": null,
+      "startedAt": "2026-06-24T11:59:48.000Z",
+      "finishedAt": null,
+      "createdAt": "2026-06-24T11:59:40.000Z",
+      "updatedAt": "2026-06-24T11:59:52.000Z"
+    },
+    "countdownSecondsRemaining": null,
+    "metricsByRacerId": {
+      "racer-1": {
+        "racerId": "racer-1",
+        "lane": "left",
+        "rotationCount": 80,
+        "elapsedMs": 12000,
+        "distanceMeters": 168,
+        "currentSpeedKph": 34,
+        "topSpeedKph": 41,
+        "averageSpeedKph": 33.5,
+        "wattage": 260,
+        "maxWattage": 310,
+        "finishedAtMs": null
+      },
+      "racer-2": {
+        "racerId": "racer-2",
+        "lane": "right",
+        "rotationCount": 72,
+        "elapsedMs": 12000,
+        "distanceMeters": 151,
+        "currentSpeedKph": 31,
+        "topSpeedKph": 38,
+        "averageSpeedKph": 30.2,
+        "wattage": 230,
+        "maxWattage": 290,
+        "finishedAtMs": null
+      }
+    },
+    "winnerRacerId": null,
+    "nextQueueEntry": {
+      "id": "queue-1",
+      "eventId": "event-1",
+      "type": "match",
+      "requestedType": "auto-match",
+      "lockType": "flex",
+      "position": 1,
+      "racerIds": [
+        "racer-1",
+        "racer-2"
+      ],
+      "occurrenceIds": [
+        "occ-1",
+        "occ-2"
+      ],
+      "priorityScore": 0,
+      "status": "queued",
+      "createdAt": "2026-06-24T11:00:00.000Z",
+      "updatedAt": "2026-06-24T11:00:00.000Z"
+    },
+    "resultPresentation": {
+      "race": {
+        "id": "race-prev",
+        "eventId": "event-1",
+        "queueEntryId": "queue-0",
+        "tournamentId": null,
+        "stageId": null,
+        "mode": "open-time-trial",
+        "format": "match",
+        "state": "finished",
+        "targetDistanceMeters": 250,
+        "themeId": "neon-night",
+        "participants": [
+          {
+            "racerId": "racer-1",
+            "lane": "left"
+          },
+          {
+            "racerId": "racer-2",
+            "lane": "right"
+          }
+        ],
+        "metrics": [
+          {
+            "racerId": "racer-1",
+            "lane": "left",
+            "rotationCount": 80,
+            "elapsedMs": 12000,
+            "distanceMeters": 168,
+            "currentSpeedKph": 34,
+            "topSpeedKph": 41,
+            "averageSpeedKph": 33.5,
+            "wattage": 260,
+            "maxWattage": 310,
+            "finishedAtMs": null
+          },
+          {
+            "racerId": "racer-2",
+            "lane": "right",
+            "rotationCount": 72,
+            "elapsedMs": 12000,
+            "distanceMeters": 151,
+            "currentSpeedKph": 31,
+            "topSpeedKph": 38,
+            "averageSpeedKph": 30.2,
+            "wattage": 230,
+            "maxWattage": 290,
+            "finishedAtMs": null
+          }
+        ],
+        "winnerRacerId": "racer-1",
+        "countdownStartedAt": null,
+        "startedAt": "2026-06-24T11:59:48.000Z",
+        "finishedAt": null,
+        "createdAt": "2026-06-24T11:59:40.000Z",
+        "updatedAt": "2026-06-24T11:59:52.000Z"
+      },
+      "winnerRacerId": "racer-1",
+      "expiresAt": "2026-06-24T12:00:10.000Z"
+    },
+    "theme": {
+      "id": "neon-night",
+      "label": "Neon Night",
+      "description": "Fast, horizontal race lanes with arcade energy.",
+      "orientation": "horizontal",
+      "surfaceStyle": "default",
+      "uiStyle": "rounded",
+      "connectorStyle": "glow",
+      "fontFamily": "\"Space Grotesk\", \"Avenir Next\", sans-serif",
+      "raceGraphic": {
+        "variant": "track"
+      },
+      "confettiEffectId": "burst",
+      "spriteSheet": {
+        "id": "neon-rider",
+        "speedThresholdKph": 24,
+        "slowAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 0,
+          "durationMs": 760
+        },
+        "fastAnimation": {
+          "frameWidth": 64,
+          "frameHeight": 64,
+          "frameCount": 4,
+          "row": 1,
+          "durationMs": 360
+        }
+      },
+      "tokens": {
+        "surface": "#08111d",
+        "surfaceAlt": "#112338",
+        "accent": "#3cf2d2",
+        "accentSoft": "rgba(60, 242, 210, 0.16)",
+        "text": "#f7fbff",
+        "textMuted": "#b8d6e8",
+        "success": "#47ff98",
+        "warning": "#ffca57",
+        "danger": "#ff6f91",
+        "laneA": "#38bdf8",
+        "laneB": "#fb7185"
+      }
+    }
+  }
+}

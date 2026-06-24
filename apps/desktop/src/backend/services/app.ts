@@ -24,7 +24,6 @@ import {
   DEFAULT_SERVER_PORT,
   STRIPE_MIN_PAYMENT_AMOUNT_CENTS
 } from "@roller-rumble/shared/constants";
-import { themes, getTheme } from "@roller-rumble/shared/themes";
 import type {
   BracketNode,
   AdminSettings,
@@ -40,7 +39,6 @@ import type {
   PhotoBoothSession,
   PhotoBoothStatus,
   PhotoBoothTokenResponse,
-  RaceMetricsSnapshot,
   RaceRecord,
   RaceResultPresentation,
   Racer,
@@ -48,8 +46,6 @@ import type {
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   RacerNotification,
-  RacerStats,
-  RacerSummary,
   StripeConnectionTestResult,
   PasskeyRegistrationStartInput,
   PasskeyRegistrationStartResponse,
@@ -77,6 +73,11 @@ import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
 import { SimulatorSensorAdapter } from "../adapters/sensor-simulator";
 import { ActiveRace, type FinalizedRaceResult } from "./active-race";
+import {
+  SnapshotAssembler,
+  type SnapshotContext,
+  type SnapshotStreamSurface
+} from "./snapshot-assembler";
 import { CloudflaredTunnelManager } from "./cloudflared";
 import {
   advanceDoubleElimination,
@@ -345,6 +346,7 @@ export class RollerRumbleApp extends EventEmitter {
     Number(process.env.ROLLER_RUMBLE_OS2L_PORT ?? DEFAULT_OS2L_PORT)
   );
   private readonly tunnelManager: CloudflaredTunnelManager;
+  private readonly snapshots: SnapshotAssembler;
   private readonly tournaments = new TournamentService();
   private countdownTicker: NodeJS.Timeout | null = null;
   private countdownStartTimer: NodeJS.Timeout | null = null;
@@ -365,6 +367,7 @@ export class RollerRumbleApp extends EventEmitter {
     this.uploadsDir = path.join(options.dataDir, "uploads");
     this.serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
     this.db = new AppDatabase(options.dataDir);
+    this.snapshots = new SnapshotAssembler(this.db);
     this.tunnelManager = new CloudflaredTunnelManager({ dataDir: options.dataDir });
   }
 
@@ -683,69 +686,28 @@ export class RollerRumbleApp extends EventEmitter {
 
   getSnapshot(): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
-    const settings = this.db.getAdminSettings();
+    // Reconcile is a DB write shared with non-snapshot call sites, so it stays here as a
+    // pre-step; the assembler itself is a pure read.
     this.reconcileQueueRaceStatuses(activeEvent.id);
-    const allResults = this.db.listResults();
-    const results = settings.includeAllRaceData
-      ? allResults
-      : allResults.filter((result) => result.eventId === activeEvent.id);
-    const racers = this.buildRacerSummaries(activeEvent.id, results, allResults);
-    const queue = reindexQueue(
-      this.db
-        .listQueueEntries(activeEvent.id)
-        .filter((entry) => ["queued", "staging"].includes(entry.status))
-    );
-    const currentRace = this.db.getCurrentRace(activeEvent.id);
-    const nextQueueEntry = findNextQueuedEntry(queue);
-    // Snapshot tournament state is intentionally scoped to the active event so the racer page and
-    // admin surfaces do not have to untangle cross-event tournament history on the client.
-    const tournamentBundles = this.db.listTournamentBundles(activeEvent.id);
-    const selectedTheme = getTheme(settings.themeId);
+    return this.snapshots.assemble(this.snapshotContext());
+  }
 
-    const countdownSecondsRemaining =
-      currentRace?.state === "countdown" && currentRace.countdownStartedAt
-        ? Math.max(
-            0,
-            Math.ceil(
-              (this.getCountdownDurationMs(currentRace.id) -
-                (Date.now() - new Date(currentRace.countdownStartedAt).getTime())) /
-                1000
-            )
-          )
-        : null;
+  /**
+   * Project a full snapshot for a streaming surface. Re-exposed from the assembler so the
+   * server depends only on the service, not on the snapshot module.
+   */
+  snapshotForSurface(snapshot: AppSnapshot, surface: SnapshotStreamSurface): AppSnapshot {
+    return this.snapshots.forSurface(snapshot, surface);
+  }
 
-    const metricsByRacerId = Object.fromEntries(
-      (currentRace?.metrics ?? []).map(
-        (metric) => [metric.racerId, metric] satisfies [string, RaceMetricsSnapshot]
-      )
-    );
-
-    const tunnel = this.tunnelManager.getState();
-
+  private snapshotContext(): SnapshotContext {
     return {
-      generatedAt: nowIso(),
-      notificationRevision: this.db.getNotificationRevision(),
-      settings,
-      activeEvent,
-      racers,
-      queue,
-      tournaments: tournamentBundles,
-      tunnel,
+      resultPresentation: this.resultPresentation,
+      tunnel: this.tunnelManager.getState(),
       os2l: this.os2lTrigger.getDiagnostics(),
       photoBooth: this.getPhotoBoothStatus(),
-      paymentProvider: {
-        stripe: this.getStripeSetupStatus()
-      },
-      themes,
-      raceProjection: {
-        race: currentRace,
-        countdownSecondsRemaining,
-        metricsByRacerId,
-        winnerRacerId: currentRace?.winnerRacerId ?? null,
-        nextQueueEntry,
-        resultPresentation: this.resultPresentation,
-        theme: selectedTheme
-      }
+      stripe: this.getStripeSetupStatus(),
+      countdownDurationMsFor: (raceId) => this.getCountdownDurationMs(raceId)
     };
   }
 
@@ -796,51 +758,6 @@ export class RollerRumbleApp extends EventEmitter {
   dismissRaceResultPresentation(): AppSnapshot {
     this.clearRaceResultPresentation();
     return this.getSnapshot();
-  }
-
-  private buildRacerSummaries(
-    eventId: string,
-    results: ReturnType<AppDatabase["listResults"]>,
-    allResults: ReturnType<AppDatabase["listResults"]>
-  ): RacerSummary[] {
-    const racers = this.db.listEventRacers(eventId);
-
-    return racers.map((racer) => {
-      const racerResults = results.filter((result) => result.racerId === racer.id);
-      const eventResults = allResults.filter(
-        (result) => result.racerId === racer.id && result.eventId === eventId
-      );
-      const careerResults = allResults.filter((result) => result.racerId === racer.id);
-      const stats: RacerStats = {
-        races: racerResults.length,
-        wins: racerResults.filter((result) => result.placement === 1).length,
-        eventRaces: eventResults.length,
-        eventWins: eventResults.filter((result) => result.placement === 1).length,
-        careerRaces: careerResults.length,
-        careerEventCount: new Set(careerResults.map((result) => result.eventId)).size,
-        bestFinishTimeMs:
-          racerResults
-            .map((result) => result.finishTimeMs)
-            .filter((value): value is number => typeof value === "number")
-            .sort((left, right) => left - right)[0] ?? null,
-        topSpeedKph: racerResults.reduce((max, result) => Math.max(max, result.topSpeedKph), 0),
-        averageSpeedKph:
-          racerResults.length === 0
-            ? 0
-            : Number(
-                (
-                  racerResults.reduce((sum, result) => sum + result.avgSpeedKph, 0) /
-                  racerResults.length
-                ).toFixed(2)
-              ),
-        maxWattage: racerResults.reduce((max, result) => Math.max(max, result.maxWattage), 0)
-      };
-      return {
-        racer,
-        stats,
-        payment: this.db.getEventRacerPayment(eventId, racer.id)
-      };
-    });
   }
 
   private getActiveTournamentBundle(eventId: string): TournamentBundle | null {

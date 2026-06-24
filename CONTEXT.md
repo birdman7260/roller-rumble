@@ -25,3 +25,17 @@ _Avoid_: lineup, race list
 
 **AppSnapshot**: The complete derived state broadcast over WebSocket to all connected surfaces (admin, projector, racer). Assembled from SQLite on demand; not the source of truth itself.
 _Avoid_: state, live state
+
+### Snapshot assembly
+
+**SnapshotAssembler**: The deep module that owns the full `AppSnapshot` shape end-to-end—assembling it from SQLite plus an injected runtime context, and projecting it per surface. Pure and read-only; the caller runs any DB writes (like queue reconciliation) before calling it.
+_Avoid_: snapshot builder, snapshot service
+
+**SnapshotContext**: The live runtime state only `RollerRumbleApp` knows at assemble time (tunnel state, OS2L diagnostics, photo-booth status, Stripe setup, result presentation, countdown duration lookup, and an injectable clock). Passed into `assemble` so the module stays a pure read.
+_Avoid_: snapshot deps, runtime bag
+
+**surface**: A snapshot streaming destination—`admin`, `projector`, or `racer`. `admin` and `projector` receive the full snapshot; `racer` receives a public-safe projection.
+_Avoid_: client type, channel
+
+**racer payload**: The public-safe projection of an `AppSnapshot` for racer phones—live metrics, result presentation, themes, ticker messages, and operator-only tunnel/OS2L/photo-booth/Stripe detail are stripped. One payload serves all racers (no per-racer identity).
+_Avoid_: filtered snapshot, mobile snapshot
