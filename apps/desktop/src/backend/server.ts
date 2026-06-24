@@ -42,6 +42,7 @@ import {
 } from "@roller-rumble/shared/validation";
 import { ensureRuntimeEnvFile, getRuntimeEnvFileInfo, writeWebPushEnvValues } from "./env";
 import { AppHttpError, RollerRumbleApp } from "./services/app";
+import type { SnapshotStreamSurface } from "./services/snapshot-assembler";
 
 interface BackendServerOptions {
   dataDir: string;
@@ -65,8 +66,6 @@ const labRoutes = {
 
 type LabRouteId = keyof typeof labRoutes;
 
-type SnapshotStreamSurface = "admin" | "projector" | "racer";
-
 function isLabRouteId(value: string): value is LabRouteId {
   return value in labRoutes;
 }
@@ -80,72 +79,6 @@ function serializeSnapshotMessage(snapshot: AppSnapshot): string {
     type: "snapshot",
     payload: snapshot
   });
-}
-
-function createRacerSnapshotPayload(snapshot: AppSnapshot): AppSnapshot {
-  const race = snapshot.raceProjection.race
-    ? {
-        ...snapshot.raceProjection.race,
-        metrics: []
-      }
-    : null;
-
-  return {
-    ...snapshot,
-    settings: {
-      ...snapshot.settings,
-      raceDisplayTickerMessages: []
-    },
-    raceProjection: {
-      ...snapshot.raceProjection,
-      race,
-      metricsByRacerId: {},
-      resultPresentation: null
-    },
-    themes: [],
-    tunnel: {
-      status: snapshot.tunnel.status,
-      publicUrl: snapshot.tunnel.publicUrl ?? null
-    },
-    os2l: {
-      enabled: snapshot.os2l.enabled,
-      listening: false,
-      advertising: false,
-      port: snapshot.os2l.port,
-      serviceName: snapshot.os2l.serviceName,
-      armedRaceId: snapshot.os2l.armedRaceId,
-      acceptedMessageCount: 0,
-      ignoredMessageCount: 0,
-      beatMessageCount: 0,
-      lastBeatAt: null,
-      lastRawMessage: null,
-      lastRawMessageAt: null,
-      lastAcceptedMessage: null,
-      lastAcceptedAt: null,
-      lastIgnoredMessage: null,
-      lastIgnoredAt: null,
-      lastIgnoredReason: null,
-      lastError: null
-    },
-    photoBooth: {
-      boothId: snapshot.photoBooth.boothId,
-      status: snapshot.photoBooth.status,
-      lastSeenAt: null,
-      lastCaptureAt: null,
-      pendingUploadCount: 0,
-      message: null
-    },
-    paymentProvider: {
-      stripe: {
-        configured: snapshot.paymentProvider.stripe.configured,
-        hasSecretKey: false,
-        hasWebhookSecret: false,
-        hasExtraCaCertFile: false,
-        publicRacerUrl: null,
-        message: ""
-      }
-    }
-  };
 }
 
 const RACER_SESSION_COOKIE = "roller_rumble_racer_session";
@@ -360,7 +293,7 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
       return;
     }
 
-    state.pendingSnapshot = createRacerSnapshotPayload(snapshot);
+    state.pendingSnapshot = service.snapshotForSurface(snapshot, state.surface);
     scheduleRacerSnapshot(client, state);
   }
 
