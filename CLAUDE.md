@@ -37,6 +37,8 @@ pnpm rebuild:native    # Rebuild better-sqlite3 for Electron after ABI changes
 pnpm format && pnpm quality && pnpm typecheck && pnpm test && pnpm build
 ```
 
+**Always update `CHANGELOG.md` once an issue is implemented.** Add an entry under `## Unreleased` in the `Added`, `Changed`, or `Fixed` section that fits, phrased for end users (describe the user-visible behavior, not the internal implementation).
+
 ## Architecture
 
 ### Process model
