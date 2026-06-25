@@ -1,3 +1,4 @@
+import type { SubsystemId } from "./managed-settings";
 import type {
   APP_MODES,
   EVENT_PAYMENT_STATUSES,
@@ -616,6 +617,45 @@ export interface PaymentProviderStatus {
   stripe: StripeSetupStatus;
 }
 
+/** Plain-language operator guidance for a recognized subsystem failure (known-error catalog). */
+export interface KnownErrorGuidance {
+  code: string;
+  explanation: string;
+  nextAction: string;
+}
+
+/** The set/unset state of one managed setting, with last-4 for secrets (never the full value). */
+export interface ManagedSettingState {
+  id: string;
+  envKey: string;
+  secret: boolean;
+  set: boolean;
+  /** Last 4 characters of a set secret value, for confirmation without exposure. */
+  last4: string | null;
+}
+
+/** Where the runtime env file lives, which env files actually loaded, and managed-key state. */
+export interface RuntimeEnvInfo {
+  path: string;
+  exists: boolean;
+  loadedFiles: string[];
+  managedSettings: ManagedSettingState[];
+}
+
+export type SubsystemHealthStatus = "ready" | "degraded" | "failed" | "disabled";
+
+/** The readiness of one configurable subsystem, for the Settings status surface. */
+export interface SubsystemHealth {
+  id: SubsystemId;
+  label: string;
+  status: SubsystemHealthStatus;
+  /** Plain-language one-liner answering "is this broken?". */
+  summary: string;
+  lastError: string | null;
+  /** Known-error guidance when a failure is recognized; null otherwise. */
+  guidance: KnownErrorGuidance | null;
+}
+
 export interface AppSnapshot {
   generatedAt: string;
   notificationRevision: string;
@@ -630,6 +670,8 @@ export interface AppSnapshot {
   os2l: Os2lDiagnostics;
   photoBooth: PhotoBoothStatus;
   paymentProvider: PaymentProviderStatus;
+  runtimeEnv: RuntimeEnvInfo;
+  subsystemHealth: SubsystemHealth[];
 }
 
 export interface CreateRacerInput {

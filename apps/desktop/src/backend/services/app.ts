@@ -98,6 +98,12 @@ import {
 import { getLocalNetworkBaseUrl } from "./network";
 import { getThirdUpcomingQueueEntry, getTournamentNotificationRacerIds } from "./notifications";
 import { AppHttpError } from "./http-error";
+import {
+  applyManagedEnvValue,
+  getRuntimeEnvInfo,
+  reloadDotenvFiles,
+  writeManagedEnvValue
+} from "../env";
 import { AuthService, type PasskeyRequestContext } from "./auth";
 import { PaymentService } from "./payment";
 import { NotificationService } from "./notifications-service";
@@ -109,6 +115,8 @@ const RESULT_MODAL_DURATION_MS = 15000;
 interface AppServiceOptions {
   dataDir: string;
   serverPort?: number;
+  runtimeEnvFilePath?: string;
+  loadedDotenvFiles?: string[];
 }
 
 interface PhotoBoothPairing {
@@ -210,12 +218,16 @@ export class RollerRumbleApp extends EventEmitter {
   private resultPresentationTimer: NodeJS.Timeout | null = null;
   private autoStagePausedUntilManualStage = false;
   private serverPort: number;
+  private readonly runtimeEnvFilePath: string | null;
+  private loadedDotenvFiles: string[];
 
   constructor(options: AppServiceOptions) {
     super();
     this.dataDir = options.dataDir;
     this.uploadsDir = path.join(options.dataDir, "uploads");
     this.serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
+    this.runtimeEnvFilePath = options.runtimeEnvFilePath ?? null;
+    this.loadedDotenvFiles = options.loadedDotenvFiles ?? [];
     this.db = new AppDatabase(options.dataDir);
     this.snapshots = new SnapshotAssembler(this.db);
     this.auth = new AuthService(this.db);
@@ -424,6 +436,7 @@ export class RollerRumbleApp extends EventEmitter {
       os2l: this.os2lTrigger.getDiagnostics(),
       photoBooth: this.getPhotoBoothStatus(),
       stripe: this.payment.getStripeSetupStatus(),
+      runtimeEnv: getRuntimeEnvInfo(this.runtimeEnvFilePath ?? "", this.loadedDotenvFiles),
       countdownDurationMsFor: (raceId) => this.getCountdownDurationMs(raceId)
     };
   }

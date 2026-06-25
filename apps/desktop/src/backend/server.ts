@@ -241,7 +241,9 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   fs.mkdirSync(options.dataDir, { recursive: true });
   const service = new RollerRumbleApp({
     dataDir: options.dataDir,
-    serverPort: options.port ?? DEFAULT_SERVER_PORT
+    serverPort: options.port ?? DEFAULT_SERVER_PORT,
+    runtimeEnvFilePath: options.runtimeEnvFilePath,
+    loadedDotenvFiles: options.loadedDotenvFiles
   });
   const app = express();
   const httpServer = http.createServer(app);

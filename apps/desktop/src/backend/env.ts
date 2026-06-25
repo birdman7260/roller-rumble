@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
+import { getManagedSettingByEnvKey, MANAGED_SETTINGS } from "@roller-rumble/shared/managed-settings";
+import type { ManagedSettingState, RuntimeEnvInfo } from "@roller-rumble/shared/types";
 
 interface DotenvLoadOptions {
   rootDir?: string;
@@ -115,6 +117,41 @@ function replaceOrAppendEnvValue(content: string, key: string, value: string): s
   return `${prefix}${line}\n`;
 }
 
+/**
+ * Write managed settings into the runtime env file one key at a time, preserving comments and
+ * unrelated lines (and the operator's own hand-edits) instead of rewriting the whole file. Only
+ * keys in the managed-settings registry may be written; advanced settings stay file-only.
+ *
+ * Creates the runtime env file from the starter template if it is absent.
+ */
+export function writeManagedEnvValues(
+  filePath: string,
+  values: Record<string, string>
+): RuntimeEnvFileInfo {
+  for (const envKey of Object.keys(values)) {
+    if (!getManagedSettingByEnvKey(envKey)) {
+      throw new Error(`Refusing to write non-managed env key: ${envKey}`);
+    }
+  }
+
+  ensureRuntimeEnvFile(filePath);
+  let content = fs.readFileSync(filePath, "utf8");
+  for (const [envKey, value] of Object.entries(values)) {
+    content = replaceOrAppendEnvValue(content, envKey, value);
+  }
+  fs.writeFileSync(filePath, content, "utf8");
+
+  return getRuntimeEnvFileInfo(filePath);
+}
+
+export function writeManagedEnvValue(
+  filePath: string,
+  envKey: string,
+  value: string
+): RuntimeEnvFileInfo {
+  return writeManagedEnvValues(filePath, { [envKey]: value });
+}
+
 export function writeWebPushEnvValues(
   filePath: string,
   values: {
@@ -123,18 +160,11 @@ export function writeWebPushEnvValues(
     subject: string;
   }
 ): RuntimeEnvFileInfo {
-  ensureRuntimeEnvFile(filePath);
-  let content = fs.readFileSync(filePath, "utf8");
-  content = replaceOrAppendEnvValue(content, "ROLLER_RUMBLE_WEB_PUSH_PUBLIC_KEY", values.publicKey);
-  content = replaceOrAppendEnvValue(
-    content,
-    "ROLLER_RUMBLE_WEB_PUSH_PRIVATE_KEY",
-    values.privateKey
-  );
-  content = replaceOrAppendEnvValue(content, "ROLLER_RUMBLE_WEB_PUSH_SUBJECT", values.subject);
-  fs.writeFileSync(filePath, content, "utf8");
-
-  return getRuntimeEnvFileInfo(filePath);
+  return writeManagedEnvValues(filePath, {
+    ROLLER_RUMBLE_WEB_PUSH_PUBLIC_KEY: values.publicKey,
+    ROLLER_RUMBLE_WEB_PUSH_PRIVATE_KEY: values.privateKey,
+    ROLLER_RUMBLE_WEB_PUSH_SUBJECT: values.subject
+  });
 }
 
 export function ensureRuntimeEnvFile(filePath: string): RuntimeEnvFileInfo {
@@ -157,9 +187,57 @@ export function getRuntimeEnvFileInfo(
   };
 }
 
+/**
+ * Derive the set/unset state of every managed setting from `process.env`. Secret values are
+ * reported only as set/unset plus the last 4 characters — never the full value — so this can
+ * feed the status surface and diagnostics bundle without leaking secrets.
+ */
+export function buildManagedSettingStates(
+  env: NodeJS.ProcessEnv = process.env
+): ManagedSettingState[] {
+  return MANAGED_SETTINGS.map((setting) => {
+    const value = env[setting.envKey]?.trim() ?? "";
+    const set = value.length > 0;
+    return {
+      id: setting.id,
+      envKey: setting.envKey,
+      secret: setting.secret,
+      set,
+      last4: set && setting.secret ? value.slice(-4) : null
+    };
+  });
+}
+
+/** The full runtime env info surfaced on the snapshot: file location, loaded files, managed state. */
+export function getRuntimeEnvInfo(
+  filePath: string,
+  loadedFiles: string[] = [],
+  env: NodeJS.ProcessEnv = process.env
+): RuntimeEnvInfo {
+  return {
+    path: filePath,
+    exists: fs.existsSync(filePath),
+    loadedFiles,
+    managedSettings: buildManagedSettingStates(env)
+  };
+}
+
+/**
+ * Keys we have set from a dotenv file. We *own* these on reload (we may overwrite them with a
+ * newer file value), whereas any key already in `process.env` that we did not set is treated as
+ * a genuine shell/command-line override and preserved. Without this provenance a second load
+ * would silently no-op (the original "refuse to overwrite anything already present" behavior),
+ * which would make "Reload settings from disk" do nothing. See ADR 0004.
+ */
+const fileProvidedKeys = new Set<string>();
+
+/** Reset key provenance. Test-only seam so a fresh module state can be simulated. */
+export function resetEnvProvenanceForTesting(): void {
+  fileProvidedKeys.clear();
+}
+
 export function loadDotenvFiles(options: DotenvLoadOptions = {}): string[] {
   const rootDirs = uniqueDirs(options.searchDirs ?? [options.rootDir ?? process.cwd()]);
-  const shellProvidedKeys = new Set(Object.keys(process.env));
   const loadedFiles: string[] = [];
 
   for (const rootDir of rootDirs) {
@@ -171,9 +249,11 @@ export function loadDotenvFiles(options: DotenvLoadOptions = {}): string[] {
 
       const parsed = dotenv.parse(fs.readFileSync(filePath));
       for (const [key, value] of Object.entries(parsed)) {
-        // Preserve command-line overrides while still allowing .env.local to override .env.
-        if (!shellProvidedKeys.has(key)) {
+        // A value we previously loaded from a file is ours to refresh; a value present in the
+        // environment that we never set is a genuine shell override and must win.
+        if (fileProvidedKeys.has(key) || !(key in process.env)) {
           process.env[key] = value;
+          fileProvidedKeys.add(key);
         }
       }
       loadedFiles.push(filePath);
@@ -181,4 +261,25 @@ export function loadDotenvFiles(options: DotenvLoadOptions = {}): string[] {
   }
 
   return loadedFiles;
+}
+
+/**
+ * Re-read the runtime env files from disk and re-apply them, overriding values we previously
+ * loaded from a file while preserving genuine shell-provided overrides. Used by the in-app
+ * "Reload settings from disk" action so hand-edited advanced settings are picked up without a
+ * full restart.
+ */
+export function reloadDotenvFiles(options: DotenvLoadOptions = {}): string[] {
+  return loadDotenvFiles(options);
+}
+
+/**
+ * Apply a managed setting that was just written to the runtime env file directly into
+ * `process.env`, marking it as file-provided so a later reload behaves consistently. Most
+ * subsystems derive config from `process.env` on each use, so this makes a Save take effect
+ * without a full restart.
+ */
+export function applyManagedEnvValue(envKey: string, value: string): void {
+  process.env[envKey] = value;
+  fileProvidedKeys.add(envKey);
 }

@@ -182,6 +182,142 @@
       "message": "Stripe configured"
     }
   },
+  "runtimeEnv": {
+    "path": "/data/.env.local",
+    "exists": true,
+    "loadedFiles": [
+      "/data/.env.local"
+    ],
+    "managedSettings": [
+      {
+        "id": "tunnelMode",
+        "envKey": "ROLLER_RUMBLE_TUNNEL_MODE",
+        "secret": false,
+        "set": false,
+        "last4": null
+      },
+      {
+        "id": "tunnelToken",
+        "envKey": "ROLLER_RUMBLE_TUNNEL_TOKEN",
+        "secret": true,
+        "set": false,
+        "last4": null
+      },
+      {
+        "id": "tunnelName",
+        "envKey": "ROLLER_RUMBLE_TUNNEL_NAME",
+        "secret": false,
+        "set": false,
+        "last4": null
+      },
+      {
+        "id": "stripeSecretKey",
+        "envKey": "ROLLER_RUMBLE_STRIPE_SECRET_KEY",
+        "secret": true,
+        "set": true,
+        "last4": "1234"
+      },
+      {
+        "id": "stripeWebhookSecret",
+        "envKey": "ROLLER_RUMBLE_STRIPE_WEBHOOK_SECRET",
+        "secret": true,
+        "set": true,
+        "last4": "1234"
+      },
+      {
+        "id": "stripeExtraCaCertFile",
+        "envKey": "ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE",
+        "secret": false,
+        "set": false,
+        "last4": null
+      },
+      {
+        "id": "localServerHost",
+        "envKey": "ROLLER_RUMBLE_LOCAL_SERVER_HOST",
+        "secret": false,
+        "set": false,
+        "last4": null
+      },
+      {
+        "id": "publicRacerUrl",
+        "envKey": "ROLLER_RUMBLE_PUBLIC_RACER_URL",
+        "secret": false,
+        "set": true,
+        "last4": null
+      },
+      {
+        "id": "webPushPublicKey",
+        "envKey": "ROLLER_RUMBLE_WEB_PUSH_PUBLIC_KEY",
+        "secret": false,
+        "set": true,
+        "last4": null
+      },
+      {
+        "id": "webPushPrivateKey",
+        "envKey": "ROLLER_RUMBLE_WEB_PUSH_PRIVATE_KEY",
+        "secret": true,
+        "set": true,
+        "last4": "1234"
+      },
+      {
+        "id": "webPushSubject",
+        "envKey": "ROLLER_RUMBLE_WEB_PUSH_SUBJECT",
+        "secret": false,
+        "set": true,
+        "last4": null
+      }
+    ]
+  },
+  "subsystemHealth": [
+    {
+      "id": "tunnel",
+      "label": "Cloudflare tunnel",
+      "status": "ready",
+      "summary": "Tunnel ready",
+      "lastError": null,
+      "guidance": null
+    },
+    {
+      "id": "network",
+      "label": "Local network",
+      "status": "ready",
+      "summary": "Using the auto-detected local network address.",
+      "lastError": null,
+      "guidance": null
+    },
+    {
+      "id": "stripe",
+      "label": "Stripe payments",
+      "status": "ready",
+      "summary": "Stripe Checkout is ready.",
+      "lastError": null,
+      "guidance": null
+    },
+    {
+      "id": "webPush",
+      "label": "Racer notifications",
+      "status": "ready",
+      "summary": "Racer notifications are ready.",
+      "lastError": null,
+      "guidance": null
+    },
+    {
+      "id": "os2l",
+      "label": "VirtualDJ (OS2L)",
+      "status": "ready",
+      "summary": "Listening for VirtualDJ beats.",
+      "lastError": null,
+      "guidance": null
+    },
+    {
+      "id": "photoBooth",
+      "label": "Photo booth",
+      "status": "ready",
+      "summary": "Camera ready",
+      "lastError": null,
+      "guidance": null
+    }
+  ],
   "themes": [
     {
       "id": "neon-night",

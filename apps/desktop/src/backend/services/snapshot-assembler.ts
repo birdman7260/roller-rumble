@@ -6,12 +6,14 @@ import type {
   RaceResultPresentation,
   RacerStats,
   RacerSummary,
+  RuntimeEnvInfo,
   StripeSetupStatus,
   TunnelState
 } from "@roller-rumble/shared/types";
 import { getTheme, themes } from "@roller-rumble/shared/themes";
 import type { AppDatabase } from "../db/Database";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
+import { assembleSubsystemHealth } from "./subsystem-health";
 
 export type SnapshotStreamSurface = "admin" | "projector" | "racer";
 
@@ -26,6 +28,7 @@ export interface SnapshotContext {
   os2l: Os2lDiagnostics;
   photoBooth: PhotoBoothStatus;
   stripe: StripeSetupStatus;
+  runtimeEnv: RuntimeEnvInfo;
   countdownDurationMsFor: (raceId: string) => number;
   /** Defaults to Date.now; injected for deterministic tests. */
   now?: () => number;
@@ -96,6 +99,15 @@ export class SnapshotAssembler {
       paymentProvider: {
         stripe: ctx.stripe
       },
+      runtimeEnv: ctx.runtimeEnv,
+      subsystemHealth: assembleSubsystemHealth({
+        tunnel: ctx.tunnel,
+        os2l: ctx.os2l,
+        os2lEnabled: settings.os2lEnabled,
+        stripe: ctx.stripe,
+        photoBooth: ctx.photoBooth,
+        runtimeEnv: ctx.runtimeEnv
+      }),
       themes,
       raceProjection: {
         race: currentRace,
@@ -180,7 +192,15 @@ export class SnapshotAssembler {
           publicRacerUrl: null,
           message: ""
         }
-      }
+      },
+      // Operator-only setup/diagnostics state never reaches racer phones.
+      runtimeEnv: {
+        path: "",
+        exists: false,
+        loadedFiles: [],
+        managedSettings: []
+      },
+      subsystemHealth: []
     };
   }
 

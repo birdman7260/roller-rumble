@@ -9,10 +9,12 @@ import type {
   RaceRecord,
   RaceResult,
   RaceResultPresentation,
+  RuntimeEnvInfo,
   StripeSetupStatus,
   TunnelState
 } from "@roller-rumble/shared/types";
 import { COUNTDOWN_DURATION_MS, DEFAULT_THEME_ID } from "@roller-rumble/shared/constants";
+import { MANAGED_SETTINGS } from "@roller-rumble/shared/managed-settings";
 import type { AppDatabase } from "../../db/Database";
 
 // A single pinned instant so generatedAt / Date.now()-derived fields are deterministic
@@ -258,6 +260,32 @@ export const SCENARIO_RESULT_PRESENTATION: RaceResultPresentation = {
   race: { ...CURRENT_RACE, id: "race-prev", state: "finished", winnerRacerId: "racer-1" },
   winnerRacerId: "racer-1",
   expiresAt: "2026-06-24T12:00:10.000Z"
+};
+
+// Managed settings that are "set" in the golden scenario; the rest report unset.
+const SCENARIO_SET_MANAGED_IDS = new Set([
+  "stripeSecretKey",
+  "stripeWebhookSecret",
+  "publicRacerUrl",
+  "webPushPublicKey",
+  "webPushPrivateKey",
+  "webPushSubject"
+]);
+
+export const SCENARIO_RUNTIME_ENV: RuntimeEnvInfo = {
+  path: "/data/.env.local",
+  exists: true,
+  loadedFiles: ["/data/.env.local"],
+  managedSettings: MANAGED_SETTINGS.map((setting) => {
+    const set = SCENARIO_SET_MANAGED_IDS.has(setting.id);
+    return {
+      id: setting.id,
+      envKey: setting.envKey,
+      secret: setting.secret,
+      set,
+      last4: set && setting.secret ? "1234" : null
+    };
+  })
 };
 
 export const SCENARIO_COUNTDOWN_DURATION_MS = COUNTDOWN_DURATION_MS;
