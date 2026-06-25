@@ -1,9 +1,10 @@
 import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
-import { app, BrowserWindow, screen, shell } from "electron";
+import { app, BrowserWindow, dialog, screen, shell } from "electron";
 import { loadDotenvFiles } from "../backend/env";
 import { createBackendServer, type BackendServer } from "../backend/server";
+import { handleStartupFailure } from "./startup-failure";
 import type {
   ProjectorWindowResizeResult,
   ProjectorWindowSizePreset
@@ -193,7 +194,29 @@ async function bootstrap(): Promise<void> {
     runtimeEnvFilePath: resolveRuntimeEnvFilePath()
   });
 
-  const { port } = await backend.start();
+  let port: number;
+  try {
+    ({ port } = await backend.start());
+  } catch (error) {
+    // A fatal backend startup error (bad migration, native module failure) otherwise leaves the app
+    // hanging with no window. Surface it as a native dialog with a data-reset escape hatch instead.
+    // Only backend.start() is guarded here — a later window-load failure must not offer to wipe data.
+    console.error("[main] backend failed to start", error);
+    backend = null;
+    await handleStartupFailure({
+      error,
+      dataDir: userDataDir,
+      showMessageBox: (options) => dialog.showMessageBox(options),
+      removeDataDir: (dir) => fs.rmSync(dir, { recursive: true, force: true }),
+      relaunchApp: () => {
+        app.relaunch();
+        app.exit(0);
+      },
+      quitApp: () => app.quit()
+    });
+    return;
+  }
+
   await createWindows(port);
 }
 
