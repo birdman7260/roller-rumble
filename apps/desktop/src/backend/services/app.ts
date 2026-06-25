@@ -2487,7 +2487,10 @@ export class RollerRumbleApp extends EventEmitter {
    * if it is running, the caller is told a restart is needed and must confirm it (we never restart
    * silently mid-event); if it is idle, its cached config is refreshed here.
    */
-  saveManagedSetting(id: string, value: string): { snapshot: AppSnapshot; needsTunnelRestart: boolean } {
+  saveManagedSetting(
+    id: string,
+    value: string
+  ): { snapshot: AppSnapshot; needsTunnelRestart: boolean } {
     const definition = getManagedSetting(id);
     if (!definition) {
       throw new AppHttpError(`Unknown managed setting: ${id}`, 400, "unknown_managed_setting");

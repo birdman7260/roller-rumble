@@ -56,22 +56,33 @@ function entry(
 function tunnelHealth(input: SubsystemHealthInput): SubsystemHealth {
   const { tunnel } = input;
   if (tunnel.binarySource === "missing") {
-    return entry("tunnel", "failed", "cloudflared is not installed.", "cloudflared binary not found");
-  }
-  if (tunnel.mode === "token" && !managedIsSet(input.runtimeEnv, "tunnelToken")) {
     return entry(
       "tunnel",
-      "degraded",
-      "Token mode is selected but no tunnel token is set."
+      "failed",
+      "cloudflared is not installed.",
+      "cloudflared binary not found"
     );
+  }
+  if (tunnel.mode === "token" && !managedIsSet(input.runtimeEnv, "tunnelToken")) {
+    return entry("tunnel", "degraded", "Token mode is selected but no tunnel token is set.");
   }
   switch (tunnel.status) {
     case "active":
-      return entry("tunnel", "ready", tunnel.message ?? "Tunnel is active.", tunnel.lastError ?? null);
+      return entry(
+        "tunnel",
+        "ready",
+        tunnel.message ?? "Tunnel is active.",
+        tunnel.lastError ?? null
+      );
     case "starting":
       return entry("tunnel", "degraded", "Tunnel is starting…");
     case "error":
-      return entry("tunnel", "failed", tunnel.message ?? "Tunnel failed to start.", tunnel.lastError ?? null);
+      return entry(
+        "tunnel",
+        "failed",
+        tunnel.message ?? "Tunnel failed to start.",
+        tunnel.lastError ?? null
+      );
     case "idle":
     default:
       return entry("tunnel", "ready", "Tunnel is not running.");

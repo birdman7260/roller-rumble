@@ -28,6 +28,7 @@ function makeRuntimeEnv(): RuntimeEnvInfo {
         envKey: setting.envKey,
         secret: setting.secret,
         set,
+        value: setting.secret ? null : set ? "value" : "",
         last4: set && setting.secret ? "1234" : null
       };
     })

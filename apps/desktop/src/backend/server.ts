@@ -61,9 +61,7 @@ interface BackendServerOptions {
   appVersion?: string;
   getLogLines?: () => string[];
   logFilePath?: string;
-  saveDiagnosticsBundle?: (
-    files: { name: string; content: string }[]
-  ) => Promise<string | null>;
+  saveDiagnosticsBundle?: (files: { name: string; content: string }[]) => Promise<string | null>;
 }
 
 const labRoutes = {

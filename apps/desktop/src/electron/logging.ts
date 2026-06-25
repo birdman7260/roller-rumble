@@ -26,7 +26,7 @@ export function initLogging(): void {
   log.hooks.push((message) => {
     const secrets = collectSecretValues();
     if (secrets.length > 0 && Array.isArray(message.data)) {
-      message.data = message.data.map((part) =>
+      message.data = (message.data as unknown[]).map((part): unknown =>
         typeof part === "string"
           ? secrets.reduce((acc, secret) => acc.split(secret).join("[redacted]"), part)
           : part
@@ -47,7 +47,10 @@ export function getLogFilePath(): string {
 export function getRecentLogLines(limit = DEFAULT_LOG_TAIL_LINES): string[] {
   try {
     const content = fs.readFileSync(getLogFilePath(), "utf8");
-    return content.split(/\r?\n/).filter((line) => line.length > 0).slice(-limit);
+    return content
+      .split(/\r?\n/)
+      .filter((line) => line.length > 0)
+      .slice(-limit);
   } catch {
     return [];
   }

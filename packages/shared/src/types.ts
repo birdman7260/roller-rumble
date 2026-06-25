@@ -630,6 +630,8 @@ export interface ManagedSettingState {
   envKey: string;
   secret: boolean;
   set: boolean;
+  /** The current value for non-secret settings (so the field can be pre-filled); null for secrets. */
+  value: string | null;
   /** Last 4 characters of a set secret value, for confirmation without exposure. */
   last4: string | null;
 }

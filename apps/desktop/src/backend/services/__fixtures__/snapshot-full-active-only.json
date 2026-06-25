@@ -194,6 +194,7 @@
         "envKey": "ROLLER_RUMBLE_TUNNEL_MODE",
         "secret": false,
         "set": false,
+        "value": "",
         "last4": null
       },
       {
@@ -201,6 +202,7 @@
         "envKey": "ROLLER_RUMBLE_TUNNEL_TOKEN",
         "secret": true,
         "set": false,
+        "value": null,
         "last4": null
       },
       {
@@ -208,6 +210,7 @@
         "envKey": "ROLLER_RUMBLE_TUNNEL_NAME",
         "secret": false,
         "set": false,
+        "value": "",
         "last4": null
       },
       {
@@ -215,6 +218,7 @@
         "envKey": "ROLLER_RUMBLE_STRIPE_SECRET_KEY",
         "secret": true,
         "set": true,
+        "value": null,
         "last4": "1234"
       },
       {
@@ -222,6 +226,7 @@
         "envKey": "ROLLER_RUMBLE_STRIPE_WEBHOOK_SECRET",
         "secret": true,
         "set": true,
+        "value": null,
         "last4": "1234"
       },
       {
@@ -229,6 +234,7 @@
         "envKey": "ROLLER_RUMBLE_STRIPE_EXTRA_CA_CERT_FILE",
         "secret": false,
         "set": false,
+        "value": "",
         "last4": null
       },
       {
@@ -236,6 +242,7 @@
         "envKey": "ROLLER_RUMBLE_LOCAL_SERVER_HOST",
         "secret": false,
         "set": false,
+        "value": "",
         "last4": null
       },
       {
@@ -243,6 +250,7 @@
         "envKey": "ROLLER_RUMBLE_PUBLIC_RACER_URL",
         "secret": false,
         "set": true,
+        "value": "configured-value",
         "last4": null
       },
       {
@@ -250,6 +258,7 @@
         "envKey": "ROLLER_RUMBLE_WEB_PUSH_PUBLIC_KEY",
         "secret": false,
         "set": true,
+        "value": "configured-value",
         "last4": null
       },
       {
@@ -257,6 +266,7 @@
         "envKey": "ROLLER_RUMBLE_WEB_PUSH_PRIVATE_KEY",
         "secret": true,
         "set": true,
+        "value": null,
         "last4": "1234"
       },
       {
@@ -264,6 +274,7 @@
         "envKey": "ROLLER_RUMBLE_WEB_PUSH_SUBJECT",
         "secret": false,
         "set": true,
+        "value": "configured-value",
         "last4": null
       }
     ]

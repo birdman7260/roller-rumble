@@ -23,9 +23,7 @@ async function probeHttp(
   try {
     const response = await fetch(url, { signal: controller.signal });
     const contentType = response.headers.get("content-type") ?? "";
-    const ok = expectHtml
-      ? response.ok && contentType.includes("text/html")
-      : response.ok;
+    const ok = expectHtml ? response.ok && contentType.includes("text/html") : response.ok;
     return {
       name,
       ok,

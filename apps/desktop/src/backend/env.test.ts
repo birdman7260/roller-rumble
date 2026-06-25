@@ -158,7 +158,11 @@ describe("dotenv runtime loading", () => {
     const envFilePath = path.join(appDataDir, ".env.local");
     expect(fs.existsSync(envFilePath)).toBe(false);
 
-    writeManagedEnvValue(envFilePath, "ROLLER_RUMBLE_PUBLIC_RACER_URL", "https://example.com/racer");
+    writeManagedEnvValue(
+      envFilePath,
+      "ROLLER_RUMBLE_PUBLIC_RACER_URL",
+      "https://example.com/racer"
+    );
 
     expect(fs.existsSync(envFilePath)).toBe(true);
     expect(fs.readFileSync(envFilePath, "utf8")).toContain(
@@ -176,11 +180,9 @@ describe("dotenv runtime loading", () => {
     const envFilePath = path.join(projectDir, ".env.local");
     fs.writeFileSync(
       envFilePath,
-      [
-        "ROLLER_RUMBLE_ENV_TEST_BASE=first",
-        "ROLLER_RUMBLE_ENV_TEST_SHELL=file-value",
-        ""
-      ].join("\n")
+      ["ROLLER_RUMBLE_ENV_TEST_BASE=first", "ROLLER_RUMBLE_ENV_TEST_SHELL=file-value", ""].join(
+        "\n"
+      )
     );
     // A genuine shell override is present before any file load.
     process.env.ROLLER_RUMBLE_ENV_TEST_SHELL = "shell-value";
@@ -192,11 +194,9 @@ describe("dotenv runtime loading", () => {
     // Operator hand-edits the file, then reloads.
     fs.writeFileSync(
       envFilePath,
-      [
-        "ROLLER_RUMBLE_ENV_TEST_BASE=second",
-        "ROLLER_RUMBLE_ENV_TEST_SHELL=file-value-2",
-        ""
-      ].join("\n")
+      ["ROLLER_RUMBLE_ENV_TEST_BASE=second", "ROLLER_RUMBLE_ENV_TEST_SHELL=file-value-2", ""].join(
+        "\n"
+      )
     );
     reloadDotenvFiles({ searchDirs: [projectDir] });
 

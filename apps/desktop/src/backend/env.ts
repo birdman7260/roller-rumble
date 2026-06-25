@@ -1,7 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import dotenv from "dotenv";
-import { getManagedSettingByEnvKey, MANAGED_SETTINGS } from "@roller-rumble/shared/managed-settings";
+import {
+  getManagedSettingByEnvKey,
+  MANAGED_SETTINGS
+} from "@roller-rumble/shared/managed-settings";
 import type { ManagedSettingState, RuntimeEnvInfo } from "@roller-rumble/shared/types";
 
 interface DotenvLoadOptions {
@@ -203,6 +206,7 @@ export function buildManagedSettingStates(
       envKey: setting.envKey,
       secret: setting.secret,
       set,
+      value: setting.secret ? null : value,
       last4: set && setting.secret ? value.slice(-4) : null
     };
   });

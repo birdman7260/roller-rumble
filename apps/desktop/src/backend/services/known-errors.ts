@@ -14,14 +14,16 @@ interface CatalogEntry extends KnownErrorGuidance {
 const CATALOG: readonly CatalogEntry[] = [
   {
     code: "tunnel_token_rejected",
-    match: /tunnel token is not valid|invalid tunnel token|token.*not valid|401 unauthorized|failed to (parse|get) tunnel/i,
+    match:
+      /tunnel token is not valid|invalid tunnel token|token.*not valid|401 unauthorized|failed to (parse|get) tunnel/i,
     explanation: "Cloudflare rejected the tunnel token, so the stable public URL cannot start.",
     nextAction:
       "Re-copy the connector token from your Cloudflare tunnel (Tunnels → your tunnel → Configure → Token) and paste it into the Tunnel token field again, then restart the tunnel."
   },
   {
     code: "cloudflared_binary_missing",
-    match: /cloudflared.*(not found|missing|could not be found|is not installed)|binary.*not found/i,
+    match:
+      /cloudflared.*(not found|missing|could not be found|is not installed)|binary.*not found/i,
     explanation: "The cloudflared program that runs the tunnel is not installed.",
     nextAction:
       'Click "Install cloudflared" in the Tunnel panel, then try starting the tunnel again.'
