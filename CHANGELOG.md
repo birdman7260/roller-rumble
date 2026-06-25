@@ -23,6 +23,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - More logic for queueing and challenging
 - Refactored the race lifecycle code.
 - Refactored the snapshot assembler code into its own module.
+- Refactored payment, auth, and notifications.
 
 ### Fixed
 

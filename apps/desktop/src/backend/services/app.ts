@@ -1,28 +1,13 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
 import path from "node:path";
-import crypto from "node:crypto";
 import QRCode from "qrcode";
 import { nanoid } from "nanoid";
-import Stripe from "stripe";
-import {
-  generateAuthenticationOptions,
-  generateRegistrationOptions,
-  verifyAuthenticationResponse,
-  verifyRegistrationResponse
-} from "@simplewebauthn/server";
-import type {
-  AuthenticationResponseJSON,
-  AuthenticatorTransportFuture,
-  RegistrationResponseJSON,
-  WebAuthnCredential
-} from "@simplewebauthn/server";
+import type Stripe from "stripe";
 import {
   COUNTDOWN_DURATION_MS,
   DEFAULT_OS2L_PORT,
-  DEFAULT_PAYMENT_CURRENCY,
-  DEFAULT_SERVER_PORT,
-  STRIPE_MIN_PAYMENT_AMOUNT_CENTS
+  DEFAULT_SERVER_PORT
 } from "@roller-rumble/shared/constants";
 import type {
   BracketNode,
@@ -64,11 +49,7 @@ import type {
   WebPushSubscriptionInput
 } from "@roller-rumble/shared/types";
 import { nowIso } from "@roller-rumble/shared/utils";
-import {
-  AppDatabase,
-  type StoredPasskeyCredential,
-  type StoredPaymentRecord
-} from "../db/Database";
+import { AppDatabase, type StoredPaymentRecord } from "../db/Database";
 import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
 import { SimulatorSensorAdapter } from "../adapters/sensor-simulator";
@@ -115,120 +96,15 @@ import {
   type PhotoBoothTokenPayload
 } from "./photo-booth";
 import { getLocalNetworkBaseUrl } from "./network";
-import {
-  assertEventPaymentConfig,
-  buildStripeCheckoutSessionParams,
-  createStripeHttpAgent,
-  getStripeRuntimeConfig,
-  normalizePaymentCurrency,
-  StripeCaCertificateError,
-  type StripeRuntimeConfig
-} from "./stripe-payments";
-import {
-  getThirdUpcomingQueueEntry,
-  getTournamentNotificationRacerIds,
-  getWebPushRuntimeConfig,
-  sendNotificationPushes
-} from "./notifications";
+import { getThirdUpcomingQueueEntry, getTournamentNotificationRacerIds } from "./notifications";
+import { AppHttpError } from "./http-error";
+import { AuthService, type PasskeyRequestContext } from "./auth";
+import { PaymentService } from "./payment";
+import { NotificationService } from "./notifications-service";
+
+export { AppHttpError } from "./http-error";
 
 const RESULT_MODAL_DURATION_MS = 15000;
-const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
-const RACER_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
-const RACER_SESSION_SECRET_SETTING_KEY = "racerSessionSecret";
-
-interface StripeFailureDetails {
-  code: string;
-  message: string;
-  requestId?: string | null;
-  type?: string | null;
-}
-
-function valueFromRecord(value: unknown, key: string): unknown {
-  return typeof value === "object" && value !== null
-    ? (value as Record<string, unknown>)[key]
-    : null;
-}
-
-function getStripeFailureDetails(error: unknown): StripeFailureDetails {
-  if (error instanceof StripeCaCertificateError) {
-    return {
-      code: error.code,
-      message: error.message
-    };
-  }
-
-  const message =
-    error instanceof Error && error.message.trim().length > 0
-      ? error.message
-      : "Stripe returned an unexpected error.";
-  const type = valueFromRecord(error, "type");
-  const code = valueFromRecord(error, "code");
-  const requestId = valueFromRecord(error, "requestId");
-  const stripeType = typeof type === "string" ? type : null;
-  const stripeCode = typeof code === "string" ? code : null;
-
-  if (stripeType === "StripeConnectionError") {
-    return {
-      code: "stripe_connection_failed",
-      message: `Roller Rumble could not reach Stripe. ${message}`,
-      requestId: typeof requestId === "string" ? requestId : null,
-      type: stripeType
-    };
-  }
-
-  if (stripeType === "StripeAuthenticationError") {
-    return {
-      code: "stripe_authentication_failed",
-      message: `Stripe rejected the configured secret key. ${message}`,
-      requestId: typeof requestId === "string" ? requestId : null,
-      type: stripeType
-    };
-  }
-
-  if (stripeType === "StripePermissionError") {
-    return {
-      code: "stripe_permission_failed",
-      message: `Stripe rejected this operation for the configured account. ${message}`,
-      requestId: typeof requestId === "string" ? requestId : null,
-      type: stripeType
-    };
-  }
-
-  return {
-    code: stripeCode ?? "stripe_checkout_failed",
-    message: `Could not start Stripe Checkout. ${message}`,
-    requestId: typeof requestId === "string" ? requestId : null,
-    type: stripeType
-  };
-}
-
-export class AppHttpError extends Error {
-  constructor(
-    message: string,
-    readonly statusCode: number,
-    readonly code?: string
-  ) {
-    super(message);
-  }
-}
-
-interface PasskeyRequestContext {
-  origin: string;
-  rpId: string;
-}
-
-interface PasskeyChallenge {
-  id: string;
-  kind: "sign-in" | "registration";
-  challenge: string;
-  email: string;
-  origin: string;
-  rpId: string;
-  expiresAt: number;
-  racerId?: string;
-  displayName?: string;
-  phone?: string;
-}
 
 interface AppServiceOptions {
   dataDir: string;
@@ -250,31 +126,6 @@ function sameParticipantSet(left: string[], right: string[]): boolean {
   const sortedLeft = [...left].sort();
   const sortedRight = [...right].sort();
   return sortedLeft.every((racerId, index) => racerId === sortedRight[index]);
-}
-
-function normalizeEmail(email: string): string {
-  return email.trim().toLowerCase();
-}
-
-function encodeBase64UrlJson(value: unknown): string {
-  return Buffer.from(JSON.stringify(value), "utf8").toString("base64url");
-}
-
-function timingSafeEqualString(left: string, right: string): boolean {
-  const leftBuffer = Buffer.from(left);
-  const rightBuffer = Buffer.from(right);
-  return (
-    leftBuffer.length === rightBuffer.length && crypto.timingSafeEqual(leftBuffer, rightBuffer)
-  );
-}
-
-function toWebAuthnCredential(credential: StoredPasskeyCredential): WebAuthnCredential {
-  return {
-    id: credential.credentialId,
-    publicKey: Buffer.from(credential.publicKey, "base64url"),
-    counter: credential.counter,
-    transports: credential.transports as AuthenticatorTransportFuture[]
-  };
 }
 
 function findBracketNodeForParticipants(
@@ -347,6 +198,9 @@ export class RollerRumbleApp extends EventEmitter {
   );
   private readonly tunnelManager: CloudflaredTunnelManager;
   private readonly snapshots: SnapshotAssembler;
+  private readonly auth: AuthService;
+  private readonly payment: PaymentService;
+  private readonly notifications: NotificationService;
   private readonly tournaments = new TournamentService();
   private countdownTicker: NodeJS.Timeout | null = null;
   private countdownStartTimer: NodeJS.Timeout | null = null;
@@ -355,10 +209,6 @@ export class RollerRumbleApp extends EventEmitter {
   private resultPresentation: RaceResultPresentation | null = null;
   private resultPresentationTimer: NodeJS.Timeout | null = null;
   private autoStagePausedUntilManualStage = false;
-  private readonly passkeyChallenges = new Map<string, PasskeyChallenge>();
-  private stripeClient: Stripe | null = null;
-  private stripeSecretKey: string | null = null;
-  private stripeExtraCaCertFile: string | null = null;
   private serverPort: number;
 
   constructor(options: AppServiceOptions) {
@@ -368,6 +218,9 @@ export class RollerRumbleApp extends EventEmitter {
     this.serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
     this.db = new AppDatabase(options.dataDir);
     this.snapshots = new SnapshotAssembler(this.db);
+    this.auth = new AuthService(this.db);
+    this.payment = new PaymentService(this.db);
+    this.notifications = new NotificationService(this.db, () => this.emitSnapshot());
     this.tunnelManager = new CloudflaredTunnelManager({ dataDir: options.dataDir });
   }
 
@@ -429,89 +282,12 @@ export class RollerRumbleApp extends EventEmitter {
       : COUNTDOWN_DURATION_MS;
   }
 
-  private getStripeConfig(): StripeRuntimeConfig {
-    return getStripeRuntimeConfig();
-  }
-
-  private getStripeSetupStatus(): StripeRuntimeConfig {
-    const config = this.getStripeConfig();
-    return {
-      configured: config.configured,
-      hasSecretKey: config.hasSecretKey,
-      hasWebhookSecret: config.hasWebhookSecret,
-      hasExtraCaCertFile: config.hasExtraCaCertFile,
-      extraCaCertFile: config.extraCaCertFile,
-      publicRacerUrl: config.publicRacerUrl,
-      message: config.message
-    };
-  }
-
-  private getStripeClient(): Stripe {
-    const config = this.getStripeConfig();
-    if (!config.secretKey) {
-      throw new AppHttpError(
-        "Stripe Checkout is not configured yet. Please see the host.",
-        503,
-        "stripe_not_configured"
-      );
-    }
-
-    const extraCaCertFile = config.extraCaCertFile ?? null;
-    if (
-      !this.stripeClient ||
-      this.stripeSecretKey !== config.secretKey ||
-      this.stripeExtraCaCertFile !== extraCaCertFile
-    ) {
-      const httpAgent = createStripeHttpAgent(extraCaCertFile);
-      this.stripeClient = new Stripe(config.secretKey, {
-        appInfo: {
-          name: "Roller Rumble"
-        },
-        ...(httpAgent ? { httpAgent } : {})
-      });
-      this.stripeSecretKey = config.secretKey;
-      this.stripeExtraCaCertFile = extraCaCertFile;
-    }
-
-    return this.stripeClient;
-  }
-
   getNotificationConfig(): NotificationConfig {
-    const { configured, publicKey, message } = getWebPushRuntimeConfig();
-    return {
-      configured,
-      publicKey,
-      message
-    };
+    return this.notifications.getNotificationConfig();
   }
 
   async testStripeConnection(): Promise<StripeConnectionTestResult> {
-    const config = this.getStripeConfig();
-    if (!config.configured) {
-      return {
-        ok: false,
-        code: "stripe_not_configured",
-        message: config.message
-      };
-    }
-
-    try {
-      await this.getStripeClient().balance.retrieve();
-      return {
-        ok: true,
-        code: "stripe_ready",
-        message: "Roller Rumble reached Stripe successfully."
-      };
-    } catch (error) {
-      const failure = getStripeFailureDetails(error);
-      console.warn("[stripe] connection test failed", failure);
-      return {
-        ok: false,
-        code: failure.code,
-        message: failure.message,
-        requestId: failure.requestId
-      };
-    }
+    return this.payment.testStripeConnection();
   }
 
   saveRacerPushSubscription(
@@ -519,81 +295,22 @@ export class RollerRumbleApp extends EventEmitter {
     subscription: WebPushSubscriptionInput,
     userAgent?: string | null
   ): NotificationConfig {
-    const activeEvent = this.db.getActiveEvent();
-    if (activeEvent) {
-      this.db.ensureEventRegistration(activeEvent.id, racerId);
-    }
-    this.db.upsertPushSubscription(racerId, subscription, userAgent);
-    return this.getNotificationConfig();
+    return this.notifications.saveRacerPushSubscription(racerId, subscription, userAgent);
   }
 
   revokeRacerPushSubscription(
     racerId: string,
     subscription: WebPushSubscriptionInput
   ): NotificationConfig {
-    const racer = this.db.getRacer(racerId);
-    if (!racer) {
-      throw new AppHttpError("Racer not found.", 404, "racer_not_found");
-    }
-    this.db.revokePushSubscription(subscription.endpoint);
-    return this.getNotificationConfig();
+    return this.notifications.revokeRacerPushSubscription(racerId, subscription);
   }
 
   listRacerNotifications(racerId: string): RacerNotification[] {
-    return this.db.listNotificationsForRacer(racerId);
+    return this.notifications.listRacerNotifications(racerId);
   }
 
   markRacerNotificationRead(racerId: string, notificationId: string): RacerNotification[] {
-    this.db.markNotificationRead(racerId, notificationId);
-    return this.listRacerNotifications(racerId);
-  }
-
-  private createNotificationAndDispatch(input: {
-    eventId?: string | null;
-    type: "queue_get_ready" | "tournament_started" | "admin_message";
-    title: string;
-    body: string;
-    url?: string | null;
-    triggerKey?: string | null;
-    createdBy?: string | null;
-    racerIds: string[];
-  }): number {
-    const batch = this.db.createNotification(input);
-    if (!batch) {
-      return 0;
-    }
-
-    void this.dispatchNotificationPushes(batch.notification.id).catch((error: unknown) => {
-      console.warn("[notifications] push dispatch failed", error);
-    });
-    return batch.deliveries.length;
-  }
-
-  private async dispatchNotificationPushes(notificationId: string): Promise<void> {
-    const deliveries = this.db.listNotificationDeliveries(notificationId);
-    if (deliveries.length === 0) {
-      return;
-    }
-
-    const notificationRecord = this.db.getNotification(notificationId);
-    if (!notificationRecord) {
-      return;
-    }
-
-    const racerIds = deliveries.map((delivery) => delivery.racerId);
-    await sendNotificationPushes({
-      config: getWebPushRuntimeConfig(),
-      notification: notificationRecord,
-      deliveries,
-      subscriptions: this.db.listActivePushSubscriptionsForRacers(racerIds),
-      markDelivery: (deliveryId, result) => {
-        this.db.updateNotificationDeliveryPushStatus(deliveryId, result);
-      },
-      revokeSubscription: (endpoint) => {
-        this.db.revokePushSubscription(endpoint);
-      }
-    });
-    this.emitSnapshot();
+    return this.notifications.markRacerNotificationRead(racerId, notificationId);
   }
 
   private runQueueNotificationTriggers(eventId: string): void {
@@ -605,7 +322,7 @@ export class RollerRumbleApp extends EventEmitter {
     const racerNames = thirdEntry.racerIds
       .map((racerId) => this.db.getRacer(racerId)?.displayName ?? "Racer")
       .join(" vs ");
-    this.createNotificationAndDispatch({
+    this.notifications.createNotificationAndDispatch({
       eventId,
       type: "queue_get_ready",
       title: "Get ready to race",
@@ -618,7 +335,7 @@ export class RollerRumbleApp extends EventEmitter {
 
   private notifyTournamentStarted(bundle: TournamentBundle): void {
     const racerIds = getTournamentNotificationRacerIds(bundle);
-    this.createNotificationAndDispatch({
+    this.notifications.createNotificationAndDispatch({
       eventId: bundle.tournament.eventId,
       type: "tournament_started",
       title: "Tournament started",
@@ -668,7 +385,7 @@ export class RollerRumbleApp extends EventEmitter {
       );
     }
 
-    const targetCount = this.createNotificationAndDispatch({
+    const targetCount = this.notifications.createNotificationAndDispatch({
       eventId: activeEvent.id,
       type: input.type ?? "admin_message",
       title: input.title,
@@ -706,7 +423,7 @@ export class RollerRumbleApp extends EventEmitter {
       tunnel: this.tunnelManager.getState(),
       os2l: this.os2lTrigger.getDiagnostics(),
       photoBooth: this.getPhotoBoothStatus(),
-      stripe: this.getStripeSetupStatus(),
+      stripe: this.payment.getStripeSetupStatus(),
       countdownDurationMsFor: (raceId) => this.getCountdownDurationMs(raceId)
     };
   }
@@ -1512,187 +1229,33 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   getPasskeyRequestContext(origin: string): PasskeyRequestContext {
-    const parsedOrigin = new URL(origin);
-    const configuredRpId = process.env.ROLLER_RUMBLE_PASSKEY_RP_ID?.trim();
-    return {
-      origin: parsedOrigin.origin,
-      rpId:
-        configuredRpId !== undefined && configuredRpId.length > 0
-          ? configuredRpId
-          : parsedOrigin.hostname
-    };
-  }
-
-  private getRacerSessionSecret(): string {
-    const existing = this.db.getSetting<string | null>(
-      RACER_SESSION_SECRET_SETTING_KEY,
-      null
-    ).value;
-    if (existing) {
-      return existing;
-    }
-
-    const secret = crypto.randomBytes(32).toString("base64url");
-    this.db.setSetting(RACER_SESSION_SECRET_SETTING_KEY, secret);
-    return secret;
+    return this.auth.getPasskeyRequestContext(origin);
   }
 
   createRacerSessionToken(racerId: string): string {
-    const payload = encodeBase64UrlJson({
-      racerId,
-      expiresAt: Date.now() + RACER_SESSION_TTL_MS
-    });
-    const signature = crypto
-      .createHmac("sha256", this.getRacerSessionSecret())
-      .update(payload)
-      .digest("base64url");
-    return `${payload}.${signature}`;
+    return this.auth.createRacerSessionToken(racerId);
   }
 
   getRacerFromSessionToken(token?: string | null): Racer | null {
-    if (!token) {
-      return null;
-    }
-
-    const [payload, signature] = token.split(".");
-    if (!payload || !signature) {
-      return null;
-    }
-
-    const expectedSignature = crypto
-      .createHmac("sha256", this.getRacerSessionSecret())
-      .update(payload)
-      .digest("base64url");
-    if (!timingSafeEqualString(signature, expectedSignature)) {
-      return null;
-    }
-
-    try {
-      const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
-        racerId?: string;
-        expiresAt?: number;
-      };
-      if (!decoded.racerId || !decoded.expiresAt || decoded.expiresAt < Date.now()) {
-        return null;
-      }
-      return this.db.getRacer(decoded.racerId);
-    } catch {
-      return null;
-    }
+    return this.auth.getRacerFromSessionToken(token);
   }
 
   getRacerAuthSession(token?: string | null): Racer | null {
-    const racer = this.getRacerFromSessionToken(token);
-    const activeEvent = this.db.getActiveEvent();
-    if (racer && activeEvent) {
-      this.db.ensureEventRegistration(activeEvent.id, racer.id);
-    }
-    return racer;
+    return this.auth.getRacerAuthSession(token);
   }
 
-  private rememberPasskeyChallenge(challenge: Omit<PasskeyChallenge, "id" | "expiresAt">): string {
-    const id = nanoid();
-    this.passkeyChallenges.set(id, {
-      ...challenge,
-      id,
-      expiresAt: Date.now() + PASSKEY_CHALLENGE_TTL_MS
-    });
-    return id;
-  }
-
-  private consumePasskeyChallenge(id: string, kind: PasskeyChallenge["kind"]): PasskeyChallenge {
-    const challenge = this.passkeyChallenges.get(id);
-    this.passkeyChallenges.delete(id);
-    if (challenge?.kind !== kind || challenge.expiresAt < Date.now()) {
-      throw new AppHttpError("Passkey challenge expired. Please try again.", 400, "expired");
-    }
-    return challenge;
-  }
-
-  async startPasskeySignIn(
+  startPasskeySignIn(
     emailInput: string,
     context: PasskeyRequestContext
   ): Promise<PasskeySignInStartResponse> {
-    const email = normalizeEmail(emailInput);
-    const racer = this.db.findRacerByIdentity("email", email);
-    if (!racer) {
-      return {
-        status: "register_required",
-        email
-      };
-    }
-
-    const credentials = this.db.listPasskeyCredentialsForRacer(racer.id);
-    if (credentials.length === 0) {
-      return {
-        status: "host_assist",
-        email,
-        message: "That email is already registered. Please ask the host to help attach a passkey."
-      };
-    }
-
-    const options = await generateAuthenticationOptions({
-      rpID: context.rpId,
-      allowCredentials: credentials.map((credential) => ({
-        id: credential.credentialId,
-        transports: credential.transports as AuthenticatorTransportFuture[]
-      })),
-      userVerification: "preferred"
-    });
-    const challengeId = this.rememberPasskeyChallenge({
-      kind: "sign-in",
-      challenge: options.challenge,
-      email,
-      racerId: racer.id,
-      origin: context.origin,
-      rpId: context.rpId
-    });
-
-    return {
-      status: "passkey",
-      email,
-      challengeId,
-      options
-    };
+    return this.auth.startPasskeySignIn(emailInput, context);
   }
 
   async finishPasskeySignIn(
     challengeId: string,
     response: unknown
   ): Promise<RacerAuthSuccessResponse> {
-    const challenge = this.consumePasskeyChallenge(challengeId, "sign-in");
-    const credentialId =
-      typeof (response as { id?: unknown }).id === "string" ? (response as { id: string }).id : "";
-    const credential = this.db.getPasskeyCredentialByCredentialId(credentialId);
-    if (!credential || credential.racerId !== challenge.racerId) {
-      throw new AppHttpError("Passkey credential was not recognized.", 401, "invalid_passkey");
-    }
-
-    const verification = await verifyAuthenticationResponse({
-      response: response as AuthenticationResponseJSON,
-      expectedChallenge: challenge.challenge,
-      expectedOrigin: challenge.origin,
-      expectedRPID: challenge.rpId,
-      credential: toWebAuthnCredential(credential),
-      requireUserVerification: false
-    });
-    if (!verification.verified) {
-      throw new AppHttpError("Passkey sign-in was not verified.", 401, "invalid_passkey");
-    }
-
-    this.db.updatePasskeyCredentialUse(
-      verification.authenticationInfo.credentialID,
-      verification.authenticationInfo.newCounter
-    );
-    const racer = this.db.getRacer(credential.racerId);
-    if (!racer) {
-      throw new AppHttpError("Racer account was not found.", 404, "racer_not_found");
-    }
-
-    const activeEvent = this.db.getActiveEvent();
-    if (activeEvent) {
-      this.db.ensureEventRegistration(activeEvent.id, racer.id);
-    }
+    const racer = await this.auth.finishPasskeySignIn(challengeId, response);
     this.emitSnapshot();
     return {
       racer,
@@ -1700,114 +1263,19 @@ export class RollerRumbleApp extends EventEmitter {
     };
   }
 
-  async startPasskeyRegistration(
+  startPasskeyRegistration(
     input: PasskeyRegistrationStartInput,
     context: PasskeyRequestContext,
     sessionRacerId?: string | null
   ): Promise<PasskeyRegistrationStartResponse> {
-    const email = normalizeEmail(input.email);
-    const existingRacer = this.db.findRacerByIdentity("email", email);
-    if (existingRacer && existingRacer.id !== sessionRacerId) {
-      return {
-        status: "host_assist",
-        email,
-        message: "That email is already registered. Please ask the host to help attach a passkey."
-      };
-    }
-
-    const racerForCredential = sessionRacerId ? this.db.getRacer(sessionRacerId) : null;
-    const excludeCredentials = racerForCredential
-      ? this.db.listPasskeyCredentialsForRacer(racerForCredential.id).map((credential) => ({
-          id: credential.credentialId,
-          transports: credential.transports as AuthenticatorTransportFuture[]
-        }))
-      : [];
-    const options = await generateRegistrationOptions({
-      rpName: "Roller Rumble",
-      rpID: context.rpId,
-      userName: email,
-      userDisplayName: input.displayName,
-      excludeCredentials,
-      authenticatorSelection: {
-        residentKey: "preferred",
-        userVerification: "preferred"
-      }
-    });
-    const challengeId = this.rememberPasskeyChallenge({
-      kind: "registration",
-      challenge: options.challenge,
-      email,
-      displayName: input.displayName,
-      phone: input.phone,
-      racerId: sessionRacerId ?? undefined,
-      origin: context.origin,
-      rpId: context.rpId
-    });
-
-    return {
-      status: "passkey",
-      email,
-      challengeId,
-      options
-    };
+    return this.auth.startPasskeyRegistration(input, context, sessionRacerId);
   }
 
   async finishPasskeyRegistration(
     challengeId: string,
     response: unknown
   ): Promise<RacerAuthSuccessResponse> {
-    const challenge = this.consumePasskeyChallenge(challengeId, "registration");
-    const verification = await verifyRegistrationResponse({
-      response: response as RegistrationResponseJSON,
-      expectedChallenge: challenge.challenge,
-      expectedOrigin: challenge.origin,
-      expectedRPID: challenge.rpId,
-      requireUserVerification: false
-    });
-    if (!verification.verified) {
-      throw new AppHttpError("Passkey registration was not verified.", 401, "invalid_passkey");
-    }
-
-    const credential = verification.registrationInfo.credential;
-    const existingCredential = this.db.getPasskeyCredentialByCredentialId(credential.id);
-    if (existingCredential) {
-      throw new AppHttpError("That passkey is already registered.", 409, "duplicate_passkey");
-    }
-
-    let racer = challenge.racerId ? this.db.getRacer(challenge.racerId) : null;
-    if (racer) {
-      this.db.updateRacerRegistration(racer.id, {
-        displayName: challenge.displayName ?? racer.displayName,
-        email: challenge.email,
-        phone: challenge.phone
-      });
-      racer = this.db.getRacer(racer.id);
-    } else {
-      racer = this.db.createOrUpdateRacer({
-        displayName: challenge.displayName ?? challenge.email,
-        email: challenge.email,
-        phone: challenge.phone
-      });
-    }
-
-    if (!racer) {
-      throw new AppHttpError("Could not create racer account.", 500, "registration_failed");
-    }
-
-    this.db.createPasskeyCredential({
-      racerId: racer.id,
-      credentialId: credential.id,
-      publicKey: Buffer.from(credential.publicKey).toString("base64url"),
-      counter: credential.counter,
-      transports: credential.transports ?? [],
-      deviceType: verification.registrationInfo.credentialDeviceType,
-      backedUp: verification.registrationInfo.credentialBackedUp
-    });
-
-    const activeEvent = this.db.getActiveEvent();
-    if (activeEvent) {
-      this.db.ensureEventRegistration(activeEvent.id, racer.id);
-    }
+    const racer = await this.auth.finishPasskeyRegistration(challengeId, response);
     this.emitSnapshot();
     return {
       racer,
@@ -1847,24 +1315,7 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   updateActiveEventPaymentConfig(input: UpdateEventPaymentConfigInput): AppSnapshot {
-    const amountCents = input.paymentAmountCents ?? null;
-    if (
-      input.paymentRequiredForQueue &&
-      (amountCents === null || amountCents < STRIPE_MIN_PAYMENT_AMOUNT_CENTS)
-    ) {
-      throw new AppHttpError(
-        "Set an entrance fee of at least $0.50 before requiring payment.",
-        400,
-        "payment_amount_required"
-      );
-    }
-
-    const activeEvent = this.db.getActiveEvent()!;
-    this.db.updateEventPaymentConfig(activeEvent.id, {
-      paymentRequiredForQueue: input.paymentRequiredForQueue,
-      paymentAmountCents: amountCents,
-      paymentCurrency: normalizePaymentCurrency(input.paymentCurrency ?? DEFAULT_PAYMENT_CURRENCY)
-    });
+    this.payment.updateActiveEventPaymentConfig(input);
     this.emitSnapshot();
     return this.getSnapshot();
   }
@@ -2077,97 +1528,9 @@ export class RollerRumbleApp extends EventEmitter {
       providerReference?: string;
     }
   ): AppSnapshot {
-    const activeEvent = this.db.getActiveEvent()!;
-    this.db.updateEventRacerPayment(activeEvent.id, racerId, input);
+    this.payment.updateRacerPaymentStatus(racerId, input);
     this.emitSnapshot();
     return this.getSnapshot();
-  }
-
-  private assertPaidForEvent(eventId: string, racerId: string, message: string): void {
-    const payment = this.db.getEventRacerPayment(eventId, racerId);
-    if (!["paid", "waived"].includes(payment.status)) {
-      throw new AppHttpError(message, 402, "payment_required");
-    }
-  }
-
-  private async createStripeCheckoutForQueue(
-    racer: Racer,
-    input: RacerQueueSignupInput
-  ): Promise<RacerQueueSignupResponse> {
-    const activeEvent = this.db.getActiveEvent()!;
-    const config = this.getStripeConfig();
-    if (!config.configured || !config.publicRacerUrl) {
-      throw new AppHttpError(
-        "Stripe Checkout is not configured yet. Please see the host.",
-        503,
-        "stripe_not_configured"
-      );
-    }
-
-    let paymentConfig: { amountCents: number; currency: string };
-    try {
-      paymentConfig = assertEventPaymentConfig(activeEvent);
-    } catch (error) {
-      throw new AppHttpError(
-        error instanceof Error ? error.message : "Payment amount is not configured.",
-        400,
-        "payment_amount_required"
-      );
-    }
-    const { amountCents, currency } = paymentConfig;
-    const payment = this.db.createPaymentRecord({
-      eventId: activeEvent.id,
-      racerId: racer.id,
-      amountCents,
-      currency,
-      queueIntent: input
-    });
-    let session: Stripe.Checkout.Session;
-    try {
-      session = await this.getStripeClient().checkout.sessions.create(
-        buildStripeCheckoutSessionParams({
-          event: activeEvent,
-          racer,
-          paymentId: payment.id,
-          amountCents,
-          currency,
-          publicRacerUrl: config.publicRacerUrl,
-          queueIntent: input
-        })
-      );
-    } catch (error) {
-      const failure = getStripeFailureDetails(error);
-      this.db.updatePaymentRecord(payment.id, {
-        status: "failed",
-        failureCode: failure.code,
-        failureMessage: failure.message
-      });
-      console.warn("[stripe] checkout session creation failed", {
-        ...failure,
-        paymentId: payment.id
-      });
-      throw new AppHttpError(failure.message, 502, failure.code);
-    }
-
-    if (!session.url) {
-      this.db.updatePaymentRecord(payment.id, {
-        status: "failed",
-        failureCode: "missing_checkout_url",
-        failureMessage: "Stripe did not return a Checkout URL."
-      });
-      throw new AppHttpError("Could not start Stripe Checkout.", 502, "stripe_checkout_failed");
-    }
-
-    const updatedPayment = this.db.updatePaymentRecord(payment.id, {
-      stripeCheckoutSessionId: session.id,
-      checkoutUrl: session.url
-    });
-    return {
-      status: "checkout_required",
-      paymentId: updatedPayment.id,
-      checkoutUrl: session.url,
-      snapshot: this.getSnapshot()
-    };
   }
 
   private getChallengeReplacementOptions(
@@ -2250,7 +1613,7 @@ export class RollerRumbleApp extends EventEmitter {
 
     if (activeEvent.paymentRequiredForQueue && input.opponentRacerId) {
       this.db.ensureEventRegistration(activeEvent.id, input.opponentRacerId);
-      this.assertPaidForEvent(
+      this.payment.assertPaidForEvent(
         activeEvent.id,
         input.opponentRacerId,
         "That racer needs to see the host to pay before they can be added to a challenge."
@@ -2260,7 +1623,13 @@ export class RollerRumbleApp extends EventEmitter {
     if (activeEvent.paymentRequiredForQueue) {
       const payment = this.db.getEventRacerPayment(activeEvent.id, racerId);
       if (!["paid", "waived"].includes(payment.status)) {
-        return this.createStripeCheckoutForQueue(racer, input);
+        const checkout = await this.payment.createCheckoutForQueue(racer, input);
+        return {
+          status: "checkout_required",
+          paymentId: checkout.paymentId,
+          checkoutUrl: checkout.checkoutUrl,
+          snapshot: this.getSnapshot()
+        };
       }
     }
 
@@ -2290,28 +1659,6 @@ export class RollerRumbleApp extends EventEmitter {
     }
   }
 
-  private assertStripeWebhookConfig(): string {
-    const config = this.getStripeConfig();
-    if (!config.webhookSecret) {
-      throw new AppHttpError(
-        "Stripe webhook secret is not configured.",
-        503,
-        "stripe_webhook_not_configured"
-      );
-    }
-    return config.webhookSecret;
-  }
-
-  private resolvePaymentForStripeSession(
-    session: Stripe.Checkout.Session
-  ): StoredPaymentRecord | null {
-    const paymentId =
-      typeof session.metadata?.paymentId === "string" ? session.metadata.paymentId : null;
-    return paymentId
-      ? this.db.getPaymentRecord(paymentId)
-      : this.db.getPaymentByStripeCheckoutSessionId(session.id);
-  }
-
   private queuePaidStripePayment(payment: StoredPaymentRecord): void {
     const activeEvent = this.db.getActiveEvent();
     if (activeEvent?.id !== payment.eventId) {
@@ -2319,7 +1666,7 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     if (activeEvent.paymentRequiredForQueue && payment.queueIntent.opponentRacerId) {
-      this.assertPaidForEvent(
+      this.payment.assertPaidForEvent(
         activeEvent.id,
         payment.queueIntent.opponentRacerId,
         "That racer needs to see the host to pay before they can be added to a challenge."
@@ -2335,97 +1682,39 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   private completeStripeCheckoutSession(session: Stripe.Checkout.Session): void {
-    const payment = this.resolvePaymentForStripeSession(session);
+    const payment = this.payment.applyCheckoutCompleted(session);
     if (!payment) {
       return;
     }
 
-    const providerReference =
-      typeof session.payment_intent === "string" ? session.payment_intent : session.id;
-    this.db.updatePaymentRecord(payment.id, {
-      status: "paid",
-      stripeCheckoutSessionId: session.id,
-      stripePaymentIntentId:
-        typeof session.payment_intent === "string" ? session.payment_intent : null,
-      completedAt: nowIso(),
-      failureCode: null,
-      failureMessage: null
-    });
-    this.db.updateEventRacerPayment(payment.eventId, payment.racerId, {
-      status: "paid",
-      note: "Stripe Checkout",
-      providerReference
-    });
-
     try {
       this.queuePaidStripePayment(payment);
     } catch (error) {
-      this.db.updatePaymentRecord(payment.id, {
-        status: "queue_failed",
-        failureCode:
-          error instanceof AppHttpError ? (error.code ?? "queue_failed") : "queue_failed",
-        failureMessage:
-          error instanceof Error
-            ? error.message
-            : "Payment succeeded, but the racer could not be queued automatically."
-      });
+      this.payment.markCheckoutQueueFailed(payment.id, error);
     }
-  }
-
-  private expireStripeCheckoutSession(session: Stripe.Checkout.Session): void {
-    const payment = this.resolvePaymentForStripeSession(session);
-    if (!payment || payment.status === "paid") {
-      return;
-    }
-
-    this.db.updatePaymentRecord(payment.id, {
-      status: session.status === "expired" ? "expired" : "cancelled",
-      stripeCheckoutSessionId: session.id,
-      failureCode: session.status ?? "checkout_not_completed",
-      failureMessage: "Stripe Checkout did not complete."
-    });
   }
 
   handleStripeWebhook(rawBody: Buffer, signature?: string): { received: true } {
-    if (!signature) {
-      throw new AppHttpError("Missing Stripe signature.", 400, "stripe_signature_missing");
-    }
-
-    const event = this.getStripeClient().webhooks.constructEvent(
-      rawBody,
-      signature,
-      this.assertStripeWebhookConfig()
-    );
-    if (this.db.hasProcessedWebhookEvent("stripe", event.id)) {
+    const event = this.payment.parseWebhookEvent(rawBody, signature);
+    if (this.payment.isWebhookProcessed(event.id)) {
       return { received: true };
     }
 
     if (event.type === "checkout.session.completed") {
       this.completeStripeCheckoutSession(event.data.object);
     } else if (event.type === "checkout.session.expired") {
-      this.expireStripeCheckoutSession(event.data.object);
+      this.payment.applyCheckoutExpired(event.data.object);
     }
 
-    this.db.markWebhookEventProcessed("stripe", event.id, event.type);
+    this.payment.markWebhookProcessed(event.id, event.type);
     this.emitSnapshot();
     return { received: true };
   }
 
   cancelRacerCheckoutPayment(racerId: string, paymentId: string): AppSnapshot {
-    const payment = this.db.getPaymentRecord(paymentId);
-    if (payment?.racerId !== racerId) {
-      throw new AppHttpError("Payment record not found.", 404, "payment_not_found");
-    }
-
-    if (payment.status === "checkout_created") {
-      this.db.updatePaymentRecord(payment.id, {
-        status: "cancelled",
-        failureCode: "checkout_cancelled",
-        failureMessage: "The racer cancelled Stripe Checkout."
-      });
+    if (this.payment.cancelCheckoutPayment(racerId, paymentId)) {
       this.emitSnapshot();
     }
-
     return this.getSnapshot();
   }
 
