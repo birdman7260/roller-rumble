@@ -43,10 +43,26 @@ body,
   height: 100%;
 }
 
+/* Lock the document so only in-surface scroll containers scroll. overflow:hidden
+   alone does not stop Android Chrome's root-scroller / URL-bar behavior, so we
+   take the body out of the scroll flow entirely with position:fixed. This pins
+   the app to the viewport: the URL bar can no longer slide away, drag fixed
+   bottom bars up with it, or expose the tiled body background beneath them. */
+html,
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  position: fixed;
+  inset: 0;
+  width: 100%;
+}
+
 #root {
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
 #root > * {
@@ -56,7 +72,6 @@ body,
 
 body {
   margin: 0;
-  min-height: 100vh;
   color: var(--theme-text);
   background: transparent;
   font-family: var(--theme-font-family);
@@ -176,6 +191,7 @@ a {
   min-height: 100%;
   align-content: start;
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding-right: 0.2rem;
 }
 

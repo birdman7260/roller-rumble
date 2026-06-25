@@ -39,6 +39,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The QR display works at different screen sizes now.
 - The racer page no longer makes requests for notifications during a race.
 - The racer page only gets updates with what it actually needs and at a slower rate to minimize network.
+- The racer page bottom navigation bar now stays pinned to the bottom of the screen on mobile (Android Chrome). Scrolling past the bottom no longer drags the bar upward or reveals the page background beneath it.
 
 ## 0.1.7 - 2026-06-11
 
