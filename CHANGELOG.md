@@ -8,6 +8,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- If the app fails to start because the database can't be opened (for example after an update), it now shows a clear dialog with the error and offers to delete all data and restart instead of silently failing to open.
 - Projector display settings now include quick buttons to resize the race window to 720p or 1080p for layout checks.
 - Racers who are maxed out only by locked challenge matches now get a modal to choose which queued challenge to replace when creating a new challenge.
 - React Doctor is now installed and included in the ESLint configuration for React renderer code. This led to a major refactor for the better.
