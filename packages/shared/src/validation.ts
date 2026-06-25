@@ -96,6 +96,11 @@ export const projectorWindowResizeSchema = z.object({
   preset: z.enum(["720p", "1080p"])
 });
 
+export const managedSettingSaveSchema = z.object({
+  // Accepts empty string so an operator can clear a managed setting back to unset.
+  value: z.string().max(4096)
+});
+
 export const startTournamentSchema = z.object({
   name: z.string().trim().min(1).max(120),
   preset: z.enum(SUPPORTED_TOURNAMENT_PRESETS),
