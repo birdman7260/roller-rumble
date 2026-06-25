@@ -187,7 +187,11 @@ function ManagedField({
             {revealed ? "Hide" : "Reveal"}
           </Button>
         ) : null}
-        <Button disabled={saving} onClick={() => fireAndForget(save(), `save ${definition.id}`)}>
+        <Button
+          // Saving a blank secret would wipe an already-set value; require typing a new one.
+          disabled={saving || (definition.secret && draft.trim() === "")}
+          onClick={() => fireAndForget(save(), `save ${definition.id}`)}
+        >
           {saving ? "Saving…" : "Save"}
         </Button>
         {status ? <span className="managed-field__status">{status}</span> : null}

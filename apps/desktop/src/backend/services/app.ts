@@ -2456,6 +2456,10 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   startTunnel(): AppSnapshot {
+    // Starting is itself an explicit action, so always start from the current env-derived config.
+    // This also covers the case where an operator declined the post-save restart and later starts
+    // the tunnel by hand — without this the cached (stale) config would be used.
+    this.tunnelManager.reloadConfig();
     this.tunnelManager.start(this.serverPort, () => this.emitSnapshot());
     this.emitSnapshot();
     return this.getSnapshot();
@@ -2524,7 +2528,6 @@ export class RollerRumbleApp extends EventEmitter {
       this.tunnelManager.reloadConfig();
     }
 
-    this.os2lTrigger.setEnabled(this.db.getAdminSettings().os2lEnabled);
     this.emitSnapshot();
     return {
       snapshot: this.getSnapshot(),
