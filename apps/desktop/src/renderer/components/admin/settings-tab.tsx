@@ -28,6 +28,7 @@ import {
   useRuntimeEnvQuery
 } from "../../lib/query";
 import { fireAndForget } from "../../lib/ui-actions";
+import { DiagnosticsPanel, ManagedSettingsPanel, SubsystemStatusPanel } from "./operator-settings";
 
 const boothHardwareLabels = {
   scanner: "QR Scanner",
@@ -811,6 +812,12 @@ export function SettingsTab({
 
   return (
     <div ref={masonryGridRef} className="page-grid settings-page-grid">
+      <SubsystemStatusPanel health={snapshot.subsystemHealth} />
+
+      <ManagedSettingsPanel snapshot={snapshot} />
+
+      <DiagnosticsPanel snapshot={snapshot} />
+
       <GeneralSettingsPanel snapshot={snapshot} />
 
       <ProjectorDisplayPanel

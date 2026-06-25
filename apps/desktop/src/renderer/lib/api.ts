@@ -636,6 +636,35 @@ export async function installCloudflared(): Promise<TunnelDiagnostics> {
   return parseJson(await fetch(buildUrl("/api/tunnel/install-cloudflared"), { method: "POST" }));
 }
 
+export async function restartTunnel(): Promise<AppSnapshot> {
+  return parseJson(await fetch(buildUrl("/api/tunnel/restart"), { method: "POST" }));
+}
+
+export async function saveManagedSetting(
+  id: string,
+  value: string
+): Promise<{ snapshot: AppSnapshot; needsTunnelRestart: boolean }> {
+  return parseJson(
+    await fetch(buildUrl(`/api/managed-settings/${id}`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ value })
+    })
+  );
+}
+
+export async function reloadRuntimeEnv(): Promise<AppSnapshot> {
+  return parseJson(await fetch(buildUrl("/api/runtime-env/reload"), { method: "POST" }));
+}
+
+export async function fetchDiagnosticsSummary(): Promise<{ summary: string }> {
+  return parseJson(await fetch(buildUrl("/api/diagnostics")));
+}
+
+export async function saveDiagnosticsBundle(): Promise<{ savedPath: string | null }> {
+  return parseJson(await fetch(buildUrl("/api/diagnostics/save"), { method: "POST" }));
+}
+
 export async function removeRacerFromUpcoming(racerId: string): Promise<AppSnapshot> {
   return parseJson(await fetch(buildUrl(`/api/queue/racer/${racerId}`), { method: "DELETE" }));
 }

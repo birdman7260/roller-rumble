@@ -22,6 +22,7 @@ import {
   notificationIdSchema,
   passkeyChallengeSchema,
   passkeyEmailSchema,
+  managedSettingSaveSchema,
   passkeyRegistrationStartSchema,
   projectorWindowResizeSchema,
   queueSignupSchema,
@@ -47,6 +48,7 @@ import type { SnapshotStreamSurface } from "./services/snapshot-assembler";
 interface BackendServerOptions {
   dataDir: string;
   loadedDotenvFiles?: string[];
+  dotenvSearchDirs?: string[];
   openExternalUrl?: (url: string) => Promise<void>;
   openPath?: (filePath: string) => Promise<string>;
   port?: number;
@@ -56,6 +58,10 @@ interface BackendServerOptions {
   rendererDistDir?: string;
   rendererDevUrl?: string;
   runtimeEnvFilePath?: string;
+  appVersion?: string;
+  getLogLines?: () => string[];
+  logFilePath?: string;
+  saveDiagnosticsBundle?: (files: { name: string; content: string }[]) => Promise<string | null>;
 }
 
 const labRoutes = {
@@ -241,7 +247,13 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   fs.mkdirSync(options.dataDir, { recursive: true });
   const service = new RollerRumbleApp({
     dataDir: options.dataDir,
-    serverPort: options.port ?? DEFAULT_SERVER_PORT
+    serverPort: options.port ?? DEFAULT_SERVER_PORT,
+    runtimeEnvFilePath: options.runtimeEnvFilePath,
+    loadedDotenvFiles: options.loadedDotenvFiles,
+    dotenvSearchDirs: options.dotenvSearchDirs,
+    appVersion: options.appVersion,
+    getLogLines: options.getLogLines,
+    logFilePath: options.logFilePath
   });
   const app = express();
   const httpServer = http.createServer(app);
@@ -852,6 +864,46 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   app.post(`${API_PREFIX}/tunnel/install-cloudflared`, async (_req, res, next) => {
     try {
       res.json(await service.installCloudflared());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/tunnel/restart`, (_req, res) => {
+    res.json(service.restartTunnel());
+  });
+
+  app.post(`${API_PREFIX}/managed-settings/:id`, (req, res, next) => {
+    try {
+      const { value } = managedSettingSaveSchema.parse(req.body);
+      res.json(service.saveManagedSetting(req.params.id, value));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/runtime-env/reload`, (_req, res) => {
+    res.json(service.reloadSettings());
+  });
+
+  app.get(`${API_PREFIX}/diagnostics`, async (_req, res, next) => {
+    try {
+      const bundle = await service.getDiagnosticsBundle();
+      res.json({ summary: bundle.summary });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/diagnostics/save`, async (_req, res, next) => {
+    try {
+      if (!options.saveDiagnosticsBundle) {
+        res.status(404).json({ message: "Saving a diagnostics bundle is not available." });
+        return;
+      }
+      const bundle = await service.getDiagnosticsBundle();
+      const savedPath = await options.saveDiagnosticsBundle(bundle.files);
+      res.json({ savedPath });
     } catch (error) {
       next(error);
     }

@@ -3860,3 +3860,103 @@ button.tournament-match-node:active {
     display: grid;
   }
 }
+
+/* Operator setup & diagnostics: status surface and managed settings */
+.subsystem-status-list {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.subsystem-status-row {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--theme-accent-soft);
+  border-radius: 0.6rem;
+  background: var(--theme-surface-raised);
+}
+
+.subsystem-status-row__head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.subsystem-status-row__summary {
+  margin: 0;
+  color: var(--theme-text-muted);
+}
+
+.subsystem-status-badge,
+.subsystem-status-chip {
+  display: inline-block;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #06121a;
+}
+
+.subsystem-status--ready {
+  background: var(--theme-success);
+}
+
+.subsystem-status--degraded {
+  background: var(--theme-warning);
+}
+
+.subsystem-status--failed {
+  background: var(--theme-danger);
+}
+
+.subsystem-status--disabled {
+  background: var(--theme-text-muted);
+}
+
+.subsystem-status-row__details summary {
+  cursor: pointer;
+  color: var(--theme-accent);
+}
+
+.managed-group {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--theme-accent-soft);
+}
+
+.managed-group__title {
+  margin: 0;
+  color: var(--theme-accent);
+}
+
+.managed-field {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.managed-field__label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.managed-field__set {
+  color: var(--theme-success);
+  font-weight: 600;
+}
+
+.managed-field__description {
+  margin: 0;
+  color: var(--theme-text-muted);
+  font-size: 0.85rem;
+}
+
+.managed-field__status {
+  align-self: center;
+  color: var(--theme-text-muted);
+  font-size: 0.85rem;
+}

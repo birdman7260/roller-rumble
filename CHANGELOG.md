@@ -8,6 +8,11 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Settings now has a Status panel at the top showing each part of the app (tunnel, Stripe, notifications, network, VirtualDJ, photo booth) as Ready, Degraded, Failed, or Off at a glance, with plain-language guidance and a suggested fix when a known problem is detected.
+- The settings an operator commonly changes — Cloudflare tunnel mode/token/name, Stripe secret and webhook keys and CA certificate, local network address, public racer URL, and web push keys — are now labeled fields in Settings that the app saves into the settings file for you. Secret fields are hidden with a reveal toggle and show only the last 4 characters once set.
+- Saving a managed setting now takes effect without quitting and relaunching the app. Changing a tunnel setting asks before restarting the tunnel so a live event's racer connections are never dropped without confirmation.
+- Settings has a "Reload settings from disk" action so hand-edited changes to the settings file are picked up without a full restart.
+- Roller Rumble now keeps logs automatically every run, and Settings has "Copy diagnostics" and "Save diagnostics bundle" buttons that produce a redacted summary or a zip of logs and status to send to the maintainer. Secret values are never included.
 - If the app fails to start because the database can't be opened (for example after an update), it now shows a clear dialog with the error and offers to delete all data and restart instead of silently failing to open.
 - Projector display settings now include quick buttons to resize the race window to 720p or 1080p for layout checks.
 - Racers who are maxed out only by locked challenge matches now get a modal to choose which queued challenge to replace when creating a new challenge.

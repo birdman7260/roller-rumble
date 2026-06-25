@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import QRCode from "qrcode";
 import { nanoid } from "nanoid";
@@ -98,6 +99,15 @@ import {
 import { getLocalNetworkBaseUrl } from "./network";
 import { getThirdUpcomingQueueEntry, getTournamentNotificationRacerIds } from "./notifications";
 import { AppHttpError } from "./http-error";
+import {
+  applyManagedEnvValue,
+  getRuntimeEnvInfo,
+  reloadDotenvFiles,
+  writeManagedEnvValue
+} from "../env";
+import { getManagedSetting, SECRET_ENV_KEYS } from "@roller-rumble/shared/managed-settings";
+import { assembleDiagnosticsBundle, type DiagnosticsBundle } from "./diagnostics-bundle";
+import { runTunnelHealthChecks } from "./tunnel-health-checks";
 import { AuthService, type PasskeyRequestContext } from "./auth";
 import { PaymentService } from "./payment";
 import { NotificationService } from "./notifications-service";
@@ -109,6 +119,12 @@ const RESULT_MODAL_DURATION_MS = 15000;
 interface AppServiceOptions {
   dataDir: string;
   serverPort?: number;
+  runtimeEnvFilePath?: string;
+  loadedDotenvFiles?: string[];
+  dotenvSearchDirs?: string[];
+  appVersion?: string;
+  getLogLines?: () => string[];
+  logFilePath?: string;
 }
 
 interface PhotoBoothPairing {
@@ -210,12 +226,24 @@ export class RollerRumbleApp extends EventEmitter {
   private resultPresentationTimer: NodeJS.Timeout | null = null;
   private autoStagePausedUntilManualStage = false;
   private serverPort: number;
+  private readonly runtimeEnvFilePath: string | null;
+  private loadedDotenvFiles: string[];
+  private readonly dotenvSearchDirs: string[];
+  private readonly appVersion: string;
+  private readonly getLogLines: () => string[];
+  private readonly logFilePath: string | null;
 
   constructor(options: AppServiceOptions) {
     super();
     this.dataDir = options.dataDir;
     this.uploadsDir = path.join(options.dataDir, "uploads");
     this.serverPort = options.serverPort ?? DEFAULT_SERVER_PORT;
+    this.runtimeEnvFilePath = options.runtimeEnvFilePath ?? null;
+    this.loadedDotenvFiles = options.loadedDotenvFiles ?? [];
+    this.dotenvSearchDirs = options.dotenvSearchDirs ?? [];
+    this.appVersion = options.appVersion ?? "unknown";
+    this.getLogLines = options.getLogLines ?? (() => []);
+    this.logFilePath = options.logFilePath ?? null;
     this.db = new AppDatabase(options.dataDir);
     this.snapshots = new SnapshotAssembler(this.db);
     this.auth = new AuthService(this.db);
@@ -424,6 +452,7 @@ export class RollerRumbleApp extends EventEmitter {
       os2l: this.os2lTrigger.getDiagnostics(),
       photoBooth: this.getPhotoBoothStatus(),
       stripe: this.payment.getStripeSetupStatus(),
+      runtimeEnv: getRuntimeEnvInfo(this.runtimeEnvFilePath ?? "", this.loadedDotenvFiles),
       countdownDurationMsFor: (raceId) => this.getCountdownDurationMs(raceId)
     };
   }
@@ -2427,6 +2456,10 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   startTunnel(): AppSnapshot {
+    // Starting is itself an explicit action, so always start from the current env-derived config.
+    // This also covers the case where an operator declined the post-save restart and later starts
+    // the tunnel by hand — without this the cached (stale) config would be used.
+    this.tunnelManager.reloadConfig();
     this.tunnelManager.start(this.serverPort, () => this.emitSnapshot());
     this.emitSnapshot();
     return this.getSnapshot();
@@ -2436,6 +2469,119 @@ export class RollerRumbleApp extends EventEmitter {
     this.tunnelManager.stop(() => this.emitSnapshot());
     this.emitSnapshot();
     return this.getSnapshot();
+  }
+
+  /**
+   * Stop the tunnel, pick up the latest tunnel config from the environment, then start again.
+   * Used after a tunnel-key managed-setting change, and only when the operator has confirmed the
+   * restart (it drops every racer's connection while it reconnects).
+   */
+  restartTunnel(): AppSnapshot {
+    this.tunnelManager.stop(() => this.emitSnapshot());
+    this.tunnelManager.reloadConfig();
+    this.tunnelManager.start(this.serverPort, () => this.emitSnapshot());
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  /**
+   * Persist one managed setting to the runtime env file, apply it to `process.env`, and re-apply
+   * the affected subsystem (ADR 0004's two-tier model). Most subsystems derive config from
+   * `process.env` per call, so they pick the change up automatically. The tunnel is the exception:
+   * if it is running, the caller is told a restart is needed and must confirm it (we never restart
+   * silently mid-event); if it is idle, its cached config is refreshed here.
+   */
+  saveManagedSetting(
+    id: string,
+    value: string
+  ): { snapshot: AppSnapshot; needsTunnelRestart: boolean } {
+    const definition = getManagedSetting(id);
+    if (!definition) {
+      throw new AppHttpError(`Unknown managed setting: ${id}`, 400, "unknown_managed_setting");
+    }
+    if (!this.runtimeEnvFilePath) {
+      throw new AppHttpError(
+        "Runtime settings file is not available.",
+        500,
+        "runtime_env_unavailable"
+      );
+    }
+
+    const trimmed = value.trim();
+    if (
+      definition.kind === "select" &&
+      trimmed.length > 0 &&
+      !definition.options?.some((option) => option.value === trimmed)
+    ) {
+      throw new AppHttpError(
+        `Invalid value for ${definition.label}.`,
+        400,
+        "invalid_managed_value"
+      );
+    }
+
+    writeManagedEnvValue(this.runtimeEnvFilePath, definition.envKey, trimmed);
+    applyManagedEnvValue(definition.envKey, trimmed);
+
+    const tunnelRunning = this.tunnelManager.isRunning();
+    if (definition.requiresTunnelRestart && !tunnelRunning) {
+      this.tunnelManager.reloadConfig();
+    }
+
+    this.emitSnapshot();
+    return {
+      snapshot: this.getSnapshot(),
+      needsTunnelRestart: Boolean(definition.requiresTunnelRestart) && tunnelRunning
+    };
+  }
+
+  /**
+   * Re-read the runtime env files from disk so hand-edited advanced settings take effect without a
+   * full restart. The reload overrides previously file-loaded values while preserving genuine
+   * shell overrides (key provenance in env.ts).
+   */
+  reloadSettings(): AppSnapshot {
+    const dirs = new Set<string>(this.dotenvSearchDirs);
+    for (const file of this.loadedDotenvFiles) {
+      dirs.add(path.dirname(file));
+    }
+    if (this.runtimeEnvFilePath) {
+      dirs.add(path.dirname(this.runtimeEnvFilePath));
+    }
+    this.loadedDotenvFiles = reloadDotenvFiles({ searchDirs: [...dirs] });
+    if (!this.tunnelManager.isRunning()) {
+      this.tunnelManager.reloadConfig();
+    }
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  /**
+   * Assemble the redacted diagnostics bundle: app/platform info, loaded env files, managed-key
+   * set/unset state, per-subsystem status, tunnel diagnostics with the separate reachability
+   * checks, and recent logs. Secrets are passed only to the redactor and never emitted.
+   */
+  async getDiagnosticsBundle(): Promise<DiagnosticsBundle> {
+    const diagnostics = this.tunnelManager.getDiagnostics();
+    const publicUrl = diagnostics.publicUrl ?? this.tunnelManager.getState().publicUrl ?? null;
+    const tunnelChecks = await runTunnelHealthChecks(publicUrl);
+    const snapshot = this.getSnapshot();
+    const secretValues = SECRET_ENV_KEYS.map((key) => process.env[key]?.trim()).filter(
+      (value): value is string => Boolean(value)
+    );
+
+    return assembleDiagnosticsBundle({
+      appVersion: this.appVersion,
+      platform: `${os.platform()} ${os.release()} (${os.arch()})`,
+      generatedAt: new Date().toISOString(),
+      runtimeEnv: snapshot.runtimeEnv,
+      subsystemHealth: snapshot.subsystemHealth,
+      tunnel: snapshot.tunnel,
+      tunnelDiagnostics: diagnostics,
+      tunnelChecks,
+      logs: this.logFilePath ? this.getLogLines() : [],
+      secretValues
+    });
   }
 
   getTunnelState(): TunnelState {

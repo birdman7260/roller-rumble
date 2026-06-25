@@ -172,6 +172,13 @@
       "message": ""
     }
   },
+  "runtimeEnv": {
+    "path": "",
+    "exists": false,
+    "loadedFiles": [],
+    "managedSettings": []
+  },
+  "subsystemHealth": [],
   "themes": [],
   "raceProjection": {
     "race": {

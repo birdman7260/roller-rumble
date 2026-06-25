@@ -2,9 +2,11 @@ import path from "node:path";
 import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { app, BrowserWindow, dialog, screen, shell } from "electron";
+import AdmZip from "adm-zip";
 import { loadDotenvFiles } from "../backend/env";
 import { createBackendServer, type BackendServer } from "../backend/server";
 import { handleStartupFailure } from "./startup-failure";
+import { getLogFilePath, getRecentLogLines, initLogging } from "./logging";
 import type {
   ProjectorWindowResizeResult,
   ProjectorWindowSizePreset
@@ -177,7 +179,35 @@ async function createWindows(port: number): Promise<void> {
   });
 }
 
+async function saveDiagnosticsBundle(
+  files: { name: string; content: string }[]
+): Promise<string | null> {
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const parentWindow = adminWindow ?? raceWindow;
+  const dialogOptions = {
+    title: "Save Roller Rumble diagnostics",
+    defaultPath: path.join(app.getPath("downloads"), `roller-rumble-diagnostics-${timestamp}.zip`),
+    filters: [{ name: "Zip archive", extensions: ["zip"] }]
+  };
+  const result = parentWindow
+    ? await dialog.showSaveDialog(parentWindow, dialogOptions)
+    : await dialog.showSaveDialog(dialogOptions);
+
+  if (result.canceled || !result.filePath) {
+    return null;
+  }
+
+  const zip = new AdmZip();
+  for (const file of files) {
+    zip.addFile(file.name, Buffer.from(file.content, "utf8"));
+  }
+  zip.writeZip(result.filePath);
+  return result.filePath;
+}
+
 async function bootstrap(): Promise<void> {
+  // Always-on logging is initialized before anything else so startup output is captured too.
+  initLogging();
   loadedDotenvFiles = loadDotenvFiles({ searchDirs: resolveDotenvSearchDirs() });
 
   // The backend is embedded into the desktop app so SQLite, APIs, and the racer page ship together.
@@ -185,13 +215,18 @@ async function bootstrap(): Promise<void> {
   backend = createBackendServer({
     dataDir: userDataDir,
     loadedDotenvFiles,
+    dotenvSearchDirs: resolveDotenvSearchDirs(),
     openExternalUrl: (url) => shell.openExternal(url),
     openPath: (filePath) => shell.openPath(filePath),
     port: Number(process.env.ROLLER_RUMBLE_PORT ?? "3187"),
     resizeProjectorWindow: async (preset) => resizeRaceWindow(preset),
     rendererDistDir: resolveRendererDistDir(),
     rendererDevUrl: process.env.ELECTRON_RENDERER_URL,
-    runtimeEnvFilePath: resolveRuntimeEnvFilePath()
+    runtimeEnvFilePath: resolveRuntimeEnvFilePath(),
+    appVersion: app.getVersion(),
+    getLogLines: () => getRecentLogLines(),
+    logFilePath: getLogFilePath(),
+    saveDiagnosticsBundle: (files) => saveDiagnosticsBundle(files)
   });
 
   let port: number;

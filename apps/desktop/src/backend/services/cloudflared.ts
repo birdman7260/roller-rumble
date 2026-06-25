@@ -30,7 +30,8 @@ function originRequestFailureMessage(): string {
 }
 
 export class CloudflaredTunnelManager {
-  private readonly config: CloudflaredConfig;
+  private config: CloudflaredConfig;
+  private readonly dataDir: string;
   private process: ChildProcessWithoutNullStreams | null = null;
   private activationTimer: NodeJS.Timeout | null = null;
   private requestFailure: string | null = null;
@@ -38,9 +39,27 @@ export class CloudflaredTunnelManager {
   private state: TunnelState;
 
   constructor(options: CloudflaredTunnelManagerOptions) {
+    this.dataDir = options.dataDir;
     this.config = createCloudflaredConfig({ dataDir: options.dataDir });
     const diagnostics = resolveCloudflared(this.config);
     this.state = this.stateFromDiagnostics("idle", diagnostics);
+  }
+
+  /**
+   * Re-read tunnel config from the (now-updated) environment. The tunnel is the one subsystem
+   * that caches its config at construction, so a managed-setting change to a tunnel key only
+   * takes effect after this — and, if the tunnel is running, after a restart. We never restart
+   * here: a live event's racer connections ride the tunnel, so the restart is user-confirmed.
+   */
+  reloadConfig(): void {
+    this.config = createCloudflaredConfig({ dataDir: this.dataDir });
+    if (!this.process) {
+      this.state = this.stateFromDiagnostics("idle", resolveCloudflared(this.config));
+    }
+  }
+
+  isRunning(): boolean {
+    return this.process !== null;
   }
 
   getState(): TunnelState {

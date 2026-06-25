@@ -434,7 +434,14 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     },
     tunnel: {
       status: "idle"
-    }
+    },
+    runtimeEnv: {
+      path: "",
+      exists: false,
+      loadedFiles: [],
+      managedSettings: []
+    },
+    subsystemHealth: []
   };
 }
 
