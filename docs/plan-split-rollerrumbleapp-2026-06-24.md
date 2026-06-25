@@ -8,10 +8,10 @@
 
 **Pass 1 complete.** All three leaf services are extracted; the full quality gate is green.
 
-| Service                 | State      | Notes                                                                                        |
-| ----------------------- | ---------- | -------------------------------------------------------------------------------------------- |
-| **AuthService**         | ✅ Shipped | `services/auth.ts`. Extracted together with PaymentService in one effort.                    |
-| **PaymentService**      | ✅ Shipped | `services/payment.ts`. App keeps the webhook→queue orchestration (see §2 + ADR 0003).        |
+| Service                 | State      | Notes                                                                                         |
+| ----------------------- | ---------- | --------------------------------------------------------------------------------------------- |
+| **AuthService**         | ✅ Shipped | `services/auth.ts`. Extracted together with PaymentService in one effort.                     |
+| **PaymentService**      | ✅ Shipped | `services/payment.ts`. App keeps the webhook→queue orchestration (see §2 + ADR 0003).         |
 | **NotificationService** | ✅ Shipped | `services/notifications-service.ts`. Triggers + admin target resolution stay in app (see §3). |
 
 Deviations from the decisions table below, all deliberate and approved:
@@ -122,15 +122,15 @@ since they reach into queue/tournament state and event racers.
   (→ delivery count; public so app triggers call it). Private: `dispatchNotificationPushes`.
 - **Re-broadcast seam:** dispatch is async fire-and-forget; after it updates delivery state it
   calls an injected `onPushDelivered` callback (`new NotificationService(db, () =>
-  this.emitSnapshot())`) instead of emitting — the established sensor/OS2L adapter idiom.
+this.emitSnapshot())`) instead of emitting — the established sensor/OS2L adapter idiom.
 - **Stayed in app:** `resolveAdminNotificationTargets` + `sendAdminNotification` (cross-domain
   target resolution + orchestration), and the triggers `runQueueNotificationTriggers` /
   `notifyTournamentStarted` — all call `this.notifications.createNotificationAndDispatch(...)`.
 - **Port:** `NotificationStore = Pick<AppDatabase, 'getActiveEvent' | 'ensureEventRegistration'
-  | 'getRacer' | 'upsertPushSubscription' | 'revokePushSubscription' |
-  'listActivePushSubscriptionsForRacers' | 'listNotificationsForRacer' | 'markNotificationRead'
-  | 'createNotification' | 'getNotification' | 'listNotificationDeliveries' |
-  'updateNotificationDeliveryPushStatus'>`.
+| 'getRacer' | 'upsertPushSubscription' | 'revokePushSubscription' |
+'listActivePushSubscriptionsForRacers' | 'listNotificationsForRacer' | 'markNotificationRead'
+| 'createNotification' | 'getNotification' | 'listNotificationDeliveries' |
+'updateNotificationDeliveryPushStatus'>`.
 - **Tests:** `notifications.test.ts` (pure helpers) untouched; added
   `notifications-service.test.ts` (8 cases) covering config, subscription CRUD, inbox, and the
   dispatch→`onPushDelivered` seam.

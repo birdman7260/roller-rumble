@@ -1,0 +1,13 @@
+# Operator-facing config is edited through in-app managed settings that write the runtime env file and re-apply live
+
+Non-technical operators were configuring the app by hand-editing `.env.local` (uncomment a line, paste a value with no spaces around `=`, no trailing newline, then fully restart). Most of these mistakes are invisible to the running app — by the time `dotenv.parse` runs, a botched line is just an absent or wrong variable — so failures (e.g. a rejected Cloudflare tunnel token) could not be diagnosed remotely. We decided to move the small set of operator-facing keys into in-app **managed settings**: labeled Settings fields that the app reads and writes back into the runtime env file itself, eliminating an entire class of hand-edit errors rather than reporting them after the fact.
+
+The managed set is deliberately small and stable — tunnel mode/token/name, Stripe secret/webhook keys and CA cert, LAN host, public racer URL, and web push keys. Everything else (`CLOUDFLARED_PATH`, ports, `DATA_DIR`, `PASSKEY_RP_ID`, Vite hosts, debug flags, and the booth agent's `BOOTH_*` vars) stays an **advanced setting**: read but never written by the app, changed only by hand-editing the file, validated on load but never surfaced as a field. This split keeps the operator surface focused while leaving power-user escape hatches in the file.
+
+Changes apply without a full app restart via a two-tier model. A managed-field Save writes the file, updates `process.env` in memory, and re-applies only the affected subsystem; a generic "Reload settings from disk" covers hand-edited advanced settings. This is feasible because nearly every subsystem already derives its config as a pure function of `process.env` on each use (`getStripeRuntimeConfig`, `getWebPushRuntimeConfig`, `network` host resolution), so they pick up changes on the next call automatically. The Cloudflare tunnel is the sole exception — it caches config in its constructor and owns a child process — so it requires an explicit, **user-confirmed** restart, never a silent one, because a live event's racer connections ride that tunnel.
+
+## Consequences
+
+- `loadDotenvFiles` currently refuses to overwrite keys already present in `process.env` (to preserve real shell overrides). A reload path must distinguish file-sourced keys from genuine shell-provided keys, or reloading will silently no-op.
+- The app and a colleague's hand-edits can both write the runtime env file, so writes must be key-targeted (the existing `replaceOrAppendEnvValue` pattern) rather than rewriting the whole file.
+- Secret values live in UI fields (masked, reveal-on-demand, last-4) and must never reach logs or the diagnostics bundle.

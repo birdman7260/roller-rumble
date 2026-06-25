@@ -39,3 +39,23 @@ _Avoid_: client type, channel
 
 **racer payload**: The public-safe projection of an `AppSnapshot` for racer phones—live metrics, result presentation, themes, ticker messages, and operator-only tunnel/OS2L/photo-booth/Stripe detail are stripped. One payload serves all racers (no per-racer identity).
 _Avoid_: filtered snapshot, mobile snapshot
+
+### Setup and diagnostics
+
+**runtime env file**: The per-user, gitignored `.env.local` the app loads at startup; lives at the workspace root in dev and the platform userData folder in packaged builds. The app reads it for all settings and writes back to it for managed settings.
+_Avoid_: dotenv file, config file
+
+**managed setting**: A configuration value an operator edits through an in-app Settings field; the app persists it into the runtime env file on their behalf and re-applies it without a hand-edited file. The managed set is the small list of operator-facing keys (tunnel mode/token/name, Stripe keys and CA cert, LAN host, public racer URL, web push keys).
+_Avoid_: env field, config field
+
+**advanced setting**: An env var the app reads but never writes, changed only by hand-editing the runtime env file (e.g. cloudflared path, ports, data dir, passkey RP id, debug flags). Validated on load, but never surfaced as an in-app field.
+_Avoid_: raw env, power-user setting
+
+**subsystem health**: The ready/degraded/failed readiness state of one configurable subsystem—tunnel, Stripe, web push, network, OS2L, photo booth—aggregated on the Settings status surface so an operator can answer "is anything broken?" at a glance.
+_Avoid_: service status, system status
+
+**known-error catalog**: The mapping from a recognized subsystem failure to plain-language operator guidance and a next action. Unrecognized failures fall back to surfacing the raw error plus "copy the diagnostics bundle and send it to the maintainer."
+_Avoid_: error map, error table
+
+**diagnostics bundle**: The redacted, shareable export of app status and logs a colleague sends to the maintainer when something fails—offered as a copyable summary and a saved zip of full logs. Secret values are never included; secrets appear only as set/unset or last-4.
+_Avoid_: log export, debug dump
