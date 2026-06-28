@@ -7,7 +7,14 @@
  * subsystem mapping) and the renderer (which fields to render and how to mask them).
  */
 
-export type SubsystemId = "tunnel" | "stripe" | "webPush" | "network" | "os2l" | "photoBooth";
+export type SubsystemId =
+  | "tunnel"
+  | "stripe"
+  | "webPush"
+  | "network"
+  | "os2l"
+  | "photoBooth"
+  | "sensor";
 
 export type ManagedSettingKind = "text" | "secret" | "select";
 
@@ -148,6 +155,66 @@ export const MANAGED_SETTINGS: readonly ManagedSettingDefinition[] = [
     kind: "text",
     secret: false,
     subsystem: "webPush"
+  },
+  {
+    id: "sensorMode",
+    envKey: "ROLLER_RUMBLE_SENSOR_MODE",
+    label: "Bike sensor",
+    description:
+      "Simulator generates fake riders for testing. OpenSprints uses the physical USB race box. Changing this takes effect after you fully quit and reopen Roller Rumble.",
+    kind: "select",
+    secret: false,
+    subsystem: "sensor",
+    options: [
+      { value: "simulator", label: "Simulator (no hardware)" },
+      { value: "opensprints", label: "OpenSprints USB box" }
+    ]
+  },
+  {
+    id: "sensorProtocol",
+    envKey: "ROLLER_RUMBLE_SENSOR_PROTOCOL",
+    label: "Sensor protocol",
+    description:
+      "Leave on Auto-detect for almost every box. Only force a specific OpenSprints firmware if auto-detect can't identify yours — the oldest 'advanced' firmware can't announce itself, so it must be set here.",
+    kind: "select",
+    secret: false,
+    subsystem: "sensor",
+    options: [
+      { value: "auto", label: "Auto-detect (recommended)" },
+      { value: "ss-basic", label: "SilverSprint (newest)" },
+      { value: "basic", label: "OpenSprints basic" },
+      { value: "advanced", label: "OpenSprints advanced (oldest)" }
+    ]
+  },
+  {
+    id: "sensorPort",
+    envKey: "ROLLER_RUMBLE_SENSOR_PORT",
+    label: "Sensor serial port",
+    description:
+      "Leave blank to auto-detect the race box. Set this to a specific port (e.g. COM3 on Windows, /dev/tty.usbserial-XXXX on Mac) only if auto-detect picks the wrong device.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "sensorLaneMap",
+    envKey: "ROLLER_RUMBLE_SENSOR_LANE_MAP",
+    label: "Sensor lane map",
+    description:
+      "Which race lane each sensor port feeds, in order, comma-separated. Use left, right, solo, or unused. Example: left,right. Leave blank to map sensors to racers in order. A flipped map crowns the wrong winner, so confirm it against the real wiring.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "sensorRolloutMeters",
+    envKey: "ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS",
+    label: "Roller rollout (meters)",
+    description:
+      "Distance a bike travels per one roller revolution, measured from your hardware. Feeds race distance and speed. Leave blank to use the default. Wrong values make distances and speeds wrong.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
   }
 ] as const;
 

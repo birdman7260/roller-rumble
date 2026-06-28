@@ -1,4 +1,5 @@
 import type { RaceRecord } from "@roller-rumble/shared/types";
+import { DEFAULT_WHEEL_CIRCUMFERENCE_METERS } from "@roller-rumble/shared/constants";
 import { nowIso } from "@roller-rumble/shared/utils";
 import type { AppDatabase } from "../db/Database";
 import type { SensorAdapter } from "../adapters/sensor";
@@ -23,6 +24,7 @@ export class ActiveRace {
   private finished = false;
   private finalizeTimer: NodeJS.Timeout | null = null;
   private startedAtMs: number;
+  private wheelCircumferenceMeters: number;
   private db: AppDatabase;
   private sensor: SensorAdapter;
   private onFinalized: (result: FinalizedRaceResult) => void;
@@ -40,6 +42,10 @@ export class ActiveRace {
     this.db = db;
     this.sensor = sensor;
     this.onFinalized = onFinalized;
+    // The rollout is fixed for the life of a race: capture it once at start rather than re-reading
+    // the setting per tick, so an operator edit only affects the next race.
+    this.wheelCircumferenceMeters =
+      sensor.wheelCircumferenceMeters ?? DEFAULT_WHEEL_CIRCUMFERENCE_METERS;
     this.startedAtMs = race.startedAt ? new Date(race.startedAt).getTime() : Date.now();
 
     // Initialize lane states
@@ -132,10 +138,14 @@ export class ActiveRace {
       return;
     }
 
-    const next = applyRotationSample(laneState, {
-      timestampMs,
-      deltaRotations
-    });
+    const next = applyRotationSample(
+      laneState,
+      {
+        timestampMs,
+        deltaRotations
+      },
+      this.wheelCircumferenceMeters
+    );
 
     this.laneStates.set(racerId, next);
 

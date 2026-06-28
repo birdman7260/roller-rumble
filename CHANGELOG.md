@@ -8,6 +8,11 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Roller Rumble can now run races from the physical OpenSprints USB race box, not just the built-in simulator. Pick "OpenSprints USB box" under the new Bike sensor setting; the app finds the box automatically (or you can set a specific serial port if needed). The race countdown follows the box's own 3‑2‑1‑GO, and roller revolutions drive each racer's distance and speed.
+- All three OpenSprints firmware generations are supported (newest SilverSprint, original basic, and the oldest advanced). The app auto-detects which one your box speaks; only the oldest firmware, which can't announce itself, needs the protocol picked manually.
+- New Bike sensor settings: which lane each sensor cable feeds (lane map), how far a bike travels per roller revolution (roller rollout, measured from your hardware), a manual serial port override for when auto-detect picks the wrong device, and a sensor-protocol override.
+- The Settings status panel now includes the Bike sensor, showing whether the box is connected (and on which port) or the simulator is in use.
+- If the race box loses its connection during a race, the race is marked interrupted so you can restart it instead of recording a half-finished result.
 - Settings now has a Status panel at the top showing each part of the app (tunnel, Stripe, notifications, network, VirtualDJ, photo booth) as Ready, Degraded, Failed, or Off at a glance, with plain-language guidance and a suggested fix when a known problem is detected.
 - The settings an operator commonly changes — Cloudflare tunnel mode/token/name, Stripe secret and webhook keys and CA certificate, local network address, public racer URL, and web push keys — are now labeled fields in Settings that the app saves into the settings file for you. Secret fields are hidden with a reveal toggle and show only the last 4 characters once set.
 - Saving a managed setting now takes effect without quitting and relaunching the app. Changing a tunnel setting asks before restarting the tunnel so a live event's racer connections are never dropped without confirmation.

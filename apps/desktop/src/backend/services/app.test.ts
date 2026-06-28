@@ -1,6 +1,42 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AdminSettings, AppSnapshot, RaceRecord } from "@roller-rumble/shared/types";
+import type { SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { RollerRumbleApp } from "./app";
+
+type LifecycleInvoker = (this: unknown, event: SensorLifecycleEvent) => void;
+type StatusChangeInvoker = (this: unknown, status: SensorStatus) => void;
+
+function getLifecycleInvoker(): LifecycleInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "handleSensorLifecycle");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing handleSensorLifecycle implementation");
+  }
+
+  return candidate as LifecycleInvoker;
+}
+
+function getStatusChangeInvoker(): StatusChangeInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "handleSensorStatusChange");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing handleSensorStatusChange implementation");
+  }
+
+  return candidate as StatusChangeInvoker;
+}
+
+function buildSensorStatus(patch: Partial<SensorStatus> = {}): SensorStatus {
+  return {
+    adapterId: "opensprints",
+    label: "OpenSprints USB box",
+    connected: true,
+    detail: "Connected.",
+    portPath: "/dev/ttyBox",
+    firmware: "SS_v0.1.7",
+    manualPortOverride: null,
+    lastError: null,
+    ...patch
+  };
+}
 
 type CountdownInvoker = (
   this: unknown,
@@ -255,7 +291,8 @@ describe("app service countdown flow", () => {
       getSnapshot: () => snapshot,
       os2lTrigger: {
         disarmRace: vi.fn()
-      }
+      },
+      sensorAdapter: { drivesCountdown: false }
     });
     Object.defineProperty(target, "activateRace", {
       configurable: true,
@@ -370,6 +407,178 @@ describe("app service countdown flow", () => {
     );
 
     expect(markQueueEntryStatus).toHaveBeenCalledWith("queue-1", "completed");
+  });
+});
+
+describe("app service hardware-driven countdown", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("hands the countdown to a sensor that drives its own countdown", () => {
+    vi.useFakeTimers();
+    const snapshot = { generatedAt: "now" } as AppSnapshot;
+    const updateRace = vi.fn();
+    const activateRace = vi.fn();
+    const armCountdown = vi.fn();
+    const endRace = vi.fn();
+    const currentRace = buildRaceRecord();
+    const target = withAppPrototype({
+      countdownStartTimer: null,
+      countdownTicker: null,
+      countdownRuntime: null,
+      hardwareCountdownRaceId: null,
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        getAdminSettings: () => ({ os2lEnabled: false }),
+        getCurrentRace: () => currentRace,
+        getRace: () => buildRaceRecord({ state: "countdown" }),
+        updateRace
+      },
+      emitSnapshot: vi.fn(),
+      getSnapshot: () => snapshot,
+      os2lTrigger: { disarmRace: vi.fn() },
+      sensorAdapter: { drivesCountdown: true, armCountdown, endRace }
+    });
+    Object.defineProperty(target, "activateRace", {
+      configurable: true,
+      value: activateRace
+    });
+
+    invokeStartCountdown(target, "manual", { countdownDurationMs: 3_000 });
+
+    expect(armCountdown).toHaveBeenCalledWith(currentRace.participants);
+    expect(target.hardwareCountdownRaceId).toBe("race-1");
+
+    // The app must not run its own activation timer for a box-driven countdown.
+    vi.advanceTimersByTime(3_000);
+    expect(activateRace).not.toHaveBeenCalled();
+
+    // Past the grace window with no GO, it aborts back to staging, never starting.
+    vi.advanceTimersByTime(4_000);
+    expect(endRace).toHaveBeenCalled();
+    expect(updateRace).toHaveBeenCalledWith("race-1", {
+      state: "staging",
+      countdownStartedAt: null
+    });
+    expect(activateRace).not.toHaveBeenCalled();
+  });
+
+  it("activates the race when the box reports GO", () => {
+    const activateRace = vi.fn();
+    const target = withAppPrototype({
+      hardwareCountdownRaceId: "race-1",
+      countdownStartTimer: null,
+      countdownTicker: null,
+      countdownRuntime: { raceId: "race-1", durationMs: 3_000 }
+    });
+    Object.defineProperty(target, "activateRace", {
+      configurable: true,
+      value: activateRace
+    });
+
+    getLifecycleInvoker().call(target, { type: "go" });
+
+    expect(activateRace).toHaveBeenCalledWith("race-1");
+    expect(target.hardwareCountdownRaceId).toBeNull();
+  });
+
+  it("re-stamps the countdown UI from the box's CD: cadence", () => {
+    let stampedCountdownStartedAt: unknown = undefined;
+    const updateRace = vi.fn((_raceId: string, patch: { countdownStartedAt?: unknown }) => {
+      stampedCountdownStartedAt = patch.countdownStartedAt;
+    });
+    const emitSnapshot = vi.fn();
+    const target = withAppPrototype({
+      hardwareCountdownRaceId: "race-1",
+      countdownRuntime: null,
+      db: { updateRace },
+      emitSnapshot
+    });
+
+    getLifecycleInvoker().call(target, { type: "countdown", secondsRemaining: 2 });
+
+    expect(target.countdownRuntime).toEqual({ raceId: "race-1", durationMs: 2_000 });
+    expect(updateRace).toHaveBeenCalledWith("race-1", {
+      countdownStartedAt: stampedCountdownStartedAt
+    });
+    expect(typeof stampedCountdownStartedAt).toBe("string");
+    expect(emitSnapshot).toHaveBeenCalledTimes(1);
+  });
+
+  it("reverts to staging when the box aborts the countdown", () => {
+    const updateRace = vi.fn();
+    const endRace = vi.fn();
+    const target = withAppPrototype({
+      hardwareCountdownRaceId: "race-1",
+      countdownStartTimer: null,
+      countdownTicker: null,
+      db: {
+        getRace: () => buildRaceRecord({ state: "countdown" }),
+        updateRace
+      },
+      emitSnapshot: vi.fn(),
+      sensorAdapter: { endRace }
+    });
+
+    getLifecycleInvoker().call(target, { type: "abort", reason: "cable yanked" });
+
+    expect(endRace).toHaveBeenCalled();
+    expect(updateRace).toHaveBeenCalledWith("race-1", {
+      state: "staging",
+      countdownStartedAt: null
+    });
+    expect(target.hardwareCountdownRaceId).toBeNull();
+  });
+
+  it("ignores box lifecycle events when no hardware countdown is in flight", () => {
+    const activateRace = vi.fn();
+    const target = withAppPrototype({ hardwareCountdownRaceId: null });
+    Object.defineProperty(target, "activateRace", {
+      configurable: true,
+      value: activateRace
+    });
+
+    getLifecycleInvoker().call(target, { type: "go" });
+
+    expect(activateRace).not.toHaveBeenCalled();
+  });
+
+  it("interrupts the live race when the box disconnects mid-race", () => {
+    const updateRace = vi.fn();
+    const endRace = vi.fn();
+    const dispose = vi.fn();
+    const emitSnapshot = vi.fn();
+    const target = withAppPrototype({
+      currentActiveRace: { dispose },
+      sensorAdapter: { endRace },
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        getCurrentRace: () => buildRaceRecord({ state: "active" }),
+        updateRace
+      },
+      emitSnapshot
+    });
+
+    getStatusChangeInvoker().call(target, buildSensorStatus({ connected: false }));
+
+    expect(dispose).toHaveBeenCalled();
+    expect(endRace).toHaveBeenCalled();
+    expect(updateRace).toHaveBeenCalledWith("race-1", { state: "interrupted" });
+    expect(target.currentActiveRace).toBeNull();
+  });
+
+  it("does not interrupt on a disconnect when no race is live", () => {
+    const emitSnapshot = vi.fn();
+    const target = withAppPrototype({
+      currentActiveRace: null,
+      emitSnapshot
+    });
+
+    getStatusChangeInvoker().call(target, buildSensorStatus({ connected: false }));
+
+    expect(emitSnapshot).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -40,6 +40,17 @@ _Avoid_: client type, channel
 **racer payload**: The public-safe projection of an `AppSnapshot` for racer phones—live metrics, result presentation, themes, ticker messages, and operator-only tunnel/OS2L/photo-booth/Stripe detail are stripped. One payload serves all racers (no per-racer identity).
 _Avoid_: filtered snapshot, mobile snapshot
 
+### Hardware sensing
+
+**tick**: The atomic unit of progress the race hardware reports — one revolution of a bike's roller, sensed as one reed-switch pulse. The OpenSprints box streams a cumulative tick count per sensor position; the app turns each new tick into one rotation of distance. Distance per tick is the roller's **rollout**, not a bike-wheel circumference.
+_Avoid_: pulse, count, rotation (when the hardware unit is meant)
+
+**rollout**: The real-world distance a bike travels per one roller revolution — the calibration constant that converts ticks into meters. Hardware-specific; measured, not assumed.
+_Avoid_: wheel circumference, roller diameter
+
+**lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack.
+_Avoid_: sensor mapping, channel assignment
+
 ### Setup and diagnostics
 
 **runtime env file**: The per-user, gitignored `.env.local` the app loads at startup; lives at the workspace root in dev and the platform userData folder in packaged builds. The app reads it for all settings and writes back to it for managed settings.
