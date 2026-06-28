@@ -1,0 +1,72 @@
+===========================================================================
+ OpenSprints Race Box - Recon Probe   (for Wyatt)
+===========================================================================
+
+WHAT THIS IS
+  A small, safe tool that listens to the race box and saves what it hears to
+  a text file. It does NOT install anything, does NOT change the computer, and
+  does NOT need an administrator password. The whole thing takes ~10 minutes.
+
+WHAT YOU NEED
+  - The race box plugged into the laptop by its USB cable (the same laptop and
+    cable that normally run the old race program).
+  - The bikes connected to the box as usual.
+  - The OLD race program CLOSED. (Only one program can use the box at a time.
+    If the old program is open, this tool can't read the box.)
+
+-----------------------------------------------------------------------------
+ STEP-BY-STEP
+-----------------------------------------------------------------------------
+  1. Make sure the old race program is fully closed.
+  2. Plug the race box into the laptop.
+  3. Double-click  run-probe.bat  (in this same folder).
+  4. Follow the on-screen prompts. It will:
+       - list the devices it sees,
+       - connect to the box,
+       - ask you to pedal ONE bike at a time (left, then right).
+     Pedal a steady, easy pace for each part when it asks.
+  5. When it finishes, it saves a file named like:
+        opensprints-capture_2026-06-27_143015.txt
+     in this same folder.
+  6. EMAIL that .txt file back to Michael. That's it - you're done.
+
+-----------------------------------------------------------------------------
+ IF SOMETHING GOES WRONG
+-----------------------------------------------------------------------------
+ "Windows protected your PC" (blue box):
+     Click "More info", then "Run anyway". (This is normal for a downloaded
+     file; the tool is safe.)
+
+ The .bat window flashes and disappears, OR says scripts are disabled:
+     Right-click  Probe-OpenSprints.ps1  ->  "Run with PowerShell".
+     If Windows asks about execution policy, type  R  and press Enter.
+
+ Still blocked by a script policy (rare, locked-down work laptops):
+     a) Click the Start menu, type  PowerShell , open "Windows PowerShell".
+     b) Type this and press Enter (copy it exactly):
+            powershell -ExecutionPolicy Bypass -File "FULL\PATH\TO\Probe-OpenSprints.ps1"
+        (Replace the path with where this folder lives, e.g.
+         C:\Users\You\Desktop\opensprints-probe\Probe-OpenSprints.ps1 .
+         Tip: hold Shift, right-click the .ps1 file, "Copy as path", and paste.)
+
+ "Access denied" when it tries to open the port:
+     The old race program is still running and holding the box. Close it
+     completely (check the system tray by the clock too), then run again.
+
+ "No COM ports found" / "Is the box plugged in?":
+     Unplug and replug the box's USB cable, try a different USB port on the
+     laptop, then run the tool again.
+
+ It picks the wrong device / more than one COM port is listed:
+     When it asks for a port, type the one that looks like the box (often
+     "FTDI", "Arduino", "CH340", "USB Serial", or "Silicon Labs CP210x").
+     If you guess wrong, just close it and run again - nothing is harmed.
+
+-----------------------------------------------------------------------------
+ WHAT TO SEND BACK
+-----------------------------------------------------------------------------
+  Just the .txt file it created (opensprints-capture_...txt). Even if some
+  step seemed to fail, send whatever file got created - it still helps.
+
+  Thank you!  - Michael
+===========================================================================

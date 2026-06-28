@@ -12,6 +12,7 @@ import type {
 } from "@roller-rumble/shared/types";
 import { getTheme, themes } from "@roller-rumble/shared/themes";
 import type { AppDatabase } from "../db/Database";
+import type { SensorStatus } from "../adapters/sensor";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
 import { assembleSubsystemHealth } from "./subsystem-health";
 
@@ -28,6 +29,7 @@ export interface SnapshotContext {
   os2l: Os2lDiagnostics;
   photoBooth: PhotoBoothStatus;
   stripe: StripeSetupStatus;
+  sensor: SensorStatus;
   runtimeEnv: RuntimeEnvInfo;
   countdownDurationMsFor: (raceId: string) => number;
   /** Defaults to Date.now; injected for deterministic tests. */
@@ -106,7 +108,8 @@ export class SnapshotAssembler {
         os2lEnabled: settings.os2lEnabled,
         stripe: ctx.stripe,
         photoBooth: ctx.photoBooth,
-        runtimeEnv: ctx.runtimeEnv
+        runtimeEnv: ctx.runtimeEnv,
+        sensor: ctx.sensor
       }),
       themes,
       raceProjection: {

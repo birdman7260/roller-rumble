@@ -276,6 +276,46 @@
         "set": true,
         "value": "configured-value",
         "last4": null
+      },
+      {
+        "id": "sensorMode",
+        "envKey": "ROLLER_RUMBLE_SENSOR_MODE",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "sensorProtocol",
+        "envKey": "ROLLER_RUMBLE_SENSOR_PROTOCOL",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "sensorPort",
+        "envKey": "ROLLER_RUMBLE_SENSOR_PORT",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "sensorLaneMap",
+        "envKey": "ROLLER_RUMBLE_SENSOR_LANE_MAP",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "sensorRolloutMeters",
+        "envKey": "ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
       }
     ]
   },
@@ -325,6 +365,14 @@
       "label": "Photo booth",
       "status": "ready",
       "summary": "Camera ready",
+      "lastError": null,
+      "guidance": null
+    },
+    {
+      "id": "sensor",
+      "label": "Bike sensor",
+      "status": "ready",
+      "summary": "Using the built-in simulator (no hardware).",
       "lastError": null,
       "guidance": null
     }

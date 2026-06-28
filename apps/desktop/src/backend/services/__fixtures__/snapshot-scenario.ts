@@ -15,6 +15,7 @@ import type {
 } from "@roller-rumble/shared/types";
 import { COUNTDOWN_DURATION_MS, DEFAULT_THEME_ID } from "@roller-rumble/shared/constants";
 import { MANAGED_SETTINGS } from "@roller-rumble/shared/managed-settings";
+import type { SensorStatus } from "../../adapters/sensor";
 import type { AppDatabase } from "../../db/Database";
 
 // A single pinned instant so generatedAt / Date.now()-derived fields are deterministic
@@ -254,6 +255,17 @@ export const SCENARIO_STRIPE: StripeSetupStatus = {
   extraCaCertFile: null,
   publicRacerUrl: "https://pay.example.test",
   message: "Stripe configured"
+};
+
+export const SCENARIO_SENSOR: SensorStatus = {
+  adapterId: "simulator",
+  label: "Built-in simulator",
+  connected: true,
+  detail: "Using the built-in simulator (no hardware).",
+  portPath: null,
+  firmware: null,
+  manualPortOverride: null,
+  lastError: null
 };
 
 export const SCENARIO_RESULT_PRESENTATION: RaceResultPresentation = {

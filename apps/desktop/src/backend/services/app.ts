@@ -54,6 +54,9 @@ import { AppDatabase, type StoredPaymentRecord } from "../db/Database";
 import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
 import { SimulatorSensorAdapter } from "../adapters/sensor-simulator";
+import { OpenSprintsSensorAdapter } from "../adapters/opensprints-sensor";
+import { readSensorMode } from "../adapters/sensor-config";
+import type { SensorAdapter, SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { ActiveRace, type FinalizedRaceResult } from "./active-race";
 import {
   SnapshotAssembler,
@@ -200,12 +203,28 @@ function moveFile(sourcePath: string, destinationPath: string): void {
   }
 }
 
+// When the sensor box drives its own countdown, the app waits this much longer
+// than the nominal countdown before giving up on a missing GO and aborting, so a
+// slightly slow box doesn't strand a staged race.
+const HARDWARE_COUNTDOWN_GRACE_MS = 4_000;
+
+/**
+ * Pick the sensor adapter from the managed `sensorMode` setting. The choice is made once at
+ * construction (it reads the env that dotenv has already loaded), so switching sensors takes effect
+ * on the next launch — the same restart contract as the other hardware-affecting managed settings.
+ */
+function createSensorAdapter(): SensorAdapter {
+  return readSensorMode() === "opensprints"
+    ? new OpenSprintsSensorAdapter()
+    : new SimulatorSensorAdapter();
+}
+
 export class RollerRumbleApp extends EventEmitter {
   readonly dataDir: string;
   readonly uploadsDir: string;
   readonly db: AppDatabase;
 
-  private readonly sensorAdapter = new SimulatorSensorAdapter();
+  private readonly sensorAdapter: SensorAdapter = createSensorAdapter();
   private readonly manualTrigger = new ManualRaceTriggerAdapter();
   // Debug sessions sometimes need a second app instance; allowing the OS2L port to move keeps
   // the duplicate instance isolated without affecting the normal production default.
@@ -221,6 +240,9 @@ export class RollerRumbleApp extends EventEmitter {
   private countdownTicker: NodeJS.Timeout | null = null;
   private countdownStartTimer: NodeJS.Timeout | null = null;
   private countdownRuntime: { raceId: string; durationMs: number } | null = null;
+  // Set while a hardware-driven countdown is in flight, so lifecycle events from
+  // the box (CD:/GO) are matched to the race that is actually counting down.
+  private hardwareCountdownRaceId: string | null = null;
   private currentActiveRace: ActiveRace | null = null;
   private resultPresentation: RaceResultPresentation | null = null;
   private resultPresentationTimer: NodeJS.Timeout | null = null;
@@ -260,10 +282,12 @@ export class RollerRumbleApp extends EventEmitter {
     this.os2lTrigger.onDiagnosticsChange(() => this.emitSnapshot());
     this.os2lTrigger.start((source, options) => this.startCountdown(source, options));
     this.os2lTrigger.setEnabled(settings.os2lEnabled);
-    this.sensorAdapter.connect((event) => {
+    void this.sensorAdapter.connect((event) => {
       this.currentActiveRace?.tick(event.racerId, event.timestampMs, event.deltaRotations);
       this.emitSnapshot();
     });
+    this.sensorAdapter.onLifecycle?.((event) => this.handleSensorLifecycle(event));
+    this.sensorAdapter.onStatusChange?.((status) => this.handleSensorStatusChange(status));
     if (!this.maybeAutoStageNextRace()) {
       this.syncOs2lArmingForCurrentRace(settings);
       this.emitSnapshot();
@@ -271,7 +295,7 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   async close(): Promise<void> {
-    this.sensorAdapter.disconnect();
+    void this.sensorAdapter.disconnect();
     this.manualTrigger.stop();
     this.os2lTrigger.stop();
     this.tunnelManager.stop();
@@ -280,6 +304,7 @@ export class RollerRumbleApp extends EventEmitter {
       this.countdownTicker = null;
     }
     this.clearCountdownStartTimer();
+    this.hardwareCountdownRaceId = null;
     this.currentActiveRace?.dispose();
     if (this.resultPresentationTimer) {
       clearTimeout(this.resultPresentationTimer);
@@ -452,6 +477,7 @@ export class RollerRumbleApp extends EventEmitter {
       os2l: this.os2lTrigger.getDiagnostics(),
       photoBooth: this.getPhotoBoothStatus(),
       stripe: this.payment.getStripeSetupStatus(),
+      sensor: this.getSensorStatus(),
       runtimeEnv: getRuntimeEnvInfo(this.runtimeEnvFilePath ?? "", this.loadedDotenvFiles),
       countdownDurationMsFor: (raceId) => this.getCountdownDurationMs(raceId)
     };
@@ -2024,17 +2050,133 @@ export class RollerRumbleApp extends EventEmitter {
     }, 250);
 
     this.clearCountdownStartTimer();
-    this.countdownStartTimer = setTimeout(() => {
-      this.countdownStartTimer = null;
-      if (this.countdownTicker) {
-        clearInterval(this.countdownTicker);
-        this.countdownTicker = null;
-      }
-      this.activateRace(currentRace.id);
-    }, countdownDurationMs);
+    if (this.sensorAdapter.drivesCountdown) {
+      // The hardware box runs its own 3-2-1-GO; tell it to start and let its
+      // lifecycle events (handleSensorLifecycle) re-stamp the countdown and
+      // activate the race. The timer here is only a safety net: if the box never
+      // reports GO, abort instead of stranding the staged race.
+      this.hardwareCountdownRaceId = currentRace.id;
+      this.sensorAdapter.armCountdown?.(currentRace.participants);
+      this.countdownStartTimer = setTimeout(() => {
+        this.countdownStartTimer = null;
+        this.abortHardwareCountdown(
+          currentRace.id,
+          "The race box did not report GO before the countdown deadline"
+        );
+      }, countdownDurationMs + HARDWARE_COUNTDOWN_GRACE_MS);
+    } else {
+      this.countdownStartTimer = setTimeout(() => {
+        this.countdownStartTimer = null;
+        if (this.countdownTicker) {
+          clearInterval(this.countdownTicker);
+          this.countdownTicker = null;
+        }
+        this.activateRace(currentRace.id);
+      }, countdownDurationMs);
+    }
 
     this.emitSnapshot();
     return this.getSnapshot();
+  }
+
+  private handleSensorLifecycle(event: SensorLifecycleEvent): void {
+    const raceId = this.hardwareCountdownRaceId;
+    if (!raceId) {
+      // No hardware-driven countdown in flight; ignore stray box chatter.
+      return;
+    }
+
+    switch (event.type) {
+      case "countdown": {
+        // Re-stamp so the app's countdown UI tracks the box's real cadence
+        // rather than a guessed duration. The 250ms ticker re-broadcasts it.
+        const durationMs = Math.max(0, event.secondsRemaining) * 1000;
+        this.countdownRuntime = { raceId, durationMs };
+        this.db.updateRace(raceId, { countdownStartedAt: nowIso() });
+        this.emitSnapshot();
+        break;
+      }
+      case "go": {
+        this.hardwareCountdownRaceId = null;
+        this.clearCountdownStartTimer();
+        if (this.countdownTicker) {
+          clearInterval(this.countdownTicker);
+          this.countdownTicker = null;
+        }
+        this.activateRace(raceId);
+        break;
+      }
+      case "abort": {
+        this.abortHardwareCountdown(raceId, event.reason);
+        break;
+      }
+    }
+  }
+
+  private abortHardwareCountdown(raceId: string, reason: string): void {
+    if (this.hardwareCountdownRaceId !== raceId) {
+      return;
+    }
+    this.hardwareCountdownRaceId = null;
+    this.clearCountdownStartTimer();
+    if (this.countdownTicker) {
+      clearInterval(this.countdownTicker);
+      this.countdownTicker = null;
+    }
+    // Silence the box and return the race to staging so the operator can retry.
+    this.sensorAdapter.endRace();
+    const race = this.db.getRace(raceId);
+    if (race?.state === "countdown") {
+      this.db.updateRace(raceId, { state: "staging", countdownStartedAt: null });
+    }
+    console.warn(`[race] hardware countdown aborted: ${reason}`);
+    this.emitSnapshot();
+  }
+
+  /**
+   * React to the sensor adapter connecting or dropping. A drop while a race is live can't be
+   * cleanly resumed (the box zeroes its counters on GO — ADR 0005), so we interrupt the race and
+   * let the operator restart it. Every status change re-broadcasts so the health panel stays live.
+   */
+  private handleSensorStatusChange(status: SensorStatus): void {
+    if (!status.connected && this.currentActiveRace) {
+      this.interruptCurrentRace("The race box disconnected mid-race.");
+      return;
+    }
+    this.emitSnapshot();
+  }
+
+  private interruptCurrentRace(reason: string): void {
+    if (!this.currentActiveRace) {
+      return;
+    }
+    this.currentActiveRace.dispose();
+    this.currentActiveRace = null;
+    this.sensorAdapter.endRace();
+
+    const activeEvent = this.db.getActiveEvent();
+    const race = activeEvent ? this.db.getCurrentRace(activeEvent.id) : null;
+    if (race?.state === "active") {
+      this.db.updateRace(race.id, { state: "interrupted" });
+    }
+    console.warn(`[race] interrupted: ${reason}`);
+    this.emitSnapshot();
+  }
+
+  /** The sensor's connection state for the health surface; simulator reports a steady ready state. */
+  private getSensorStatus(): SensorStatus {
+    return (
+      this.sensorAdapter.getStatus?.() ?? {
+        adapterId: this.sensorAdapter.id,
+        label: this.sensorAdapter.label,
+        connected: true,
+        detail: "Using the built-in simulator (no hardware).",
+        portPath: null,
+        firmware: null,
+        manualPortOverride: null,
+        lastError: null
+      }
+    );
   }
 
   private activateRace(raceId: string): void {

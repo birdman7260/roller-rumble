@@ -7,6 +7,7 @@ import type {
   TunnelState
 } from "@roller-rumble/shared/types";
 import type { SubsystemId } from "@roller-rumble/shared/managed-settings";
+import type { SensorStatus } from "../adapters/sensor";
 import { lookupKnownError } from "./known-errors";
 
 /**
@@ -22,6 +23,7 @@ export interface SubsystemHealthInput {
   stripe: StripeSetupStatus;
   photoBooth: PhotoBoothStatus;
   runtimeEnv: RuntimeEnvInfo;
+  sensor: SensorStatus;
 }
 
 const LABELS: Record<SubsystemId, string> = {
@@ -30,7 +32,8 @@ const LABELS: Record<SubsystemId, string> = {
   webPush: "Racer notifications",
   network: "Local network",
   os2l: "VirtualDJ (OS2L)",
-  photoBooth: "Photo booth"
+  photoBooth: "Photo booth",
+  sensor: "Bike sensor"
 };
 
 function managedIsSet(runtimeEnv: RuntimeEnvInfo, id: string): boolean {
@@ -170,6 +173,18 @@ function photoBoothHealth(input: SubsystemHealthInput): SubsystemHealth {
   }
 }
 
+function sensorHealth(input: SubsystemHealthInput): SubsystemHealth {
+  const { sensor } = input;
+  // The simulator and a connected box both report `connected`; its detail is the operator summary.
+  if (sensor.connected) {
+    return entry("sensor", "ready", sensor.detail, sensor.lastError);
+  }
+  if (sensor.lastError) {
+    return entry("sensor", "failed", sensor.detail, sensor.lastError);
+  }
+  return entry("sensor", "degraded", sensor.detail);
+}
+
 /**
  * Pure assembly of the per-subsystem readiness summary surfaced at the top of Settings. Each
  * subsystem maps to ready/degraded/failed/disabled, and a recognized failure carries
@@ -182,6 +197,7 @@ export function assembleSubsystemHealth(input: SubsystemHealthInput): SubsystemH
     stripeHealth(input),
     webPushHealth(input),
     os2lHealth(input),
-    photoBoothHealth(input)
+    photoBoothHealth(input),
+    sensorHealth(input)
   ];
 }

@@ -8,6 +8,7 @@ import {
   SCENARIO_PHOTO_BOOTH,
   SCENARIO_RESULT_PRESENTATION,
   SCENARIO_RUNTIME_ENV,
+  SCENARIO_SENSOR,
   SCENARIO_STRIPE,
   SCENARIO_TUNNEL
 } from "./__fixtures__/snapshot-scenario";
@@ -19,6 +20,7 @@ function makeContext(overrides: Partial<SnapshotContext> = {}): SnapshotContext 
     os2l: SCENARIO_OS2L,
     photoBooth: SCENARIO_PHOTO_BOOTH,
     stripe: SCENARIO_STRIPE,
+    sensor: SCENARIO_SENSOR,
     runtimeEnv: SCENARIO_RUNTIME_ENV,
     countdownDurationMsFor: () => SCENARIO_COUNTDOWN_DURATION_MS,
     now: () => FIXED_NOW_MS,
@@ -105,6 +107,37 @@ describe("SnapshotAssembler subsystem health", () => {
     const network = healthFor(snapshot, "network");
     expect(network.status).toBe("failed");
     expect(network.guidance?.code).toBe("env_file_not_loaded");
+  });
+
+  it("reports the sensor ready when connected and failed when it errors", () => {
+    expect(healthFor(assembler.assemble(makeContext()), "sensor").status).toBe("ready");
+
+    const failed = assembler.assemble(
+      makeContext({
+        sensor: {
+          ...SCENARIO_SENSOR,
+          connected: false,
+          detail: "Could not connect to the race box.",
+          lastError: "cannot open COM3"
+        }
+      })
+    );
+    const sensor = healthFor(failed, "sensor");
+    expect(sensor.status).toBe("failed");
+    expect(sensor.lastError).toBe("cannot open COM3");
+  });
+
+  it("reports the sensor degraded while it is still searching", () => {
+    const searching = assembler.assemble(
+      makeContext({
+        sensor: {
+          ...SCENARIO_SENSOR,
+          connected: false,
+          detail: "No race box found yet — still searching."
+        }
+      })
+    );
+    expect(healthFor(searching, "sensor").status).toBe("degraded");
   });
 });
 
