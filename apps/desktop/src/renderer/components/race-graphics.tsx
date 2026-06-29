@@ -8,6 +8,7 @@ import type {
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { useLaneGlow } from "../lib/use-lane-glow";
+import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
 import { RaceSpriteAvatar } from "./race-sprite-avatar";
 import { getRaceSpriteDisplaySize } from "./race-sprite-sizing";
 
@@ -24,6 +25,13 @@ interface RaceGraphicProps {
    * race display leaves it unset so the live {@link useLaneGlow} signal wins.
    */
   glowIntensityOverride?: Record<string, number>;
+  /**
+   * When provided, these per-racer intensities drive the lead-change flash
+   * directly instead of the derived event. Used by the glow lab to dial in the
+   * burst look by hand; the race display leaves it unset so the live
+   * {@link useLeadChangeFlash} signal wins.
+   */
+  flashIntensityOverride?: Record<string, number>;
 }
 
 type RaceLaneColor = "orange" | "purple";
@@ -86,9 +94,17 @@ function getLaneClassName(
   return `${baseClassName} race-lane race-lane--${getLaneColor(index, laneColorsFlipped)}`;
 }
 
-/** Merge the per-lane glow intensity into a marker's inline style as a CSS variable. */
-function withGlowIntensity(base: CSSProperties, intensity: number): CSSProperties {
-  return { ...base, "--lane-glow-intensity": intensity } as CSSProperties;
+/** Merge the per-lane cue intensities into a marker's inline style as CSS variables. */
+function withCueIntensities(
+  base: CSSProperties,
+  glowIntensity: number,
+  flashIntensity: number
+): CSSProperties {
+  return {
+    ...base,
+    "--lane-glow-intensity": glowIntensity,
+    "--lane-flash-intensity": flashIntensity
+  } as CSSProperties;
 }
 
 /**
@@ -99,6 +115,16 @@ function withGlowIntensity(base: CSSProperties, intensity: number): CSSPropertie
  */
 function LaneGlow() {
   return <span className="race-lane__glow" aria-hidden="true" />;
+}
+
+/**
+ * The lead-change flash that attaches to a rider marker. It is a screen-blended
+ * burst in the lane's identity color whose brightness is the lane's flash
+ * intensity, fed through the `--lane-flash-intensity` CSS variable on the marker.
+ * It fires the instant the lane overtakes the other on distance (issue #7).
+ */
+function LaneFlash() {
+  return <span className="race-lane__flash" aria-hidden="true" />;
 }
 
 function AutoFitRacerName({ name }: { name: string }) {
@@ -228,7 +254,8 @@ export function RaceGraphic({
   targetDistanceMeters,
   laneColorsFlipped,
   glowMode,
-  glowIntensityOverride
+  glowIntensityOverride,
+  flashIntensityOverride
 }: RaceGraphicProps) {
   const prefersReducedMotion = useReducedMotion();
   const derivedGlowIntensity = useLaneGlow({
@@ -236,7 +263,12 @@ export function RaceGraphic({
     mode: glowMode,
     prefersReducedMotion: prefersReducedMotion ?? false
   });
+  const derivedFlashIntensity = useLeadChangeFlash({
+    metrics,
+    prefersReducedMotion: prefersReducedMotion ?? false
+  });
   const glowIntensityByRacerId = glowIntensityOverride ?? derivedGlowIntensity;
+  const flashIntensityByRacerId = flashIntensityOverride ?? derivedFlashIntensity;
   const viewportHeight = useViewportHeight();
   const { raceGraphic } = theme;
   const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;
@@ -284,12 +316,14 @@ export function RaceGraphic({
                   initial={false}
                   animate={{ bottom: markerBottom }}
                   transition={progressTransition}
-                  style={withGlowIntensity(
+                  style={withCueIntensities(
                     { bottom: markerBottom },
-                    glowIntensityByRacerId[entry.racer.id] ?? 0
+                    glowIntensityByRacerId[entry.racer.id] ?? 0,
+                    flashIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
                   <LaneGlow />
+                  <LaneFlash />
                   <RaceSpriteAvatar
                     displayHeightRem={spriteDisplayHeightRem}
                     label={entry.racer.displayName}
@@ -348,12 +382,14 @@ export function RaceGraphic({
                   initial={false}
                   animate={{ left: markerLeft }}
                   transition={progressTransition}
-                  style={withGlowIntensity(
+                  style={withCueIntensities(
                     { left: markerLeft },
-                    glowIntensityByRacerId[entry.racer.id] ?? 0
+                    glowIntensityByRacerId[entry.racer.id] ?? 0,
+                    flashIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
                   <LaneGlow />
+                  <LaneFlash />
                   <RaceSpriteAvatar
                     displayHeightRem={spriteDisplayHeightRem}
                     label={entry.racer.displayName}
@@ -406,12 +442,14 @@ export function RaceGraphic({
                   initial={false}
                   animate={{ left: markerLeft }}
                   transition={progressTransition}
-                  style={withGlowIntensity(
+                  style={withCueIntensities(
                     { left: markerLeft },
-                    glowIntensityByRacerId[entry.racer.id] ?? 0
+                    glowIntensityByRacerId[entry.racer.id] ?? 0,
+                    flashIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
                   <LaneGlow />
+                  <LaneFlash />
                   <RaceSpriteAvatar
                     displayHeightRem={spriteDisplayHeightRem}
                     label={entry.racer.displayName}
@@ -462,12 +500,14 @@ export function RaceGraphic({
                 initial={false}
                 animate={{ left: markerLeft }}
                 transition={progressTransition}
-                style={withGlowIntensity(
+                style={withCueIntensities(
                   { left: markerLeft },
-                  glowIntensityByRacerId[entry.racer.id] ?? 0
+                  glowIntensityByRacerId[entry.racer.id] ?? 0,
+                  flashIntensityByRacerId[entry.racer.id] ?? 0
                 )}
               >
                 <LaneGlow />
+                <LaneFlash />
                 <RaceSpriteAvatar
                   displayHeightRem={spriteDisplayHeightRem}
                   label={entry.racer.displayName}

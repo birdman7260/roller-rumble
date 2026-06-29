@@ -43,10 +43,27 @@ const DEFAULT_DESIGN: GlowDesign = {
   headStopPct: 16
 };
 
+interface FlashDesign {
+  sizeRem: number;
+  blurRem: number;
+  scaleBase: number;
+  scaleGain: number;
+  opacity: number;
+}
+
+const DEFAULT_FLASH_DESIGN: FlashDesign = {
+  sizeRem: 9,
+  blurRem: 0.4,
+  scaleBase: 0.6,
+  scaleGain: 0.9,
+  opacity: 1
+};
+
 interface RacerControl {
   name: string;
   positionPct: number;
   glow: number;
+  flash: number;
 }
 
 interface GlowLabState {
@@ -56,22 +73,25 @@ interface GlowLabState {
   racerA: RacerControl;
   racerB: RacerControl;
   design: GlowDesign;
+  flashDesign: FlashDesign;
 }
 
 const initialState: GlowLabState = {
   themeId: themes[0]?.id ?? "",
   laneColorsFlipped: false,
   headToHead: true,
-  racerA: { name: "Orange", positionPct: 62, glow: 0.85 },
-  racerB: { name: "Purple", positionPct: 48, glow: 0 },
-  design: DEFAULT_DESIGN
+  racerA: { name: "Orange", positionPct: 62, glow: 0.85, flash: 0 },
+  racerB: { name: "Purple", positionPct: 48, glow: 0, flash: 1 },
+  design: DEFAULT_DESIGN,
+  flashDesign: DEFAULT_FLASH_DESIGN
 };
 
 type GlowLabPatch =
-  | Partial<Omit<GlowLabState, "racerA" | "racerB" | "design">>
+  | Partial<Omit<GlowLabState, "racerA" | "racerB" | "design" | "flashDesign">>
   | { racerA: Partial<RacerControl> }
   | { racerB: Partial<RacerControl> }
-  | { design: Partial<GlowDesign> };
+  | { design: Partial<GlowDesign> }
+  | { flashDesign: Partial<FlashDesign> };
 
 function glowLabReducer(state: GlowLabState, patch: GlowLabPatch): GlowLabState {
   if ("racerA" in patch) {
@@ -82,6 +102,9 @@ function glowLabReducer(state: GlowLabState, patch: GlowLabPatch): GlowLabState 
   }
   if ("design" in patch) {
     return { ...state, design: { ...state.design, ...patch.design } };
+  }
+  if ("flashDesign" in patch) {
+    return { ...state, flashDesign: { ...state.flashDesign, ...patch.flashDesign } };
   }
   return { ...state, ...patch };
 }
@@ -131,7 +154,7 @@ function makeMetric(
   };
 }
 
-function designToStyle(design: GlowDesign): CSSProperties {
+function designToStyle(design: GlowDesign, flashDesign: FlashDesign): CSSProperties {
   return {
     "--rr-glow-length": `${design.lengthRem}rem`,
     "--rr-glow-girth": `${design.girthRem}rem`,
@@ -140,8 +163,25 @@ function designToStyle(design: GlowDesign): CSSProperties {
     "--rr-glow-scale-gain": design.scaleGain,
     "--rr-glow-opacity": design.opacity,
     "--rr-glow-head-overlap": `${design.headOverlapRem}rem`,
-    "--rr-glow-head-stop": `${design.headStopPct}%`
+    "--rr-glow-head-stop": `${design.headStopPct}%`,
+    "--rr-flash-size": `${flashDesign.sizeRem}rem`,
+    "--rr-flash-blur": `${flashDesign.blurRem}rem`,
+    "--rr-flash-scale-base": flashDesign.scaleBase,
+    "--rr-flash-scale-gain": flashDesign.scaleGain,
+    "--rr-flash-opacity": flashDesign.opacity
   } as CSSProperties;
+}
+
+function flashDesignToCss(flashDesign: FlashDesign): string {
+  return [
+    ".race-lane__flash {",
+    `  --rr-flash-size: ${flashDesign.sizeRem}rem;`,
+    `  --rr-flash-blur: ${flashDesign.blurRem}rem;`,
+    `  --rr-flash-scale-base: ${flashDesign.scaleBase};`,
+    `  --rr-flash-scale-gain: ${flashDesign.scaleGain};`,
+    `  --rr-flash-opacity: ${flashDesign.opacity};`,
+    "}"
+  ].join("\n");
 }
 
 function designToCss(design: GlowDesign): string {
@@ -242,6 +282,223 @@ function RacerControls({
             onPatch({ glow });
           }}
         />
+        <RangeField
+          label="Flash intensity"
+          value={control.flash}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(flash) => {
+            onPatch({ flash });
+          }}
+        />
+      </div>
+    </Panel>
+  );
+}
+
+function GlowDesignPanel({
+  design,
+  onPatch,
+  onReset
+}: {
+  design: GlowDesign;
+  onPatch: (patch: Partial<GlowDesign>) => void;
+  onReset: () => void;
+}) {
+  return (
+    <Panel
+      title="Glow design"
+      actions={
+        <div className="panel-action-row">
+          <Button variant="ghost" onClick={onReset}>
+            Reset
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              void navigator.clipboard.writeText(designToCss(design));
+            }}
+          >
+            Copy CSS
+          </Button>
+        </div>
+      }
+    >
+      <div className="form-grid">
+        <RangeField
+          label="Trail length (behind rider)"
+          value={design.lengthRem}
+          min={2}
+          max={20}
+          step={0.5}
+          suffix="rem"
+          onChange={(lengthRem) => {
+            onPatch({ lengthRem });
+          }}
+        />
+        <RangeField
+          label="Girth (across travel)"
+          value={design.girthRem}
+          min={2}
+          max={20}
+          step={0.5}
+          suffix="rem"
+          onChange={(girthRem) => {
+            onPatch({ girthRem });
+          }}
+        />
+        <RangeField
+          label="Blur"
+          value={design.blurRem}
+          min={0}
+          max={3}
+          step={0.05}
+          suffix="rem"
+          onChange={(blurRem) => {
+            onPatch({ blurRem });
+          }}
+        />
+        <RangeField
+          label="Scale at zero"
+          value={design.scaleBase}
+          min={0}
+          max={2}
+          step={0.05}
+          onChange={(scaleBase) => {
+            onPatch({ scaleBase });
+          }}
+        />
+        <RangeField
+          label="Scale gain"
+          value={design.scaleGain}
+          min={0}
+          max={2}
+          step={0.05}
+          onChange={(scaleGain) => {
+            onPatch({ scaleGain });
+          }}
+        />
+        <RangeField
+          label="Opacity ceiling"
+          value={design.opacity}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={(opacity) => {
+            onPatch({ opacity });
+          }}
+        />
+        <RangeField
+          label="Head overlap (ahead of rider)"
+          value={design.headOverlapRem}
+          min={0}
+          max={4}
+          step={0.1}
+          suffix="rem"
+          onChange={(headOverlapRem) => {
+            onPatch({ headOverlapRem });
+          }}
+        />
+        <RangeField
+          label="Head bloom (solid before tail)"
+          value={design.headStopPct}
+          min={0}
+          max={60}
+          step={1}
+          suffix="%"
+          onChange={(headStopPct) => {
+            onPatch({ headStopPct });
+          }}
+        />
+        <pre className="glow-lab__css-readout">{designToCss(design)}</pre>
+      </div>
+    </Panel>
+  );
+}
+
+function FlashDesignPanel({
+  flashDesign,
+  onPatch,
+  onReset
+}: {
+  flashDesign: FlashDesign;
+  onPatch: (patch: Partial<FlashDesign>) => void;
+  onReset: () => void;
+}) {
+  return (
+    <Panel
+      title="Flash design"
+      actions={
+        <div className="panel-action-row">
+          <Button variant="ghost" onClick={onReset}>
+            Reset
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              void navigator.clipboard.writeText(flashDesignToCss(flashDesign));
+            }}
+          >
+            Copy CSS
+          </Button>
+        </div>
+      }
+    >
+      <div className="form-grid">
+        <RangeField
+          label="Burst size"
+          value={flashDesign.sizeRem}
+          min={3}
+          max={20}
+          step={0.5}
+          suffix="rem"
+          onChange={(sizeRem) => {
+            onPatch({ sizeRem });
+          }}
+        />
+        <RangeField
+          label="Blur"
+          value={flashDesign.blurRem}
+          min={0}
+          max={3}
+          step={0.05}
+          suffix="rem"
+          onChange={(blurRem) => {
+            onPatch({ blurRem });
+          }}
+        />
+        <RangeField
+          label="Scale at zero"
+          value={flashDesign.scaleBase}
+          min={0}
+          max={2}
+          step={0.05}
+          onChange={(scaleBase) => {
+            onPatch({ scaleBase });
+          }}
+        />
+        <RangeField
+          label="Scale gain"
+          value={flashDesign.scaleGain}
+          min={0}
+          max={2}
+          step={0.05}
+          onChange={(scaleGain) => {
+            onPatch({ scaleGain });
+          }}
+        />
+        <RangeField
+          label="Opacity ceiling"
+          value={flashDesign.opacity}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={(opacity) => {
+            onPatch({ opacity });
+          }}
+        />
+        <pre className="glow-lab__css-readout">{flashDesignToCss(flashDesign)}</pre>
       </div>
     </Panel>
   );
@@ -249,7 +506,7 @@ function RacerControls({
 
 export function GlowLabPage() {
   const [state, dispatch] = useReducer(glowLabReducer, initialState);
-  const { themeId, laneColorsFlipped, headToHead, racerA, racerB, design } = state;
+  const { themeId, laneColorsFlipped, headToHead, racerA, racerB, design, flashDesign } = state;
   const selectedTheme: ThemeDefinition = themes.find((theme) => theme.id === themeId) ?? themes[0];
   const orientation = selectedTheme.orientation;
 
@@ -276,10 +533,19 @@ export function GlowLabPage() {
   const glowIntensityOverride: Record<string, number> = headToHead
     ? { [RACER_A_ID]: racerA.glow, [RACER_B_ID]: racerB.glow }
     : { [RACER_A_ID]: racerA.glow };
+  // No lead-change flash in a solo race — there is no one to overtake.
+  const flashIntensityOverride: Record<string, number> = headToHead
+    ? { [RACER_A_ID]: racerA.flash, [RACER_B_ID]: racerB.flash }
+    : { [RACER_A_ID]: 0 };
 
   function setBothGlows(a: number, b: number): void {
     dispatch({ racerA: { glow: a } });
     dispatch({ racerB: { glow: b } });
+  }
+
+  function setBothFlashes(a: number, b: number): void {
+    dispatch({ racerA: { flash: a } });
+    dispatch({ racerB: { flash: b } });
   }
 
   return (
@@ -288,9 +554,10 @@ export function GlowLabPage() {
         <div>
           <h1>Glow Lab</h1>
           <p>
-            Dial in the leading-edge glow by hand across every race graphic. Position each racer,
-            set each lane&apos;s glow level, and tune the shape live. The relative-speed signal that
-            drives the glow in real races is covered separately by the reducer unit tests.
+            Dial in the leading-edge glow and lead-change flash by hand across every race graphic.
+            Position each racer, set each lane&apos;s glow and flash levels, and tune the shape
+            live. The relative-speed glow signal and the standings-based flash trigger that drive
+            these in real races are covered separately by the reducer unit tests.
           </p>
         </div>
       </header>
@@ -298,7 +565,7 @@ export function GlowLabPage() {
       <div className="glow-lab__body">
         <div
           className={`glow-lab__stage race-page race-page--${orientation}`}
-          style={designToStyle(design)}
+          style={designToStyle(design, flashDesign)}
         >
           <RaceGraphic
             theme={selectedTheme}
@@ -308,6 +575,7 @@ export function GlowLabPage() {
             laneColorsFlipped={laneColorsFlipped}
             glowMode="rivalry"
             glowIntensityOverride={glowIntensityOverride}
+            flashIntensityOverride={flashIntensityOverride}
           />
         </div>
 
@@ -369,6 +637,20 @@ export function GlowLabPage() {
             </div>
           </Panel>
 
+          <Panel title="Flash quick looks">
+            <div className="button-row glow-lab__quick-looks">
+              <Button variant="ghost" onClick={() => setBothFlashes(0, 0)}>
+                No flash
+              </Button>
+              <Button variant="ghost" onClick={() => setBothFlashes(1, 0)}>
+                {racerA.name} passes
+              </Button>
+              <Button variant="ghost" onClick={() => setBothFlashes(0, 1)} disabled={!headToHead}>
+                {racerB.name} passes
+              </Button>
+            </div>
+          </Panel>
+
           <RacerControls
             heading={`${racerA.name} (top lane)`}
             control={racerA}
@@ -387,118 +669,25 @@ export function GlowLabPage() {
             />
           ) : null}
 
-          <Panel
-            title="Glow design"
-            actions={
-              <div className="panel-action-row">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    dispatch({ design: DEFAULT_DESIGN });
-                  }}
-                >
-                  Reset
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    void navigator.clipboard.writeText(designToCss(design));
-                  }}
-                >
-                  Copy CSS
-                </Button>
-              </div>
-            }
-          >
-            <div className="form-grid">
-              <RangeField
-                label="Trail length (behind rider)"
-                value={design.lengthRem}
-                min={2}
-                max={20}
-                step={0.5}
-                suffix="rem"
-                onChange={(lengthRem) => {
-                  dispatch({ design: { lengthRem } });
-                }}
-              />
-              <RangeField
-                label="Girth (across travel)"
-                value={design.girthRem}
-                min={2}
-                max={20}
-                step={0.5}
-                suffix="rem"
-                onChange={(girthRem) => {
-                  dispatch({ design: { girthRem } });
-                }}
-              />
-              <RangeField
-                label="Blur"
-                value={design.blurRem}
-                min={0}
-                max={3}
-                step={0.05}
-                suffix="rem"
-                onChange={(blurRem) => {
-                  dispatch({ design: { blurRem } });
-                }}
-              />
-              <RangeField
-                label="Scale at zero"
-                value={design.scaleBase}
-                min={0}
-                max={2}
-                step={0.05}
-                onChange={(scaleBase) => {
-                  dispatch({ design: { scaleBase } });
-                }}
-              />
-              <RangeField
-                label="Scale gain"
-                value={design.scaleGain}
-                min={0}
-                max={2}
-                step={0.05}
-                onChange={(scaleGain) => {
-                  dispatch({ design: { scaleGain } });
-                }}
-              />
-              <RangeField
-                label="Opacity ceiling"
-                value={design.opacity}
-                min={0}
-                max={1}
-                step={0.05}
-                onChange={(opacity) => {
-                  dispatch({ design: { opacity } });
-                }}
-              />
-              <RangeField
-                label="Head overlap (ahead of rider)"
-                value={design.headOverlapRem}
-                min={0}
-                max={4}
-                step={0.1}
-                suffix="rem"
-                onChange={(headOverlapRem) => {
-                  dispatch({ design: { headOverlapRem } });
-                }}
-              />
-              <RangeField
-                label="Head bloom (solid before tail)"
-                value={design.headStopPct}
-                min={0}
-                max={60}
-                step={1}
-                suffix="%"
-                onChange={(headStopPct) => {
-                  dispatch({ design: { headStopPct } });
-                }}
-              />
-              <pre className="glow-lab__css-readout">{designToCss(design)}</pre>
-            </div>
-          </Panel>
+          <GlowDesignPanel
+            design={design}
+            onPatch={(patch) => {
+              dispatch({ design: patch });
+            }}
+            onReset={() => {
+              dispatch({ design: DEFAULT_DESIGN });
+            }}
+          />
+
+          <FlashDesignPanel
+            flashDesign={flashDesign}
+            onPatch={(patch) => {
+              dispatch({ flashDesign: patch });
+            }}
+            onReset={() => {
+              dispatch({ flashDesign: DEFAULT_FLASH_DESIGN });
+            }}
+          />
 
           <Panel title="Future cues">
             <div className="stack-sm glow-lab__future">
@@ -507,7 +696,6 @@ export function GlowLabPage() {
                 here as each cue ships.
               </p>
               <ul>
-                <li>Lead-change flash — burst when the distance lead flips</li>
                 <li>Top-speed flare — flash on a new personal top speed</li>
                 <li>Speed streaks — motion lines scaled to absolute speed</li>
               </ul>

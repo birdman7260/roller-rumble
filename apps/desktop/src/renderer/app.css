@@ -2422,6 +2422,53 @@ p {
   }
 }
 
+/*
+ * Lead-change flash (issue #7). A discrete, punchy burst centered on the rider
+ * marker the instant their lane overtakes the other on distance. Unlike the
+ * directional comet glow, it is a symmetric radial pop in the lane's own
+ * identity color. Brightness and scale are driven by --lane-flash-intensity
+ * (0..1), set inline from the per-lane lead-change envelope, which the hook
+ * decays frame-by-frame so the burst fades on its own — no CSS keyframes needed.
+ *
+ * Parameterized by --rr-flash-* custom properties (production defaults as var()
+ * fallbacks) so the glow lab can iterate on the burst look live.
+ */
+.race-lane__flash {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--rr-flash-size, 9rem);
+  height: var(--rr-flash-size, 9rem);
+  margin-top: calc(var(--rr-flash-size, 9rem) / -2);
+  margin-left: calc(var(--rr-flash-size, 9rem) / -2);
+  pointer-events: none;
+  border-radius: 999px;
+  opacity: calc(var(--lane-flash-intensity, 0) * var(--rr-flash-opacity, 1));
+  transform: scale(
+    calc(
+      var(--rr-flash-scale-base, 0.6) + var(--lane-flash-intensity, 0) *
+        var(--rr-flash-scale-gain, 0.9)
+    )
+  );
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--race-lane-color-bright) 88%, white) 0%,
+    var(--race-lane-color) 38%,
+    color-mix(in srgb, var(--race-lane-color) 30%, transparent) 60%,
+    transparent 72%
+  );
+  filter: blur(var(--rr-flash-blur, 0.4rem));
+  mix-blend-mode: screen;
+  will-change: opacity, transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Soften to a brief opacity fade: no scale punch, the dimmed envelope alone. */
+  .race-lane__flash {
+    transform: none;
+  }
+}
+
 /* Glow lab (issue #6) — design surface for the glow and future indicator cues. */
 .glow-lab {
   min-height: 100vh;
