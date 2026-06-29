@@ -18,6 +18,12 @@ interface RaceGraphicProps {
   targetDistanceMeters: number;
   laneColorsFlipped: boolean;
   glowMode: RaceGlowMode;
+  /**
+   * When provided, these per-racer intensities drive the glow directly instead
+   * of the derived signal. Used by the glow lab to dial in the look by hand; the
+   * race display leaves it unset so the live {@link useLaneGlow} signal wins.
+   */
+  glowIntensityOverride?: Record<string, number>;
 }
 
 type RaceLaneColor = "orange" | "purple";
@@ -221,14 +227,16 @@ export function RaceGraphic({
   metrics,
   targetDistanceMeters,
   laneColorsFlipped,
-  glowMode
+  glowMode,
+  glowIntensityOverride
 }: RaceGraphicProps) {
   const prefersReducedMotion = useReducedMotion();
-  const glowIntensityByRacerId = useLaneGlow({
+  const derivedGlowIntensity = useLaneGlow({
     metrics,
     mode: glowMode,
     prefersReducedMotion: prefersReducedMotion ?? false
   });
+  const glowIntensityByRacerId = glowIntensityOverride ?? derivedGlowIntensity;
   const viewportHeight = useViewportHeight();
   const { raceGraphic } = theme;
   const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;

@@ -571,7 +571,7 @@ function LabPagesPanel({
   openLabFromAdmin
 }: {
   labOpenStatus: string | null;
-  openLabFromAdmin: (labId: "bracket" | "notification" | "queue") => Promise<void>;
+  openLabFromAdmin: (labId: "bracket" | "glow" | "notification" | "queue") => Promise<void>;
 }) {
   return (
     <Panel className="settings-panel" title="Lab Pages">
@@ -585,6 +585,14 @@ function LabPagesPanel({
             }}
           >
             Open Bracket Lab
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(openLabFromAdmin("glow"), "open glow lab");
+            }}
+          >
+            Open Glow Lab
           </Button>
           <Button
             variant="ghost"
@@ -787,7 +795,9 @@ export function SettingsTab({
     }
   }
 
-  async function openLabFromAdmin(labId: "bracket" | "notification" | "queue"): Promise<void> {
+  async function openLabFromAdmin(
+    labId: "bracket" | "glow" | "notification" | "queue"
+  ): Promise<void> {
     setUiState({ labOpenStatus: null });
     const result = await openLabPage(labId);
     setUiState({ labOpenStatus: `Opened ${result.url}` });

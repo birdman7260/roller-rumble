@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as RaceRouteImport } from './routes/race'
 import { Route as QueueLabRouteImport } from './routes/queue-lab'
 import { Route as NotificationLabRouteImport } from './routes/notification-lab'
+import { Route as GlowLabRouteImport } from './routes/glow-lab'
 import { Route as BracketLabRouteImport } from './routes/bracket-lab'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as IndexRouteImport } from './routes/index'
@@ -31,6 +32,11 @@ const QueueLabRoute = QueueLabRouteImport.update({
 const NotificationLabRoute = NotificationLabRouteImport.update({
   id: '/notification-lab',
   path: '/notification-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const GlowLabRoute = GlowLabRouteImport.update({
+  id: '/glow-lab',
+  path: '/glow-lab',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BracketLabRoute = BracketLabRouteImport.update({
@@ -63,6 +69,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/bracket-lab': typeof BracketLabRoute
+  '/glow-lab': typeof GlowLabRoute
   '/notification-lab': typeof NotificationLabRoute
   '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
@@ -73,6 +80,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/bracket-lab': typeof BracketLabRoute
+  '/glow-lab': typeof GlowLabRoute
   '/notification-lab': typeof NotificationLabRoute
   '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
@@ -84,6 +92,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/bracket-lab': typeof BracketLabRoute
+  '/glow-lab': typeof GlowLabRoute
   '/notification-lab': typeof NotificationLabRoute
   '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
@@ -96,6 +105,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bracket-lab'
+    | '/glow-lab'
     | '/notification-lab'
     | '/queue-lab'
     | '/race'
@@ -106,6 +116,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bracket-lab'
+    | '/glow-lab'
     | '/notification-lab'
     | '/queue-lab'
     | '/race'
@@ -116,6 +127,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/bracket-lab'
+    | '/glow-lab'
     | '/notification-lab'
     | '/queue-lab'
     | '/race'
@@ -127,6 +139,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   BracketLabRoute: typeof BracketLabRoute
+  GlowLabRoute: typeof GlowLabRoute
   NotificationLabRoute: typeof NotificationLabRoute
   QueueLabRoute: typeof QueueLabRoute
   RaceRoute: typeof RaceRoute
@@ -155,6 +168,13 @@ declare module '@tanstack/react-router' {
       path: '/notification-lab'
       fullPath: '/notification-lab'
       preLoaderRoute: typeof NotificationLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/glow-lab': {
+      id: '/glow-lab'
+      path: '/glow-lab'
+      fullPath: '/glow-lab'
+      preLoaderRoute: typeof GlowLabRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/bracket-lab': {
@@ -199,6 +219,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   BracketLabRoute: BracketLabRoute,
+  GlowLabRoute: GlowLabRoute,
   NotificationLabRoute: NotificationLabRoute,
   QueueLabRoute: QueueLabRoute,
   RaceRoute: RaceRoute,

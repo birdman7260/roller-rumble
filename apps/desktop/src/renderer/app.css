@@ -2353,26 +2353,35 @@ p {
  * brightness and scale are driven by --lane-glow-intensity (0..1), set inline
  * from the per-lane glow signal. Transparent at the very center so the sprite
  * stays readable; shape/direction are tuned per race-graphic variant below.
+ *
+ * The look is parameterized by --rr-glow-* custom properties (with the tuned
+ * production defaults inline) so the glow lab can iterate on the design live by
+ * overriding them on an ancestor. "Length" runs along the direction of travel,
+ * "girth" across it; the per-variant rules below map them to width/height.
  */
 .race-lane__glow {
   position: absolute;
   left: 50%;
   top: 50%;
-  width: 7.5rem;
-  height: 7.5rem;
   border-radius: 999px;
   pointer-events: none;
-  opacity: var(--lane-glow-intensity, 0);
-  transform: translate(-50%, -50%) scale(calc(0.6 + var(--lane-glow-intensity, 0) * 0.75));
+  opacity: calc(var(--lane-glow-intensity, 0) * var(--rr-glow-opacity, 1));
+  transform: translate(-50%, -50%)
+    scale(
+      calc(
+        var(--rr-glow-scale-base, 0.6) + var(--lane-glow-intensity, 0) *
+          var(--rr-glow-scale-gain, 0.75)
+      )
+    );
   background: radial-gradient(
     circle at center,
     transparent 0%,
-    color-mix(in srgb, var(--race-lane-color) 70%, transparent) 26%,
-    var(--race-lane-color-bright) 42%,
-    color-mix(in srgb, var(--race-lane-color) 45%, transparent) 60%,
-    transparent 74%
+    color-mix(in srgb, var(--race-lane-color) 70%, transparent) var(--rr-glow-core, 26%),
+    var(--race-lane-color-bright) calc((var(--rr-glow-core, 26%) + var(--rr-glow-edge, 74%)) / 2),
+    color-mix(in srgb, var(--race-lane-color) 45%, transparent) calc(var(--rr-glow-edge, 74%) - 14%),
+    transparent var(--rr-glow-edge, 74%)
   );
-  filter: blur(0.5rem);
+  filter: blur(var(--rr-glow-blur, 0.5rem));
   mix-blend-mode: screen;
   transition:
     opacity 110ms linear,
@@ -2382,22 +2391,123 @@ p {
 
 /* Vertical climb: travel is upward, so elongate the comet along the vertical axis. */
 .race-graphic--vertical .race-lane__glow {
-  width: 6rem;
-  height: 11rem;
+  width: var(--rr-glow-girth, 6rem);
+  height: var(--rr-glow-length, 11rem);
 }
 
 /* Horizontal variants: travel is rightward, so elongate along the horizontal axis. */
 .race-graphic--horizontal .race-lane__glow,
 .race-graphic--ledger .race-lane__glow,
 .race-graphic--wagon .race-lane__glow {
-  width: 11rem;
-  height: 6rem;
+  width: var(--rr-glow-length, 11rem);
+  height: var(--rr-glow-girth, 6rem);
 }
 
 @media (prefers-reduced-motion: reduce) {
   /* The hook already holds intensity steady; drop the easing so nothing animates. */
   .race-lane__glow {
     transition: none;
+  }
+}
+
+/* Glow lab (issue #6) — design surface for the glow and future indicator cues. */
+.glow-lab {
+  min-height: 100vh;
+  padding: clamp(1rem, 2.5vw, 2rem);
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.85rem, 1.8vw, 1.5rem);
+  background: linear-gradient(150deg, #0d1018, #11151f);
+  color: #e7ecf5;
+}
+
+.glow-lab__header h1 {
+  margin: 0;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.glow-lab__header p {
+  margin: 0.35rem 0 0;
+  max-width: 70ch;
+  color: rgba(231, 236, 245, 0.72);
+}
+
+.glow-lab__body {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(20rem, 26rem);
+  gap: clamp(1rem, 2vw, 1.75rem);
+  align-items: start;
+  min-height: 0;
+}
+
+/* Reuse the real projector layout for fidelity, but neutralize the full-screen
+ * page grid so the stage sits inside the lab. The race-page--{orientation} class
+ * stays for lane sizing and marker positioning. */
+.glow-lab__stage.race-page {
+  display: block;
+  height: clamp(30rem, 74vh, 60rem);
+  min-height: 0;
+  border-radius: 1.1rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+  position: sticky;
+  top: clamp(1rem, 2.5vw, 2rem);
+}
+
+.glow-lab__stage .race-graphic {
+  height: 100%;
+}
+
+.glow-lab__controls {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(0.75rem, 1.5vw, 1.2rem);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  padding-right: 0.35rem;
+}
+
+.glow-lab__quick-looks {
+  flex-wrap: wrap;
+}
+
+.glow-lab__css-readout {
+  margin: 0;
+  padding: 0.7rem 0.85rem;
+  border-radius: 0.6rem;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  white-space: pre;
+  overflow-x: auto;
+}
+
+.glow-lab__future {
+  color: rgba(231, 236, 245, 0.72);
+}
+
+.glow-lab__future ul {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: grid;
+  gap: 0.3rem;
+}
+
+@media (max-width: 920px) {
+  .glow-lab__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .glow-lab__stage.race-page {
+    position: static;
+    height: clamp(26rem, 60vh, 44rem);
+  }
+
+  .glow-lab__controls {
+    max-height: none;
+    overflow: visible;
   }
 }
 

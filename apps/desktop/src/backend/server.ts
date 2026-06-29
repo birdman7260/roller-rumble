@@ -66,6 +66,7 @@ interface BackendServerOptions {
 
 const labRoutes = {
   bracket: "/bracket-lab",
+  glow: "/glow-lab",
   notification: "/notification-lab",
   queue: "/queue-lab"
 } as const;
