@@ -2349,38 +2349,30 @@ p {
 }
 
 /*
- * Leading-edge glow (issue #6). A screen-blended halo on the rider marker whose
- * brightness and scale are driven by --lane-glow-intensity (0..1), set inline
- * from the per-lane glow signal. Transparent at the very center so the sprite
- * stays readable; shape/direction are tuned per race-graphic variant below.
+ * Leading-edge glow (issue #6). A screen-blended comet on the rider marker whose
+ * brightness and length are driven by --lane-glow-intensity (0..1), set inline
+ * from the per-lane glow signal. The bright head is anchored at the rider (the
+ * leading edge) and the trail streams *backward* along the lane fill — left for
+ * rightward travel, down for the upward climb — so growing the length extends
+ * only the tail, never both directions.
  *
- * The look is parameterized by --rr-glow-* custom properties (with the tuned
- * production defaults inline) so the glow lab can iterate on the design live by
- * overriding them on an ancestor. "Length" runs along the direction of travel,
- * "girth" across it; the per-variant rules below map them to width/height.
+ * The look is parameterized by --rr-glow-* custom properties (production defaults
+ * kept as var() fallbacks) so the glow lab can iterate on the design live by
+ * overriding them on an ancestor. "Length" runs along the trail, "girth" across
+ * it; "head overlap" is how far the head blooms ahead of the rider; "head stop"
+ * is where the solid head gives way to the fading tail.
  */
 .race-lane__glow {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  border-radius: 999px;
   pointer-events: none;
   opacity: calc(var(--lane-glow-intensity, 0) * var(--rr-glow-opacity, 1));
-  transform: translate(-50%, -50%)
-    scale(
-      calc(
-        var(--rr-glow-scale-base, 0.6) + var(--lane-glow-intensity, 0) *
-          var(--rr-glow-scale-gain, 0.75)
-      )
-    );
-  background: radial-gradient(
-    circle at center,
-    transparent 0%,
-    color-mix(in srgb, var(--race-lane-color) 70%, transparent) var(--rr-glow-core, 26%),
-    var(--race-lane-color-bright) calc((var(--rr-glow-core, 26%) + var(--rr-glow-edge, 74%)) / 2),
-    color-mix(in srgb, var(--race-lane-color) 45%, transparent) calc(var(--rr-glow-edge, 74%) - 14%),
-    transparent var(--rr-glow-edge, 74%)
+  transform: scale(
+    calc(
+      var(--rr-glow-scale-base, 0.55) + var(--lane-glow-intensity, 0) *
+        var(--rr-glow-scale-gain, 0.85)
+    )
   );
+  border-radius: 999px;
   filter: blur(var(--rr-glow-blur, 0.5rem));
   mix-blend-mode: screen;
   transition:
@@ -2389,18 +2381,38 @@ p {
   will-change: opacity, transform;
 }
 
-/* Vertical climb: travel is upward, so elongate the comet along the vertical axis. */
+/* Vertical climb: travel is upward — head at top, tail streams downward. */
 .race-graphic--vertical .race-lane__glow {
-  width: var(--rr-glow-girth, 6rem);
-  height: var(--rr-glow-length, 11rem);
+  left: calc(50% - var(--rr-glow-girth, 5.5rem) / 2);
+  top: calc(50% - var(--rr-glow-head-overlap, 1.1rem));
+  width: var(--rr-glow-girth, 5.5rem);
+  height: var(--rr-glow-length, 13rem);
+  transform-origin: center top;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--race-lane-color-bright) 92%, white) 0%,
+    var(--race-lane-color) var(--rr-glow-head-stop, 16%),
+    color-mix(in srgb, var(--race-lane-color) 42%, transparent) 50%,
+    transparent 100%
+  );
 }
 
-/* Horizontal variants: travel is rightward, so elongate along the horizontal axis. */
+/* Horizontal variants: travel is rightward — head at right, tail streams left. */
 .race-graphic--horizontal .race-lane__glow,
 .race-graphic--ledger .race-lane__glow,
 .race-graphic--wagon .race-lane__glow {
-  width: var(--rr-glow-length, 11rem);
-  height: var(--rr-glow-girth, 6rem);
+  top: calc(50% - var(--rr-glow-girth, 5.5rem) / 2);
+  right: calc(50% - var(--rr-glow-head-overlap, 1.1rem));
+  width: var(--rr-glow-length, 13rem);
+  height: var(--rr-glow-girth, 5.5rem);
+  transform-origin: right center;
+  background: linear-gradient(
+    to left,
+    color-mix(in srgb, var(--race-lane-color-bright) 92%, white) 0%,
+    var(--race-lane-color) var(--rr-glow-head-stop, 16%),
+    color-mix(in srgb, var(--race-lane-color) 42%, transparent) 50%,
+    transparent 100%
+  );
 }
 
 @media (prefers-reduced-motion: reduce) {

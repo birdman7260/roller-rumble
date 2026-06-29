@@ -28,19 +28,19 @@ interface GlowDesign {
   scaleBase: number;
   scaleGain: number;
   opacity: number;
-  corePct: number;
-  edgePct: number;
+  headOverlapRem: number;
+  headStopPct: number;
 }
 
 const DEFAULT_DESIGN: GlowDesign = {
-  lengthRem: 11,
-  girthRem: 6,
+  lengthRem: 13,
+  girthRem: 5.5,
   blurRem: 0.5,
-  scaleBase: 0.6,
-  scaleGain: 0.75,
+  scaleBase: 0.55,
+  scaleGain: 0.85,
   opacity: 1,
-  corePct: 26,
-  edgePct: 74
+  headOverlapRem: 1.1,
+  headStopPct: 16
 };
 
 interface RacerControl {
@@ -139,8 +139,8 @@ function designToStyle(design: GlowDesign): CSSProperties {
     "--rr-glow-scale-base": design.scaleBase,
     "--rr-glow-scale-gain": design.scaleGain,
     "--rr-glow-opacity": design.opacity,
-    "--rr-glow-core": `${design.corePct}%`,
-    "--rr-glow-edge": `${design.edgePct}%`
+    "--rr-glow-head-overlap": `${design.headOverlapRem}rem`,
+    "--rr-glow-head-stop": `${design.headStopPct}%`
   } as CSSProperties;
 }
 
@@ -153,8 +153,8 @@ function designToCss(design: GlowDesign): string {
     `  --rr-glow-scale-base: ${design.scaleBase};`,
     `  --rr-glow-scale-gain: ${design.scaleGain};`,
     `  --rr-glow-opacity: ${design.opacity};`,
-    `  --rr-glow-core: ${design.corePct}%;`,
-    `  --rr-glow-edge: ${design.edgePct}%;`,
+    `  --rr-glow-head-overlap: ${design.headOverlapRem}rem;`,
+    `  --rr-glow-head-stop: ${design.headStopPct}%;`,
     "}"
   ].join("\n");
 }
@@ -412,7 +412,7 @@ export function GlowLabPage() {
           >
             <div className="form-grid">
               <RangeField
-                label="Length (along travel)"
+                label="Trail length (behind rider)"
                 value={design.lengthRem}
                 min={2}
                 max={20}
@@ -475,25 +475,25 @@ export function GlowLabPage() {
                 }}
               />
               <RangeField
-                label="Core (clear center)"
-                value={design.corePct}
+                label="Head overlap (ahead of rider)"
+                value={design.headOverlapRem}
+                min={0}
+                max={4}
+                step={0.1}
+                suffix="rem"
+                onChange={(headOverlapRem) => {
+                  dispatch({ design: { headOverlapRem } });
+                }}
+              />
+              <RangeField
+                label="Head bloom (solid before tail)"
+                value={design.headStopPct}
                 min={0}
                 max={60}
                 step={1}
                 suffix="%"
-                onChange={(corePct) => {
-                  dispatch({ design: { corePct } });
-                }}
-              />
-              <RangeField
-                label="Edge (fade out)"
-                value={design.edgePct}
-                min={40}
-                max={100}
-                step={1}
-                suffix="%"
-                onChange={(edgePct) => {
-                  dispatch({ design: { edgePct } });
+                onChange={(headStopPct) => {
+                  dispatch({ design: { headStopPct } });
                 }}
               />
               <pre className="glow-lab__css-readout">{designToCss(design)}</pre>
