@@ -578,6 +578,13 @@ export interface Os2lDiagnostics {
   lastError: string | null;
 }
 
+/**
+ * What the projector leading-edge glow reacts to. `rivalry` lights the lane
+ * that is faster than its opponent right now; `surge` lights a lane on its
+ * rider's own acceleration. Solo races always behave as `surge`. See ADR-0006.
+ */
+export type RaceGlowMode = "rivalry" | "surge";
+
 export interface AdminSettings {
   mode: AppMode;
   themeId: string;
@@ -588,6 +595,7 @@ export interface AdminSettings {
   showPublicRacerInfoWithoutLogin: boolean;
   showRacerNotificationDebugList: boolean;
   raceDisplayLaneColorsFlipped: boolean;
+  raceDisplayGlowMode: RaceGlowMode;
   raceDisplayShowEventName: boolean;
   raceDisplayTickerMessages: string[];
   raceDisplayTickerSpeed: number;

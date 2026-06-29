@@ -11,6 +11,7 @@
     "showPublicRacerInfoWithoutLogin": true,
     "showRacerNotificationDebugList": false,
     "raceDisplayLaneColorsFlipped": false,
+    "raceDisplayGlowMode": "rivalry",
     "raceDisplayShowEventName": true,
     "raceDisplayTickerMessages": [
       "Welcome to Roller Rumble",

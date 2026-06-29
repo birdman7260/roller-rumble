@@ -4,7 +4,8 @@ import type { RefObject } from "react";
 import type {
   AdminNotificationTargetType,
   AppSnapshot,
-  ProjectorWindowSizePreset
+  ProjectorWindowSizePreset,
+  RaceGlowMode
 } from "@roller-rumble/shared/types";
 import { Button, Panel, StatPill } from "@roller-rumble/shared-ui";
 import {
@@ -309,6 +310,22 @@ function ProjectorDisplayPanel({
             }}
           />
           Flip projector lane colors
+        </label>
+        <label>
+          Lane glow
+          <select
+            value={snapshot.settings.raceDisplayGlowMode}
+            onChange={(event) => {
+              fireAndForget(
+                updateSettings({
+                  raceDisplayGlowMode: event.target.value as RaceGlowMode
+                })
+              );
+            }}
+          >
+            <option value="rivalry">Rivalry — light the lane winning the speed duel</option>
+            <option value="surge">Surge — light a lane on the rider's own acceleration</option>
+          </select>
         </label>
         <label>
           Ticker speed

@@ -173,6 +173,7 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     showPublicRacerInfoWithoutLogin: true,
     showRacerNotificationDebugList: false,
     raceDisplayLaneColorsFlipped: false,
+    raceDisplayGlowMode: "rivalry",
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Welcome to Roller Rumble", "Next up: finals"],
     raceDisplayTickerSpeed: 40,

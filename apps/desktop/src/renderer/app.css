@@ -2348,6 +2348,59 @@ p {
   --race-lane-color-shadow: rgba(139, 92, 246, 0.3);
 }
 
+/*
+ * Leading-edge glow (issue #6). A screen-blended halo on the rider marker whose
+ * brightness and scale are driven by --lane-glow-intensity (0..1), set inline
+ * from the per-lane glow signal. Transparent at the very center so the sprite
+ * stays readable; shape/direction are tuned per race-graphic variant below.
+ */
+.race-lane__glow {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 7.5rem;
+  height: 7.5rem;
+  border-radius: 999px;
+  pointer-events: none;
+  opacity: var(--lane-glow-intensity, 0);
+  transform: translate(-50%, -50%) scale(calc(0.6 + var(--lane-glow-intensity, 0) * 0.75));
+  background: radial-gradient(
+    circle at center,
+    transparent 0%,
+    color-mix(in srgb, var(--race-lane-color) 70%, transparent) 26%,
+    var(--race-lane-color-bright) 42%,
+    color-mix(in srgb, var(--race-lane-color) 45%, transparent) 60%,
+    transparent 74%
+  );
+  filter: blur(0.5rem);
+  mix-blend-mode: screen;
+  transition:
+    opacity 110ms linear,
+    transform 110ms linear;
+  will-change: opacity, transform;
+}
+
+/* Vertical climb: travel is upward, so elongate the comet along the vertical axis. */
+.race-graphic--vertical .race-lane__glow {
+  width: 6rem;
+  height: 11rem;
+}
+
+/* Horizontal variants: travel is rightward, so elongate along the horizontal axis. */
+.race-graphic--horizontal .race-lane__glow,
+.race-graphic--ledger .race-lane__glow,
+.race-graphic--wagon .race-lane__glow {
+  width: 11rem;
+  height: 6rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The hook already holds intensity steady; drop the easing so nothing animates. */
+  .race-lane__glow {
+    transition: none;
+  }
+}
+
 .race-lane__header {
   display: flex;
   align-items: center;

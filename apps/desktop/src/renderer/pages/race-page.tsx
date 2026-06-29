@@ -538,6 +538,7 @@ function RaceLayer({ model }: { model: RacePageViewModel }) {
           metrics={model.metrics}
           targetDistanceMeters={model.displayRace.targetDistanceMeters}
           laneColorsFlipped={model.snapshot.settings.raceDisplayLaneColorsFlipped}
+          glowMode={model.snapshot.settings.raceDisplayGlowMode}
         />
       ) : model.showSignupPrompt ? (
         <RacerSignupPrompt qrCodeDataUrl={model.qrCodeDataUrl} />

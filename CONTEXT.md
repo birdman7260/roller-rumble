@@ -15,6 +15,29 @@ _Avoid_: race (alone, when the persisted record is meant)
 **LaneTelemetryState**: The in-memory rolling state for one participant's lane during an `ActiveRace`. Accumulates rotation samples into speed, distance, wattage, and elapsed time. Not persisted directly — its `snapshot` field is what gets written to the `RaceRecord`.
 _Avoid_: lane state, racer state
 
+### Race display
+
+**leading-edge glow**: The light a lane emits at its rider marker's current position on the projector race display — a comet/wavefront trailing the marker in the direction of travel. Its brightness is driven by a relative, instantaneous speed signal; it is one-sided (only the ahead/accelerating lane lights, everything else reads dark). Uses the lane's own identity color, intensified. Projector-only — racer phones do not render it.
+_Avoid_: lane glow, fill glow
+
+**glow mode**: The operator-selected rule controlling what the `leading-edge glow` reacts to — `Surge` or `Rivalry`. Always on (no off state); switchable live mid-race. A solo race always uses `Surge` regardless of selection, since `Rivalry` needs an opponent.
+_Avoid_: glow setting, glow style
+
+**Surge glow**: The `glow mode` where a lane brightens with the rider's own _acceleration_ — pushing above their speed of a moment ago. A steady hard effort reads dark; the light flashes on the upswing of a surge. The fallback for solo races.
+_Avoid_: effort glow, personal glow
+
+**Rivalry glow**: The `glow mode` where a lane brightens when its rider is faster than the opponent _right now_ (instantaneous speed difference). Exactly one lane glows at a time — the slower lane reads dark. The default mode.
+_Avoid_: duel glow, versus glow
+
+**lead-change flash**: A discrete burst on a lane the instant it overtakes the other on _distance covered_ (the standings lead flips). A companion cue to the glow — it marks the event the continuous speed-glow cannot. Distinct from `Rivalry glow`, which tracks speed, not standings.
+_Avoid_: overtake flash, pass flash
+
+**top-speed flare**: A brief flare on a rider the moment they set a new personal top speed for the race. A companion cue celebrating an individual milestone, independent of standings.
+_Avoid_: PB flare, record flare
+
+**speed streaks**: Motion lines trailing a rider, scaled to _absolute_ speed (fast = long streaks, standstill = none). A companion cue encoding raw speed — the dimension the relative glow deliberately omits, so a steady-fast rider still looks fast.
+_Avoid_: motion lines, speed lines
+
 ### Queue and events
 
 **Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time.
