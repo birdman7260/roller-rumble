@@ -2469,6 +2469,78 @@ p {
   }
 }
 
+/*
+ * Speed streaks (issue #9). Motion lines trailing the rider marker, scaled to the
+ * lane's *absolute* speed — fast riders get long streaks, a standstill gets none.
+ * This is the companion cue that carries raw speed, the dimension the relative
+ * leading-edge glow (#6) deliberately drops, so a steady-fast rider still looks
+ * fast. Length is driven by scaling the trail along the travel axis from the
+ * rider edge; opacity tracks the same --lane-streak-intensity (0..1), set inline
+ * from the per-lane absolute-speed signal. The lines use the lane's identity
+ * color, consistent with the glow and flash.
+ *
+ * Parameterized by --rr-streak-* custom properties (production defaults as var()
+ * fallbacks) so the glow lab can iterate on the look live.
+ */
+.race-lane__streak {
+  position: absolute;
+  pointer-events: none;
+  opacity: calc(var(--lane-streak-intensity, 0) * var(--rr-streak-opacity, 0.85));
+  filter: blur(var(--rr-streak-blur, 0.12rem));
+  mix-blend-mode: screen;
+  transition:
+    opacity 110ms linear,
+    transform 110ms linear;
+  will-change: opacity, transform;
+}
+
+/* Vertical climb: travel is upward — head at the rider, streaks trail downward. */
+.race-graphic--vertical .race-lane__streak {
+  left: calc(50% - var(--rr-streak-girth, 4.5rem) / 2);
+  top: calc(50% - var(--rr-streak-head-overlap, 0.6rem));
+  width: var(--rr-streak-girth, 4.5rem);
+  height: var(--rr-streak-length, 11rem);
+  transform-origin: center top;
+  transform: scaleY(var(--lane-streak-intensity, 0));
+  background: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--race-lane-color-bright) 88%, white) 0,
+    color-mix(in srgb, var(--race-lane-color-bright) 88%, white) var(--rr-streak-line, 0.32rem),
+    transparent var(--rr-streak-line, 0.32rem),
+    transparent calc(var(--rr-streak-line, 0.32rem) + var(--rr-streak-gap, 0.7rem))
+  );
+  -webkit-mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, transparent 100%);
+  mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 1) 0%, transparent 100%);
+}
+
+/* Horizontal variants: travel is rightward — streaks are horizontal lines trailing left. */
+.race-graphic--horizontal .race-lane__streak,
+.race-graphic--ledger .race-lane__streak,
+.race-graphic--wagon .race-lane__streak {
+  top: calc(50% - var(--rr-streak-girth, 4.5rem) / 2);
+  right: calc(50% - var(--rr-streak-head-overlap, 0.6rem));
+  width: var(--rr-streak-length, 11rem);
+  height: var(--rr-streak-girth, 4.5rem);
+  transform-origin: right center;
+  transform: scaleX(var(--lane-streak-intensity, 0));
+  background: repeating-linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--race-lane-color-bright) 88%, white) 0,
+    color-mix(in srgb, var(--race-lane-color-bright) 88%, white) var(--rr-streak-line, 0.32rem),
+    transparent var(--rr-streak-line, 0.32rem),
+    transparent calc(var(--rr-streak-line, 0.32rem) + var(--rr-streak-gap, 0.7rem))
+  );
+  -webkit-mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 0%, transparent 100%);
+  mask-image: linear-gradient(to left, rgba(0, 0, 0, 1) 0%, transparent 100%);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* The hook already minimizes the streak; drop the easing so nothing animates. */
+  .race-lane__streak {
+    transition: none;
+  }
+}
+
 /* Glow lab (issue #6) — design surface for the glow and future indicator cues. */
 .glow-lab {
   min-height: 100vh;

@@ -1,42 +1,34 @@
 import type { RaceGlowMode, RaceMetricsSnapshot } from "@roller-rumble/shared/types";
+import {
+  type SmoothedSpeedLane,
+  advanceSmoothedSpeedLane,
+  clamp01,
+  emaAlpha,
+  initSmoothedSpeedLane
+} from "./smoothed-speed";
 
 export type { RaceGlowMode };
 
 /**
  * Calibration for the leading-edge glow, kept in one place so it can be tuned
- * against the real projector. See ADR-0006 and issue #6.
+ * against the real projector. See ADR-0006 and issue #6. The smoothing window
+ * and coast fade live in the shared {@link SMOOTHED_SPEED_CALIBRATION}; what is
+ * glow-specific stays here.
  *
- * - `smoothingTauMs`: time constant of the fast speed EMA (~1.2s window) that
- *   suppresses pedal-stroke jitter without lagging real surges.
  * - `referenceTauMs`: slower EMA that stands in for "the rider's speed a moment
- *   ago"; Surge brightness is the rectified gap between the two.
- * - `coastFadeMs`: how long a lane's speed estimate takes to fall to dark once
- *   its distance stops changing (currentSpeedKph freezes between ticks).
+ *   ago"; Surge brightness is the rectified gap between it and the fast EMA.
  * - `rivalryFullDeltaKph` / `surgeFullDeltaKph`: the speed difference that maps
  *   to full (1.0) intensity for each mode.
  */
 export const GLOW_CALIBRATION = {
-  smoothingTauMs: 1200,
   referenceTauMs: 2600,
-  coastFadeMs: 1000,
   rivalryFullDeltaKph: 6,
-  surgeFullDeltaKph: 4,
-  distanceEpsilonMeters: 0.01
+  surgeFullDeltaKph: 4
 } as const;
 
-export interface LaneGlowState {
-  /** Fast EMA of the (coast-decayed) speed estimate, in km/h. */
-  smoothedSpeedKph: number;
+export interface LaneGlowState extends SmoothedSpeedLane {
   /** Slow EMA used as the "moment ago" reference for Surge. */
   referenceSpeedKph: number;
-  /** Distance at the last observation, to detect whether the rider is moving. */
-  lastDistanceMeters: number;
-  /** Speed reported at the last distance change, decayed while coasting. */
-  lastMovingSpeedKph: number;
-  /** Wall-clock time of the last distance change. */
-  lastDistanceChangeMs: number;
-  /** Wall-clock time of the last reduce step for this lane. */
-  lastUpdateMs: number;
 }
 
 export interface GlowState {
@@ -52,29 +44,10 @@ export function createGlowState(): GlowState {
   return { lanes: {} };
 }
 
-function clamp01(value: number): number {
-  if (value <= 0) {
-    return 0;
-  }
-  return value >= 1 ? 1 : value;
-}
-
-/** EMA blend factor for an elapsed `dtMs` against time constant `tauMs`. */
-function emaAlpha(dtMs: number, tauMs: number): number {
-  if (dtMs <= 0) {
-    return 0;
-  }
-  return 1 - Math.exp(-dtMs / tauMs);
-}
-
 function initLane(speedKph: number, distanceMeters: number, nowMs: number): LaneGlowState {
   return {
-    smoothedSpeedKph: speedKph,
-    referenceSpeedKph: speedKph,
-    lastDistanceMeters: distanceMeters,
-    lastMovingSpeedKph: speedKph,
-    lastDistanceChangeMs: nowMs,
-    lastUpdateMs: nowMs
+    ...initSmoothedSpeedLane(speedKph, distanceMeters, nowMs),
+    referenceSpeedKph: speedKph
   };
 }
 
@@ -83,37 +56,19 @@ function advanceLane(
   metric: RaceMetricsSnapshot,
   nowMs: number
 ): LaneGlowState {
-  const frozenSpeedKph = Math.max(0, metric.currentSpeedKph);
-  const distanceDelta = metric.distanceMeters - prev.lastDistanceMeters;
-
-  let lastDistanceChangeMs = prev.lastDistanceChangeMs;
-  let lastMovingSpeedKph = prev.lastMovingSpeedKph;
-  let rawSpeedKph: number;
-
-  if (distanceDelta > GLOW_CALIBRATION.distanceEpsilonMeters) {
-    // The rider covered ground since we last looked: trust the reported speed.
-    rawSpeedKph = frozenSpeedKph;
-    lastDistanceChangeMs = nowMs;
-    lastMovingSpeedKph = frozenSpeedKph;
-  } else {
-    // No new distance — currentSpeedKph is frozen (or zeroed at the finish), so
-    // decay the last moving speed toward dark over coastFadeMs.
-    const sinceChangeMs = nowMs - prev.lastDistanceChangeMs;
-    const decay = clamp01(1 - sinceChangeMs / GLOW_CALIBRATION.coastFadeMs);
-    rawSpeedKph = Math.min(prev.lastMovingSpeedKph, frozenSpeedKph) * decay;
-  }
-
-  const dtMs = Math.max(0, nowMs - prev.lastUpdateMs);
-  const fastAlpha = emaAlpha(dtMs, GLOW_CALIBRATION.smoothingTauMs);
-  const refAlpha = emaAlpha(dtMs, GLOW_CALIBRATION.referenceTauMs);
+  // The slow reference EMA runs over the same raw, coast-decayed speed the shared
+  // foundation smooths; compute its blend from the pre-advance timing so it stays
+  // identical to the original glow math.
+  const refAlpha = emaAlpha(
+    Math.max(0, nowMs - prev.lastUpdateMs),
+    GLOW_CALIBRATION.referenceTauMs
+  );
+  const next = advanceSmoothedSpeedLane(prev, metric, nowMs);
 
   return {
-    smoothedSpeedKph: prev.smoothedSpeedKph + (rawSpeedKph - prev.smoothedSpeedKph) * fastAlpha,
-    referenceSpeedKph: prev.referenceSpeedKph + (rawSpeedKph - prev.referenceSpeedKph) * refAlpha,
-    lastDistanceMeters: metric.distanceMeters,
-    lastMovingSpeedKph,
-    lastDistanceChangeMs,
-    lastUpdateMs: nowMs
+    ...next,
+    referenceSpeedKph:
+      prev.referenceSpeedKph + (next.rawSpeedKph - prev.referenceSpeedKph) * refAlpha
   };
 }
 

@@ -9,10 +9,11 @@ import { applyThemeToDocument } from "@roller-rumble/shared-ui/theme";
 import { Button, Panel } from "@roller-rumble/shared-ui";
 import { RaceGraphic } from "../components/race-graphics";
 
-// The lab feeds RaceGraphic synthetic racers/metrics and drives the glow by hand
-// (glowIntensityOverride), so position and brightness are decoupled from the live
-// speed signal. Future indicator cues (lead-change flash, top-speed flare, speed
-// streaks) get their own control sections here as they land.
+// The lab feeds RaceGraphic synthetic racers/metrics and drives the cues by hand
+// (glow/flash/streak intensity overrides), so position and brightness are
+// decoupled from the live speed signal. Each companion cue (leading-edge glow,
+// lead-change flash, speed streaks, and the upcoming top-speed flare) gets its own
+// control section here as it lands.
 
 const TARGET_DISTANCE_METERS = 1000;
 const SPRITE_PEDAL_SPEED_KPH = 22;
@@ -59,11 +60,32 @@ const DEFAULT_FLASH_DESIGN: FlashDesign = {
   opacity: 1
 };
 
+interface StreakDesign {
+  lengthRem: number;
+  girthRem: number;
+  lineRem: number;
+  gapRem: number;
+  blurRem: number;
+  opacity: number;
+  headOverlapRem: number;
+}
+
+const DEFAULT_STREAK_DESIGN: StreakDesign = {
+  lengthRem: 11,
+  girthRem: 4.5,
+  lineRem: 0.32,
+  gapRem: 0.7,
+  blurRem: 0.12,
+  opacity: 0.85,
+  headOverlapRem: 0.6
+};
+
 interface RacerControl {
   name: string;
   positionPct: number;
   glow: number;
   flash: number;
+  streak: number;
 }
 
 interface GlowLabState {
@@ -74,24 +96,27 @@ interface GlowLabState {
   racerB: RacerControl;
   design: GlowDesign;
   flashDesign: FlashDesign;
+  streakDesign: StreakDesign;
 }
 
 const initialState: GlowLabState = {
   themeId: themes[0]?.id ?? "",
   laneColorsFlipped: false,
   headToHead: true,
-  racerA: { name: "Orange", positionPct: 62, glow: 0.85, flash: 0 },
-  racerB: { name: "Purple", positionPct: 48, glow: 0, flash: 1 },
+  racerA: { name: "Orange", positionPct: 62, glow: 0.85, flash: 0, streak: 0.9 },
+  racerB: { name: "Purple", positionPct: 48, glow: 0, flash: 1, streak: 0.35 },
   design: DEFAULT_DESIGN,
-  flashDesign: DEFAULT_FLASH_DESIGN
+  flashDesign: DEFAULT_FLASH_DESIGN,
+  streakDesign: DEFAULT_STREAK_DESIGN
 };
 
 type GlowLabPatch =
-  | Partial<Omit<GlowLabState, "racerA" | "racerB" | "design" | "flashDesign">>
+  | Partial<Omit<GlowLabState, "racerA" | "racerB" | "design" | "flashDesign" | "streakDesign">>
   | { racerA: Partial<RacerControl> }
   | { racerB: Partial<RacerControl> }
   | { design: Partial<GlowDesign> }
-  | { flashDesign: Partial<FlashDesign> };
+  | { flashDesign: Partial<FlashDesign> }
+  | { streakDesign: Partial<StreakDesign> };
 
 function glowLabReducer(state: GlowLabState, patch: GlowLabPatch): GlowLabState {
   if ("racerA" in patch) {
@@ -105,6 +130,9 @@ function glowLabReducer(state: GlowLabState, patch: GlowLabPatch): GlowLabState 
   }
   if ("flashDesign" in patch) {
     return { ...state, flashDesign: { ...state.flashDesign, ...patch.flashDesign } };
+  }
+  if ("streakDesign" in patch) {
+    return { ...state, streakDesign: { ...state.streakDesign, ...patch.streakDesign } };
   }
   return { ...state, ...patch };
 }
@@ -154,7 +182,11 @@ function makeMetric(
   };
 }
 
-function designToStyle(design: GlowDesign, flashDesign: FlashDesign): CSSProperties {
+function designToStyle(
+  design: GlowDesign,
+  flashDesign: FlashDesign,
+  streakDesign: StreakDesign
+): CSSProperties {
   return {
     "--rr-glow-length": `${design.lengthRem}rem`,
     "--rr-glow-girth": `${design.girthRem}rem`,
@@ -168,8 +200,29 @@ function designToStyle(design: GlowDesign, flashDesign: FlashDesign): CSSPropert
     "--rr-flash-blur": `${flashDesign.blurRem}rem`,
     "--rr-flash-scale-base": flashDesign.scaleBase,
     "--rr-flash-scale-gain": flashDesign.scaleGain,
-    "--rr-flash-opacity": flashDesign.opacity
+    "--rr-flash-opacity": flashDesign.opacity,
+    "--rr-streak-length": `${streakDesign.lengthRem}rem`,
+    "--rr-streak-girth": `${streakDesign.girthRem}rem`,
+    "--rr-streak-line": `${streakDesign.lineRem}rem`,
+    "--rr-streak-gap": `${streakDesign.gapRem}rem`,
+    "--rr-streak-blur": `${streakDesign.blurRem}rem`,
+    "--rr-streak-opacity": streakDesign.opacity,
+    "--rr-streak-head-overlap": `${streakDesign.headOverlapRem}rem`
   } as CSSProperties;
+}
+
+function streakDesignToCss(streakDesign: StreakDesign): string {
+  return [
+    ".race-lane__streak {",
+    `  --rr-streak-length: ${streakDesign.lengthRem}rem;`,
+    `  --rr-streak-girth: ${streakDesign.girthRem}rem;`,
+    `  --rr-streak-line: ${streakDesign.lineRem}rem;`,
+    `  --rr-streak-gap: ${streakDesign.gapRem}rem;`,
+    `  --rr-streak-blur: ${streakDesign.blurRem}rem;`,
+    `  --rr-streak-opacity: ${streakDesign.opacity};`,
+    `  --rr-streak-head-overlap: ${streakDesign.headOverlapRem}rem;`,
+    "}"
+  ].join("\n");
 }
 
 function flashDesignToCss(flashDesign: FlashDesign): string {
@@ -290,6 +343,16 @@ function RacerControls({
           step={0.01}
           onChange={(flash) => {
             onPatch({ flash });
+          }}
+        />
+        <RangeField
+          label="Streak intensity"
+          value={control.streak}
+          min={0}
+          max={1}
+          step={0.01}
+          onChange={(streak) => {
+            onPatch({ streak });
           }}
         />
       </div>
@@ -504,9 +567,129 @@ function FlashDesignPanel({
   );
 }
 
+function StreakDesignPanel({
+  streakDesign,
+  onPatch,
+  onReset
+}: {
+  streakDesign: StreakDesign;
+  onPatch: (patch: Partial<StreakDesign>) => void;
+  onReset: () => void;
+}) {
+  return (
+    <Panel
+      title="Streak design"
+      actions={
+        <div className="panel-action-row">
+          <Button variant="ghost" onClick={onReset}>
+            Reset
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={() => {
+              void navigator.clipboard.writeText(streakDesignToCss(streakDesign));
+            }}
+          >
+            Copy CSS
+          </Button>
+        </div>
+      }
+    >
+      <div className="form-grid">
+        <RangeField
+          label="Trail length (behind rider)"
+          value={streakDesign.lengthRem}
+          min={2}
+          max={24}
+          step={0.5}
+          suffix="rem"
+          onChange={(lengthRem) => {
+            onPatch({ lengthRem });
+          }}
+        />
+        <RangeField
+          label="Girth (across travel)"
+          value={streakDesign.girthRem}
+          min={1}
+          max={16}
+          step={0.5}
+          suffix="rem"
+          onChange={(girthRem) => {
+            onPatch({ girthRem });
+          }}
+        />
+        <RangeField
+          label="Line thickness"
+          value={streakDesign.lineRem}
+          min={0.05}
+          max={1.5}
+          step={0.01}
+          suffix="rem"
+          onChange={(lineRem) => {
+            onPatch({ lineRem });
+          }}
+        />
+        <RangeField
+          label="Gap between lines"
+          value={streakDesign.gapRem}
+          min={0.1}
+          max={3}
+          step={0.05}
+          suffix="rem"
+          onChange={(gapRem) => {
+            onPatch({ gapRem });
+          }}
+        />
+        <RangeField
+          label="Blur"
+          value={streakDesign.blurRem}
+          min={0}
+          max={2}
+          step={0.02}
+          suffix="rem"
+          onChange={(blurRem) => {
+            onPatch({ blurRem });
+          }}
+        />
+        <RangeField
+          label="Opacity ceiling"
+          value={streakDesign.opacity}
+          min={0}
+          max={1}
+          step={0.05}
+          onChange={(opacity) => {
+            onPatch({ opacity });
+          }}
+        />
+        <RangeField
+          label="Head overlap (under rider)"
+          value={streakDesign.headOverlapRem}
+          min={0}
+          max={4}
+          step={0.1}
+          suffix="rem"
+          onChange={(headOverlapRem) => {
+            onPatch({ headOverlapRem });
+          }}
+        />
+        <pre className="glow-lab__css-readout">{streakDesignToCss(streakDesign)}</pre>
+      </div>
+    </Panel>
+  );
+}
+
 export function GlowLabPage() {
   const [state, dispatch] = useReducer(glowLabReducer, initialState);
-  const { themeId, laneColorsFlipped, headToHead, racerA, racerB, design, flashDesign } = state;
+  const {
+    themeId,
+    laneColorsFlipped,
+    headToHead,
+    racerA,
+    racerB,
+    design,
+    flashDesign,
+    streakDesign
+  } = state;
   const selectedTheme: ThemeDefinition = themes.find((theme) => theme.id === themeId) ?? themes[0];
   const orientation = selectedTheme.orientation;
 
@@ -537,6 +720,10 @@ export function GlowLabPage() {
   const flashIntensityOverride: Record<string, number> = headToHead
     ? { [RACER_A_ID]: racerA.flash, [RACER_B_ID]: racerB.flash }
     : { [RACER_A_ID]: 0 };
+  // Streaks are per-rider absolute speed — no opponent needed, so they show solo too.
+  const streakIntensityOverride: Record<string, number> = headToHead
+    ? { [RACER_A_ID]: racerA.streak, [RACER_B_ID]: racerB.streak }
+    : { [RACER_A_ID]: racerA.streak };
 
   function setBothGlows(a: number, b: number): void {
     dispatch({ racerA: { glow: a } });
@@ -548,16 +735,22 @@ export function GlowLabPage() {
     dispatch({ racerB: { flash: b } });
   }
 
+  function setBothStreaks(a: number, b: number): void {
+    dispatch({ racerA: { streak: a } });
+    dispatch({ racerB: { streak: b } });
+  }
+
   return (
     <div className="glow-lab">
       <header className="glow-lab__header">
         <div>
           <h1>Glow Lab</h1>
           <p>
-            Dial in the leading-edge glow and lead-change flash by hand across every race graphic.
-            Position each racer, set each lane&apos;s glow and flash levels, and tune the shape
-            live. The relative-speed glow signal and the standings-based flash trigger that drive
-            these in real races are covered separately by the reducer unit tests.
+            Dial in the leading-edge glow, lead-change flash, and speed streaks by hand across every
+            race graphic. Position each racer, set each lane&apos;s glow, flash, and streak levels,
+            and tune the shape live. The relative-speed glow signal, standings-based flash trigger,
+            and absolute-speed streak signal that drive these in real races are covered separately
+            by the reducer unit tests.
           </p>
         </div>
       </header>
@@ -565,7 +758,7 @@ export function GlowLabPage() {
       <div className="glow-lab__body">
         <div
           className={`glow-lab__stage race-page race-page--${orientation}`}
-          style={designToStyle(design, flashDesign)}
+          style={designToStyle(design, flashDesign, streakDesign)}
         >
           <RaceGraphic
             theme={selectedTheme}
@@ -576,6 +769,7 @@ export function GlowLabPage() {
             glowMode="rivalry"
             glowIntensityOverride={glowIntensityOverride}
             flashIntensityOverride={flashIntensityOverride}
+            streakIntensityOverride={streakIntensityOverride}
           />
         </div>
 
@@ -651,6 +845,20 @@ export function GlowLabPage() {
             </div>
           </Panel>
 
+          <Panel title="Streak quick looks">
+            <div className="button-row glow-lab__quick-looks">
+              <Button variant="ghost" onClick={() => setBothStreaks(0, 0)}>
+                Standstill
+              </Button>
+              <Button variant="ghost" onClick={() => setBothStreaks(1, 0.35)}>
+                {racerA.name} flying
+              </Button>
+              <Button variant="ghost" onClick={() => setBothStreaks(1, 1)}>
+                Both fast
+              </Button>
+            </div>
+          </Panel>
+
           <RacerControls
             heading={`${racerA.name} (top lane)`}
             control={racerA}
@@ -689,6 +897,16 @@ export function GlowLabPage() {
             }}
           />
 
+          <StreakDesignPanel
+            streakDesign={streakDesign}
+            onPatch={(patch) => {
+              dispatch({ streakDesign: patch });
+            }}
+            onReset={() => {
+              dispatch({ streakDesign: DEFAULT_STREAK_DESIGN });
+            }}
+          />
+
           <Panel title="Future cues">
             <div className="stack-sm glow-lab__future">
               <p>
@@ -697,7 +915,6 @@ export function GlowLabPage() {
               </p>
               <ul>
                 <li>Top-speed flare — flash on a new personal top speed</li>
-                <li>Speed streaks — motion lines scaled to absolute speed</li>
               </ul>
             </div>
           </Panel>

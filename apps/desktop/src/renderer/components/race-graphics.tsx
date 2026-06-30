@@ -9,6 +9,7 @@ import type {
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
+import { useSpeedStreaks } from "../lib/use-speed-streaks";
 import { RaceSpriteAvatar } from "./race-sprite-avatar";
 import { getRaceSpriteDisplaySize } from "./race-sprite-sizing";
 
@@ -32,6 +33,13 @@ interface RaceGraphicProps {
    * {@link useLeadChangeFlash} signal wins.
    */
   flashIntensityOverride?: Record<string, number>;
+  /**
+   * When provided, these per-racer intensities drive the speed streaks directly
+   * instead of the derived signal. Used by the glow lab to dial in the streak
+   * look by hand; the race display leaves it unset so the live
+   * {@link useSpeedStreaks} signal wins.
+   */
+  streakIntensityOverride?: Record<string, number>;
 }
 
 type RaceLaneColor = "orange" | "purple";
@@ -98,12 +106,14 @@ function getLaneClassName(
 function withCueIntensities(
   base: CSSProperties,
   glowIntensity: number,
-  flashIntensity: number
+  flashIntensity: number,
+  streakIntensity: number
 ): CSSProperties {
   return {
     ...base,
     "--lane-glow-intensity": glowIntensity,
-    "--lane-flash-intensity": flashIntensity
+    "--lane-flash-intensity": flashIntensity,
+    "--lane-streak-intensity": streakIntensity
   } as CSSProperties;
 }
 
@@ -125,6 +135,18 @@ function LaneGlow() {
  */
 function LaneFlash() {
   return <span className="race-lane__flash" aria-hidden="true" />;
+}
+
+/**
+ * The speed streaks that attach to a rider marker. Motion lines trailing the
+ * rider in the direction of travel, whose length and opacity scale with the
+ * lane's *absolute* speed via the `--lane-streak-intensity` CSS variable on the
+ * marker (issue #9). Direction is styled per race-graphic variant in CSS, not
+ * here. This is the companion cue that carries raw speed, the dimension the
+ * relative leading-edge glow deliberately omits.
+ */
+function LaneStreak() {
+  return <span className="race-lane__streak" aria-hidden="true" />;
 }
 
 function AutoFitRacerName({ name }: { name: string }) {
@@ -255,7 +277,8 @@ export function RaceGraphic({
   laneColorsFlipped,
   glowMode,
   glowIntensityOverride,
-  flashIntensityOverride
+  flashIntensityOverride,
+  streakIntensityOverride
 }: RaceGraphicProps) {
   const prefersReducedMotion = useReducedMotion();
   const derivedGlowIntensity = useLaneGlow({
@@ -267,8 +290,13 @@ export function RaceGraphic({
     metrics,
     prefersReducedMotion: prefersReducedMotion ?? false
   });
+  const derivedStreakIntensity = useSpeedStreaks({
+    metrics,
+    prefersReducedMotion: prefersReducedMotion ?? false
+  });
   const glowIntensityByRacerId = glowIntensityOverride ?? derivedGlowIntensity;
   const flashIntensityByRacerId = flashIntensityOverride ?? derivedFlashIntensity;
+  const streakIntensityByRacerId = streakIntensityOverride ?? derivedStreakIntensity;
   const viewportHeight = useViewportHeight();
   const { raceGraphic } = theme;
   const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;
@@ -319,9 +347,11 @@ export function RaceGraphic({
                   style={withCueIntensities(
                     { bottom: markerBottom },
                     glowIntensityByRacerId[entry.racer.id] ?? 0,
-                    flashIntensityByRacerId[entry.racer.id] ?? 0
+                    flashIntensityByRacerId[entry.racer.id] ?? 0,
+                    streakIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
+                  <LaneStreak />
                   <LaneGlow />
                   <LaneFlash />
                   <RaceSpriteAvatar
@@ -385,9 +415,11 @@ export function RaceGraphic({
                   style={withCueIntensities(
                     { left: markerLeft },
                     glowIntensityByRacerId[entry.racer.id] ?? 0,
-                    flashIntensityByRacerId[entry.racer.id] ?? 0
+                    flashIntensityByRacerId[entry.racer.id] ?? 0,
+                    streakIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
+                  <LaneStreak />
                   <LaneGlow />
                   <LaneFlash />
                   <RaceSpriteAvatar
@@ -445,9 +477,11 @@ export function RaceGraphic({
                   style={withCueIntensities(
                     { left: markerLeft },
                     glowIntensityByRacerId[entry.racer.id] ?? 0,
-                    flashIntensityByRacerId[entry.racer.id] ?? 0
+                    flashIntensityByRacerId[entry.racer.id] ?? 0,
+                    streakIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
+                  <LaneStreak />
                   <LaneGlow />
                   <LaneFlash />
                   <RaceSpriteAvatar
@@ -503,9 +537,11 @@ export function RaceGraphic({
                 style={withCueIntensities(
                   { left: markerLeft },
                   glowIntensityByRacerId[entry.racer.id] ?? 0,
-                  flashIntensityByRacerId[entry.racer.id] ?? 0
+                  flashIntensityByRacerId[entry.racer.id] ?? 0,
+                  streakIntensityByRacerId[entry.racer.id] ?? 0
                 )}
               >
+                <LaneStreak />
                 <LaneGlow />
                 <LaneFlash />
                 <RaceSpriteAvatar
