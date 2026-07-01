@@ -953,18 +953,41 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   return {
     service,
     async start() {
-      await service.init();
-      return new Promise<{ port: number }>((resolve) => {
-        httpServer.listen(options.port ?? DEFAULT_SERVER_PORT, "0.0.0.0", () => {
+      // Bind the port BEFORE starting hardware: service.init() opens the exclusive serial port, so a
+      // second copy that can't bind the port must fail here and never grab the race box. A listen
+      // 'error' (e.g. EADDRINUSE) rejects the promise instead of surfacing as an unhandled event that
+      // leaves startup hanging with the serial port already claimed.
+      const port = await new Promise<number>((resolve, reject) => {
+        const onError = (error: Error): void => {
+          httpServer.removeListener("listening", onListening);
+          reject(error);
+        };
+        const onListening = (): void => {
+          httpServer.removeListener("error", onError);
           const address = httpServer.address();
-          const port =
+          resolve(
             typeof address === "object" && address
               ? address.port
-              : (options.port ?? DEFAULT_SERVER_PORT);
-          service.setServerPort(port);
-          resolve({ port });
-        });
+              : (options.port ?? DEFAULT_SERVER_PORT)
+          );
+        };
+        httpServer.once("error", onError);
+        httpServer.once("listening", onListening);
+        httpServer.listen(options.port ?? DEFAULT_SERVER_PORT, "0.0.0.0");
       });
+
+      try {
+        await service.init();
+        service.setServerPort(port);
+      } catch (error) {
+        // init failed after the port was bound (e.g. a bad migration); release the port and any
+        // hardware it may have claimed so this process exits clean instead of lingering.
+        await service.close().catch(() => undefined);
+        await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+        throw error;
+      }
+
+      return { port };
     },
     async stop() {
       await service.close();

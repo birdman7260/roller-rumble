@@ -12,6 +12,10 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Roller Rumble now runs as a single instance. Launching it again (or a leftover copy still running in the background) no longer starts a competing copy that fights the first one for the race box's USB port and the local server port — the most common reason the race box showed "still searching" with an "Access denied" error. A second launch now just focuses the window that's already open.
+- Roller Rumble now secures its network port before connecting to the race box, and if the port is already taken it shows a clear "already running / port in use" message and exits cleanly instead of hanging in the background still holding the race box's USB port. A leftover, windowless copy can no longer keep the box locked away from the next launch. If another program genuinely needs port 3187, you can now set `ROLLER_RUMBLE_PORT` to a different value.
+- Fixed a shutdown crash ("database connection is not open") that could occur when the app was closing while the bike sensor was still searching for the box.
+
 ## 0.1.14 - 2026-07-01
 
 ### Added

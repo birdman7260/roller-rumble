@@ -228,6 +228,9 @@ export class RollerRumbleApp extends EventEmitter {
   readonly uploadsDir: string;
   readonly db: AppDatabase;
 
+  // Set once close() runs so late async callbacks (e.g. an in-flight sensor probe resolving after
+  // shutdown) don't emit a snapshot that queries the now-closed database.
+  private closed = false;
   private readonly sensorAdapter: SensorAdapter = createSensorAdapter();
   private readonly manualTrigger = new ManualRaceTriggerAdapter();
   // Debug sessions sometimes need a second app instance; allowing the OS2L port to move keeps
@@ -299,6 +302,7 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   async close(): Promise<void> {
+    this.closed = true;
     void this.sensorAdapter.disconnect();
     this.manualTrigger.stop();
     this.os2lTrigger.stop();
@@ -323,6 +327,11 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   private emitSnapshot(): void {
+    // After close() the database is gone; a straggling async callback must not try to build a
+    // snapshot from it (that surfaced as an "database connection is not open" crash on shutdown).
+    if (this.closed) {
+      return;
+    }
     this.emit("snapshot", this.getSnapshot());
   }
 

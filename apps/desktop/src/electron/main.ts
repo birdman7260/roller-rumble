@@ -205,6 +205,14 @@ async function saveDiagnosticsBundle(
   return result.filePath;
 }
 
+function isAddressInUseError(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    (error as { code?: string }).code === "EADDRINUSE"
+  );
+}
+
 async function bootstrap(): Promise<void> {
   // Always-on logging is initialized before anything else so startup output is captured too.
   initLogging();
@@ -238,6 +246,24 @@ async function bootstrap(): Promise<void> {
     // Only backend.start() is guarded here — a later window-load failure must not offer to wipe data.
     console.error("[main] backend failed to start", error);
     backend = null;
+
+    // A port conflict is not a data problem — never offer to wipe data for it. Another copy of the
+    // app (or some other program) already owns the port; tell the operator plainly and quit.
+    if (isAddressInUseError(error)) {
+      const conflictPort = Number(process.env.ROLLER_RUMBLE_PORT ?? "3187");
+      await dialog.showMessageBox({
+        type: "error",
+        title: "Roller Rumble is already running",
+        message: `Another program is already using port ${conflictPort} on this computer.`,
+        detail:
+          "This is usually another copy of Roller Rumble that is still running. Close it (check " +
+          "Task Manager), then open Roller Rumble again. If another program needs that port, set " +
+          "ROLLER_RUMBLE_PORT to a different value in your settings file."
+      });
+      app.quit();
+      return;
+    }
+
     await handleStartupFailure({
       error,
       dataDir: userDataDir,
@@ -263,7 +289,30 @@ process.on("unhandledRejection", (reason) => {
   console.error("[main] unhandledRejection", reason);
 });
 
-void app.whenReady().then(bootstrap);
+// Serial ports and the backend port (3187) are exclusive: a second packaged instance can't open a
+// COM port the first already holds ("Access denied") and can't bind the port ("EADDRINUSE"), so it
+// must never start. Take the single-instance lock before any work; if another instance owns it, focus
+// that window and quit instead of racing it for the hardware. Dev is exempt so a maintainer can still
+// run a second, port-shifted instance for debugging.
+if (app.isPackaged && !app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  if (app.isPackaged) {
+    app.on("second-instance", () => {
+      const windows = BrowserWindow.getAllWindows();
+      if (windows.length === 0) {
+        return;
+      }
+      const existing = windows[0];
+      if (existing.isMinimized()) {
+        existing.restore();
+      }
+      existing.focus();
+    });
+  }
+
+  void app.whenReady().then(bootstrap);
+}
 
 app.on("window-all-closed", () => {
   void (async () => {
