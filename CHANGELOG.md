@@ -12,6 +12,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+## 0.1.16 - 2026-07-01
+
+### Added
+
+### Changed
+
+### Fixed
+
 - The app now wakes the race box the same way the diagnostic probe does (asserting the serial DTR line) and waits a little longer for it to boot, so a box that opens on its port but stayed silent is now detected. Startup diagnostics also log the first bytes received from the box, making a silent-vs-misconfigured box easy to tell apart.
 
 ## 0.1.15 - 2026-07-01
