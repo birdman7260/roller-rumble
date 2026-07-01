@@ -154,22 +154,92 @@ function Read-ForSeconds {
     }
 }
 
-# Ask the firmware to identify itself.
-Write-Log "Asking the box for its firmware version..."
-$serial.WriteLine("v")
-Read-ForSeconds -Seconds 2 -Label "version"
+# ---------------------------------------------------------------------------
+# Firmware protocol notes (verified against two real sketches):
+#
+#   opensprints/basic_msg   -> reports version "basic-1"   (this is our box)
+#       v            : prints "basic-1"
+#       l <lo><hi>CR : set finish distance in TICKS as TWO RAW BYTES then a CR.
+#                      NOT ascii digits, and the terminator must be CR (0x0D),
+#                      never LF. Sending "l60000\n" jams the length parser and it
+#                      then swallows the next 'g', so the race never starts and
+#                      nothing streams -- exactly the empty capture we saw.
+#       g            : GO. ~4s silent countdown, then streams every 250ms:
+#                          "0: <ticks>" "1: <ticks>" "2: <ticks>" "3: <ticks>" "t: <ms>"
+#                      crossing the finish line prints "<lane>f: <ms>".
+#       m            : toggle MOCK mode (box invents ticks; lets us test w/o bikes)
+#       s            : stop
+#
+#   cwhitney/SilverSprint ss_basic -> reports "V:SS_vX.Y.Z" (newer variant)
+#       l/t take ASCII digits + newline; streams "R:t0,t1,t2,t3,ms"; acks "M:ON/OFF".
+#       We only need to recognise it so we set the race length the right way.
+#
+# Commands are single bytes with NO trailing newline; only 'l' takes a terminator.
+# ---------------------------------------------------------------------------
+function Send-Cmd {
+    param([string]$Text)
+    $b = [System.Text.Encoding]::ASCII.GetBytes($Text)
+    $serial.Write($b, 0, $b.Length)
+}
 
-# Push the finish line far away so the box keeps streaming and never declares a winner,
-# then start a streaming race. (Harmless to older firmware, which just ignores it.)
-$serial.WriteLine("d")        # distance-based race
-Start-Sleep -Milliseconds 150
-$serial.WriteLine("l60000")   # set finish line to 60000 ticks (effectively never)
-Start-Sleep -Milliseconds 150
-Read-ForSeconds -Seconds 1 -Label "setup"
+function Set-RaceLengthBasic {
+    param([int]$Ticks)
+    $lo = [byte]($Ticks -band 0xFF)
+    $hi = [byte](($Ticks -shr 8) -band 0xFF)
+    $b = [byte[]]@([byte][char]'l', $lo, $hi, [byte]13)   # 'l', low, high, CR (0x0D)
+    $serial.Write($b, 0, $b.Length)
+}
+
+# Ask the firmware to identify itself. The DTR-triggered reset means it may still
+# be booting, so retry. Expect "basic-1" (or "V:SS_..." on the newer variant).
+Write-Log "Asking the box for its firmware version..."
+$versionText = ""
+for ($i = 1; $i -le 5 -and [string]::IsNullOrEmpty($versionText); $i++) {
+    Send-Cmd "v"
+    Start-Sleep -Milliseconds 400
+    $resp = ""
+    try { $resp = $serial.ReadExisting() } catch {}
+    if ($resp) {
+        foreach ($line in ($resp -split "`r?`n")) {
+            if ($line.Trim().Length -gt 0) {
+                Write-Log ("[version] {0}" -f $line.Trim())
+                if ([string]::IsNullOrEmpty($versionText)) { $versionText = $line.Trim() }
+            }
+        }
+    }
+}
+if ([string]::IsNullOrEmpty($versionText)) {
+    Write-Log "[version] (no reply). The box may still be usable; the raw capture below still helps."
+}
+
+$isSilverSprint = ($versionText -match "SS_|^V:")
+
+# Push the finish line far away (60000 ticks) so no lane auto-finishes and the box
+# keeps streaming for the whole test. Encoding differs per firmware (see notes).
+if ($isSilverSprint) {
+    Send-Cmd "l60000`r"       # ss_basic parses ascii digits, CR-terminated
+} else {
+    Set-RaceLengthBasic 60000 # basic_msg parses two raw bytes, CR-terminated
+}
+Start-Sleep -Milliseconds 300
+Read-ForSeconds -Seconds 1 -Label "setup"    # basic_msg echoes "OK 60000"; ss echoes "L:60000"
+
+# --- Self-test with NO bikes: mock mode makes the box invent ticks. ----------
+# Proves the whole start -> stream -> capture path even before anyone pedals.
+Write-Log ""
+Write-Log "Quick self-test (no pedalling needed): asking the box to fake some ticks..."
+Send-Cmd "m"                  # mock ON
+Send-Cmd "g"                  # GO (countdown, then streams fake ticks)
+Read-ForSeconds -Seconds 10 -Label "MOCK-selftest"
+Send-Cmd "s"                  # stop
+Send-Cmd "m"                  # mock OFF -- IMPORTANT: back to real sensors
+Start-Sleep -Milliseconds 300
+$serial.DiscardInBuffer()
 
 Write-Banner "STEP 3 of 4: Lane test - pedal ONE bike at a time"
-Write-Log "I'll start the race now. The box counts down (about 4 seconds) before it streams data."
-$serial.WriteLine("g")        # GO - begins countdown then streaming
+Write-Log "Starting a real race. The box counts down (about 4 seconds) before it streams data."
+Write-Log "Real data lines look like:  0: 12   1: 0   2: 0   3: 0   t: 3456   (ticks per lane, then ms)"
+Send-Cmd "g"                  # GO - begins countdown then streaming
 Read-ForSeconds -Seconds 5 -Label "countdown"
 
 Write-Log ""
@@ -190,7 +260,7 @@ Read-ForSeconds -Seconds 6 -Label "ALL-bikes"
 
 # Stop the race and close cleanly.
 Write-Banner "STEP 4 of 4: Done - cleaning up"
-$serial.WriteLine("s")
+Send-Cmd "s"
 Start-Sleep -Milliseconds 300
 try { $serial.Close() } catch {}
 
