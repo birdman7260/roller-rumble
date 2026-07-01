@@ -1,6 +1,6 @@
 {
   "name": "roller-rumble",
-  "version": "0.1.12",
+  "version": "0.1.13",
   "private": true,
   "description": "Monorepo for the Roller Rumble race app and hardware-adjacent tooling.",
   "packageManager": "pnpm@9.15.9",
