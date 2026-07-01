@@ -12,6 +12,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Fixed pipeline for Windows
+
 ## 0.1.9 - 2026-07-01
 
 ### Added

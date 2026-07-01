@@ -40,7 +40,10 @@ jobs:
             command: pnpm package:mac
             artifact: roller-rumble-macos
           - name: Windows
-            os: windows-latest
+            # Pinned to 2022: node-gyp 9.x's Visual Studio finder fails to
+            # detect the toolchain on the windows-2025 image, breaking the
+            # from-source rebuild of @serialport/bindings-cpp.
+            os: windows-2022
             command: pnpm package:win
             artifact: roller-rumble-windows
     env:
