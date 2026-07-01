@@ -14,10 +14,10 @@
     "cloudflared:install": "tsx src/backend/services/cloudflared-cli.ts install",
     "cloudflared:version": "tsx src/backend/services/cloudflared-cli.ts version",
     "notifications:keys": "tsx src/backend/services/notifications-cli.ts",
-    "package:app": "pnpm build && pnpm rebuild:native && electron-builder --publish=never",
-    "package:dir": "pnpm build && pnpm rebuild:native && electron-builder --dir --publish=never",
-    "package:mac": "pnpm build && pnpm rebuild:native && electron-builder --mac --publish=never",
-    "package:win": "pnpm build && pnpm rebuild:native && electron-builder --win --publish=never",
+    "package:app": "pnpm build && electron-builder --publish=never",
+    "package:dir": "pnpm build && electron-builder --dir --publish=never",
+    "package:mac": "pnpm build && electron-builder --mac --publish=never",
+    "package:win": "pnpm build && electron-builder --win --publish=never",
     "preview": "vite preview",
     "rebuild:native": "electron-rebuild -f -w better-sqlite3,serialport",
     "start": "electron .",
@@ -32,14 +32,6 @@
       "dist/**/*",
       "package.json"
     ],
-    "asarUnpack": [
-      "**/*.node",
-      "**/node_modules/serialport/**",
-      "**/node_modules/@serialport/**",
-      "**/node_modules/better-sqlite3/**",
-      "**/node_modules/bindings/**"
-    ],
-    "npmRebuild": true,
     "directories": {
       "buildResources": "public",
       "output": "release"
