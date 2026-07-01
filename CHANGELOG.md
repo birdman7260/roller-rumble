@@ -12,6 +12,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+## 0.1.9 - 2026-07-01
+
+### Added
+
+### Changed
+
+### Fixed
+
 - Tried to fix the build issue
 
 ## 0.1.8 - 2026-07-01
