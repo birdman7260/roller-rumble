@@ -31,10 +31,11 @@ const SUBSYSTEM_GROUP_LABELS: Partial<Record<SubsystemId, string>> = {
   tunnel: "Cloudflare tunnel",
   stripe: "Stripe payments",
   network: "Network",
-  webPush: "Racer notifications"
+  webPush: "Racer notifications",
+  sensor: "Bike sensor"
 };
 
-const MANAGED_GROUP_ORDER: SubsystemId[] = ["tunnel", "stripe", "network", "webPush"];
+const MANAGED_GROUP_ORDER: SubsystemId[] = ["tunnel", "stripe", "network", "webPush", "sensor"];
 
 function statusModifier(status: SubsystemHealthStatus): string {
   return `subsystem-status--${status}`;

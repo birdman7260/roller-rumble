@@ -182,7 +182,9 @@ describe("OpenSprints command builders", () => {
   });
 
   it("builds Variant B arm commands with a binary length", () => {
-    expect(buildArmCommands("basic")).toEqual([Uint8Array.of(0x6c, 0xff, 0xff, 0x0d), "g\n"]);
+    // 0x7fff (max positive int16) little-endian: low 0xff, high 0x7f. Preceded by 'l' (0x6c),
+    // terminated by CR (0x0d). Sending 0xffff would wrap to -1 in the firmware's signed int.
+    expect(buildArmCommands("basic")).toEqual([Uint8Array.of(0x6c, 0xff, 0x7f, 0x0d), "g\n"]);
   });
 
   it("builds Variant C arm commands as just GO", () => {

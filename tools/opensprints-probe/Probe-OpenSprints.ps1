@@ -134,23 +134,34 @@ Start-Sleep -Milliseconds 2500
 $serial.DiscardInBuffer()
 
 # Helper: drain whatever the box has sent for a number of seconds, logging it raw.
+# Reads arrive in arbitrary chunks that can split a line mid-way, so we keep a
+# rolling buffer and only emit COMPLETE lines; a trailing partial line is held
+# over until the rest arrives (and flushed at the end).
 function Read-ForSeconds {
     param([int]$Seconds, [string]$Label)
     $deadline = (Get-Date).AddSeconds($Seconds)
+    $buffer = ""
     while ((Get-Date) -lt $deadline) {
         try {
             $chunk = $serial.ReadExisting()
             if ($chunk -and $chunk.Length -gt 0) {
-                foreach ($line in ($chunk -split "`r?`n")) {
-                    if ($line.Trim().Length -gt 0) {
-                        Write-Log ("[{0}] {1}" -f $Label, $line.Trim())
+                $buffer += $chunk
+                $parts = $buffer -split "`r`n|`n|`r"
+                # Everything except the last element is a complete line.
+                for ($k = 0; $k -lt $parts.Count - 1; $k++) {
+                    if ($parts[$k].Trim().Length -gt 0) {
+                        Write-Log ("[{0}] {1}" -f $Label, $parts[$k].Trim())
                     }
                 }
+                $buffer = $parts[$parts.Count - 1]   # possibly-incomplete remainder
             }
         } catch [System.TimeoutException] {
             # no data this slice; keep waiting
         }
         Start-Sleep -Milliseconds 50
+    }
+    if ($buffer.Trim().Length -gt 0) {
+        Write-Log ("[{0}] {1}" -f $Label, $buffer.Trim())
     }
 }
 
@@ -214,15 +225,17 @@ if ([string]::IsNullOrEmpty($versionText)) {
 
 $isSilverSprint = ($versionText -match "SS_|^V:")
 
-# Push the finish line far away (60000 ticks) so no lane auto-finishes and the box
-# keeps streaming for the whole test. Encoding differs per firmware (see notes).
+# Push the finish line far away (30000 ticks) so no lane auto-finishes and the box
+# keeps streaming for the whole test. 30000 fits basic_msg's signed 16-bit int
+# (60000 overflowed to -5536); a lane only reaches a few hundred ticks in a test.
+# Encoding differs per firmware (see notes).
 if ($isSilverSprint) {
-    Send-Cmd "l60000`r"       # ss_basic parses ascii digits, CR-terminated
+    Send-Cmd "l30000`r"       # ss_basic parses ascii digits, CR-terminated
 } else {
-    Set-RaceLengthBasic 60000 # basic_msg parses two raw bytes, CR-terminated
+    Set-RaceLengthBasic 30000 # basic_msg parses two raw bytes, CR-terminated
 }
 Start-Sleep -Milliseconds 300
-Read-ForSeconds -Seconds 1 -Label "setup"    # basic_msg echoes "OK 60000"; ss echoes "L:60000"
+Read-ForSeconds -Seconds 1 -Label "setup"    # basic_msg echoes "OK 30000"; ss echoes "L:30000"
 
 # --- Self-test with NO bikes: mock mode makes the box invent ticks. ----------
 # Proves the whole start -> stream -> capture path even before anyone pedals.

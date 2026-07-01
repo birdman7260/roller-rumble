@@ -69,9 +69,18 @@ per variant (`buildArmCommands`): A uses a decimal length, B a 2-byte binary len
 
 ## Calibration note
 
-Roller Rumble's `applyRotationSample` multiplies `deltaRotations` by
-`DEFAULT_WHEEL_CIRCUMFERENCE_METERS`. For OpenSprints that constant must be the
-**roller rollout** (distance the bike travels per one roller revolution), not a bike
-wheel circumference. SilverSprint's mock assumed a 114.3mm-diameter roller
-(≈0.359 m circumference) but the real value depends on this specific hardware and
-must be measured/calibrated, or race distances and speeds will be wrong.
+Roller Rumble's `applyRotationSample` multiplies `deltaRotations` by the sensor adapter's
+`wheelCircumferenceMeters`. For OpenSprints that value is the **roller rollout** (distance the
+bike travels per one roller revolution), not a bike wheel circumference. `readSensorRolloutMeters`
+supplies it, defaulting to `OPENSPRINTS_ROLLER_ROLLOUT_METERS`.
+
+Confirmed on hardware 2026-07-01: the roller is **4.5 in / 114.3 mm** in diameter with a **single
+magnet**, so one tick = one revolution and the rollout = π × 0.1143 m ≈ **0.359 m**. This matches
+the `114.3 * PI` constant baked into SilverSprint's firmware, so 114.3 mm is the standard roller.
+Override `ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS` only for a box with a non-standard roller.
+
+Sensor-port → lane wiring was confirmed by a pedal test on the same date: **port 0 = left, port 1 =
+right** (ports 2/3 unused, only two bikes wired). Set `ROLLER_RUMBLE_SENSOR_LANE_MAP=left,right` to
+make that explicit rather than relying on the positional default. Note the firmware caps race length
+at a signed 16-bit int (32767 ticks); `buildArmCommands("basic")` sets it there so the box streams
+for the whole app-owned race instead of finishing early.

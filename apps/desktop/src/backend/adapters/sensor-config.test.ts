@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_WHEEL_CIRCUMFERENCE_METERS } from "@roller-rumble/shared/constants";
+import { OPENSPRINTS_ROLLER_ROLLOUT_METERS } from "@roller-rumble/shared/constants";
 import {
   readSensorLaneAssignments,
   readSensorMode,
@@ -43,13 +43,13 @@ describe("sensor-config", () => {
     expect(readSensorLaneAssignments({ ROLLER_RUMBLE_SENSOR_LANE_MAP: "left,banana" })).toBeNull();
   });
 
-  it("falls back to the default rollout for blank or non-positive values", () => {
-    expect(readSensorRolloutMeters({})).toBe(DEFAULT_WHEEL_CIRCUMFERENCE_METERS);
+  it("falls back to the confirmed roller rollout for blank or non-positive values", () => {
+    expect(readSensorRolloutMeters({})).toBe(OPENSPRINTS_ROLLER_ROLLOUT_METERS);
     expect(readSensorRolloutMeters({ ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS: "0" })).toBe(
-      DEFAULT_WHEEL_CIRCUMFERENCE_METERS
+      OPENSPRINTS_ROLLER_ROLLOUT_METERS
     );
     expect(readSensorRolloutMeters({ ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS: "-1" })).toBe(
-      DEFAULT_WHEEL_CIRCUMFERENCE_METERS
+      OPENSPRINTS_ROLLER_ROLLOUT_METERS
     );
     expect(readSensorRolloutMeters({ ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS: "0.36" })).toBe(0.36);
   });

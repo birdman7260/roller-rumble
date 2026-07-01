@@ -46,8 +46,15 @@ import type { RaceParticipant } from "@roller-rumble/shared/types";
 const BAUD_RATE = 115200;
 /** How often to retry discovery while disconnected. */
 const RECONNECT_INTERVAL_MS = 1000;
-/** How long to wait for a `V:` reply before rejecting a probed port. */
-const PROBE_TIMEOUT_MS = 1500;
+/**
+ * How long to wait for a version reply before rejecting a probed port. Opening the port toggles
+ * DTR, which resets the Arduino; its bootloader runs for ~2s before the sketch can answer, so this
+ * must comfortably outlast that boot or every probe times out on a booting board (the symptom:
+ * "still searching" even though the port is the box).
+ */
+const PROBE_TIMEOUT_MS = 3000;
+/** How often to re-send the version query within the probe window, so at least one lands post-boot. */
+const PROBE_QUERY_INTERVAL_MS = 400;
 
 /**
  * USB-serial vendor IDs (lowercase hex) known to front OpenSprints-class Arduinos. Used only to
@@ -104,6 +111,8 @@ export interface OpenSprintsSensorAdapterOptions {
   now?: () => number;
   /** Probe reply timeout in ms (overridable so tests don't wait real seconds). */
   probeTimeoutMs?: number;
+  /** How often to re-send the version query during a probe, in ms (overridable for tests). */
+  probeQueryIntervalMs?: number;
   /** Reconnect poll interval in ms (overridable for tests). */
   reconnectIntervalMs?: number;
 }
@@ -195,6 +204,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   private readonly now: () => number;
   private readonly createTransport: () => Promise<SerialTransport>;
   private readonly probeTimeoutMs: number;
+  private readonly probeQueryIntervalMs: number;
   private readonly reconnectIntervalMs: number;
   private transport: SerialTransport | null = null;
 
@@ -228,6 +238,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     this.now = options.now ?? Date.now;
     this.createTransport = options.createTransport ?? createSerialPortTransport;
     this.probeTimeoutMs = options.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
+    this.probeQueryIntervalMs = options.probeQueryIntervalMs ?? PROBE_QUERY_INTERVAL_MS;
     this.reconnectIntervalMs = options.reconnectIntervalMs ?? RECONNECT_INTERVAL_MS;
     this.session = this.createSession();
   }
@@ -394,6 +405,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
         }
         settled = true;
         clearTimeout(timer);
+        clearInterval(reQuery);
         resolve(result);
       };
       const timer = setTimeout(
@@ -409,7 +421,14 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
           }
         }
       });
+      // Opening the port reset the board (DTR), so the first query may hit a still-booting sketch
+      // and be lost. Re-send across the whole window until one lands after boot, or we time out.
       connection.write(OPENSPRINTS_VERSION_QUERY);
+      const reQuery = setInterval(
+        () => connection.write(OPENSPRINTS_VERSION_QUERY),
+        this.probeQueryIntervalMs
+      );
+      reQuery.unref();
     });
   }
 

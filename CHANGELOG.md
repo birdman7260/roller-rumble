@@ -8,9 +8,15 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Settings now has a **Bike sensor** card where you can switch between the simulator and the physical OpenSprints USB race box, pick the serial port, set the sensor-to-lane wiring, and adjust the roller rollout — no more hand-editing the settings file. Saving these writes them into your settings file for you, and the generated settings file and `.env.example` now include a documented bike-sensor section.
+
 ### Changed
 
 ### Fixed
+
+- The OpenSprints race box is now detected on startup. Opening its USB port resets the box, and it needs a couple of seconds to boot before it can answer; the app was giving up too soon and falling back to the simulator. It now keeps asking while the box boots, so a plugged-in box that the probe tool could see is now found by the app too.
+- Race distances and speeds from the OpenSprints race box are now accurate: the app measures distance using the real 4.5-inch (114.3 mm) roller with one magnet per revolution (~0.359 m per tick), instead of a placeholder bike-wheel value that overstated distance.
+- The OpenSprints race box now streams reliably for the full length of a race instead of being told a finish distance its firmware couldn't store, which could stop the live feed early.
 
 ## 0.1.10 - 2026-07-01
 

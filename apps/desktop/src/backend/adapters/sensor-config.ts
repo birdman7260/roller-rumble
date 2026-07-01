@@ -5,7 +5,7 @@
  * setting that is later reloaded is picked up on the next read rather than cached at startup.
  */
 
-import { DEFAULT_WHEEL_CIRCUMFERENCE_METERS } from "@roller-rumble/shared/constants";
+import { OPENSPRINTS_ROLLER_ROLLOUT_METERS } from "@roller-rumble/shared/constants";
 import type { RaceParticipant } from "@roller-rumble/shared/types";
 
 export type SensorMode = "simulator" | "opensprints";
@@ -75,12 +75,12 @@ export function readSensorLaneAssignments(
 }
 
 /**
- * Meters a bike travels per one roller revolution. Falls back to the shared default when unset
- * or not a positive number; a real value must be measured from the hardware or distances and
- * speeds will be wrong (see docs/opensprints-protocol.md).
+ * Meters a bike travels per one roller revolution (one sensor tick). Falls back to the confirmed
+ * OpenSprints roller rollout (4.5 in / 114.3 mm diameter, ≈0.359 m) when unset or not a positive
+ * number. Override only if a given box has a non-standard roller (see docs/opensprints-protocol.md).
  */
 export function readSensorRolloutMeters(env: NodeJS.ProcessEnv = process.env): number {
   const raw = read(env, "ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS");
   const parsed = Number.parseFloat(raw);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : DEFAULT_WHEEL_CIRCUMFERENCE_METERS;
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : OPENSPRINTS_ROLLER_ROLLOUT_METERS;
 }

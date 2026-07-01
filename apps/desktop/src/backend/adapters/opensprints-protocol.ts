@@ -172,8 +172,13 @@ export const OPENSPRINTS_VERSION_QUERY = "v\n";
 
 /** Variant A finish line so far away the box never declares its own winner. */
 const SS_BASIC_NEVER_FINISH_TICKS = 1_000_000;
-/** Variant B race length is a 2-byte value; max it out so the box never finishes. */
-const BASIC_NEVER_FINISH_TICKS = 0xffff;
+/**
+ * Variant B race length — set as far away as the firmware allows so the box never finishes on its
+ * own (once every lane passes the finish it stops streaming). `basic_msg` stores this in a signed
+ * 16-bit int, confirmed on hardware 2026-07-01: sending 60000 echoed back "OK -5536". So we use the
+ * max positive int16 (32767 ticks ≈ 11.7 km at the 0.359 m roller rollout), unreachable in a sprint.
+ */
+const BASIC_NEVER_FINISH_TICKS = 0x7fff;
 
 /**
  * The commands, in order, that put a box into a streaming race the app controls — a

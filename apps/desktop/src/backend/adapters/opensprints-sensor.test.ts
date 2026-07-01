@@ -56,6 +56,11 @@ interface PortSpec {
   /** Firmware the port reports to a `v` probe, or null to never answer (a non-box device). */
   firmware: string | null;
   failOpen?: boolean;
+  /**
+   * Ignore this many `v` queries before answering, simulating the Arduino's DTR-reset bootloader
+   * swallowing the first queries. The adapter must re-query for the probe to succeed.
+   */
+  ignoreQueries?: number;
 }
 
 class FakeTransport implements SerialTransport {
@@ -75,8 +80,14 @@ class FakeTransport implements SerialTransport {
       return Promise.reject(new Error(`cannot open ${path}`));
     }
     const { firmware } = spec;
+    let queriesSeen = 0;
     const connection = new FakeConnection((data, conn) => {
       if (data === "v\n" && firmware !== null) {
+        queriesSeen += 1;
+        // Simulate the bootloader swallowing the first queries after the DTR reset.
+        if (queriesSeen <= (spec.ignoreQueries ?? 0)) {
+          return;
+        }
         // Variant B answers a bare `basic-1`; Variant A answers `V:<ver>`.
         const reply = firmware.startsWith("basic") ? `${firmware}\r\n` : `V:${firmware}\r\n`;
         queueMicrotask(() => conn.emit(reply));
@@ -114,7 +125,17 @@ interface Harness {
   statuses: SensorStatus[];
 }
 
-function makeAdapter(ports: PortSpec[], env: NodeJS.ProcessEnv = {}): Harness {
+interface TimingOverrides {
+  probeTimeoutMs?: number;
+  probeQueryIntervalMs?: number;
+  reconnectIntervalMs?: number;
+}
+
+function makeAdapter(
+  ports: PortSpec[],
+  env: NodeJS.ProcessEnv = {},
+  timing: TimingOverrides = {}
+): Harness {
   const transport = new FakeTransport(ports);
   const rotations: RotationEvent[] = [];
   const lifecycle: SensorLifecycleEvent[] = [];
@@ -123,8 +144,9 @@ function makeAdapter(ports: PortSpec[], env: NodeJS.ProcessEnv = {}): Harness {
     createTransport: () => Promise.resolve(transport),
     env,
     now: () => 10_000,
-    probeTimeoutMs: 20,
-    reconnectIntervalMs: 30
+    probeTimeoutMs: timing.probeTimeoutMs ?? 20,
+    probeQueryIntervalMs: timing.probeQueryIntervalMs ?? 5,
+    reconnectIntervalMs: timing.reconnectIntervalMs ?? 30
   });
   adapter.onLifecycle((event) => lifecycle.push(event));
   adapter.onStatusChange((status) => statuses.push(status));
@@ -152,6 +174,23 @@ describe("OpenSprintsSensorAdapter", () => {
     const status = harness.adapter.getStatus();
     expect(status.portPath).toBe("/dev/ttyBox");
     expect(status.firmware).toBe("SS_v0.1.7");
+  });
+
+  it("re-queries so a box that resets on open (DTR) is still detected after it boots", async () => {
+    // The bootloader swallows the first query; only a re-query lands once the sketch is up.
+    const harness = makeAdapter([
+      { path: "COM3", vendorId: "0403", firmware: "basic-1", ignoreQueries: 1 }
+    ]);
+    active = harness.adapter;
+
+    await waitFor(() => harness.adapter.getStatus().connected);
+
+    const status = harness.adapter.getStatus();
+    expect(status.portPath).toBe("COM3");
+    expect(status.firmware).toBe("basic-1");
+    // More than one version query was sent (the first was lost to the reset).
+    const queries = harness.transport.liveConnection().writes.filter((data) => data === "v\n");
+    expect(queries.length).toBeGreaterThan(1);
   });
 
   it("prioritizes known vendor ports but never excludes an unknown one", async () => {
@@ -222,9 +261,9 @@ describe("OpenSprintsSensorAdapter", () => {
 
     harness.adapter.armCountdown(PARTICIPANTS);
     const box = harness.transport.liveConnection();
-    // v probe, then the binary length (l + 0xffff little-endian + \r), then g.
+    // v probe, then the binary length (l + 0x7fff little-endian + \r), then g.
     expect(box.writes[0]).toBe("v\n");
-    expect(box.writes[1]).toEqual(Uint8Array.of(0x6c, 0xff, 0xff, 0x0d));
+    expect(box.writes[1]).toEqual(Uint8Array.of(0x6c, 0xff, 0x7f, 0x0d));
     expect(box.writes[2]).toBe("g\n");
 
     box.emit("0: 4\r\n1: 2\r\nt: 100\r\n");
@@ -246,8 +285,9 @@ describe("OpenSprintsSensorAdapter", () => {
 
     harness.adapter.armCountdown(PARTICIPANTS);
     const box = harness.transport.liveConnection();
-    // Variant C has no length command — just GO.
-    expect(box.writes).toEqual(["v\n", "g\n"]);
+    // The probe re-queries `v` until it gives up (Variant C never answers); those queries all
+    // precede arming. What matters here: arming a Variant C box sends only GO, no length command.
+    expect(box.writes.filter((data) => data !== "v\n")).toEqual(["g\n"]);
 
     // 'b'=mask 1 (racer 0), 'c'=mask 2 (racer 1), 'd'=mask 3 (both).
     box.emit("!50@bcd#");

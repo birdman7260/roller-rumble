@@ -6,6 +6,15 @@ export const DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND = 72;
 export const COUNTDOWN_SECONDS = 3;
 export const COUNTDOWN_DURATION_MS = COUNTDOWN_SECONDS * 1000;
 export const DEFAULT_WHEEL_CIRCUMFERENCE_METERS = 2.1;
+/**
+ * The OpenSprints box's roller is 4.5 in / 114.3 mm in diameter with a single magnet, so one
+ * sensor tick is one roller revolution. Confirmed against real hardware 2026-07-01 (and matching
+ * the `114.3 * PI` constant in SilverSprint's firmware). The rollout — race distance per tick — is
+ * the roller circumference. This is the OpenSprints sensor's rollout default; it is deliberately
+ * separate from DEFAULT_WHEEL_CIRCUMFERENCE_METERS (a bike wheel, used by the simulator).
+ */
+export const OPENSPRINTS_ROLLER_DIAMETER_METERS = 0.1143;
+export const OPENSPRINTS_ROLLER_ROLLOUT_METERS = Math.PI * OPENSPRINTS_ROLLER_DIAMETER_METERS;
 export const DEFAULT_OS2L_PORT = 9996;
 export const DEFAULT_SERVER_PORT = 3187;
 export const DEFAULT_PUBLIC_HOST = "127.0.0.1";
