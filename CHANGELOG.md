@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.11 - 2026-07-01
+
+### Added
+
 - Settings now has a **Bike sensor** card where you can switch between the simulator and the physical OpenSprints USB race box, pick the serial port, set the sensor-to-lane wiring, and adjust the roller rollout — no more hand-editing the settings file. Saving these writes them into your settings file for you, and the generated settings file and `.env.example` now include a documented bike-sensor section.
 
 ### Changed
