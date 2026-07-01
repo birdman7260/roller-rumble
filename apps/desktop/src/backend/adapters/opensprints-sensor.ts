@@ -207,6 +207,10 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   private readonly probeQueryIntervalMs: number;
   private readonly reconnectIntervalMs: number;
   private transport: SerialTransport | null = null;
+  // Log the serial-driver load failure only once so a persistent failure doesn't spam the log
+  // every reconnect poll. The port scan is logged only when it changes (see noteScan).
+  private transportErrorLogged = false;
+  private lastScanSignature: string | null = null;
 
   private rotationListener: RotationListener | null = null;
   private readonly lifecycleListeners: SensorLifecycleListener[] = [];
@@ -246,9 +250,13 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   connect(listener: RotationListener): void {
     this.rotationListener = listener;
     this.disposed = false;
+    const override = readSensorPortOverride(this.env);
+    console.info(
+      `[sensor] OpenSprints adapter searching for the race box${override ? ` (forced port ${override})` : " (auto-detect)"}.`
+    );
     this.updateStatus({
       detail: "Searching for the race box…",
-      manualPortOverride: readSensorPortOverride(this.env)
+      manualPortOverride: override
     });
     this.startReconnectLoop();
     void this.tryConnect();
@@ -337,7 +345,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     }
     this.connecting = true;
     try {
-      this.transport ??= await this.createTransport();
+      this.transport ??= await this.loadTransport();
       const override = readSensorPortOverride(this.env);
       const opened = await this.openPort(this.transport, override);
       if (!opened) {
@@ -365,6 +373,61 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     }
   }
 
+  /**
+   * Load the native serial driver, logging success once and any failure once. A failure here
+   * (e.g. the `serialport` native module not being built for this Electron/Node ABI, or missing
+   * from a packaged build) means the box can never be found, so it is the first thing to check.
+   */
+  private async loadTransport(): Promise<SerialTransport> {
+    try {
+      const transport = await this.createTransport();
+      console.info("[sensor] serial driver (serialport) loaded.");
+      return transport;
+    } catch (error) {
+      if (!this.transportErrorLogged) {
+        this.transportErrorLogged = true;
+        console.error(
+          "[sensor] FAILED to load the serial driver (serialport native module). The race box " +
+            "cannot be detected until this is fixed — usually a native rebuild for this app's " +
+            "Electron version (pnpm rebuild:native), or a packaged build missing the .node binary.",
+          errorMessage(error)
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Log the current serial-port scan, but only when it changes, so the reconnect poll doesn't spam
+   * the log every second. Returns whether this scan is new, so per-port probe outcomes are logged
+   * once per distinct scan rather than every poll.
+   */
+  private noteScan(ports: SerialPortInfo[]): boolean {
+    const signature = ports
+      .map((port) => `${port.path}|${port.vendorId ?? "?"}:${port.productId ?? "?"}`)
+      .join(",");
+    if (signature === this.lastScanSignature) {
+      return false;
+    }
+    this.lastScanSignature = signature;
+    if (ports.length === 0) {
+      console.warn(
+        "[sensor] no serial ports detected. Is the box plugged in, and is its USB-serial driver installed?"
+      );
+    } else {
+      console.info(
+        `[sensor] found ${ports.length} serial port(s): ` +
+          ports
+            .map(
+              (port) =>
+                `${port.path} [vid=${port.vendorId ?? "?"} pid=${port.productId ?? "?"}${port.manufacturer ? ` ${port.manufacturer}` : ""}]`
+            )
+            .join(", ")
+      );
+    }
+    return true;
+  }
+
   private async openPort(
     transport: SerialTransport,
     override: string | null
@@ -372,24 +435,48 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     if (override) {
       // The operator forced a port: bind it directly (escape hatch), still learning the firmware if
       // it answers, but never rejecting it for a missing reply.
-      const connection = await transport.open(override);
+      let connection: SerialConnection;
+      try {
+        connection = await transport.open(override);
+      } catch (error) {
+        console.warn(`[sensor] could not open forced port ${override}: ${errorMessage(error)}`);
+        throw error;
+      }
       const probed = await this.probe(connection);
+      console.info(
+        `[sensor] forced port ${override} ${probed.firmware ? `answered "${probed.firmware}" (variant ${probed.variant})` : "sent no version reply; binding it anyway"}.`
+      );
       return { connection, portPath: override, ...probed };
     }
 
     const ports = this.prioritize(await transport.list());
+    const verbose = this.noteScan(ports);
     for (const port of ports) {
       let connection: SerialConnection;
       try {
         connection = await transport.open(port.path);
-      } catch {
+      } catch (error) {
+        if (verbose) {
+          console.warn(`[sensor] could not open ${port.path}: ${errorMessage(error)}`);
+        }
         continue;
       }
       const probed = await this.probe(connection);
       if (probed.firmware !== null) {
+        console.info(
+          `[sensor] ${port.path} answered the version handshake: "${probed.firmware}" (variant ${probed.variant}).`
+        );
         return { connection, portPath: port.path, ...probed };
       }
+      if (verbose) {
+        console.info(
+          `[sensor] ${port.path} opened but sent no version reply within ${this.probeTimeoutMs}ms — not the box (or it never booted).`
+        );
+      }
       connection.close();
+    }
+    if (verbose && ports.length > 0) {
+      console.warn(`[sensor] scanned ${ports.length} port(s); none answered as the race box.`);
     }
     return null;
   }
@@ -451,6 +538,10 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     opened.connection.onData((chunk) => this.handleChunk(chunk));
     opened.connection.onClose((error) => this.handleDisconnect(error));
     const descriptor = opened.firmware ?? this.variant;
+    this.lastScanSignature = null; // so a later disconnect + rescan logs afresh
+    console.info(
+      `[sensor] connected to ${opened.portPath} (${descriptor}); using command variant "${this.variant}".`
+    );
     this.updateStatus({
       connected: true,
       portPath: opened.portPath,
@@ -475,6 +566,9 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       return;
     }
     this.connection = null;
+    console.warn(
+      `[sensor] lost connection to ${this.status.portPath ?? "the race box"}${error ? `: ${errorMessage(error)}` : ""}. Reconnecting…`
+    );
     this.updateStatus({
       connected: false,
       portPath: null,

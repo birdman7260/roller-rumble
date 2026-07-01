@@ -214,9 +214,13 @@ const HARDWARE_COUNTDOWN_GRACE_MS = 4_000;
  * on the next launch — the same restart contract as the other hardware-affecting managed settings.
  */
 function createSensorAdapter(): SensorAdapter {
-  return readSensorMode() === "opensprints"
-    ? new OpenSprintsSensorAdapter()
-    : new SimulatorSensorAdapter();
+  const mode = readSensorMode();
+  // Logged so diagnostics show whether the app is even in hardware mode — a common gotcha is the
+  // runtime env resolving ROLLER_RUMBLE_SENSOR_MODE to something other than "opensprints".
+  console.info(
+    `[sensor] adapter mode = ${mode} (ROLLER_RUMBLE_SENSOR_MODE=${process.env.ROLLER_RUMBLE_SENSOR_MODE ?? "unset"}).`
+  );
+  return mode === "opensprints" ? new OpenSprintsSensorAdapter() : new SimulatorSensorAdapter();
 }
 
 export class RollerRumbleApp extends EventEmitter {
