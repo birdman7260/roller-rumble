@@ -12,6 +12,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+## 0.1.12 - 2026-07-01
+
+### Added
+
+### Changed
+
+### Fixed
+
 - Diagnostics now record what the bike sensor is doing at startup and while it searches: which sensor mode is active, whether the serial driver loaded, every serial port found (with its USB IDs), which port answered the race box's version handshake, and any connection error. This makes a "still searching" box far easier to troubleshoot from the saved diagnostics.
 
 ## 0.1.11 - 2026-07-01
