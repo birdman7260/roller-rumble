@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.8 - 2026-07-01
+
+### Added
+
 - The projector race display now gives each lane a comet-style leading-edge glow: a bright head at the rider that trails backward along the lane fill and brightens with momentum. A new "Lane glow" setting under Projector Display chooses what it reacts to: Rivalry (the default) lights whichever lane is faster than its opponent right now, so exactly one lane glows and the light flips as the speed lead changes; Surge lights a lane on the rider's own acceleration, rewarding a dig even with no rival. Solo time trials always use the Surge behavior. The glow fades to dark when a rider coasts, stops, or finishes, and calms itself when reduced motion is requested. The mode can be switched live mid-race and persists across projector reloads.
 - The projector race display now punctuates an overtake with a lead-change flash: the instant one racer passes the other on distance covered, the passing lane bursts briefly in its own color. It marks the actual standings flip — not a momentary speed lead — so a lane must pull clearly ahead to trigger it, a neck-and-neck dead heat does not strobe, and a re-pass flashes again. Solo time trials show no flash (there is no one to pass), and the burst softens to a gentle fade when reduced motion is requested.
 - The projector race display now trails fast riders with speed streaks: motion lines behind each rider that grow longer and brighter the faster they are actually going, and shrink to nothing as they slow or stop. Unlike the glow, which shows who is winning the moment, the streaks track raw speed — so a rider holding a strong, steady pace still visibly looks fast. They work for every racer on their own (head-to-head and solo time trials alike), point the way each theme travels (up for climbs, along the track for horizontal layouts), and are minimized when reduced motion is requested.
