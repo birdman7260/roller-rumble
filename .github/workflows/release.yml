@@ -60,6 +60,14 @@ jobs:
           node-version: "22"
           cache: pnpm
 
+      # node-gyp 9.x (pulled in transitively by @electron/rebuild) imports
+      # distutils, which was removed from the Python stdlib in 3.12. Pin 3.11
+      # so native modules (e.g. @serialport/bindings-cpp) rebuild from source.
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
