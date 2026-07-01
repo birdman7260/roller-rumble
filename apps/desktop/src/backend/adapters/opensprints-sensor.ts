@@ -52,7 +52,7 @@ const RECONNECT_INTERVAL_MS = 1000;
  * must comfortably outlast that boot or every probe times out on a booting board (the symptom:
  * "still searching" even though the port is the box).
  */
-const PROBE_TIMEOUT_MS = 3000;
+const PROBE_TIMEOUT_MS = 5000;
 /** How often to re-send the version query within the probe window, so at least one lands post-boot. */
 const PROBE_QUERY_INTERVAL_MS = 400;
 
@@ -130,6 +130,7 @@ interface SerialPortLike {
   isOpen: boolean;
   write(data: string | Buffer): void;
   close(): void;
+  set(options: { dtr?: boolean; rts?: boolean }, callback?: (error: Error | null) => void): void;
   on(event: "data", listener: (chunk: Buffer) => void): void;
   on(event: "close", listener: () => void): void;
   on(event: "error", listener: (error: Error) => void): void;
@@ -170,6 +171,11 @@ async function createSerialPortTransport(): Promise<SerialTransport> {
           port.on("data", (chunk: Buffer) => onData?.(chunk.toString("utf8")));
           port.on("close", () => onClose?.(null));
           port.on("error", (closeError: Error) => onClose?.(closeError));
+          // Assert DTR (and clear RTS) so the board is released from reset and (re)boots — this mirrors
+          // the standalone probe that set DtrEnable=true and then heard back. Some FTDI/Arduino boards
+          // otherwise sit held in reset on open and never answer the version query. Fire-and-forget:
+          // the probe re-queries across its whole window, so we don't need to await the toggle.
+          port.set({ dtr: true, rts: false }, () => undefined);
           resolve({
             write: (data: SerialCommand) =>
               port.write(typeof data === "string" ? data : Buffer.from(data)),
@@ -486,6 +492,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     return new Promise<ProbeResult>((resolve) => {
       const decoder = createOpenSprintsDecoder();
       let settled = false;
+      let loggedRawBytes = false;
       const finish = (result: ProbeResult): void => {
         if (settled) {
           return;
@@ -501,6 +508,12 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       );
       timer.unref();
       connection.onData((chunk) => {
+        // Log the first bytes received during a probe so diagnostics distinguish a silent board (no
+        // data at all) from one that talks but isn't answering the version query as expected.
+        if (!loggedRawBytes && chunk.length > 0) {
+          loggedRawBytes = true;
+          console.info(`[sensor] probe received bytes: ${JSON.stringify(chunk.slice(0, 200))}`);
+        }
         for (const message of decoder.push(chunk)) {
           if (message.type === "version") {
             finish({ firmware: message.firmware, variant: decoder.getVariant() });
