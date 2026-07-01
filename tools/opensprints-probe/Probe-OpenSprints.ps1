@@ -62,7 +62,9 @@ Write-Banner "STEP 1 of 4: Devices the PC can see"
 
 $portNames = @()
 try {
-    $portNames = [System.IO.Ports.SerialPort]::GetPortNames() | Sort-Object
+    # Wrap in @(...) so a single port stays an array; otherwise the pipeline
+    # unwraps it to a bare string and $portNames[0] later returns just "C".
+    $portNames = @([System.IO.Ports.SerialPort]::GetPortNames() | Sort-Object)
 } catch {
     Write-Log "Could not list COM ports: $($_.Exception.Message)"
 }
