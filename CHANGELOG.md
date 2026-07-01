@@ -12,6 +12,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Fixed the electron rebuild script to handle more than one package correctly.
+
 ## 0.1.12 - 2026-07-01
 
 ### Added

@@ -19,7 +19,7 @@
     "package:mac": "pnpm build && pnpm rebuild:native && electron-builder --mac --publish=never",
     "package:win": "pnpm build && pnpm rebuild:native && electron-builder --win --publish=never",
     "preview": "vite preview",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3 -w serialport",
+    "rebuild:native": "electron-rebuild -f -w better-sqlite3,serialport",
     "start": "electron .",
     "test": "vitest run",
     "test:watch": "vitest",
