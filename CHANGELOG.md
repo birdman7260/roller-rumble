@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.17 - 2026-07-02
+
+### Added
+
 - The admin window title bar now shows the app version (e.g. "Roller Rumble Admin — v0.1.16"), making it easy to confirm which build is running.
 
 ### Changed
