@@ -133,10 +133,11 @@ async function createWindows(port: number): Promise<void> {
   const displays = screen.getAllDisplays();
   const secondaryDisplay = displays.length > 1 ? displays[1] : null;
 
+  const adminWindowTitle = `Roller Rumble Admin — v${app.getVersion()}`;
   adminWindow = new BrowserWindow({
     width: 1440,
     height: 960,
-    title: "Roller Rumble Admin",
+    title: adminWindowTitle,
     autoHideMenuBar: true,
     backgroundColor: "#08111d",
     webPreferences: {
@@ -144,6 +145,12 @@ async function createWindows(port: number): Promise<void> {
       nodeIntegration: false
     }
   });
+  // The loaded page sets <title>Roller Rumble</title>, which would otherwise overwrite the window
+  // title on load. Keep our versioned title by refusing the page's title updates.
+  adminWindow.on("page-title-updated", (event) => {
+    event.preventDefault();
+  });
+  adminWindow.setTitle(adminWindowTitle);
 
   raceWindow = new BrowserWindow({
     width: secondaryDisplay?.workArea.width ?? 1600,

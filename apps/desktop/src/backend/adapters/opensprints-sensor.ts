@@ -96,6 +96,24 @@ interface ProbeResult {
   variant: OpenSprintsVariant;
 }
 
+/**
+ * Detect a version reply directly from accumulated probe bytes, even when it arrives with no line
+ * terminator. Real `basic_msg` boxes answer `v` with a bare `basic-1` and no `\r`/`\n`, so the
+ * line decoder never emits it and the probe would otherwise time out on a box that is clearly there.
+ * Only used during the probe (before a race streams), so matching on raw content is safe here.
+ */
+function sniffProbeVersion(text: string): ProbeResult | null {
+  const basic = /basic-\d+/i.exec(text);
+  if (basic) {
+    return { firmware: basic[0], variant: "basic" };
+  }
+  const ss = /V:\s*(SS_\S+)/i.exec(text);
+  if (ss) {
+    return { firmware: ss[1], variant: "ss-basic" };
+  }
+  return null;
+}
+
 /** A confirmed, open port ready to attach. */
 interface OpenedPort extends ProbeResult {
   connection: SerialConnection;
@@ -493,6 +511,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       const decoder = createOpenSprintsDecoder();
       let settled = false;
       let loggedRawBytes = false;
+      let received = "";
       const finish = (result: ProbeResult): void => {
         if (settled) {
           return;
@@ -519,6 +538,13 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
             finish({ firmware: message.firmware, variant: decoder.getVariant() });
             return;
           }
+        }
+        // Fallback for a version reply that arrives without a line terminator (the line decoder
+        // above never emits it). Sniff the accumulated bytes for a known version signature.
+        received += chunk;
+        const sniffed = sniffProbeVersion(received);
+        if (sniffed) {
+          finish(sniffed);
         }
       });
       // Opening the port reset the board (DTR), so the first query may hit a still-booting sketch

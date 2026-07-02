@@ -61,6 +61,8 @@ interface PortSpec {
    * swallowing the first queries. The adapter must re-query for the probe to succeed.
    */
   ignoreQueries?: number;
+  /** Answer the `v` query with no line terminator, as real basic_msg boxes do. */
+  omitVersionTerminator?: boolean;
 }
 
 class FakeTransport implements SerialTransport {
@@ -89,7 +91,10 @@ class FakeTransport implements SerialTransport {
           return;
         }
         // Variant B answers a bare `basic-1`; Variant A answers `V:<ver>`.
-        const reply = firmware.startsWith("basic") ? `${firmware}\r\n` : `V:${firmware}\r\n`;
+        const terminator = spec.omitVersionTerminator ? "" : "\r\n";
+        const reply = firmware.startsWith("basic")
+          ? `${firmware}${terminator}`
+          : `V:${firmware}${terminator}`;
         queueMicrotask(() => conn.emit(reply));
       }
     });
@@ -191,6 +196,21 @@ describe("OpenSprintsSensorAdapter", () => {
     // More than one version query was sent (the first was lost to the reset).
     const queries = harness.transport.liveConnection().writes.filter((data) => data === "v\n");
     expect(queries.length).toBeGreaterThan(1);
+  });
+
+  it("detects a basic box whose version reply has no line terminator", async () => {
+    // Real basic_msg boxes answer `v` with a bare `basic-1` and no CR/LF, so the line decoder never
+    // emits it; the probe must sniff the raw bytes to recognize the box.
+    const harness = makeAdapter([
+      { path: "COM3", vendorId: "0403", firmware: "basic-1", omitVersionTerminator: true }
+    ]);
+    active = harness.adapter;
+
+    await waitFor(() => harness.adapter.getStatus().connected);
+
+    const status = harness.adapter.getStatus();
+    expect(status.portPath).toBe("COM3");
+    expect(status.firmware).toBe("basic-1");
   });
 
   it("prioritizes known vendor ports but never excludes an unknown one", async () => {
