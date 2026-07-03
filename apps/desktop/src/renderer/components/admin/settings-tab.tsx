@@ -518,7 +518,7 @@ function NotificationsPanel({
 
 function VirtualDjDiagnosticsPanel({ snapshot }: { snapshot: AppSnapshot }) {
   return (
-    <Panel className="settings-panel" title="VirtualDJ Diagnostics">
+    <Panel className="settings-panel" title="VirtualDJ Diagnostics" collapsible defaultCollapsed>
       <div className="stack-sm">
         <div className="stat-grid">
           <StatPill label="Cue Start" value={snapshot.os2l.enabled ? "Enabled" : "Disabled"} />
@@ -574,7 +574,7 @@ function LabPagesPanel({
   openLabFromAdmin: (labId: "bracket" | "glow" | "notification" | "queue") => Promise<void>;
 }) {
   return (
-    <Panel className="settings-panel" title="Lab Pages">
+    <Panel className="settings-panel" title="Lab Pages" collapsible defaultCollapsed>
       <div className="stack-sm">
         <p>Open the built-in test labs in your default browser.</p>
         <div className="panel-action-row settings-panel__actions">
@@ -636,6 +636,8 @@ function RuntimeEnvironmentPanel({
     <Panel
       className="settings-panel"
       title="Environment"
+      collapsible
+      defaultCollapsed
       actions={
         <div className="panel-action-row settings-panel__actions">
           {runtimeEnvQuery.data?.exists ? (
@@ -841,44 +843,7 @@ export function SettingsTab({
     <div ref={masonryGridRef} className="page-grid settings-page-grid">
       <SubsystemStatusPanel health={snapshot.subsystemHealth} />
 
-      <ManagedSettingsPanel snapshot={snapshot} />
-
-      <DiagnosticsPanel snapshot={snapshot} />
-
       <GeneralSettingsPanel snapshot={snapshot} />
-
-      <ProjectorDisplayPanel
-        projectorWindowStatus={projectorWindowStatus}
-        projectorWindowWorking={projectorWindowWorking}
-        resizeProjectorFromAdmin={resizeProjectorFromAdmin}
-        snapshot={snapshot}
-        tickerMessageInputRef={tickerMessageInputRef}
-      />
-
-      <NotificationsPanel
-        notificationBody={notificationBody}
-        notificationConfig={notificationConfigQuery.data ?? {}}
-        notificationRacerIds={notificationRacerIds}
-        notificationSendStatus={notificationSendStatus}
-        notificationTargetType={notificationTargetType}
-        notificationTitle={notificationTitle}
-        sendNotificationFromAdmin={sendNotificationFromAdmin}
-        setUiState={setUiState}
-        snapshot={snapshot}
-      />
-
-      <VirtualDjDiagnosticsPanel snapshot={snapshot} />
-
-      <LabPagesPanel labOpenStatus={labOpenStatus} openLabFromAdmin={openLabFromAdmin} />
-
-      <RuntimeEnvironmentPanel
-        generatePushKeysFromAdmin={generatePushKeysFromAdmin}
-        notificationConfigured={Boolean(notificationConfigQuery.data?.configured)}
-        openRuntimeEnvFromAdmin={() => ensureRuntimeEnvFromAdmin(true)}
-        runtimeEnvQuery={runtimeEnvQuery}
-        runtimeEnvStatus={runtimeEnvStatus}
-        runtimeEnvWorking={runtimeEnvWorking}
-      />
 
       <Panel
         className="settings-panel"
@@ -948,8 +913,45 @@ export function SettingsTab({
         </div>
       </Panel>
 
+      <ProjectorDisplayPanel
+        projectorWindowStatus={projectorWindowStatus}
+        projectorWindowWorking={projectorWindowWorking}
+        resizeProjectorFromAdmin={resizeProjectorFromAdmin}
+        snapshot={snapshot}
+        tickerMessageInputRef={tickerMessageInputRef}
+      />
+
+      <NotificationsPanel
+        notificationBody={notificationBody}
+        notificationConfig={notificationConfigQuery.data ?? {}}
+        notificationRacerIds={notificationRacerIds}
+        notificationSendStatus={notificationSendStatus}
+        notificationTargetType={notificationTargetType}
+        notificationTitle={notificationTitle}
+        sendNotificationFromAdmin={sendNotificationFromAdmin}
+        setUiState={setUiState}
+        snapshot={snapshot}
+      />
+
+      <DiagnosticsPanel snapshot={snapshot} />
+
+      <VirtualDjDiagnosticsPanel snapshot={snapshot} />
+
+      <LabPagesPanel labOpenStatus={labOpenStatus} openLabFromAdmin={openLabFromAdmin} />
+
+      <RuntimeEnvironmentPanel
+        generatePushKeysFromAdmin={generatePushKeysFromAdmin}
+        notificationConfigured={Boolean(notificationConfigQuery.data?.configured)}
+        openRuntimeEnvFromAdmin={() => ensureRuntimeEnvFromAdmin(true)}
+        runtimeEnvQuery={runtimeEnvQuery}
+        runtimeEnvStatus={runtimeEnvStatus}
+        runtimeEnvWorking={runtimeEnvWorking}
+      />
+
       <Panel
         title="Kaleidoscope Photo Booth"
+        collapsible
+        defaultCollapsed
         actions={
           <Button
             variant="ghost"
@@ -1015,6 +1017,8 @@ export function SettingsTab({
           {photoBoothStatus.message ? <p>{photoBoothStatus.message}</p> : null}
         </div>
       </Panel>
+
+      <ManagedSettingsPanel snapshot={snapshot} />
     </div>
   );
 }

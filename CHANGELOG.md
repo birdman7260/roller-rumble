@@ -10,6 +10,9 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Reordered the admin Settings tab so the most-used cards come first: Status, Settings, Tunnel, Projector Display, then Notifications, with the remaining cards below them.
+- The secondary Settings cards (Diagnostics, VirtualDJ Diagnostics, Lab Pages, Environment, Photo Booth, and Managed Settings) now start collapsed and can be expanded or collapsed by clicking their title. Managed Settings moved to the bottom of the tab.
+
 ### Fixed
 
 - Racer phone pages now stay live after the first race or two. The page automatically reconnects to the live-update stream if its connection drops (for example when the phone sleeps, the browser tab is backgrounded, or an idle connection times out over the Cloudflare tunnel) and re-syncs the latest state on reconnect, so a manual refresh is no longer needed. While reconnecting, the racer page shows a brief "Reconnecting to live updates…" banner.

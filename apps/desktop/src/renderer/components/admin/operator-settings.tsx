@@ -214,7 +214,7 @@ export function ManagedSettingsPanel({ snapshot }: { snapshot: AppSnapshot }) {
   }));
 
   return (
-    <Panel className="settings-panel" title="Managed settings">
+    <Panel className="settings-panel" title="Managed settings" collapsible defaultCollapsed>
       <p>
         These settings are written into the runtime env file for you and take effect without
         restarting the app. Secret fields are hidden until you reveal them.
@@ -292,6 +292,8 @@ export function DiagnosticsPanel({ snapshot }: { snapshot: AppSnapshot }) {
     <Panel
       className="settings-panel"
       title="Diagnostics"
+      collapsible
+      defaultCollapsed
       actions={
         <div className="panel-action-row settings-panel__actions">
           <Button

@@ -18,22 +18,55 @@ export function Panel({
   actions,
   className,
   children,
+  collapsible = false,
+  defaultCollapsed = false,
   ...props
 }: PropsWithChildren<{
   title?: string;
   actions?: ReactNode;
   className?: string;
+  collapsible?: boolean;
+  defaultCollapsed?: boolean;
 }> &
   HTMLAttributes<HTMLElement>) {
+  const [collapsed, setCollapsed] = useState(collapsible && defaultCollapsed);
+  const isCollapsible = collapsible && title != null;
+
   return (
-    <section {...props} className={cx("panel", className)}>
+    <section
+      {...props}
+      className={cx(
+        "panel",
+        isCollapsible && "panel--collapsible",
+        collapsed && "panel--collapsed",
+        className
+      )}
+    >
       {(title != null || actions != null) && (
         <header className="panel__header">
-          <div>{title ? <h2 className="panel__title">{title}</h2> : null}</div>
+          <div>
+            {title ? (
+              isCollapsible ? (
+                <button
+                  type="button"
+                  className="panel__toggle"
+                  aria-expanded={!collapsed}
+                  onClick={() => setCollapsed((value) => !value)}
+                >
+                  <span className="panel__toggle-icon" aria-hidden="true">
+                    {collapsed ? "▸" : "▾"}
+                  </span>
+                  <h2 className="panel__title">{title}</h2>
+                </button>
+              ) : (
+                <h2 className="panel__title">{title}</h2>
+              )
+            ) : null}
+          </div>
           {actions ? <div className="panel__actions">{actions}</div> : null}
         </header>
       )}
-      {children}
+      {collapsed ? null : children}
     </section>
   );
 }
