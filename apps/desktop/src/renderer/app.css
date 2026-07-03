@@ -144,6 +144,23 @@ a {
   min-height: 0;
 }
 
+.snapshot-stream-status {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  padding: 0.4rem 0.75rem;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #1b120d;
+  background: #f2c572;
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+}
+
 .app-nav {
   display: grid;
   gap: 0.75rem;

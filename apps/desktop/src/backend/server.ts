@@ -90,11 +90,17 @@ function serializeSnapshotMessage(snapshot: AppSnapshot): string {
 
 const RACER_SESSION_COOKIE = "roller_rumble_racer_session";
 const RACER_SNAPSHOT_STREAM_INTERVAL_MS = 1000;
+// Ping every client on this cadence; a client that misses a full interval
+// without a pong is treated as dead and terminated. This both prunes stale
+// sockets and keeps otherwise-idle connections warm so the Cloudflare tunnel
+// (and mobile browsers) don't silently drop phones between races.
+const WS_HEARTBEAT_INTERVAL_MS = 30000;
 
 interface SnapshotStreamClientState {
   pendingSnapshot: AppSnapshot | null;
   surface: SnapshotStreamSurface;
   timer: NodeJS.Timeout | null;
+  isAlive: boolean;
 }
 
 export interface BackendServer {
@@ -332,15 +338,39 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     const state: SnapshotStreamClientState = {
       pendingSnapshot: null,
       surface: normalizeSnapshotStreamSurface(url.searchParams.get("surface")),
-      timer: null
+      timer: null,
+      isAlive: true
     };
     snapshotStreamClients.set(client, state);
+    client.on("pong", () => {
+      state.isAlive = true;
+    });
     client.on("close", () => {
       if (state.timer !== null) {
         clearTimeout(state.timer);
       }
       snapshotStreamClients.delete(client);
     });
+  });
+
+  const heartbeatInterval = setInterval(() => {
+    for (const client of wsServer.clients) {
+      const state = snapshotStreamClients.get(client);
+      if (!state) {
+        continue;
+      }
+      if (!state.isAlive) {
+        client.terminate();
+        continue;
+      }
+      state.isAlive = false;
+      client.ping();
+    }
+  }, WS_HEARTBEAT_INTERVAL_MS);
+  heartbeatInterval.unref();
+
+  wsServer.on("close", () => {
+    clearInterval(heartbeatInterval);
   });
 
   service.onSnapshot((snapshot: AppSnapshot) => {

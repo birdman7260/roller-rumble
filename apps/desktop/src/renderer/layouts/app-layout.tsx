@@ -11,7 +11,8 @@ export function AppLayout() {
   const raceMode = location.pathname.startsWith("/race");
   const racerMode = location.pathname.startsWith("/racer");
   const streamSurface = racerMode ? "racer" : raceMode ? "projector" : "admin";
-  useSnapshotStream(streamSurface);
+  const streamConnected = useSnapshotStream(streamSurface);
+  const showReconnecting = racerMode && !streamConnected;
 
   useEffect(() => {
     if (!selectedTheme) {
@@ -27,6 +28,11 @@ export function AppLayout() {
 
   return (
     <div className="app-shell">
+      {showReconnecting ? (
+        <output className="snapshot-stream-status" aria-live="polite">
+          Reconnecting to live updates…
+        </output>
+      ) : null}
       <aside className="app-shell__nav">
         <div>
           <p className="eyebrow">Roller Rumble</p>
