@@ -1815,6 +1815,45 @@ p {
   font-size: clamp(2.55rem, 4.1vw, 4.8rem);
 }
 
+.race-page__result-finish-time {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+  padding: clamp(0.6rem, 1vh, 0.9rem) 0 clamp(0.7rem, 1.1vh, 1rem);
+  border-top: 1px solid color-mix(in srgb, var(--race-lane-color) 30%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--race-lane-color) 46%, transparent);
+}
+
+.race-page__result-finish-time span {
+  color: var(--theme-text-muted);
+  font-size: clamp(0.78rem, 1.1vw, 1.22rem);
+  font-weight: 850;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.race-page__result-finish-time strong {
+  color: var(--theme-text);
+  font-size: clamp(2.8rem, 4.6vw, 5.6rem);
+  font-weight: 950;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+
+.race-page__result-card--winner .race-page__result-finish-time {
+  border-bottom-color: color-mix(in srgb, var(--race-lane-color-bright) 66%, transparent);
+}
+
+.race-page__result-card--winner .race-page__result-finish-time span {
+  color: color-mix(in srgb, var(--race-lane-color-bright) 72%, var(--theme-text-muted));
+}
+
+.race-page__result-card--winner .race-page__result-finish-time strong {
+  color: var(--race-lane-color-bright);
+  font-size: clamp(3.2rem, 5.2vw, 6.4rem);
+}
+
 .race-page__result-stats {
   display: grid;
   gap: clamp(0.45rem, 0.85vh, 0.75rem);
@@ -2342,27 +2381,27 @@ p {
 }
 
 .race-lane {
-  --race-lane-color: #f97316;
-  --race-lane-color-bright: #fb923c;
-  --race-lane-color-soft: rgba(249, 115, 22, 0.18);
-  --race-lane-color-shadow: rgba(249, 115, 22, 0.28);
+  --race-lane-color: #ff6500;
+  --race-lane-color-bright: #ff8c00;
+  --race-lane-color-soft: rgba(255, 101, 0, 0.22);
+  --race-lane-color-shadow: rgba(255, 101, 0, 0.38);
   --race-lane-avatar-size: clamp(6.8rem, 10.4vw, 11rem);
   --race-lane-name-max-size: clamp(1.8rem, 3.8vw, 4.2rem);
   --race-lane-name-min-size-px: 22;
 }
 
 .race-lane--orange {
-  --race-lane-color: #f97316;
-  --race-lane-color-bright: #fb923c;
-  --race-lane-color-soft: rgba(249, 115, 22, 0.18);
-  --race-lane-color-shadow: rgba(249, 115, 22, 0.28);
+  --race-lane-color: #ff6500;
+  --race-lane-color-bright: #ff8c00;
+  --race-lane-color-soft: rgba(255, 101, 0, 0.22);
+  --race-lane-color-shadow: rgba(255, 101, 0, 0.38);
 }
 
 .race-lane--purple {
-  --race-lane-color: #8b5cf6;
-  --race-lane-color-bright: #a78bfa;
-  --race-lane-color-soft: rgba(139, 92, 246, 0.2);
-  --race-lane-color-shadow: rgba(139, 92, 246, 0.3);
+  --race-lane-color: #a020f0;
+  --race-lane-color-bright: #c060ff;
+  --race-lane-color-soft: rgba(160, 32, 240, 0.24);
+  --race-lane-color-shadow: rgba(160, 32, 240, 0.40);
 }
 
 /*
@@ -2665,12 +2704,12 @@ p {
   justify-content: space-between;
   gap: clamp(1rem, 2.2vw, 2rem);
   min-width: 0;
-  border: 1px solid color-mix(in srgb, var(--race-lane-color) 54%, transparent);
+  border: 4px solid color-mix(in srgb, var(--race-lane-color) 72%, transparent);
   border-radius: 1.2rem;
   background:
     linear-gradient(
       90deg,
-      color-mix(in srgb, var(--race-lane-color) 18%, transparent),
+      color-mix(in srgb, var(--race-lane-color) 36%, transparent),
       rgba(0, 0, 0, 0.1)
     ),
     color-mix(in srgb, var(--theme-surface-alt) 66%, transparent);
@@ -2708,7 +2747,7 @@ p {
 
 .race-lane__name,
 .race-lane__name-measure {
-  color: var(--theme-text);
+  color: var(--race-lane-color-bright);
   font-size: var(--race-lane-name-max-size);
   font-weight: 950;
   line-height: 0.9;

@@ -14,20 +14,14 @@ function formatSpeed(value: number | undefined): string {
   return `${(value ?? 0).toFixed(1)} km/h`;
 }
 
-function formatWattage(value: number | undefined): string {
-  return `${Math.round(value ?? 0)} W`;
-}
-
-function formatPukeFactor(metric: RaceMetricsSnapshot | undefined): string {
-  if (!metric) {
-    return "0.0 / 10";
+function formatFinishTime(ms: number | undefined): string {
+  const totalMs = ms ?? 0;
+  const minutes = Math.floor(totalMs / 60000);
+  const seconds = (totalMs % 60000) / 1000;
+  if (minutes === 0) {
+    return `${seconds.toFixed(1)}s`;
   }
-
-  // Puke factor is intentionally a show-friendly effort score, not a physiological diagnosis.
-  // It weights sustained pace, peak speed, and peak wattage into a capped 10-point scale.
-  const effortScore =
-    metric.averageSpeedKph * 0.09 + metric.topSpeedKph * 0.035 + metric.maxWattage * 0.004;
-  return `${Math.max(0, Math.min(10, effortScore)).toFixed(1)} / 10`;
+  return `${minutes}:${seconds < 10 ? "0" : ""}${seconds.toFixed(1)}`;
 }
 
 function getMetricForRacer(
@@ -137,6 +131,12 @@ export function RaceResultsOverlay({
                     <strong>{racerSummary?.racer.displayName ?? "Unknown Racer"}</strong>
                   </div>
                 </div>
+                <div className="race-page__result-finish-time">
+                  <span>Finish Time</span>
+                  <strong>
+                    {formatFinishTime(metric?.finishedAtMs ?? metric?.elapsedMs)}
+                  </strong>
+                </div>
                 <dl className="race-page__result-stats">
                   <div>
                     <dt>Top Speed</dt>
@@ -145,14 +145,6 @@ export function RaceResultsOverlay({
                   <div>
                     <dt>Avg Speed</dt>
                     <dd>{formatSpeed(metric?.averageSpeedKph)}</dd>
-                  </div>
-                  <div>
-                    <dt>Puke Factor</dt>
-                    <dd>{formatPukeFactor(metric)}</dd>
-                  </div>
-                  <div>
-                    <dt>Wattage</dt>
-                    <dd>{formatWattage(metric?.maxWattage)}</dd>
                   </div>
                   <div>
                     <dt>Races Today</dt>
