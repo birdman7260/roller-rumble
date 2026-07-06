@@ -15,6 +15,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Signing out on the racer page and then registering again as a guest now creates a separate racer instead of overwriting the previous racer's name and details. Signing out now resets the device's guest identity.
 - Racer phone pages now stay live after the first race or two. The page automatically reconnects to the live-update stream if its connection drops (for example when the phone sleeps, the browser tab is backgrounded, or an idle connection times out over the Cloudflare tunnel) and re-syncs the latest state on reconnect, so a manual refresh is no longer needed. While reconnecting, the racer page shows a brief "Reconnecting to live updates…" banner.
 
 ## 0.1.17 - 2026-07-02

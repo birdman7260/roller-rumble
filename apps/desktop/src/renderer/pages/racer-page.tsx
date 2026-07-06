@@ -590,7 +590,7 @@ function useRacerPageViewModel({
   const paymentReturnState = new URLSearchParams(window.location.search).get("payment");
   const paymentReturnId = new URLSearchParams(window.location.search).get("payment_id");
   const launchedNotificationId = new URLSearchParams(window.location.search).get("notificationId");
-  const [accountlessId] = useState(() => {
+  const [accountlessId, setAccountlessId] = useState(() => {
     const existing =
       localStorage.getItem("roller-rumble.accountlessId") ??
       localStorage.getItem("roller-rumble.anonymousId");
@@ -603,6 +603,13 @@ function useRacerPageViewModel({
     localStorage.setItem("roller-rumble.accountlessId", created);
     return created;
   });
+
+  function rotateAccountlessId(): void {
+    const created = crypto.randomUUID();
+    localStorage.setItem("roller-rumble.accountlessId", created);
+    localStorage.removeItem("roller-rumble.anonymousId");
+    setAccountlessId(created);
+  }
   const racerNotificationsQuery = useRacerNotificationsQuery(Boolean(selectedRacerId));
 
   const refreshDeviceNotificationState = useEffectEvent(async (): Promise<void> => {
@@ -831,6 +838,9 @@ function useRacerPageViewModel({
     await signOutRacer();
     forgetRacerSessionToken();
     localStorage.removeItem("roller-rumble.racerId");
+    // Rotate the device's accountless identity so registering again creates a new
+    // racer instead of renaming the one that just signed out.
+    rotateAccountlessId();
     setSelectedRacerId("");
     setAvatarUploadMessage(null);
     setNotificationPromptVisible(false);

@@ -4,6 +4,41 @@ A local-first Electron app for running live stationary-bike race events. One hos
 
 ## Language
 
+### Racer identity and sign-in
+
+**racer account**: The persisted `Racer` row (id, display name, avatar) plus its `identity` rows. Carries race history/results, queue occurrences, push subscriptions, booth captures, and payment records. Distinct from an `accountless racer`, who has only an `anonymous` identity. Account takeover at a live event is a low-stakes threat (host is physically present; no stored card to spend) — the harm to avoid is PII exposure (email/phone), not fraud.
+_Avoid_: user, profile (when the persisted racer identity is meant)
+
+**identity**: A row in the `identities` table binding one `(type, value)` — `email`, `phone`, or `anonymous` — to exactly one `racer account`. Globally unique per `(type, value)`. A racer account is found by matching an identity, not by a column on the racer row; one account can hold several identities.
+_Avoid_: login, credential (a `passkey` is a credential; an identity is not)
+
+**passkey**: The device-bound credential (Face ID / Touch ID / fingerprint / device PIN, via WebAuthn) that authenticates a `racer account`. Does not sync across ecosystems (iPhone↔Android) unless backed up to a password manager, so a returning racer on a new device may have no usable passkey.
+_Avoid_: credential, WebAuthn credential (in racer-facing copy)
+
+**host-assist**: The recovery path where a physically-present host binds a racer's phone to an existing `racer account`, after which the phone signs in and can add a `passkey`. Mechanism: the host generates a single-use, short-TTL `attach QR` in the admin Racers tab; the racer scans it to receive a session for that account. The human backstop that lets self-serve recovery stay low-friction, and the offline fallback when `email one-time code` can't send.
+_Avoid_: admin recovery, manual attach
+
+**attach QR**: A single-use, short-TTL QR the host generates in the admin Racers tab that encodes a one-time claim token for a chosen `racer account`. Scanning it mints a racer session on the scanning phone (first-scan-wins). Renders only in the admin window — never on the public projector, since it grants account access.
+_Avoid_: pairing code, login QR
+
+**accountless racer**: A racer who signs in with a display name only — no email, no passkey. Enabled by an optional host setting. Their results are not linked to a `racer account` unless later reconciled.
+_Avoid_: guest, anonymous (pick one canonical term — `accountless`)
+
+**passkey recovery**: The set of paths offered when a returning racer's email is known but has no usable `passkey` on this device (new phone, switched ecosystem, lost device, different browser). v1 offers three: `email one-time code` (primary), `race under your name` (fast fallback), and `host-assist` (backstop when email can't send).
+_Avoid_: account recovery, sign-in help
+
+**email one-time code**: A short numeric code emailed to a racer's registered address to prove ownership, after which they attach a new `passkey` on the current device. Requires outbound internet, so it degrades to `host-assist` at LAN-only venues. Chosen over a magic link so the racer stays in the same page/session.
+_Avoid_: magic link, OTP (in racer-facing copy), verification email
+
+**race under your name**: The `passkey recovery` path where a locked-out racer proceeds as an `accountless racer` for the current event to race immediately, deferring account restoration. Produces a duplicate racer that `racer reconciliation` can later fold into the real `racer account`.
+_Avoid_: guest mode, skip sign-in
+
+**racer reconciliation**: The desk workflow that resolves a `race under your name` duplicate: the host runs a `racer merge` (absorbing the `accountless racer` into the real `racer account`) and, separately, issues an `attach QR` so the racer's phone signs into the survivor and adds a `passkey`. Realized by two independent admin tools, not one wizard.
+_Avoid_: account linking (that's one part of it)
+
+**racer merge**: The general admin operation that folds one `racer account` (the *absorbed*) into another (the *survivor*), reparenting every racer-referencing row — including non-FK/JSON references (`queue_entries.racerIdsJson`, `races.winnerRacerId`/participants/metrics, `bracket_nodes`, `group_matches`, tournament seeds) — then deleting the absorbed row. Host explicitly picks the survivor and its display name/avatar; identities, passkeys, payments, and push subscriptions all union (globally-unique keys, no loss). Hard-refuses when the two share a tournament/bracket or race or when a race is live (would corrupt standings); auto-resolves the two unique-index collisions (`event_racers` keeps `paid`; `notification_deliveries` keeps the read/most-progressed row). Destructive and not logically reversible — guarded by a confirm summary, an audit row, and a timestamped SQLite file snapshot taken immediately before.
+_Avoid_: dedupe, link (alone)
+
 ### Race lifecycle
 
 **ActiveRace**: The live, in-process owner of a single race from activation through finalization. Holds lane telemetry state for each participant, processes rotation samples into metrics, tracks the grace-period finalization timer, assigns the winner, and persists results. Exactly one `ActiveRace` exists at a time, or none.
@@ -73,6 +108,18 @@ _Avoid_: wheel circumference, roller diameter
 
 **lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack.
 _Avoid_: sensor mapping, channel assignment
+
+**box countdown**: The fixed, **silent** interval the OpenSprints box runs after the `g` (GO) command before it starts streaming ticks — roughly four seconds on the `basic_msg` firmware, emitting no countdown steps. Not configurable and not observable mid-way, so the app treats it as a tuned constant rather than something it can mirror.
+_Avoid_: hardware countdown, box timer
+
+**GO**: The instant a race becomes live and pedaling starts counting — the zero of the countdown. On the cue path it is **music-locked**: it fires on the app's own clock at the end of the countdown duration, not on the box's first tick.
+_Avoid_: start, race start (when the exact live instant is meant)
+
+**pre-roll**: The app-owned wait at the head of a countdown before the `g` command is sent to the box, sized so the `box countdown` lands its stream on `GO`. Zero when the countdown duration is at or below the `box countdown`; on the simulator there is no pre-roll at all.
+_Avoid_: lead-in, warm-up
+
+**cue countdown duration**: The countdown length a VirtualDJ `OS2L cue` may carry (`countdownMs`), letting a DJ sync `GO` to a musical moment. When absent or invalid, the countdown falls back to the shared default, which is chosen to match the `box countdown`.
+_Avoid_: cue time, countdown length
 
 ### Setup and diagnostics
 
