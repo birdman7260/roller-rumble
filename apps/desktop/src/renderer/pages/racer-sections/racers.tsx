@@ -80,7 +80,7 @@ export function RacersTab({
                       {!isExpanded ? (
                         <p>
                           {entry.stats.races} races - {entry.stats.topSpeedKph.toFixed(1)} km/h top
-                          speed - {entry.stats.maxWattage.toFixed(0)}W peak
+                          speed
                         </p>
                       ) : null}
                     </span>

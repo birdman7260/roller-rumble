@@ -42,7 +42,6 @@ export function ExpandedRacerStats({
         <RacerStat label="Best Finish" value={formatFinishTime(entry.stats.bestFinishTimeMs)} />
         <RacerStat label="Top Speed" value={`${entry.stats.topSpeedKph.toFixed(1)} km/h`} />
         <RacerStat label="Average Speed" value={`${entry.stats.averageSpeedKph.toFixed(1)} km/h`} />
-        <RacerStat label="Peak Power" value={`${entry.stats.maxWattage.toFixed(0)}W`} />
         <RacerStat label="Events Raced" value={String(entry.stats.careerEventCount)} />
       </div>
 

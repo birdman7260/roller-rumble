@@ -96,8 +96,7 @@ export function RacersTab({
               <div>
                 <strong>{entry.racer.displayName}</strong>
                 <p>
-                  {entry.stats.races} races · {entry.stats.wins} wins ·{" "}
-                  {entry.stats.topSpeedKph.toFixed(1)} km/h top
+                  {entry.stats.races} races · {entry.stats.wins} wins
                 </p>
                 {paymentRequiredForQueue ? <p>Entrance fee: {entry.payment.status}</p> : null}
               </div>
