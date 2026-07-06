@@ -1700,26 +1700,25 @@ p {
 .race-page__results-grid {
   width: 100%;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
   gap: clamp(1rem, 2vw, 2rem);
   align-items: stretch;
 }
 
 .race-page__results-grid--solo {
   width: min(48rem, 100%);
-  grid-template-columns: minmax(0, 1fr);
+  justify-content: center;
 }
 
 .race-page__result-card {
   --ui-panel-padding: clamp(1rem, 1.6vw, 1.6rem);
   width: 100%;
   min-width: 0;
+  flex: 1 1 0;
   gap: clamp(1rem, 1.6vw, 1.5rem);
   align-self: stretch;
   border-width: 0.14rem;
   border-color: color-mix(in srgb, var(--race-lane-color) 46%, transparent);
-  transform-origin: center;
   background:
     radial-gradient(
       circle at top,
@@ -1741,8 +1740,8 @@ p {
 }
 
 .race-page__result-card--winner {
+  flex-grow: 1.7;
   border-color: color-mix(in srgb, var(--race-lane-color-bright) 82%, transparent);
-  transform: scale(1.055);
   background:
     radial-gradient(
       circle at top,
@@ -1768,8 +1767,8 @@ p {
 }
 
 .race-page__result-avatar {
-  width: clamp(5rem, 7vw, 7.2rem);
-  height: clamp(5rem, 7vw, 7.2rem);
+  width: clamp(3.8rem, 5.2vw, 5.6rem);
+  height: clamp(3.8rem, 5.2vw, 5.6rem);
   display: grid;
   place-items: center;
   border: 0.18rem solid color-mix(in srgb, var(--race-lane-color) 58%, transparent);
@@ -1791,7 +1790,7 @@ p {
 .race-page__result-identity span {
   display: block;
   color: var(--race-lane-color-bright);
-  font-size: clamp(0.8rem, 1.1vw, 1.25rem);
+  font-size: clamp(0.66rem, 0.92vw, 1.05rem);
   font-weight: 950;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1801,7 +1800,7 @@ p {
   display: block;
   min-width: 0;
   overflow: visible;
-  font-size: clamp(2.1rem, 3.5vw, 4.1rem);
+  font-size: clamp(1.5rem, 2.5vw, 3rem);
   line-height: 0.9;
   text-overflow: clip;
   text-wrap: balance;
@@ -1827,7 +1826,7 @@ p {
 
 .race-page__result-finish-time span {
   color: var(--theme-text-muted);
-  font-size: clamp(0.78rem, 1.1vw, 1.22rem);
+  font-size: clamp(0.66rem, 0.92vw, 1.02rem);
   font-weight: 850;
   letter-spacing: 0.18em;
   text-transform: uppercase;
@@ -1835,7 +1834,7 @@ p {
 
 .race-page__result-finish-time strong {
   color: var(--theme-text);
-  font-size: clamp(2.8rem, 4.6vw, 5.6rem);
+  font-size: clamp(1.9rem, 3.1vw, 3.8rem);
   font-weight: 950;
   line-height: 0.9;
   letter-spacing: -0.02em;
@@ -1876,7 +1875,7 @@ p {
 
 .race-page__result-stats dt {
   color: var(--theme-text-muted);
-  font-size: clamp(0.78rem, 1.1vw, 1.22rem);
+  font-size: clamp(0.64rem, 0.9vw, 1rem);
   font-weight: 850;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1884,7 +1883,7 @@ p {
 
 .race-page__result-stats dd {
   color: var(--theme-text);
-  font-size: clamp(1.4rem, 2.2vw, 2.65rem);
+  font-size: clamp(1.05rem, 1.7vw, 2rem);
   font-weight: 950;
   line-height: 0.95;
 }
@@ -2401,7 +2400,7 @@ p {
   --race-lane-color: #a020f0;
   --race-lane-color-bright: #c060ff;
   --race-lane-color-soft: rgba(160, 32, 240, 0.24);
-  --race-lane-color-shadow: rgba(160, 32, 240, 0.40);
+  --race-lane-color-shadow: rgba(160, 32, 240, 0.4);
 }
 
 /*

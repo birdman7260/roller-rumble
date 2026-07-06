@@ -133,9 +133,7 @@ export function RaceResultsOverlay({
                 </div>
                 <div className="race-page__result-finish-time">
                   <span>Finish Time</span>
-                  <strong>
-                    {formatFinishTime(metric?.finishedAtMs ?? metric?.elapsedMs)}
-                  </strong>
+                  <strong>{formatFinishTime(metric?.finishedAtMs ?? metric?.elapsedMs)}</strong>
                 </div>
                 <dl className="race-page__result-stats">
                   <div>
