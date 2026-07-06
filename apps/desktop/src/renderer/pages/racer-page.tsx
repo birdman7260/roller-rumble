@@ -1575,6 +1575,12 @@ function RacerPageView({
 
 export function RacerPage(props: RacerPageProps) {
   const viewModel = useRacerPageViewModel(props);
+  useEffect(() => {
+    document.body.classList.add("route-racer");
+    return () => {
+      document.body.classList.remove("route-racer");
+    };
+  }, []);
   if (!viewModel) {
     return <p>Loading racer page...</p>;
   }

@@ -17,6 +17,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- The racer page can now be pulled down to refresh on Android Chrome. On phones the page hands scrolling back to the browser so the native pull-to-refresh gesture works, while the event title card stays pinned to the top of the screen, the section tab bar stays pinned to the bottom, and page content is never hidden behind the tab bar. The operator sidebar no longer appears above the racer page on phones.
 - Signing out on the racer page and then registering again as a guest now creates a separate racer instead of overwriting the previous racer's name and details. Signing out now resets the device's guest identity.
 - Racer phone pages now stay live after the first race or two. The page automatically reconnects to the live-update stream if its connection drops (for example when the phone sleeps, the browser tab is backgrounded, or an idle connection times out over the Cloudflare tunnel) and re-syncs the latest state on reconnect, so a manual refresh is no longer needed. While reconnecting, the racer page shows a brief "Reconnecting to live updates…" banner.
 

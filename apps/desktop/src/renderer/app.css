@@ -4216,6 +4216,82 @@ button.tournament-match-node:active {
   .photo-booth-qr__footer {
     display: grid;
   }
+
+  /* Racer surface on phones: hand scrolling back to the document so Android
+     Chrome's native pull-to-refresh works, while pinning the title card to the
+     top and the tab bar to the bottom. Scoped to body.route-racer so the
+     operator app-shell (admin, projector) keeps its locked layout, and disabled
+     while a bracket is expanded so that canvas keeps its own full height. */
+  body.route-racer .app-shell__nav {
+    display: none;
+  }
+
+  html:has(.racer-page-shell:not(.racer-page-shell--expanded)) {
+    overflow: visible;
+    overscroll-behavior-y: auto;
+    /* The root gradient is transferred to the viewport canvas; once the page
+       scrolls it would otherwise tile down the document. Pin it to the viewport
+       so it paints once and never repeats. */
+    background-attachment: fixed;
+  }
+
+  body.route-racer:not(:has(.racer-page-shell--expanded)),
+  body.route-racer:not(:has(.racer-page-shell--expanded)) #root,
+  body.route-racer:not(:has(.racer-page-shell--expanded)) .app-shell,
+  body.route-racer:not(:has(.racer-page-shell--expanded)) .app-shell__content {
+    display: block;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  body.route-racer:not(:has(.racer-page-shell--expanded)) {
+    position: static;
+    overscroll-behavior-y: auto;
+  }
+
+  body.route-racer:not(:has(.racer-page-shell--expanded)) .app-shell__content {
+    padding: 0;
+  }
+
+  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) {
+    display: block;
+    height: auto;
+    min-height: 100dvh;
+    max-height: none;
+    overflow: visible;
+  }
+
+  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-event-bar {
+    position: sticky;
+    top: 0;
+    z-index: 15;
+    margin-bottom: 0.75rem;
+  }
+
+  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-page-grid {
+    min-height: 0;
+    overflow: visible;
+    overscroll-behavior: auto;
+    padding-right: 0;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+  }
+
+  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-bottom-tabs {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    width: 100%;
+    border: 0;
+    border-radius: 0;
+    /* Opaque, full-bleed, and extended into the safe area so no scrolling content
+       is ever visible below or beside the tab bar. */
+    background: var(--theme-surface);
+    padding: 0.35rem 0.75rem calc(0.35rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -0.4rem 1rem rgba(0, 0, 0, 0.28);
+  }
 }
 
 /* Operator setup & diagnostics: status surface and managed settings */
