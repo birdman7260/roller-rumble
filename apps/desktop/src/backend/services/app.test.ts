@@ -691,6 +691,7 @@ describe("app service current race controls", () => {
                 maxWattage: 310,
                 racerId: "racer-1",
                 rotationCount: 42,
+                rpm: 159,
                 topSpeedKph: 32,
                 wattage: 260
               }

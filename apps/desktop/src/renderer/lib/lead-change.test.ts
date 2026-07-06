@@ -18,6 +18,7 @@ function metric(
     rotationCount: 0,
     elapsedMs: 0,
     distanceMeters,
+    rpm: 0,
     currentSpeedKph: 0,
     topSpeedKph: 0,
     averageSpeedKph: 0,

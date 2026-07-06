@@ -10,6 +10,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Each racer lane on the race display now shows a single live RPM readout instead of the distance, speed, and top-speed stats, and the racer's name is displayed in a larger font.
 - The race results screen now shows a stronger size difference between the winner and runner-up: the winner's card is noticeably wider with larger text, while the runner-up's card is narrower with smaller text. Both cards stay fully inside the results panel without covering the "Winner!" title or spilling past the bottom edge.
 - Reordered the admin Settings tab so the most-used cards come first: Status, Settings, Tunnel, Projector Display, then Notifications, with the remaining cards below them.
 - The secondary Settings cards (Diagnostics, VirtualDJ Diagnostics, Lab Pages, Environment, Photo Booth, and Managed Settings) now start collapsed and can be expanded or collapsed by clicking their title. Managed Settings moved to the bottom of the tab.

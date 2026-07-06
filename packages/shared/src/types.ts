@@ -246,6 +246,8 @@ export interface RaceMetricsSnapshot {
   rotationCount: number;
   elapsedMs: number;
   distanceMeters: number;
+  /** Instantaneous roller cadence in revolutions per minute. */
+  rpm: number;
   currentSpeedKph: number;
   topSpeedKph: number;
   averageSpeedKph: number;

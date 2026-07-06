@@ -514,6 +514,7 @@ function buildLabWinnerRace(themeId: string): RaceRecord {
         maxWattage: 742,
         racerId: "lab-modal-left",
         rotationCount: 119,
+        rpm: 0,
         topSpeedKph: 54.7,
         wattage: 0
       },
@@ -527,6 +528,7 @@ function buildLabWinnerRace(themeId: string): RaceRecord {
         maxWattage: 691,
         racerId: "lab-modal-right",
         rotationCount: 115,
+        rpm: 0,
         topSpeedKph: 51.2,
         wattage: 0
       }

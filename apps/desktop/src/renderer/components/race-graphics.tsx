@@ -76,8 +76,8 @@ function resolveMetric(
   return metrics.find((metric) => metric.racerId === racerId);
 }
 
-function formatSpeed(value: number | undefined): string {
-  return `${(value ?? 0).toFixed(1)} km/h`;
+function formatRpm(rpm: number | undefined): string {
+  return `${Math.round(rpm ?? 0)}`;
 }
 
 function getHorizontalMarkerPosition(percentageValue: string, spriteWidthRem: number): string {
@@ -242,28 +242,12 @@ function LaneIdentity({ racer }: { racer: RacerSummary["racer"] }) {
   );
 }
 
-function LaneReadout({
-  metric,
-  targetDistanceMeters
-}: {
-  metric?: RaceMetricsSnapshot;
-  targetDistanceMeters: number;
-}) {
+function LaneReadout({ metric }: { metric?: RaceMetricsSnapshot }) {
   return (
     <div className="race-lane__readout">
-      <div className="race-lane__readout-item race-lane__readout-item--distance">
-        <span>Distance</span>
-        <strong>
-          {Math.round(metric?.distanceMeters ?? 0)} / {Math.round(targetDistanceMeters)}m
-        </strong>
-      </div>
-      <div className="race-lane__readout-item">
-        <span>Speed</span>
-        <strong>{formatSpeed(metric?.currentSpeedKph)}</strong>
-      </div>
-      <div className="race-lane__readout-item">
-        <span>Top</span>
-        <strong>{formatSpeed(metric?.topSpeedKph)}</strong>
+      <div className="race-lane__readout-item race-lane__readout-item--rpm">
+        <span>RPM</span>
+        <strong>{formatRpm(metric?.rpm)}</strong>
       </div>
     </div>
   );
@@ -364,7 +348,7 @@ export function RaceGraphic({
               </div>
               <div className="climb-lane__summary">
                 <LaneIdentity racer={entry.racer} />
-                <LaneReadout metric={metric} targetDistanceMeters={targetDistanceMeters} />
+                <LaneReadout metric={metric} />
               </div>
             </div>
           );
@@ -395,7 +379,7 @@ export function RaceGraphic({
             >
               <div className="ledger-lane__header race-lane__header">
                 <LaneIdentity racer={entry.racer} />
-                <LaneReadout metric={metric} targetDistanceMeters={targetDistanceMeters} />
+                <LaneReadout metric={metric} />
               </div>
               <div className="ledger-lane__track">
                 <div className="ledger-lane__sky" aria-hidden="true" />
@@ -457,7 +441,7 @@ export function RaceGraphic({
             >
               <div className="wagon-lane__header race-lane__header">
                 <LaneIdentity racer={entry.racer} />
-                <LaneReadout metric={metric} targetDistanceMeters={targetDistanceMeters} />
+                <LaneReadout metric={metric} />
               </div>
               <div className="wagon-lane__track">
                 <div className="wagon-lane__route" />
@@ -518,7 +502,7 @@ export function RaceGraphic({
           >
             <div className="track-lane__header race-lane__header">
               <LaneIdentity racer={entry.racer} />
-              <LaneReadout metric={metric} targetDistanceMeters={targetDistanceMeters} />
+              <LaneReadout metric={metric} />
             </div>
             <div className="track-lane__bar">
               <m.div

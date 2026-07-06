@@ -4,6 +4,7 @@ import type {
   RacerSummary,
   ThemeDefinition
 } from "@roller-rumble/shared/types";
+import { DEFAULT_WHEEL_CIRCUMFERENCE_METERS } from "@roller-rumble/shared/constants";
 import { themes } from "@roller-rumble/shared/themes";
 import { applyThemeToDocument } from "@roller-rumble/shared-ui/theme";
 import { Button, Panel } from "@roller-rumble/shared-ui";
@@ -17,6 +18,9 @@ import { RaceGraphic } from "../components/race-graphics";
 
 const TARGET_DISTANCE_METERS = 1000;
 const SPRITE_PEDAL_SPEED_KPH = 22;
+const SPRITE_PEDAL_RPM = Math.round(
+  ((SPRITE_PEDAL_SPEED_KPH / 3.6) * 60) / DEFAULT_WHEEL_CIRCUMFERENCE_METERS
+);
 const LAB_TIMESTAMP = "2026-01-01T00:00:00.000Z";
 
 const RACER_A_ID = "glow-lab-a";
@@ -173,6 +177,7 @@ function makeMetric(
     rotationCount: 0,
     elapsedMs: 0,
     distanceMeters: (Math.max(0, Math.min(100, positionPct)) / 100) * TARGET_DISTANCE_METERS,
+    rpm: SPRITE_PEDAL_RPM,
     currentSpeedKph: SPRITE_PEDAL_SPEED_KPH,
     topSpeedKph: SPRITE_PEDAL_SPEED_KPH,
     averageSpeedKph: SPRITE_PEDAL_SPEED_KPH,

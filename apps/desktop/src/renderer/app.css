@@ -2385,8 +2385,8 @@ p {
   --race-lane-color-soft: rgba(255, 101, 0, 0.22);
   --race-lane-color-shadow: rgba(255, 101, 0, 0.38);
   --race-lane-avatar-size: clamp(6.8rem, 10.4vw, 11rem);
-  --race-lane-name-max-size: clamp(1.8rem, 3.8vw, 4.2rem);
-  --race-lane-name-min-size-px: 22;
+  --race-lane-name-max-size: clamp(2.4rem, 5vw, 5.6rem);
+  --race-lane-name-min-size-px: 30;
 }
 
 .race-lane--orange {
@@ -2798,10 +2798,6 @@ p {
   font-size: clamp(1.55rem, 2.8vw, 3.2rem);
   line-height: 0.95;
   white-space: nowrap;
-}
-
-.race-lane__readout-item--distance {
-  min-width: clamp(9rem, 14vw, 13rem);
 }
 
 .race-page--horizontal .race-graphic--horizontal,
@@ -3614,8 +3610,8 @@ button.tournament-match-node:active {
 
 .climb-lane__summary {
   --race-lane-avatar-size: clamp(6.4rem, 10vw, 10rem);
-  --race-lane-name-max-size: clamp(1.15rem, 1.9vw, 2rem);
-  --race-lane-name-min-size-px: 14;
+  --race-lane-name-max-size: clamp(1.55rem, 2.55vw, 2.7rem);
+  --race-lane-name-min-size-px: 19;
   display: grid;
   gap: clamp(0.75rem, 1.2vw, 1.1rem);
 }
@@ -3868,8 +3864,8 @@ button.tournament-match-node:active {
 
   .race-lane {
     --race-lane-avatar-size: clamp(4.65rem, 6.7vw, 6.8rem);
-    --race-lane-name-max-size: clamp(1.45rem, 2.75vw, 2.8rem);
-    --race-lane-name-min-size-px: 16;
+    --race-lane-name-max-size: clamp(1.95rem, 3.7vw, 3.75rem);
+    --race-lane-name-min-size-px: 22;
   }
 
   .race-lane__header {
@@ -3890,10 +3886,6 @@ button.tournament-match-node:active {
   .race-lane__readout-item {
     min-width: clamp(5.8rem, 9vw, 8rem);
     padding-left: clamp(0.4rem, 0.8vw, 0.7rem);
-  }
-
-  .race-lane__readout-item--distance {
-    min-width: clamp(7.6rem, 12vw, 10rem);
   }
 
   .race-lane__readout-item span {
@@ -3941,8 +3933,8 @@ button.tournament-match-node:active {
 
   .climb-lane__summary {
     --race-lane-avatar-size: clamp(4rem, 6vw, 5.7rem);
-    --race-lane-name-max-size: clamp(1rem, 1.45vw, 1.45rem);
-    --race-lane-name-min-size-px: 13;
+    --race-lane-name-max-size: clamp(1.35rem, 1.95vw, 1.95rem);
+    --race-lane-name-min-size-px: 18;
     gap: clamp(0.45rem, 0.85vw, 0.75rem);
   }
 

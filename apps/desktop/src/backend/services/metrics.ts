@@ -27,6 +27,7 @@ export function createLaneTelemetryState(
       rotationCount: 0,
       elapsedMs: 0,
       distanceMeters: 0,
+      rpm: 0,
       currentSpeedKph: 0,
       topSpeedKph: 0,
       averageSpeedKph: 0,
@@ -52,6 +53,7 @@ export function applyRotationSample(
   const deltaDistanceMeters = sample.deltaRotations * wheelCircumferenceMeters;
   const totalDistanceMeters = state.snapshot.distanceMeters + deltaDistanceMeters;
   const currentSpeedKph = Number(((deltaDistanceMeters / deltaTimeMs) * 1000 * 3.6).toFixed(2));
+  const rpm = Number(((sample.deltaRotations / deltaTimeMs) * 60000).toFixed(2));
   const averageSpeedKph =
     elapsedMs === 0 ? 0 : Number(((totalDistanceMeters / elapsedMs) * 1000 * 3.6).toFixed(2));
   const wattage = estimateWattage(currentSpeedKph);
@@ -64,6 +66,7 @@ export function applyRotationSample(
       rotationCount: state.snapshot.rotationCount + sample.deltaRotations,
       elapsedMs,
       distanceMeters: Number(totalDistanceMeters.toFixed(2)),
+      rpm,
       currentSpeedKph,
       topSpeedKph: Math.max(state.snapshot.topSpeedKph, currentSpeedKph),
       averageSpeedKph,
@@ -83,6 +86,7 @@ export function finishLaneTelemetryState(
     snapshot: {
       ...state.snapshot,
       elapsedMs: Math.max(0, finishedAtMs - state.startedAtMs),
+      rpm: 0,
       currentSpeedKph: 0,
       wattage: 0,
       finishedAtMs: Math.max(0, finishedAtMs - state.startedAtMs)
