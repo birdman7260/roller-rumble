@@ -6,6 +6,8 @@ import {
   getPublicBackendHealthUrl,
   getPublicRacerPageUrl,
   getPublicWebSocketProbeUrl,
+  isTransientTunnelConnectionError,
+  isTunnelConnectionRegistered,
   normalizePublicRacerUrl,
   publicHostnameRoutingHint,
   selectCloudflaredDownload
@@ -41,6 +43,31 @@ describe("cloudflared tools", () => {
   it("documents the required root public hostname route", () => {
     expect(publicHostnameRoutingHint()).toContain("empty Path");
     expect(publicHostnameRoutingHint()).toContain("/ws");
+  });
+
+  it("classifies transient edge/QUIC dial timeouts as recoverable", () => {
+    expect(
+      isTransientTunnelConnectionError(
+        'ERR Failed to dial a quic connection error="failed to dial to edge with quic: timeout: no recent network activity" connIndex=0'
+      )
+    ).toBe(true);
+    expect(
+      isTransientTunnelConnectionError("INF Retrying connection in up to 4s connIndex=0")
+    ).toBe(true);
+    expect(
+      isTransientTunnelConnectionError(
+        "ERR Request failed error=unable to reach the origin service"
+      )
+    ).toBe(false);
+  });
+
+  it("detects when cloudflared registers an edge connection", () => {
+    expect(
+      isTunnelConnectionRegistered(
+        "INF Registered tunnel connection connIndex=0 connID=abc location=sea01"
+      )
+    ).toBe(true);
+    expect(isTunnelConnectionRegistered("INF Starting tunnel")).toBe(false);
   });
 
   it("selects official release assets for supported desktop platforms", () => {

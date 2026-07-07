@@ -11,6 +11,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Changed
 
 - Trimmed the stats shown for each racer to the most useful ones. On the racer page, a collapsed racer now shows only the number of races and top speed, and the expanded view no longer shows peak power. On the admin Racers page, top speed is no longer shown in the racer list.
+- On the racer page Racers tab, the Challenge button now stays aligned to the right edge of the row in both the collapsed and expanded states, and sits at the top-right when a racer is expanded instead of floating in the vertical center.
 - Each racer lane on the race display now shows a single live RPM readout instead of the distance, speed, and top-speed stats, and the racer's name is displayed in a larger font.
 - The race results screen now shows a stronger size difference between the winner and runner-up: the winner's card is noticeably wider with larger text, while the runner-up's card is narrower with smaller text. Both cards stay fully inside the results panel without covering the "Winner!" title or spilling past the bottom edge.
 - Reordered the admin Settings tab so the most-used cards come first: Status, Settings, Tunnel, Projector Display, then Notifications, with the remaining cards below them.
@@ -21,6 +22,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The racer page can now be pulled down to refresh on Android Chrome. On phones the page hands scrolling back to the browser so the native pull-to-refresh gesture works, while the event title card stays pinned to the top of the screen, the section tab bar stays pinned to the bottom, and page content is never hidden behind the tab bar. The operator sidebar no longer appears above the racer page on phones.
 - Signing out on the racer page and then registering again as a guest now creates a separate racer instead of overwriting the previous racer's name and details. Signing out now resets the device's guest identity.
 - Racer phone pages now stay live after the first race or two. The page automatically reconnects to the live-update stream if its connection drops (for example when the phone sleeps, the browser tab is backgrounded, or an idle connection times out over the Cloudflare tunnel) and re-syncs the latest state on reconnect, so a manual refresh is no longer needed. While reconnecting, the racer page shows a brief "Reconnecting to live updates…" banner.
+- The Cloudflare tunnel no longer gets stuck showing "Failed" after a brief network hiccup. A transient loss of connection to Cloudflare's edge (common on flaky or QUIC-throttling Wi-Fi) now shows a temporary "Reconnecting…" notice instead of a failure, and the tunnel status returns to active on its own once cloudflared reconnects — no manual stop/start needed.
 
 ## 0.1.17 - 2026-07-02
 

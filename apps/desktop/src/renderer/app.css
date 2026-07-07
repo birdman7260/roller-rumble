@@ -453,14 +453,19 @@ a {
 
 .list-row.racer-list-row {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 1rem;
 }
 
 .racer-list-row__header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 1rem;
+}
+
+.racer-list-row__challenge {
+  flex: 0 0 auto;
 }
 
 .racer-list-row__main {

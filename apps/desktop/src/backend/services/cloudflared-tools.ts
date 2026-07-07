@@ -117,6 +117,28 @@ export function publicHostnameRoutingHint(): string {
   ].join(" ");
 }
 
+/**
+ * cloudflared logs a QUIC/edge dial timeout when its connection to Cloudflare's edge briefly drops
+ * (flaky Wi-Fi, sleep, or networks that throttle UDP/QUIC). These lines contain "error" but
+ * cloudflared retries on its own, so they must not flip the tunnel into a fatal error state.
+ */
+export function isTransientTunnelConnectionError(text: string): boolean {
+  const lower = text.toLowerCase();
+  return (
+    lower.includes("retrying connection") ||
+    lower.includes("failed to dial a quic connection") ||
+    lower.includes("no recent network activity")
+  );
+}
+
+/**
+ * cloudflared logs a registered-connection line each time it (re)establishes an edge connection.
+ * Detecting it lets the app clear a transient error and show the tunnel as active again.
+ */
+export function isTunnelConnectionRegistered(text: string): boolean {
+  return text.toLowerCase().includes("registered tunnel connection");
+}
+
 export function createCloudflaredConfig({
   dataDir,
   env = process.env

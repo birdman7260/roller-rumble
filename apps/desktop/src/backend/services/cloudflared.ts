@@ -4,6 +4,8 @@ import {
   buildCloudflaredStartCommand,
   createCloudflaredConfig,
   installCloudflared,
+  isTransientTunnelConnectionError,
+  isTunnelConnectionRegistered,
   normalizePublicRacerUrl,
   resolveCloudflared,
   type CloudflaredConfig
@@ -207,6 +209,19 @@ export class CloudflaredTunnelManager {
       return;
     }
 
+    // cloudflared (re)established an edge connection. Clear any transient error so the admin UI
+    // recovers on its own instead of staying stuck on "Failed" after a self-healing hiccup.
+    if (isTunnelConnectionRegistered(text)) {
+      this.clearActivationTimer();
+      this.state = this.stateFromDiagnostics(
+        "active",
+        diagnostics,
+        this.requestFailure ? originRequestFailureMessage() : "Tunnel is active"
+      );
+      onStateChange?.(this.state);
+      return;
+    }
+
     if (text.toLowerCase().includes("error")) {
       if (isOriginRequestFailure(text)) {
         this.requestFailure = originRequestFailureMessage();
@@ -216,6 +231,19 @@ export class CloudflaredTunnelManager {
           ...this.state,
           message: originRequestFailureMessage(),
           lastError: this.requestFailure
+        };
+        onStateChange?.(this.state);
+        return;
+      }
+
+      if (isTransientTunnelConnectionError(text)) {
+        // A transient edge/QUIC dial timeout — cloudflared retries on its own. Surface it as a
+        // reconnecting notice without tearing down the tunnel; the next registered-connection
+        // line (or the activation timer) clears it back to active.
+        this.state = {
+          ...this.state,
+          message: "Reconnecting to Cloudflare's edge after a transient network hiccup...",
+          lastError: text
         };
         onStateChange?.(this.state);
         return;

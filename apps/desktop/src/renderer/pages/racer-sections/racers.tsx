@@ -87,6 +87,7 @@ export function RacersTab({
                   </button>
                   {selectedRacer && entry.racer.id !== selectedRacerId && !tournamentMode ? (
                     <Button
+                      className="racer-list-row__challenge"
                       variant="ghost"
                       onClick={() => {
                         onChallengeRacer(entry.racer.id);
