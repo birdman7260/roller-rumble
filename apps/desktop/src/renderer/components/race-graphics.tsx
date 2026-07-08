@@ -8,6 +8,7 @@ import type {
   ThemeDefinition
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
+import { getMonogram } from "../lib/monogram";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
 import { useSpeedStreaks } from "../lib/use-speed-streaks";
@@ -368,7 +369,11 @@ function LaneIdentity({ racer }: { racer: RacerSummary["racer"] }) {
     <div className="race-lane__identity">
       {avatarUrl ? (
         <img className="race-lane__avatar" src={avatarUrl} alt={racer.displayName} />
-      ) : null}
+      ) : (
+        <span className="race-lane__monogram" aria-hidden="true">
+          {getMonogram(racer.displayName)}
+        </span>
+      )}
       <AutoFitRacerName name={racer.displayName} />
     </div>
   );

@@ -12,6 +12,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- On the race display, a racer with no photo now shows a colored disc with their initials in place of the avatar, sized and placed exactly like a photo would be. Both lanes' names line up and both lane cards are the same height whether or not a racer has a photo. The RPM readout now sizes to its content instead of reserving half the card, and its digits are held to a steady width so a changing RPM value no longer makes the card jitter.
 - The race results now wait for the second racer to finish instead of popping up the moment the winner crosses the line. After the winner finishes, the trailing racer keeps riding to the line; the results appear once they cross (after a brief beat) or when their time runs out. The trailing racer's time limit is the winner's finishing time times a configurable percentage (default 120%, always at least 5 seconds of extra time), set with the new advanced setting "Race finish budget". Solo races are unaffected.
 
 ### Fixed

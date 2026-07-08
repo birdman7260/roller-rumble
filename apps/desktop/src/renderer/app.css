@@ -2762,18 +2762,33 @@ p {
   flex: 1 1 auto;
   gap: clamp(0.9rem, 1.7vw, 1.45rem);
   min-width: 0;
-  min-height: var(--race-lane-avatar-size);
 }
 
-.race-lane__avatar {
+.race-lane__avatar,
+.race-lane__monogram {
   width: var(--race-lane-avatar-size);
   height: var(--race-lane-avatar-size);
   flex: 0 0 var(--race-lane-avatar-size);
   border: 0.16rem solid color-mix(in srgb, var(--race-lane-color) 70%, white);
   border-radius: 999px;
+  box-shadow: 0 0.7rem 1.6rem rgba(0, 0, 0, 0.26);
+}
+
+.race-lane__avatar {
   background: var(--theme-surface);
   object-fit: cover;
-  box-shadow: 0 0.7rem 1.6rem rgba(0, 0, 0, 0.26);
+}
+
+.race-lane__monogram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, var(--race-lane-color-bright), var(--race-lane-color));
+  color: color-mix(in srgb, var(--theme-text) 88%, white);
+  font-size: calc(var(--race-lane-avatar-size) * 0.42);
+  font-weight: 950;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .race-lane__name-wrap {
@@ -2808,17 +2823,17 @@ p {
 
 .race-lane__readout {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: clamp(0.65rem, 1.2vw, 1rem);
-  min-width: min(39rem, 56%);
+  min-width: 0;
   text-align: right;
 }
 
 .race-lane__readout-item {
   display: grid;
   gap: 0.18rem;
-  min-width: clamp(7rem, 12vw, 11rem);
   padding-left: clamp(0.65rem, 1.1vw, 1rem);
   border-left: 1px solid color-mix(in srgb, var(--race-lane-color) 52%, transparent);
 }
@@ -2832,8 +2847,10 @@ p {
 }
 
 .race-lane__readout-item strong {
+  min-width: 3ch;
   color: var(--theme-text);
   font-size: clamp(1.55rem, 2.8vw, 3.2rem);
+  font-variant-numeric: tabular-nums;
   line-height: 0.95;
   white-space: nowrap;
 }
@@ -3922,11 +3939,9 @@ button.tournament-match-node:active {
 
   .race-lane__readout {
     gap: clamp(0.38rem, 0.8vw, 0.7rem);
-    min-width: min(32rem, 54%);
   }
 
   .race-lane__readout-item {
-    min-width: clamp(5.8rem, 9vw, 8rem);
     padding-left: clamp(0.4rem, 0.8vw, 0.7rem);
   }
 
