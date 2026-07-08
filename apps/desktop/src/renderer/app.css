@@ -2735,7 +2735,7 @@ p {
   }
 }
 
-.race-lane__header {
+.race-lane__card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2860,9 +2860,9 @@ p {
   grid-template-rows: minmax(clamp(5.25rem, 12vh, 9.5rem), auto) minmax(0, 1fr);
 }
 
-.race-page--horizontal .track-lane__header,
-.race-page--horizontal .wagon-lane__header,
-.race-page--horizontal .ledger-lane__header {
+.race-page--horizontal .track-lane__card,
+.race-page--horizontal .wagon-lane__card,
+.race-page--horizontal .ledger-lane__card {
   width: 100%;
   height: auto;
   min-height: 0;
@@ -3684,8 +3684,8 @@ button.tournament-match-node:active {
   font-size: clamp(1.05rem, 1.6vw, 1.75rem);
 }
 
-.wagon-lane__header,
-.ledger-lane__header {
+.wagon-lane__card,
+.ledger-lane__card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3910,7 +3910,7 @@ button.tournament-match-node:active {
     --race-lane-name-min-size-px: 22;
   }
 
-  .race-lane__header {
+  .race-lane__card {
     gap: clamp(0.55rem, 1.2vw, 1rem);
     padding: clamp(0.48rem, 0.95vw, 0.8rem);
     border-radius: 0.9rem;

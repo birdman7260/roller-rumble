@@ -518,7 +518,7 @@ export function RaceGraphic({
               key={entry.racer.id}
               className={getLaneClassName("ledger-lane", index, laneColorsFlipped)}
             >
-              <div className="ledger-lane__header race-lane__header">
+              <div className="ledger-lane__card race-lane__card">
                 <LaneIdentity racer={entry.racer} />
                 <LaneReadout metric={metric} />
               </div>
@@ -578,7 +578,7 @@ export function RaceGraphic({
               key={entry.racer.id}
               className={getLaneClassName("wagon-lane", index, laneColorsFlipped)}
             >
-              <div className="wagon-lane__header race-lane__header">
+              <div className="wagon-lane__card race-lane__card">
                 <LaneIdentity racer={entry.racer} />
                 <LaneReadout metric={metric} />
               </div>
@@ -637,7 +637,7 @@ export function RaceGraphic({
             key={entry.racer.id}
             className={getLaneClassName("track-lane", index, laneColorsFlipped)}
           >
-            <div className="track-lane__header race-lane__header">
+            <div className="track-lane__card race-lane__card">
               <LaneIdentity racer={entry.racer} />
               <LaneReadout metric={metric} />
             </div>
