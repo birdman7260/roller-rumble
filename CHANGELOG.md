@@ -8,6 +8,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- The race display now shows a header inside the race box, above both lanes: the race distance on the left and an elapsed-time clock on the right. The clock reads 0:00.0 until the race starts, counts up while the race is live, and freezes at the final time when the race finishes.
+
 ### Changed
 
 ### Fixed

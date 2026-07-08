@@ -41,7 +41,7 @@ _Avoid_: dedupe, link (alone)
 
 ### Race lifecycle
 
-**ActiveRace**: The live, in-process owner of a single race from activation through finalization. Holds lane telemetry state for each participant, processes rotation samples into metrics, tracks the grace-period finalization timer, assigns the winner, and persists results. Exactly one `ActiveRace` exists at a time, or none.
+**ActiveRace**: The live, in-process owner of a single race from activation through finalization. Holds lane telemetry state for each participant, processes rotation samples into metrics, tracks the `finish budget` timer, assigns the winner, and persists results. Exactly one `ActiveRace` exists at a time, or none.
 _Avoid_: runtime, currentRuntime
 
 **RaceRecord**: The persisted representation of a race in SQLite. Exists before, during, and after the race is live. Carries state (`staging`, `countdown`, `active`, `interrupted`, `finished`), participants, metrics snapshots, and result references.
@@ -49,6 +49,15 @@ _Avoid_: race (alone, when the persisted record is meant)
 
 **LaneTelemetryState**: The in-memory rolling state for one participant's lane during an `ActiveRace`. Accumulates rotation samples into speed, distance, wattage, and elapsed time. Not persisted directly — its `snapshot` field is what gets written to the `RaceRecord`.
 _Avoid_: lane state, racer state
+
+**trailing racer**: In a two-lane match, the participant who has not yet crossed the finish line at the moment the winner does. Keeps racing — and keeps updating live metrics — throughout the `finish budget`. If the budget expires before they finish, they are force-finished at their partial distance and placed second. Has no meaning in a solo race.
+_Avoid_: loser, runner-up (until the race is finalized)
+
+**finish budget**: The bounded window a `trailing racer` has to reach the line after the winner crosses, before the race force-finalizes on its own. Reckoned from race start as the winner's finishing elapsed time times a configured percentage, floored so it is never less than five seconds beyond the winner's finish. Only two-lane matches have a finish budget; a solo race finalizes on its lone finish, and force-finalizes immediately if the budget expires with the trailing racer still short of the line.
+_Avoid_: grace period, overtime, sudden death
+
+**finish freeze**: The rule that a lane stops reporting live metrics the instant it crosses the finish line — its speed, cadence, and wattage settle to zero and its clock stops at the finishing time, while its record stats (distance, top speed, average, max wattage) stand. Distinct from finalization: a frozen winner's lane holds still on the projector while the `trailing racer` is still moving during the `finish budget`.
+_Avoid_: lane freeze, stat lock
 
 ### Race display
 

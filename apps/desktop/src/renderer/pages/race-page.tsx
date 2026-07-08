@@ -537,6 +537,8 @@ function RaceLayer({ model }: { model: RacePageViewModel }) {
           racers={model.racers}
           metrics={model.metrics}
           targetDistanceMeters={model.displayRace.targetDistanceMeters}
+          raceState={model.displayRace.state}
+          startedAt={model.displayRace.startedAt}
           laneColorsFlipped={model.snapshot.settings.raceDisplayLaneColorsFlipped}
           glowMode={model.snapshot.settings.raceDisplayGlowMode}
         />

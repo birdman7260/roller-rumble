@@ -4,6 +4,7 @@ import type {
   RaceGlowMode,
   RaceMetricsSnapshot,
   RacerSummary,
+  RaceState,
   ThemeDefinition
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
@@ -20,6 +21,17 @@ interface RaceGraphicProps {
   targetDistanceMeters: number;
   laneColorsFlipped: boolean;
   glowMode: RaceGlowMode;
+  /**
+   * Current race lifecycle state. Drives the elapsed clock: it stays at zero
+   * until the race is {@link RaceState `active`}, ticks while active, and freezes
+   * once the race is finished or interrupted.
+   */
+  raceState?: RaceState;
+  /**
+   * ISO timestamp of when the race went live. The elapsed clock counts up from
+   * this instant while the race is active.
+   */
+  startedAt?: string | null;
   /**
    * When provided, these per-racer intensities drive the glow directly instead
    * of the derived signal. Used by the glow lab to dial in the look by hand; the
@@ -78,6 +90,95 @@ function resolveMetric(
 
 function formatRpm(rpm: number | undefined): string {
   return `${Math.round(rpm ?? 0)}`;
+}
+
+function formatRaceDistance(targetDistanceMeters: number): string {
+  return `${Math.round(targetDistanceMeters)} m`;
+}
+
+function formatElapsedTime(elapsedMs: number): string {
+  const totalSeconds = Math.max(0, elapsedMs) / 1000;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds - minutes * 60;
+  return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
+}
+
+/**
+ * The live race clock. It reads zero until the race is `active`, ticks up from
+ * `startedAt` while active, and freezes at the final elapsed time once the race
+ * finishes or is interrupted. Isolating the ticking state here keeps the
+ * per-frame re-render scoped to this text node instead of the whole graphic.
+ */
+function RaceElapsedClock({
+  raceState,
+  startedAt,
+  frozenElapsedMs
+}: {
+  raceState?: RaceState;
+  startedAt?: string | null;
+  frozenElapsedMs: number;
+}) {
+  const startedAtMs = startedAt ? new Date(startedAt).getTime() : null;
+  const isLive = raceState === "active" && startedAtMs != null && !Number.isNaN(startedAtMs);
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!isLive) {
+      return;
+    }
+    const intervalId = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 100);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [isLive]);
+
+  let elapsedMs = 0;
+  if (isLive) {
+    elapsedMs = nowMs - startedAtMs;
+  } else if (raceState === "finished" || raceState === "interrupted") {
+    elapsedMs = frozenElapsedMs;
+  }
+
+  return <strong className="race-graphic__meta-value">{formatElapsedTime(elapsedMs)}</strong>;
+}
+
+/**
+ * Distance (left) and elapsed time (right) shown inside the race box, above both
+ * lanes. Distance is the static target for the race; time is the live clock.
+ */
+function RaceMetaHeader({
+  targetDistanceMeters,
+  raceState,
+  startedAt,
+  metrics
+}: {
+  targetDistanceMeters: number;
+  raceState?: RaceState;
+  startedAt?: string | null;
+  metrics: RaceMetricsSnapshot[];
+}) {
+  const frozenElapsedMs = metrics.reduce((max, metric) => Math.max(max, metric.elapsedMs), 0);
+
+  return (
+    <div className="race-graphic__meta">
+      <div className="race-graphic__meta-item race-graphic__meta-item--distance">
+        <span className="race-graphic__meta-label">Distance</span>
+        <strong className="race-graphic__meta-value">
+          {formatRaceDistance(targetDistanceMeters)}
+        </strong>
+      </div>
+      <div className="race-graphic__meta-item race-graphic__meta-item--time">
+        <span className="race-graphic__meta-label">Time</span>
+        <RaceElapsedClock
+          raceState={raceState}
+          startedAt={startedAt}
+          frozenElapsedMs={frozenElapsedMs}
+        />
+      </div>
+    </div>
+  );
 }
 
 function getHorizontalMarkerPosition(percentageValue: string, spriteWidthRem: number): string {
@@ -147,6 +248,37 @@ function LaneFlash() {
  */
 function LaneStreak() {
   return <span className="race-lane__streak" aria-hidden="true" />;
+}
+
+/**
+ * The cue overlays and sprite that ride on a lane's progress marker. Every race
+ * graphic variant renders the same cluster inside its marker, so it lives here
+ * once instead of being repeated per variant.
+ */
+function LaneMarkerContent({
+  entry,
+  metric,
+  spriteDisplayHeightRem,
+  theme
+}: {
+  entry: RacerSummary;
+  metric?: RaceMetricsSnapshot;
+  spriteDisplayHeightRem: number;
+  theme: ThemeDefinition;
+}) {
+  return (
+    <>
+      <LaneStreak />
+      <LaneGlow />
+      <LaneFlash />
+      <RaceSpriteAvatar
+        displayHeightRem={spriteDisplayHeightRem}
+        label={entry.racer.displayName}
+        metric={metric}
+        theme={theme}
+      />
+    </>
+  );
 }
 
 function AutoFitRacerName({ name }: { name: string }) {
@@ -260,10 +392,20 @@ export function RaceGraphic({
   targetDistanceMeters,
   laneColorsFlipped,
   glowMode,
+  raceState,
+  startedAt,
   glowIntensityOverride,
   flashIntensityOverride,
   streakIntensityOverride
 }: RaceGraphicProps) {
+  const metaHeader = (
+    <RaceMetaHeader
+      targetDistanceMeters={targetDistanceMeters}
+      raceState={raceState}
+      startedAt={startedAt}
+      metrics={metrics}
+    />
+  );
   const prefersReducedMotion = useReducedMotion();
   const derivedGlowIntensity = useLaneGlow({
     metrics,
@@ -299,6 +441,7 @@ export function RaceGraphic({
   if (theme.orientation === "vertical") {
     return (
       <div className={`race-graphic race-graphic--vertical race-graphic--${raceGraphic.variant}`}>
+        {metaHeader}
         {racers.map((entry, index) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
@@ -335,13 +478,10 @@ export function RaceGraphic({
                     streakIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
-                  <LaneStreak />
-                  <LaneGlow />
-                  <LaneFlash />
-                  <RaceSpriteAvatar
-                    displayHeightRem={spriteDisplayHeightRem}
-                    label={entry.racer.displayName}
+                  <LaneMarkerContent
+                    entry={entry}
                     metric={metric}
+                    spriteDisplayHeightRem={spriteDisplayHeightRem}
                     theme={theme}
                   />
                 </m.div>
@@ -361,6 +501,7 @@ export function RaceGraphic({
     // Ledger-style themes present the race as a map readout while reusing the same live metrics.
     return (
       <div className="race-graphic race-graphic--ledger">
+        {metaHeader}
         {racers.map((entry, index) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
@@ -403,13 +544,10 @@ export function RaceGraphic({
                     streakIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
-                  <LaneStreak />
-                  <LaneGlow />
-                  <LaneFlash />
-                  <RaceSpriteAvatar
-                    displayHeightRem={spriteDisplayHeightRem}
-                    label={entry.racer.displayName}
+                  <LaneMarkerContent
+                    entry={entry}
                     metric={metric}
+                    spriteDisplayHeightRem={spriteDisplayHeightRem}
                     theme={theme}
                   />
                 </m.div>
@@ -424,6 +562,7 @@ export function RaceGraphic({
   if (raceGraphic.variant === "trail") {
     return (
       <div className="race-graphic race-graphic--wagon">
+        {metaHeader}
         {racers.map((entry, index) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
@@ -465,13 +604,10 @@ export function RaceGraphic({
                     streakIntensityByRacerId[entry.racer.id] ?? 0
                   )}
                 >
-                  <LaneStreak />
-                  <LaneGlow />
-                  <LaneFlash />
-                  <RaceSpriteAvatar
-                    displayHeightRem={spriteDisplayHeightRem}
-                    label={entry.racer.displayName}
+                  <LaneMarkerContent
+                    entry={entry}
                     metric={metric}
+                    spriteDisplayHeightRem={spriteDisplayHeightRem}
                     theme={theme}
                   />
                 </m.div>
@@ -485,6 +621,7 @@ export function RaceGraphic({
 
   return (
     <div className="race-graphic race-graphic--horizontal">
+      {metaHeader}
       {racers.map((entry, index) => {
         const metric = resolveMetric(metrics, entry.racer.id);
         const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
@@ -525,13 +662,10 @@ export function RaceGraphic({
                   streakIntensityByRacerId[entry.racer.id] ?? 0
                 )}
               >
-                <LaneStreak />
-                <LaneGlow />
-                <LaneFlash />
-                <RaceSpriteAvatar
-                  displayHeightRem={spriteDisplayHeightRem}
-                  label={entry.racer.displayName}
+                <LaneMarkerContent
+                  entry={entry}
                   metric={metric}
+                  spriteDisplayHeightRem={spriteDisplayHeightRem}
                   theme={theme}
                 />
               </m.div>
