@@ -16,6 +16,26 @@ export const COUNTDOWN_DURATION_MS = COUNTDOWN_SECONDS * 1000;
 export const BOX_COUNTDOWN_MS = 4000;
 export const DEFAULT_WHEEL_CIRCUMFERENCE_METERS = 2.1;
 /**
+ * The short beat between a clean finish (both racers cross the line, or the lone rider in a solo
+ * race) and the results overlay, so the audience gets a moment on the finish line before the modal.
+ * The finish-budget expiry path skips this beat — it already spent its drama waiting for the
+ * trailing racer.
+ */
+export const RACE_CLEAN_FINISH_BEAT_MS = 1500;
+/**
+ * The trailing racer's finish budget, as a percentage of the winner's finishing elapsed time,
+ * reckoned from race start. 120 means the trailing racer has until 1.2× the winner's time before the
+ * race force-finalizes. Must be ≥ 100 (a value below the winner's own time makes no sense).
+ * Overridable via the `ROLLER_RUMBLE_FINISH_BUDGET_PERCENT` advanced setting.
+ */
+export const DEFAULT_FINISH_BUDGET_PERCENT = 120;
+/**
+ * The floor on the trailing racer's finish budget: they always get at least this much time beyond
+ * the winner's finish, so a short race (or a misconfigured low percentage) never slams the results
+ * overlay up the instant the winner crosses.
+ */
+export const FINISH_BUDGET_FLOOR_MS = 5000;
+/**
  * The OpenSprints box's roller is 4.5 in / 114.3 mm in diameter with a single magnet, so one
  * sensor tick is one roller revolution. Confirmed against real hardware 2026-07-01 (and matching
  * the `114.3 * PI` constant in SilverSprint's firmware). The rollout — race distance per tick — is

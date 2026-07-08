@@ -16,7 +16,7 @@ one lane, no budget, finalize on the lone finish.
 - **Defer finalization (chosen)** vs. **finalize early and delay only the overlay.** Delaying just the
   `resultPresentation` in `app.ts` would freeze the loser mid-track and stall a modal over a dead race —
   the trailing racer would never get a real finish time. Keeping the race live is the only option that
-  delivers the actual goal ("wait until *both* have finished"), and it keeps the `ActiveRace` the sole
+  delivers the actual goal ("wait until _both_ have finished"), and it keeps the `ActiveRace` the sole
   owner of "is the race over?" exactly as CONTEXT.md already frames it.
 - **Partial-distance 2nd place (chosen)** vs. **an explicit DNF status.** There is no DNF concept in the
   schema or UI today; the winner already took the win, so a partial-distance second reads correctly and

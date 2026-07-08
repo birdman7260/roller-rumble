@@ -1,5 +1,8 @@
 import type { RaceRecord } from "@roller-rumble/shared/types";
-import { DEFAULT_WHEEL_CIRCUMFERENCE_METERS } from "@roller-rumble/shared/constants";
+import {
+  DEFAULT_WHEEL_CIRCUMFERENCE_METERS,
+  RACE_CLEAN_FINISH_BEAT_MS
+} from "@roller-rumble/shared/constants";
 import { nowIso } from "@roller-rumble/shared/utils";
 import type { AppDatabase } from "../db/Database";
 import type { SensorAdapter } from "../adapters/sensor";
@@ -9,6 +12,7 @@ import {
   finishLaneTelemetryState,
   type LaneTelemetryState
 } from "./metrics";
+import { finishBudgetDeadlineMs, readFinishBudgetPercent } from "./finish-budget";
 
 export interface FinalizedRaceResult {
   race: RaceRecord;
@@ -25,6 +29,7 @@ export class ActiveRace {
   private finalizeTimer: NodeJS.Timeout | null = null;
   private startedAtMs: number;
   private wheelCircumferenceMeters: number;
+  private finishBudgetPercent: number;
   private db: AppDatabase;
   private sensor: SensorAdapter;
   private onFinalized: (result: FinalizedRaceResult) => void;
@@ -46,6 +51,9 @@ export class ActiveRace {
     // the setting per tick, so an operator edit only affects the next race.
     this.wheelCircumferenceMeters =
       sensor.wheelCircumferenceMeters ?? DEFAULT_WHEEL_CIRCUMFERENCE_METERS;
+    // The finish budget percentage is likewise fixed for the life of a race: capture it once so an
+    // operator edit only affects the next race, not one already underway.
+    this.finishBudgetPercent = readFinishBudgetPercent();
     this.startedAtMs = race.startedAt ? new Date(race.startedAt).getTime() : Date.now();
 
     // Initialize lane states
@@ -138,6 +146,13 @@ export class ActiveRace {
       return;
     }
 
+    // Finish freeze: once a lane crosses the line it stops reporting live metrics. Applying another
+    // rotation sample would overwrite its settled zero speed/cadence/wattage with fresh motion,
+    // which looks wrong on the projector while the trailing racer is still riding to the line.
+    if (laneState.snapshot.finishedAtMs != null) {
+      return;
+    }
+
     const next = applyRotationSample(
       laneState,
       {
@@ -158,8 +173,7 @@ export class ActiveRace {
       const finishedState = finishLaneTelemetryState(next, timestampMs);
       this.laneStates.set(racerId, finishedState);
       this.winnerRacerId ??= racerId;
-      // Allow a short grace period so the other lane can contribute one last sample
-      this.finalizeTimer ??= setTimeout(() => this.finalize(), 1500);
+      this.scheduleFinalizeAfterFinish();
     }
 
     // Update DB with current metrics
@@ -168,6 +182,43 @@ export class ActiveRace {
       metrics,
       winnerRacerId: this.winnerRacerId
     });
+  }
+
+  /**
+   * Decide when to finalize now that a lane has crossed the line. When every lane has finished —
+   * both racers in a match, or the lone rider in a solo race — give the audience a short beat on the
+   * finish line, then finalize. When one lane is still riding, hand the trailing racer their finish
+   * budget and force-finalize when it expires. The budget is enforced by a wall-clock timer because
+   * a rider who stops pedaling sends no more ticks for the deadline to be checked against.
+   */
+  private scheduleFinalizeAfterFinish(): void {
+    if (this.allLanesFinished()) {
+      this.armFinalize(RACE_CLEAN_FINISH_BEAT_MS);
+      return;
+    }
+
+    const winnerElapsedMs = this.winnerElapsedMs();
+    const deadlineMs = finishBudgetDeadlineMs(winnerElapsedMs, this.finishBudgetPercent);
+    this.armFinalize(deadlineMs - winnerElapsedMs);
+  }
+
+  private allLanesFinished(): boolean {
+    return [...this.laneStates.values()].every((state) => state.snapshot.finishedAtMs != null);
+  }
+
+  /** The winner's elapsed time at their finish. `finishedAtMs` is stored relative to race start. */
+  private winnerElapsedMs(): number {
+    const winner = this.winnerRacerId ? this.laneStates.get(this.winnerRacerId) : null;
+    return winner?.snapshot.finishedAtMs ?? 0;
+  }
+
+  /** (Re)arm the single finalize timer, replacing any pending one (e.g. a budget timer superseded
+   * by a clean finish once the trailing racer also crosses). */
+  private armFinalize(delayMs: number): void {
+    if (this.finalizeTimer) {
+      clearTimeout(this.finalizeTimer);
+    }
+    this.finalizeTimer = setTimeout(() => this.finalize(), Math.max(0, delayMs));
   }
 
   finalize(): void {

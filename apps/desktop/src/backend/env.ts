@@ -129,6 +129,15 @@ export function getDefaultRuntimeEnvTemplate(): string {
     "# delays the box's GO so this silent stretch lands at the end of the on-screen countdown.",
     "# Change it only if the countdown reaching zero does not match when your box actually goes.",
     "# ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS=4000",
+    "",
+    "# -----------------------------------------------------------------------------",
+    "# Race finish budget",
+    "# -----------------------------------------------------------------------------",
+    "# Advanced. After the winner crosses the line, how long the trailing racer gets to finish",
+    "# before the race ends on its own, as a percentage of the winner's time (must be 100 or more).",
+    "# 120 means the trailing racer has until 1.2x the winner's time. They always get at least 5",
+    "# extra seconds regardless. Lower it for snappier results, raise it to let close races breathe.",
+    "# ROLLER_RUMBLE_FINISH_BUDGET_PERCENT=120",
     ""
   ].join("\n");
 }

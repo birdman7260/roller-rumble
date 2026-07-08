@@ -12,7 +12,11 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- The race results now wait for the second racer to finish instead of popping up the moment the winner crosses the line. After the winner finishes, the trailing racer keeps riding to the line; the results appear once they cross (after a brief beat) or when their time runs out. The trailing racer's time limit is the winner's finishing time times a configurable percentage (default 120%, always at least 5 seconds of extra time), set with the new advanced setting "Race finish budget". Solo races are unaffected.
+
 ### Fixed
+
+- A racer's on-screen stats (speed, cadence, power, and their clock) now freeze the instant they cross the finish line, instead of continuing to update while the other racer finishes.
 
 ## 0.1.18 - 2026-07-08
 
