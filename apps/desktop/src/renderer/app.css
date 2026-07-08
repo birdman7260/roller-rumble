@@ -2887,16 +2887,15 @@ p {
   font-size: clamp(1.35rem, 2.4vw, 2.55rem);
 }
 
+.race-page--horizontal .track-lane__course {
+  /* Sit the course just below the lane card; slack falls below the track bar. */
+  align-self: start;
+}
+
 .race-page--horizontal .track-lane__bar {
-  align-self: center;
   width: 100%;
   height: clamp(2.2rem, 4.6vh, 4rem);
   min-height: 0;
-}
-
-.race-page--horizontal .track-lane__marker {
-  top: 50%;
-  transform: translateY(-50%);
 }
 
 .race-page--horizontal .wagon-lane__track,
@@ -2942,8 +2941,33 @@ p {
   min-height: 0;
 }
 
+/*
+ * The course (issue #21): a marker zone above the track bar. The course reserves
+ * exactly the space the rider marker occupies — its height is the published
+ * --race-marker-size, the same value that sizes the sprite — with the track bar
+ * pinned to the bottom. The marker zone fills only the clearance above the bar,
+ * so the bottom-anchored marker overflows upward into it instead of colliding
+ * with the lane card above.
+ */
+.track-lane__course {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  height: var(--race-marker-size, 5.4rem);
+}
+
+.track-lane__marker-zone {
+  flex: 1 1 auto;
+  min-height: 0;
+  pointer-events: none;
+}
+
 .track-lane__bar {
   position: relative;
+  flex: none;
   height: 1.25rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--race-lane-color) 50%, transparent);
@@ -2966,10 +2990,18 @@ p {
   background: linear-gradient(90deg, var(--race-lane-color-soft), var(--race-lane-color-bright));
 }
 
+/*
+ * Bottom-anchored to the course (and so to the track bar's bottom edge, the last
+ * child of the course): the rider's wheels sit flush with the bar bottom and the
+ * taller sprite fills the marker zone upward. Its own box is the sprite size, so
+ * the leading-edge glow, lead-change flash, and speed streaks — positioned from
+ * the marker's 50% center — stay centered on the rider.
+ */
 .track-lane__marker {
   position: absolute;
-  top: -1rem;
+  bottom: 0;
   z-index: 2;
+  height: var(--race-marker-size, 5.4rem);
 }
 
 .race-sprite-avatar {
