@@ -2735,7 +2735,7 @@ p {
   }
 }
 
-.race-lane__header {
+.race-lane__card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2762,18 +2762,33 @@ p {
   flex: 1 1 auto;
   gap: clamp(0.9rem, 1.7vw, 1.45rem);
   min-width: 0;
-  min-height: var(--race-lane-avatar-size);
 }
 
-.race-lane__avatar {
+.race-lane__avatar,
+.race-lane__monogram {
   width: var(--race-lane-avatar-size);
   height: var(--race-lane-avatar-size);
   flex: 0 0 var(--race-lane-avatar-size);
   border: 0.16rem solid color-mix(in srgb, var(--race-lane-color) 70%, white);
   border-radius: 999px;
+  box-shadow: 0 0.7rem 1.6rem rgba(0, 0, 0, 0.26);
+}
+
+.race-lane__avatar {
   background: var(--theme-surface);
   object-fit: cover;
-  box-shadow: 0 0.7rem 1.6rem rgba(0, 0, 0, 0.26);
+}
+
+.race-lane__monogram {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(150deg, var(--race-lane-color-bright), var(--race-lane-color));
+  color: color-mix(in srgb, var(--theme-text) 88%, white);
+  font-size: calc(var(--race-lane-avatar-size) * 0.42);
+  font-weight: 950;
+  line-height: 1;
+  text-transform: uppercase;
 }
 
 .race-lane__name-wrap {
@@ -2808,17 +2823,17 @@ p {
 
 .race-lane__readout {
   display: flex;
+  flex: none;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: clamp(0.65rem, 1.2vw, 1rem);
-  min-width: min(39rem, 56%);
+  min-width: 0;
   text-align: right;
 }
 
 .race-lane__readout-item {
   display: grid;
   gap: 0.18rem;
-  min-width: clamp(7rem, 12vw, 11rem);
   padding-left: clamp(0.65rem, 1.1vw, 1rem);
   border-left: 1px solid color-mix(in srgb, var(--race-lane-color) 52%, transparent);
 }
@@ -2832,8 +2847,10 @@ p {
 }
 
 .race-lane__readout-item strong {
+  min-width: 3ch;
   color: var(--theme-text);
   font-size: clamp(1.55rem, 2.8vw, 3.2rem);
+  font-variant-numeric: tabular-nums;
   line-height: 0.95;
   white-space: nowrap;
 }
@@ -2860,9 +2877,9 @@ p {
   grid-template-rows: minmax(clamp(5.25rem, 12vh, 9.5rem), auto) minmax(0, 1fr);
 }
 
-.race-page--horizontal .track-lane__header,
-.race-page--horizontal .wagon-lane__header,
-.race-page--horizontal .ledger-lane__header {
+.race-page--horizontal .track-lane__card,
+.race-page--horizontal .wagon-lane__card,
+.race-page--horizontal .ledger-lane__card {
   width: 100%;
   height: auto;
   min-height: 0;
@@ -2870,16 +2887,15 @@ p {
   font-size: clamp(1.35rem, 2.4vw, 2.55rem);
 }
 
+.race-page--horizontal .track-lane__course {
+  /* Sit the course just below the lane card; slack falls below the track bar. */
+  align-self: start;
+}
+
 .race-page--horizontal .track-lane__bar {
-  align-self: center;
   width: 100%;
   height: clamp(2.2rem, 4.6vh, 4rem);
   min-height: 0;
-}
-
-.race-page--horizontal .track-lane__marker {
-  top: 50%;
-  transform: translateY(-50%);
 }
 
 .race-page--horizontal .wagon-lane__track,
@@ -2925,8 +2941,33 @@ p {
   min-height: 0;
 }
 
+/*
+ * The course (issue #21): a marker zone above the track bar. The course reserves
+ * exactly the space the rider marker occupies — its height is the published
+ * --race-marker-size, the same value that sizes the sprite — with the track bar
+ * pinned to the bottom. The marker zone fills only the clearance above the bar,
+ * so the bottom-anchored marker overflows upward into it instead of colliding
+ * with the lane card above.
+ */
+.track-lane__course {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  min-width: 0;
+  height: var(--race-marker-size, 5.4rem);
+}
+
+.track-lane__marker-zone {
+  flex: 1 1 auto;
+  min-height: 0;
+  pointer-events: none;
+}
+
 .track-lane__bar {
   position: relative;
+  flex: none;
   height: 1.25rem;
   border-radius: 999px;
   border: 1px solid color-mix(in srgb, var(--race-lane-color) 50%, transparent);
@@ -2949,10 +2990,18 @@ p {
   background: linear-gradient(90deg, var(--race-lane-color-soft), var(--race-lane-color-bright));
 }
 
+/*
+ * Bottom-anchored to the course (and so to the track bar's bottom edge, the last
+ * child of the course): the rider's wheels sit flush with the bar bottom and the
+ * taller sprite fills the marker zone upward. Its own box is the sprite size, so
+ * the leading-edge glow, lead-change flash, and speed streaks — positioned from
+ * the marker's 50% center — stay centered on the rider.
+ */
 .track-lane__marker {
   position: absolute;
-  top: -1rem;
+  bottom: 0;
   z-index: 2;
+  height: var(--race-marker-size, 5.4rem);
 }
 
 .race-sprite-avatar {
@@ -3684,8 +3733,8 @@ button.tournament-match-node:active {
   font-size: clamp(1.05rem, 1.6vw, 1.75rem);
 }
 
-.wagon-lane__header,
-.ledger-lane__header {
+.wagon-lane__card,
+.ledger-lane__card {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -3910,7 +3959,7 @@ button.tournament-match-node:active {
     --race-lane-name-min-size-px: 22;
   }
 
-  .race-lane__header {
+  .race-lane__card {
     gap: clamp(0.55rem, 1.2vw, 1rem);
     padding: clamp(0.48rem, 0.95vw, 0.8rem);
     border-radius: 0.9rem;
@@ -3922,11 +3971,9 @@ button.tournament-match-node:active {
 
   .race-lane__readout {
     gap: clamp(0.38rem, 0.8vw, 0.7rem);
-    min-width: min(32rem, 54%);
   }
 
   .race-lane__readout-item {
-    min-width: clamp(5.8rem, 9vw, 8rem);
     padding-left: clamp(0.4rem, 0.8vw, 0.7rem);
   }
 

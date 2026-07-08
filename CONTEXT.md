@@ -82,6 +82,32 @@ _Avoid_: PB flare, record flare
 **speed streaks**: Motion lines trailing a rider, scaled to _absolute_ speed (fast = long streaks, standstill = none). A companion cue encoding raw speed — the dimension the relative glow deliberately omits, so a steady-fast rider still looks fast.
 _Avoid_: motion lines, speed lines
 
+### Race display layout
+
+**lane card**: The bordered plaque identifying a lane's racer — avatar (or `monogram`), display name, and `readout`. Sits above that lane's `course`. One per racer; a solo race renders a single card centered in the same geometry.
+_Avoid_: details box, lane header
+
+**course**: The horizontal band a `rider marker` travels along from start to finish — the `marker zone` and `track bar` together. One per lane on the horizontal display variants (track, ledger, wagon).
+_Avoid_: track, lane strip
+
+**marker zone**: The reserved clearance band above the `track bar` that the `rider marker` occupies. Exists so the marker — taller than the bar it rides — has room to overflow upward instead of colliding with the `lane card`.
+_Avoid_: sprite zone, headroom
+
+**track bar**: The thin progress pill along the bottom of a `course` that fills to show distance covered. The `rider marker` rides its bottom edge.
+_Avoid_: progress bar
+
+**rider marker**: The animated sprite at the racer's current position along the `course`. Bottom-anchored so its wheels sit flush with the `track bar`, and it carries the lane's cue overlays (see `leading-edge glow`).
+_Avoid_: sprite, progress marker
+
+**race meta header**: The distance/time strip above the lanes — the static race target on the left, the live clock on the right. One per race display, shared across both lanes.
+_Avoid_: meta bar, stats header
+
+**readout**: The live stats cluster shown on a `lane card` (RPM today). Belongs to one lane.
+_Avoid_: stats box, metrics panel
+
+**monogram**: The lane-colored disc showing a racer's initial, rendered on the `lane card` in place of an avatar when the racer has none.
+_Avoid_: initial avatar, placeholder
+
 ### Queue and events
 
 **Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time.

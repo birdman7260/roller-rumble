@@ -1,5 +1,13 @@
-import { m, useReducedMotion } from "framer-motion";
-import { type CSSProperties, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { m, type Transition, useReducedMotion } from "framer-motion";
+import {
+  type CSSProperties,
+  type ReactNode,
+  type RefObject,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState
+} from "react";
 import type {
   RaceGlowMode,
   RaceMetricsSnapshot,
@@ -8,11 +16,16 @@ import type {
   ThemeDefinition
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
+import { getMonogram } from "../lib/monogram";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
 import { useSpeedStreaks } from "../lib/use-speed-streaks";
 import { RaceSpriteAvatar } from "./race-sprite-avatar";
-import { getRaceSpriteDisplaySize } from "./race-sprite-sizing";
+import {
+  computeMarkerSizeRem,
+  getRaceSpriteDisplaySize,
+  MARKER_SIZE_MAX_REM
+} from "./race-sprite-sizing";
 
 interface RaceGraphicProps {
   theme: ThemeDefinition;
@@ -75,6 +88,56 @@ function useViewportHeight(): number {
   }, []);
 
   return height;
+}
+
+/**
+ * Sizes the rider marker on the horizontal track variant as a continuous
+ * function of the race graphic's measured height and publishes the result as the
+ * `--race-marker-size` CSS variable on the graphic root. The same rem value is
+ * returned so the sprite and the marker's horizontal offset math read one source
+ * of truth — the layout reserves exactly the space the sprite occupies, so they
+ * cannot disagree. `active` gates the observer to the horizontal track variant
+ * and re-establishes it if the variant changes; the effect (not a per-render
+ * callback ref) keeps the observer stable across the frequent race re-renders.
+ */
+function useMeasuredMarkerSize(active: boolean): {
+  graphicRootRef: RefObject<HTMLDivElement | null>;
+  markerSizeRem: number;
+} {
+  const graphicRootRef = useRef<HTMLDivElement | null>(null);
+  const [markerSizeRem, setMarkerSizeRem] = useState(MARKER_SIZE_MAX_REM);
+
+  useLayoutEffect(() => {
+    const node = graphicRootRef.current;
+    if (!active || !node) {
+      return;
+    }
+
+    const element = node;
+    const rootFontSizePx =
+      Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
+
+    function publish(heightPx: number): void {
+      const sizeRem = computeMarkerSizeRem(heightPx, rootFontSizePx);
+      element.style.setProperty("--race-marker-size", `${sizeRem}rem`);
+      setMarkerSizeRem((current) => (Math.abs(current - sizeRem) < 0.001 ? current : sizeRem));
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries.at(-1);
+      if (entry) {
+        publish(entry.contentRect.height);
+      }
+    });
+    observer.observe(element);
+    publish(element.getBoundingClientRect().height);
+
+    return () => {
+      observer.disconnect();
+    };
+  }, [active]);
+
+  return { graphicRootRef, markerSizeRem };
 }
 
 function progress(distanceMeters: number, targetDistanceMeters: number): number {
@@ -368,7 +431,11 @@ function LaneIdentity({ racer }: { racer: RacerSummary["racer"] }) {
     <div className="race-lane__identity">
       {avatarUrl ? (
         <img className="race-lane__avatar" src={avatarUrl} alt={racer.displayName} />
-      ) : null}
+      ) : (
+        <span className="race-lane__monogram" aria-hidden="true">
+          {getMonogram(racer.displayName)}
+        </span>
+      )}
       <AutoFitRacerName name={racer.displayName} />
     </div>
   );
@@ -381,6 +448,104 @@ function LaneReadout({ metric }: { metric?: RaceMetricsSnapshot }) {
         <span>RPM</span>
         <strong>{formatRpm(metric?.rpm)}</strong>
       </div>
+    </div>
+  );
+}
+
+/** Per-lane cue intensities (0..1) keyed by racer id, fed to a marker's overlays. */
+interface CueIntensityMaps {
+  flash: Record<string, number>;
+  glow: Record<string, number>;
+  streak: Record<string, number>;
+}
+
+/**
+ * The horizontal track variant (issue #21). Each lane is a lane card above a
+ * course — a marker zone stacked on the track bar — with the rider marker
+ * bottom-anchored to the bar. `markerSizeRem` is the single measured size that
+ * drives both the sprite and the offset math, so the reserved marker zone and
+ * the sprite always agree.
+ */
+function HorizontalTrackRace({
+  cueIntensities,
+  graphicRootRef,
+  laneColorsFlipped,
+  markerSizeRem,
+  metaHeader,
+  metrics,
+  progressTransition,
+  racers,
+  targetDistanceMeters,
+  theme
+}: {
+  cueIntensities: CueIntensityMaps;
+  graphicRootRef: RefObject<HTMLDivElement | null>;
+  laneColorsFlipped: boolean;
+  markerSizeRem: number;
+  metaHeader: ReactNode;
+  metrics: RaceMetricsSnapshot[];
+  progressTransition: Transition;
+  racers: RacerSummary[];
+  targetDistanceMeters: number;
+  theme: ThemeDefinition;
+}) {
+  return (
+    <div ref={graphicRootRef} className="race-graphic race-graphic--horizontal">
+      {metaHeader}
+      {racers.map((entry, index) => {
+        const metric = resolveMetric(metrics, entry.racer.id);
+        const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
+        const percentageValue = `${percentage.toFixed(2)}%`;
+        const spriteSize = getRaceSpriteDisplaySize({
+          displayHeightRem: markerSizeRem,
+          metric,
+          theme
+        });
+        const markerLeft = getHorizontalMarkerPosition(percentageValue, spriteSize.widthRem);
+        return (
+          <div
+            key={entry.racer.id}
+            className={getLaneClassName("track-lane", index, laneColorsFlipped)}
+          >
+            <div className="track-lane__card race-lane__card">
+              <LaneIdentity racer={entry.racer} />
+              <LaneReadout metric={metric} />
+            </div>
+            <div className="track-lane__course">
+              <div className="track-lane__marker-zone" aria-hidden="true" />
+              <div className="track-lane__bar">
+                <m.div
+                  className="track-lane__fill"
+                  data-race-motion="true"
+                  initial={false}
+                  animate={{ width: percentageValue }}
+                  transition={progressTransition}
+                />
+              </div>
+              <m.div
+                className="track-lane__marker"
+                data-race-motion="true"
+                initial={false}
+                animate={{ left: markerLeft }}
+                transition={progressTransition}
+                style={withCueIntensities(
+                  { left: markerLeft },
+                  cueIntensities.glow[entry.racer.id] ?? 0,
+                  cueIntensities.flash[entry.racer.id] ?? 0,
+                  cueIntensities.streak[entry.racer.id] ?? 0
+                )}
+              >
+                <LaneMarkerContent
+                  entry={entry}
+                  metric={metric}
+                  spriteDisplayHeightRem={markerSizeRem}
+                  theme={theme}
+                />
+              </m.div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -425,6 +590,14 @@ export function RaceGraphic({
   const streakIntensityByRacerId = streakIntensityOverride ?? derivedStreakIntensity;
   const viewportHeight = useViewportHeight();
   const { raceGraphic } = theme;
+  // The final fallthrough branch renders the horizontal track variant — every
+  // other variant (vertical, ledger, wagon/trail) returns earlier.
+  const isHorizontalTrack =
+    theme.orientation !== "vertical" &&
+    raceGraphic.variant !== "ledger" &&
+    raceGraphic.variant !== "trail";
+  const { graphicRootRef, markerSizeRem: trackMarkerSizeRem } =
+    useMeasuredMarkerSize(isHorizontalTrack);
   const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;
   const spriteDisplayHeightRem = (theme.orientation === "vertical" ? 4.5 : 5.4) * spriteScale;
   // Keep one shared motion profile across themes so each graphic can style itself
@@ -518,7 +691,7 @@ export function RaceGraphic({
               key={entry.racer.id}
               className={getLaneClassName("ledger-lane", index, laneColorsFlipped)}
             >
-              <div className="ledger-lane__header race-lane__header">
+              <div className="ledger-lane__card race-lane__card">
                 <LaneIdentity racer={entry.racer} />
                 <LaneReadout metric={metric} />
               </div>
@@ -578,7 +751,7 @@ export function RaceGraphic({
               key={entry.racer.id}
               className={getLaneClassName("wagon-lane", index, laneColorsFlipped)}
             >
-              <div className="wagon-lane__header race-lane__header">
+              <div className="wagon-lane__card race-lane__card">
                 <LaneIdentity racer={entry.racer} />
                 <LaneReadout metric={metric} />
               </div>
@@ -620,59 +793,21 @@ export function RaceGraphic({
   }
 
   return (
-    <div className="race-graphic race-graphic--horizontal">
-      {metaHeader}
-      {racers.map((entry, index) => {
-        const metric = resolveMetric(metrics, entry.racer.id);
-        const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
-        const percentageValue = `${percentage.toFixed(2)}%`;
-        const spriteSize = getRaceSpriteDisplaySize({
-          displayHeightRem: spriteDisplayHeightRem,
-          metric,
-          theme
-        });
-        const markerLeft = getHorizontalMarkerPosition(percentageValue, spriteSize.widthRem);
-        return (
-          <div
-            key={entry.racer.id}
-            className={getLaneClassName("track-lane", index, laneColorsFlipped)}
-          >
-            <div className="track-lane__header race-lane__header">
-              <LaneIdentity racer={entry.racer} />
-              <LaneReadout metric={metric} />
-            </div>
-            <div className="track-lane__bar">
-              <m.div
-                className="track-lane__fill"
-                data-race-motion="true"
-                initial={false}
-                animate={{ width: percentageValue }}
-                transition={progressTransition}
-              />
-              <m.div
-                className="track-lane__marker"
-                data-race-motion="true"
-                initial={false}
-                animate={{ left: markerLeft }}
-                transition={progressTransition}
-                style={withCueIntensities(
-                  { left: markerLeft },
-                  glowIntensityByRacerId[entry.racer.id] ?? 0,
-                  flashIntensityByRacerId[entry.racer.id] ?? 0,
-                  streakIntensityByRacerId[entry.racer.id] ?? 0
-                )}
-              >
-                <LaneMarkerContent
-                  entry={entry}
-                  metric={metric}
-                  spriteDisplayHeightRem={spriteDisplayHeightRem}
-                  theme={theme}
-                />
-              </m.div>
-            </div>
-          </div>
-        );
-      })}
-    </div>
+    <HorizontalTrackRace
+      cueIntensities={{
+        flash: flashIntensityByRacerId,
+        glow: glowIntensityByRacerId,
+        streak: streakIntensityByRacerId
+      }}
+      graphicRootRef={graphicRootRef}
+      laneColorsFlipped={laneColorsFlipped}
+      markerSizeRem={trackMarkerSizeRem}
+      metaHeader={metaHeader}
+      metrics={metrics}
+      progressTransition={progressTransition}
+      racers={racers}
+      targetDistanceMeters={targetDistanceMeters}
+      theme={theme}
+    />
   );
 }
