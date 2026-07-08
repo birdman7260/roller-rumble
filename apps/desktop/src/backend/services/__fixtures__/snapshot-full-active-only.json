@@ -317,6 +317,14 @@
         "set": false,
         "value": "",
         "last4": null
+      },
+      {
+        "id": "sensorBoxCountdownMs",
+        "envKey": "ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
       }
     ]
   },

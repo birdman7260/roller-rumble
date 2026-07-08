@@ -124,6 +124,11 @@ export function getDefaultRuntimeEnvTemplate(): string {
     "# roller rollout (meters traveled per roller revolution) only for a non-standard roller.",
     "# ROLLER_RUMBLE_SENSOR_PROTOCOL=auto",
     "# ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS=0.359",
+    "#",
+    "# Advanced. How long (ms) the box stays silent between GO and its first tick. Roller Rumble",
+    "# delays the box's GO so this silent stretch lands at the end of the on-screen countdown.",
+    "# Change it only if the countdown reaching zero does not match when your box actually goes.",
+    "# ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS=4000",
     ""
   ].join("\n");
 }

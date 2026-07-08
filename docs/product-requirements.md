@@ -117,8 +117,17 @@ Requirements:
   next valid cue without requiring the race to be re-staged. `Implemented`
 - OS2L cue payloads may include a `countdownMs` attribute that controls how many milliseconds to
   count down before activating the race. If the attribute is missing or invalid, the countdown must
-  default to `3000` milliseconds, and the race display must continue to show whole-second countdown
-  values. `Implemented`
+  default to `4000` milliseconds (matching the race box's nominal silent countdown), and the race
+  display must continue to show whole-second countdown values. `Implemented`
+- The app must own the full visible countdown for the cue-specified duration and activate the race
+  on its own clock at that duration (music-locked GO), regardless of how the race was started
+  (manual, cue, simulator, or hardware box). See ADR 0010. `Implemented`
+- On a race box that runs its own silent countdown, the app must hold the box's GO command until the
+  tail of the countdown (a pre-roll of `max(0, N − BOX_COUNTDOWN_MS)`) so the box's silence lands at
+  the on-screen zero. A cue shorter than the box's countdown must still start the race (the box's
+  ticks simply arrive a beat late). `Implemented`
+- The box's silent-countdown length must be tunable via an advanced setting
+  (`ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS`, default `4000`). `Implemented`
 
 Current delivery notes:
 

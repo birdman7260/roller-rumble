@@ -8,8 +8,11 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- A VirtualDJ cue can once again set the race countdown length with `countdownMs`, and the race GO now lands exactly at the end of that countdown so a DJ can start the race on a beat or drop. Roller Rumble owns the whole on-screen countdown and, with the OpenSprints race box, quietly starts the box partway through so its silent start delay finishes right as the countdown reaches zero. There is a new advanced setting, "Race box countdown (ms)", for tuning a box whose start delay differs from the default.
+
 ### Changed
 
+- The default race countdown is now 4 seconds (was 3), matching the OpenSprints race box's own start delay, so a cue with no time and the manual Start button both count down 4 seconds. The projector countdown reaching zero now coincides with the race actually going instead of finishing about a second early on the hardware box.
 - Trimmed the stats shown for each racer to the most useful ones. On the racer page, a collapsed racer now shows only the number of races and top speed, and the expanded view no longer shows peak power. On the admin Racers page, top speed is no longer shown in the racer list.
 - On the racer page Racers tab, the Challenge button now stays aligned to the right edge of the row in both the collapsed and expanded states, and sits at the top-right when a racer is expanded instead of floating in the vertical center.
 - Each racer lane on the race display now shows a single live RPM readout instead of the distance, speed, and top-speed stats, and the racer's name is displayed in a larger font.

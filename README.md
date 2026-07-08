@@ -584,7 +584,7 @@ testing does not produce unrelated Vite websocket failures.
   - Sends a TCP payload to the local OS2L listener so you can simulate a VirtualDJ cue while the app is running.
   - The app must have `OS2L listening` enabled and a race must already be staged so the trigger is armed.
   - If the payload includes `countdownMs`, Roller Rumble counts down for that many milliseconds
-    before the race starts. If it is omitted, the countdown defaults to `3000` milliseconds.
+    before the race starts. If it is omitted, the countdown defaults to `4000` milliseconds.
   - Optional overrides can be passed through npm, for example:
     - `pnpm os2l:cue -- --dryRun --countdownMs 5000`
     - `pnpm os2l:cue -- --event play`
@@ -757,9 +757,15 @@ Plain-language version:
 - Roller Rumble only reacts when `Enable VirtualDJ cue start` is on and a race is already staged.
 - The OS2L message must include `roller-rumble-start`.
 - Add `countdownMs=<number>` when you want a custom countdown length.
-- The number is milliseconds, so `3000` means 3 seconds, `5000` means 5 seconds, and `2500` means
+- The number is milliseconds, so `4000` means 4 seconds, `10000` means 10 seconds, and `2500` means
   2.5 seconds.
-- If `countdownMs` is missing, Roller Rumble uses `3000`.
+- If `countdownMs` is missing, Roller Rumble uses `4000` (4 seconds), which matches the race box's
+  own start delay.
+- Roller Rumble owns the whole countdown and the GO. GO lands exactly at the end of the countdown
+  you asked for, welded to your music — not to the race box's timing. With the OpenSprints box,
+  Roller Rumble quietly starts the box partway through so its silent start delay finishes right as
+  the on-screen countdown hits zero. Set a build to a drop `countdownMs` before the drop and the
+  race goes on the drop.
 - The projector countdown display stays in whole seconds. For example, `2500` milliseconds displays
   `3`, then `2`, then `1`, then starts.
 
@@ -773,7 +779,7 @@ os2l_button "roller-rumble-start" on
 os2l_button "roller-rumble-start countdownMs=5000" on
 ```
 
-Use the first one for the normal 3-second countdown. Use the second one for a 5-second countdown.
+Use the first one for the normal 4-second countdown. Use the second one for a 5-second countdown.
 Change only the number after `countdownMs=` when you need a different length.
 
 Before editing songs:
@@ -828,21 +834,22 @@ os2l_button "roller-rumble-start countdownMs=5000" on
 
 Placement tip: put the VirtualDJ action cue where you want the countdown to appear, not where you
 want the race to begin. If the race should start on a big downbeat and you use
-`countdownMs=3000`, place the cue 3 seconds before that downbeat. If you use `countdownMs=5000`,
-place it 5 seconds before that downbeat.
+`countdownMs=4000`, place the cue 4 seconds before that downbeat. If you use `countdownMs=5000`,
+place it 5 seconds before that downbeat. The race GO lands exactly at the end of that countdown, so
+the cue placement is what puts the start on the beat.
 
 Common examples:
 
-- Normal 3-second countdown:
+- Normal 4-second countdown:
 
 ```text
 os2l_button "roller-rumble-start" on
 ```
 
-- Explicit 3-second countdown:
+- Explicit 4-second countdown:
 
 ```text
-os2l_button "roller-rumble-start countdownMs=3000" on
+os2l_button "roller-rumble-start countdownMs=4000" on
 ```
 
 - 5-second countdown:

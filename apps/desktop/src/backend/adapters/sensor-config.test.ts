@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { OPENSPRINTS_ROLLER_ROLLOUT_METERS } from "@roller-rumble/shared/constants";
 import {
+  BOX_COUNTDOWN_MS,
+  OPENSPRINTS_ROLLER_ROLLOUT_METERS
+} from "@roller-rumble/shared/constants";
+import {
+  readSensorBoxCountdownMs,
   readSensorLaneAssignments,
   readSensorMode,
   readSensorPortOverride,
@@ -52,5 +56,20 @@ describe("sensor-config", () => {
       OPENSPRINTS_ROLLER_ROLLOUT_METERS
     );
     expect(readSensorRolloutMeters({ ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS: "0.36" })).toBe(0.36);
+  });
+
+  it("falls back to the default box countdown for blank or invalid values", () => {
+    expect(readSensorBoxCountdownMs({})).toBe(BOX_COUNTDOWN_MS);
+    expect(readSensorBoxCountdownMs({ ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS: "nope" })).toBe(
+      BOX_COUNTDOWN_MS
+    );
+    expect(readSensorBoxCountdownMs({ ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS: "-1" })).toBe(
+      BOX_COUNTDOWN_MS
+    );
+    // Zero is valid (a box with no silent gap); a fractional value rounds to whole ms.
+    expect(readSensorBoxCountdownMs({ ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS: "0" })).toBe(0);
+    expect(readSensorBoxCountdownMs({ ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS: "3500.4" })).toBe(
+      3500
+    );
   });
 });

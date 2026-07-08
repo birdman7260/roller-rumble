@@ -215,6 +215,16 @@ export const MANAGED_SETTINGS: readonly ManagedSettingDefinition[] = [
     kind: "text",
     secret: false,
     subsystem: "sensor"
+  },
+  {
+    id: "sensorBoxCountdownMs",
+    envKey: "ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS",
+    label: "Race box countdown (ms)",
+    description:
+      "How long the OpenSprints box stays silent between GO and its first tick, in milliseconds. Roller Rumble delays the box's GO so this silent stretch lands exactly at the end of the on-screen countdown. Leave blank to use the default (4000). Raise or lower it only if the countdown reaching zero doesn't match when your box actually goes.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
   }
 ] as const;
 

@@ -5,7 +5,10 @@
  * setting that is later reloaded is picked up on the next read rather than cached at startup.
  */
 
-import { OPENSPRINTS_ROLLER_ROLLOUT_METERS } from "@roller-rumble/shared/constants";
+import {
+  BOX_COUNTDOWN_MS,
+  OPENSPRINTS_ROLLER_ROLLOUT_METERS
+} from "@roller-rumble/shared/constants";
 import type { RaceParticipant } from "@roller-rumble/shared/types";
 
 export type SensorMode = "simulator" | "opensprints";
@@ -83,4 +86,17 @@ export function readSensorRolloutMeters(env: NodeJS.ProcessEnv = process.env): n
   const raw = read(env, "ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS");
   const parsed = Number.parseFloat(raw);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : OPENSPRINTS_ROLLER_ROLLOUT_METERS;
+}
+
+/**
+ * The box's silent countdown length in milliseconds — the gap between the `g` (GO) command and the
+ * start of its tick stream. The app delays `g` by `max(0, N − this)` so the box's silent countdown
+ * becomes the tail of the app-owned countdown (see ADR 0010). Falls back to {@link BOX_COUNTDOWN_MS}
+ * when unset or not a non-negative finite number. Tuned by hand because a silent box can't be
+ * measured closed-loop.
+ */
+export function readSensorBoxCountdownMs(env: NodeJS.ProcessEnv = process.env): number {
+  const raw = read(env, "ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS");
+  const parsed = Number.parseFloat(raw);
+  return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : BOX_COUNTDOWN_MS;
 }

@@ -3,8 +3,17 @@ export const API_PREFIX = "/api";
 export const WS_PATH = "/ws";
 export const DEFAULT_TARGET_DISTANCE_METERS = 250;
 export const DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND = 72;
-export const COUNTDOWN_SECONDS = 3;
+export const COUNTDOWN_SECONDS = 4;
 export const COUNTDOWN_DURATION_MS = COUNTDOWN_SECONDS * 1000;
+/**
+ * The OpenSprints box's own silent countdown between the `g` (GO) command and the start of its
+ * tick stream. The real `basic_msg` box runs a ~4s silent countdown and emits no `CD:` steps, so
+ * this can't be measured closed-loop — it is a hand-tuned default (see ADR 0010). The app delays
+ * `g` by `max(0, N − BOX_COUNTDOWN_MS)` so the box's silent countdown becomes the tail of the
+ * app-owned, music-locked countdown. Overridable via the `ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS`
+ * advanced setting for a box whose silent countdown differs.
+ */
+export const BOX_COUNTDOWN_MS = 4000;
 export const DEFAULT_WHEEL_CIRCUMFERENCE_METERS = 2.1;
 /**
  * The OpenSprints box's roller is 4.5 in / 114.3 mm in diameter with a single magnet, so one
