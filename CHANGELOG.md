@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.18 - 2026-07-08
+
+### Added
+
 - A VirtualDJ cue can once again set the race countdown length with `countdownMs`, and the race GO now lands exactly at the end of that countdown so a DJ can start the race on a beat or drop. Roller Rumble owns the whole on-screen countdown and, with the OpenSprints race box, quietly starts the box partway through so its silent start delay finishes right as the countdown reaches zero. There is a new advanced setting, "Race box countdown (ms)", for tuning a box whose start delay differs from the default.
 
 ### Changed
