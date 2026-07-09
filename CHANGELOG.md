@@ -18,6 +18,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Fixed
 
 - On the race display's horizontal track theme, the rider marker no longer overflows upward into the lane card above it. Each lane now reserves a dedicated band of clearance above its track bar sized to exactly fit the rider, so the rider's wheels sit on the bar and its head stays clear of the lane card at any window height. The rider sprite also now grows and shrinks smoothly with the window instead of jumping in size around certain heights, and it still reaches exactly the finish line at 100%.
+- The Oregon Trail '90 and Frontier Trail race themes now position their riders the same way as the track theme: the rider's wheels sit on the route line with a reserved band of clearance above it, so the rider grows and shrinks smoothly with the window, no longer overlaps the lane card at any window height, and still lands exactly on the finish line at 100%.
 - A racer's on-screen stats (speed, cadence, power, and their clock) now freeze the instant they cross the finish line, instead of continuing to update while the other racer finishes.
 
 ## 0.1.18 - 2026-07-08

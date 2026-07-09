@@ -39,10 +39,10 @@ export function getRaceSpriteAnimation({
 }
 
 /**
- * Rider-marker sizing on the horizontal track variant. The marker size is a
- * continuous function of the race graphic's measured height, so it scales
- * smoothly instead of jumping at fixed viewport-height breakpoints. The result
- * is published as the `--race-marker-size` CSS variable and reused for the
+ * Rider-marker sizing on the horizontal variants (track, ledger, wagon). The
+ * marker size is a continuous function of the race graphic's measured height, so
+ * it scales smoothly instead of jumping at fixed viewport-height breakpoints. The
+ * result is published as the `--race-marker-size` CSS variable and reused for the
  * sprite and the marker's horizontal offset math — one source of truth so the
  * reserved layout space and the sprite can never disagree.
  */

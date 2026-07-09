@@ -91,14 +91,15 @@ function useViewportHeight(): number {
 }
 
 /**
- * Sizes the rider marker on the horizontal track variant as a continuous
- * function of the race graphic's measured height and publishes the result as the
- * `--race-marker-size` CSS variable on the graphic root. The same rem value is
- * returned so the sprite and the marker's horizontal offset math read one source
- * of truth — the layout reserves exactly the space the sprite occupies, so they
- * cannot disagree. `active` gates the observer to the horizontal track variant
- * and re-establishes it if the variant changes; the effect (not a per-render
- * callback ref) keeps the observer stable across the frequent race re-renders.
+ * Sizes the rider marker on the horizontal variants (track, ledger, wagon) as a
+ * continuous function of the race graphic's measured height and publishes the
+ * result as the `--race-marker-size` CSS variable on the graphic root. The same
+ * rem value is returned so the sprite and the marker's horizontal offset math
+ * read one source of truth — the layout reserves exactly the space the sprite
+ * occupies, so they cannot disagree. `active` gates the observer to the
+ * horizontal variants and re-establishes it if the orientation changes; the
+ * effect (not a per-render callback ref) keeps the observer stable across the
+ * frequent race re-renders.
  */
 function useMeasuredMarkerSize(active: boolean): {
   graphicRootRef: RefObject<HTMLDivElement | null>;
@@ -590,14 +591,12 @@ export function RaceGraphic({
   const streakIntensityByRacerId = streakIntensityOverride ?? derivedStreakIntensity;
   const viewportHeight = useViewportHeight();
   const { raceGraphic } = theme;
-  // The final fallthrough branch renders the horizontal track variant — every
-  // other variant (vertical, ledger, wagon/trail) returns earlier.
-  const isHorizontalTrack =
-    theme.orientation !== "vertical" &&
-    raceGraphic.variant !== "ledger" &&
-    raceGraphic.variant !== "trail";
-  const { graphicRootRef, markerSizeRem: trackMarkerSizeRem } =
-    useMeasuredMarkerSize(isHorizontalTrack);
+  // All three horizontal variants (track, ledger, wagon/trail) share the course
+  // anatomy: a bottom-anchored rider marker sized by the measured --race-marker-size.
+  // Only the vertical climb variant opts out.
+  const isHorizontal = theme.orientation !== "vertical";
+  const { graphicRootRef, markerSizeRem: horizontalMarkerSizeRem } =
+    useMeasuredMarkerSize(isHorizontal);
   const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;
   const spriteDisplayHeightRem = (theme.orientation === "vertical" ? 4.5 : 5.4) * spriteScale;
   // Keep one shared motion profile across themes so each graphic can style itself
@@ -673,14 +672,14 @@ export function RaceGraphic({
   if (raceGraphic.variant === "ledger") {
     // Ledger-style themes present the race as a map readout while reusing the same live metrics.
     return (
-      <div className="race-graphic race-graphic--ledger">
+      <div ref={graphicRootRef} className="race-graphic race-graphic--ledger">
         {metaHeader}
         {racers.map((entry, index) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
           const spriteSize = getRaceSpriteDisplaySize({
-            displayHeightRem: spriteDisplayHeightRem,
+            displayHeightRem: horizontalMarkerSizeRem,
             metric,
             theme
           });
@@ -720,7 +719,7 @@ export function RaceGraphic({
                   <LaneMarkerContent
                     entry={entry}
                     metric={metric}
-                    spriteDisplayHeightRem={spriteDisplayHeightRem}
+                    spriteDisplayHeightRem={horizontalMarkerSizeRem}
                     theme={theme}
                   />
                 </m.div>
@@ -734,14 +733,14 @@ export function RaceGraphic({
 
   if (raceGraphic.variant === "trail") {
     return (
-      <div className="race-graphic race-graphic--wagon">
+      <div ref={graphicRootRef} className="race-graphic race-graphic--wagon">
         {metaHeader}
         {racers.map((entry, index) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
           const spriteSize = getRaceSpriteDisplaySize({
-            displayHeightRem: spriteDisplayHeightRem,
+            displayHeightRem: horizontalMarkerSizeRem,
             metric,
             theme
           });
@@ -780,7 +779,7 @@ export function RaceGraphic({
                   <LaneMarkerContent
                     entry={entry}
                     metric={metric}
-                    spriteDisplayHeightRem={spriteDisplayHeightRem}
+                    spriteDisplayHeightRem={horizontalMarkerSizeRem}
                     theme={theme}
                   />
                 </m.div>
@@ -801,7 +800,7 @@ export function RaceGraphic({
       }}
       graphicRootRef={graphicRootRef}
       laneColorsFlipped={laneColorsFlipped}
-      markerSizeRem={trackMarkerSizeRem}
+      markerSizeRem={horizontalMarkerSizeRem}
       metaHeader={metaHeader}
       metrics={metrics}
       progressTransition={progressTransition}

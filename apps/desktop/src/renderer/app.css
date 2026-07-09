@@ -2900,14 +2900,15 @@ p {
 
 .race-page--horizontal .wagon-lane__track,
 .race-page--horizontal .ledger-lane__track {
-  align-self: center;
+  /* Sit the course just below the lane card; the reserved marker zone fills the
+     box above the route line, terrain slack falls below it. */
+  align-self: start;
   width: 100%;
-  height: clamp(4.6rem, 9vh, 8rem);
   min-height: 0;
-}
-
-.race-page--horizontal .ledger-lane__marker {
-  top: calc(58% - 2.7rem);
+  /* Box is exactly tall enough for the bottom-anchored rider (--race-marker-size)
+     plus the terrain band below the route line (--race-route-floor), so the rider
+     overflows upward into the reserved zone instead of the lane card. */
+  height: calc(var(--race-marker-size, 5.4rem) + var(--race-route-floor, 1.4rem));
 }
 
 .race-page--vertical .race-graphic--vertical {
@@ -3756,7 +3757,10 @@ button.tournament-match-node:active {
 
 .ledger-lane__track {
   position: relative;
-  min-height: 5.8rem;
+  /* Terrain band kept below the route line; the marker zone above it is the box's
+     remaining height (see the --race-marker-size box sizing). */
+  --race-route-floor: clamp(0.9rem, 2vh, 1.7rem);
+  min-height: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--race-lane-color) 68%, transparent);
   background: #000;
@@ -3787,9 +3791,9 @@ button.tournament-match-node:active {
 .ledger-lane__route {
   left: 1rem;
   right: 1rem;
-  top: 58%;
+  bottom: var(--race-route-floor);
   height: 0.7rem;
-  transform: translateY(-50%);
+  transform: translateY(50%);
   background: repeating-linear-gradient(
     90deg,
     var(--race-lane-color-bright) 0,
@@ -3811,17 +3815,29 @@ button.tournament-match-node:active {
   text-transform: uppercase;
 }
 
+/*
+ * Bottom-anchored to the route line (issue #22): the rider's wheels sit flush
+ * with the route's bottom edge, its box is --race-marker-size tall, and its
+ * overflow fills the reserved marker zone upward — the same positioning rule as
+ * the track variant. The route line and this marker share --race-route-floor, so
+ * they always meet regardless of window height.
+ */
 .ledger-lane__marker {
-  top: calc(58% - 1.625rem);
+  bottom: var(--race-route-floor);
+  height: var(--race-marker-size, 5.4rem);
   z-index: 2;
 }
 
 .wagon-lane__track {
   position: relative;
-  min-height: 5rem;
+  /* Route line kept above the box's bottom edge; the marker zone above it is the
+     box's remaining height (see the --race-marker-size box sizing). No vertical
+     padding, so the box height directly reserves the rider's overflow. */
+  --race-route-floor: clamp(0.9rem, 2vh, 1.7rem);
+  min-height: 0;
   border: 1px solid color-mix(in srgb, var(--race-lane-color) 45%, transparent);
   border-radius: 1.5rem;
-  padding: 1.1rem 1.25rem;
+  padding: 0 1.25rem;
   background:
     linear-gradient(
       180deg,
@@ -3837,10 +3853,10 @@ button.tournament-match-node:active {
   position: absolute;
   left: 1rem;
   right: 1rem;
-  top: 50%;
+  bottom: var(--race-route-floor);
   height: 1rem;
   border-radius: 999px;
-  transform: translateY(-50%);
+  transform: translateY(50%);
   background: repeating-linear-gradient(
     90deg,
     color-mix(in srgb, var(--race-lane-color) 58%, transparent) 0,
@@ -3875,10 +3891,10 @@ button.tournament-match-node:active {
   position: absolute;
   left: 18%;
   right: 18%;
-  top: 50%;
+  bottom: var(--race-route-floor);
   display: flex;
   justify-content: space-between;
-  transform: translateY(-50%);
+  transform: translateY(50%);
 }
 
 .wagon-lane__milestones span {
@@ -3889,11 +3905,17 @@ button.tournament-match-node:active {
   box-shadow: 0 0 0 0.18rem rgba(255, 240, 214, 0.08);
 }
 
+/*
+ * Bottom-anchored to the route line (issue #22): shares --race-route-floor with
+ * the wagon route so the rider's wheels sit flush with it, its box is
+ * --race-marker-size tall, and its overflow fills the reserved marker zone
+ * upward — the same positioning rule as the track and ledger variants.
+ */
 .wagon-lane__marker {
   position: absolute;
-  top: 50%;
+  bottom: var(--race-route-floor);
   z-index: 2;
-  transform: translateY(-50%);
+  height: var(--race-marker-size, 5.4rem);
 }
 
 @media (max-height: 820px) {
@@ -4006,11 +4028,6 @@ button.tournament-match-node:active {
     height: clamp(1.9rem, 4vh, 2.9rem);
   }
 
-  .race-page--horizontal .wagon-lane__track,
-  .race-page--horizontal .ledger-lane__track {
-    height: clamp(3.6rem, 7.2vh, 5.3rem);
-  }
-
   .race-page--vertical .race-graphic--vertical {
     gap: clamp(0.75rem, 1.6vw, 1.4rem);
     padding: clamp(0.75rem, 1.5vw, 1.2rem);
@@ -4077,11 +4094,6 @@ button.tournament-match-node:active {
 
   .race-page--horizontal .track-lane__bar {
     height: clamp(1.8rem, 3.4vh, 2.35rem);
-  }
-
-  .race-page--horizontal .wagon-lane__track,
-  .race-page--horizontal .ledger-lane__track {
-    height: clamp(3.2rem, 6.3vh, 4.25rem);
   }
 }
 
