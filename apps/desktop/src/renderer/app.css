@@ -2410,6 +2410,19 @@ p {
   background: #000;
 }
 
+/*
+ * The horizontal variants anchor their in-scope sizing to their own rendered box
+ * (issue #23): the root is a size query container, so lane sizes below key off the
+ * same measured height the JS marker-size function reads. The composition then
+ * scales identically from 720p to 4K, and an embedded preview (the glow lab) sees
+ * its box, not the viewport.
+ */
+.race-graphic--horizontal,
+.race-graphic--wagon,
+.race-graphic--ledger {
+  container: race-graphic / size;
+}
+
 .race-page .race-graphic {
   width: 100%;
   min-width: 0;
@@ -2739,7 +2752,7 @@ p {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: clamp(1rem, 2.2vw, 2rem);
+  gap: clamp(0.75rem, 2.2cqw, 2rem);
   min-width: 0;
   border: 4px solid color-mix(in srgb, var(--race-lane-color) 72%, transparent);
   border-radius: 1.2rem;
@@ -2750,7 +2763,7 @@ p {
       rgba(0, 0, 0, 0.1)
     ),
     color-mix(in srgb, var(--theme-surface-alt) 66%, transparent);
-  padding: clamp(0.75rem, 1.3vw, 1.25rem);
+  padding: clamp(0.55rem, 1.6cqh, 1.25rem);
   box-shadow:
     inset 0 0 0 1px rgba(255, 255, 255, 0.04),
     0 0 2rem var(--race-lane-color-shadow);
@@ -2849,7 +2862,10 @@ p {
 .race-lane__readout-item strong {
   min-width: 3ch;
   color: var(--theme-text);
-  font-size: clamp(1.55rem, 2.8vw, 3.2rem);
+  /* Container-relative on the horizontal variants (their graphic is a size query
+     container); the climb variant reads this rule with no container ancestor, so it
+     re-declares its own readout size below. */
+  font-size: clamp(1.55rem, 7cqh, 3.2rem);
   font-variant-numeric: tabular-nums;
   line-height: 0.95;
   white-space: nowrap;
@@ -2858,11 +2874,17 @@ p {
 .race-page--horizontal .race-graphic--horizontal,
 .race-page--horizontal .race-graphic--wagon,
 .race-page--horizontal .race-graphic--ledger {
-  align-content: stretch;
-  gap: clamp(0.85rem, 2.1vh, 2.4rem);
-  /* Header row sizes to content; the two lanes share the remaining space. */
+  /* Each lane is sized by its own content (card + course), not stretched to fill.
+     Leftover stage height becomes symmetric whitespace above and below the centered
+     lane block, with the inter-lane gap as the dominant visible separation. The gap
+     and padding stay viewport-relative on purpose: they are the graphic's own frame,
+     and a size-query container cannot resolve container units against itself — only
+     the lane internals below (its descendants) key off the container box. */
+  align-content: center;
+  gap: clamp(1rem, 2.6vh, 3.4rem);
+  /* Header row sizes to content; lane rows take their designed height. */
   grid-template-rows: auto;
-  grid-auto-rows: minmax(0, 1fr);
+  grid-auto-rows: max-content;
 }
 
 .race-page--horizontal .race-graphic--horizontal {
@@ -2872,9 +2894,16 @@ p {
 .race-page--horizontal .track-lane,
 .race-page--horizontal .wagon-lane,
 .race-page--horizontal .ledger-lane {
+  /* Lane card slot/avatar and name size are container-relative, so the whole lane
+     composition scales with the graphic — identically from 720p to 4K, with the
+     rem clamp bounds guarding the extremes. */
+  --race-lane-avatar-size: clamp(6.8rem, 24cqh, 11rem);
+  --race-lane-name-max-size: clamp(2.4rem, 12cqh, 5.6rem);
   width: 100%;
-  gap: clamp(0.55rem, 1.15vh, 1rem);
-  grid-template-rows: minmax(clamp(5.25rem, 12vh, 9.5rem), auto) minmax(0, 1fr);
+  gap: clamp(0.45rem, 1.4cqh, 1rem);
+  /* Card row is driven by its avatar/monogram slot; the course row is its own
+     designed height. Neither stretches to fill leftover space. */
+  grid-template-rows: auto auto;
 }
 
 .race-page--horizontal .track-lane__card,
@@ -2884,7 +2913,7 @@ p {
   height: auto;
   min-height: 0;
   align-self: start;
-  font-size: clamp(1.35rem, 2.4vw, 2.55rem);
+  font-size: clamp(1.35rem, 5cqh, 2.55rem);
 }
 
 .race-page--horizontal .track-lane__course {
@@ -2894,8 +2923,14 @@ p {
 
 .race-page--horizontal .track-lane__bar {
   width: 100%;
-  height: clamp(2.2rem, 4.6vh, 4rem);
+  height: clamp(2.2rem, 6.5cqh, 4rem);
   min-height: 0;
+}
+
+/* Readout label scales with the graphic on the horizontal variants; the climb
+   variant keeps the shared viewport-relative base rule. */
+.race-page--horizontal .race-lane__readout-item span {
+  font-size: clamp(0.66rem, 2.4cqh, 1.1rem);
 }
 
 .race-page--horizontal .wagon-lane__track,
@@ -3758,8 +3793,9 @@ button.tournament-match-node:active {
 .ledger-lane__track {
   position: relative;
   /* Terrain band kept below the route line; the marker zone above it is the box's
-     remaining height (see the --race-marker-size box sizing). */
-  --race-route-floor: clamp(0.9rem, 2vh, 1.7rem);
+     remaining height (see the --race-marker-size box sizing). Container-relative so
+     it scales with the graphic. */
+  --race-route-floor: clamp(0.9rem, 2.6cqh, 1.7rem);
   min-height: 0;
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--race-lane-color) 68%, transparent);
@@ -3832,8 +3868,9 @@ button.tournament-match-node:active {
   position: relative;
   /* Route line kept above the box's bottom edge; the marker zone above it is the
      box's remaining height (see the --race-marker-size box sizing). No vertical
-     padding, so the box height directly reserves the rider's overflow. */
-  --race-route-floor: clamp(0.9rem, 2vh, 1.7rem);
+     padding, so the box height directly reserves the rider's overflow.
+     Container-relative so it scales with the graphic. */
+  --race-route-floor: clamp(0.9rem, 2.6cqh, 1.7rem);
   min-height: 0;
   border: 1px solid color-mix(in srgb, var(--race-lane-color) 45%, transparent);
   border-radius: 1.5rem;
@@ -3975,58 +4012,9 @@ button.tournament-match-node:active {
     font-size: clamp(5.6rem, 13vw, 10rem);
   }
 
-  .race-lane {
-    --race-lane-avatar-size: clamp(4.65rem, 6.7vw, 6.8rem);
-    --race-lane-name-max-size: clamp(1.95rem, 3.7vw, 3.75rem);
-    --race-lane-name-min-size-px: 22;
-  }
-
-  .race-lane__card {
-    gap: clamp(0.55rem, 1.2vw, 1rem);
-    padding: clamp(0.48rem, 0.95vw, 0.8rem);
-    border-radius: 0.9rem;
-  }
-
-  .race-lane__identity {
-    gap: clamp(0.55rem, 1vw, 0.9rem);
-  }
-
-  .race-lane__readout {
-    gap: clamp(0.38rem, 0.8vw, 0.7rem);
-  }
-
-  .race-lane__readout-item {
-    padding-left: clamp(0.4rem, 0.8vw, 0.7rem);
-  }
-
-  .race-lane__readout-item span {
-    font-size: clamp(0.6rem, 0.85vw, 0.78rem);
-  }
-
-  .race-lane__readout-item strong {
-    font-size: clamp(1.18rem, 2vw, 2rem);
-  }
-
-  .race-page--horizontal .race-graphic--horizontal,
-  .race-page--horizontal .race-graphic--wagon,
-  .race-page--horizontal .race-graphic--ledger {
-    gap: clamp(0.5rem, 1.35vh, 1rem);
-  }
-
-  .race-page--horizontal .race-graphic--horizontal {
-    padding: clamp(0.65rem, 1.55vw, 1.3rem);
-  }
-
-  .race-page--horizontal .track-lane,
-  .race-page--horizontal .wagon-lane,
-  .race-page--horizontal .ledger-lane {
-    gap: clamp(0.35rem, 0.8vh, 0.6rem);
-    grid-template-rows: minmax(clamp(5.25rem, 12.5vh, 6.85rem), auto) minmax(0, 1fr);
-  }
-
-  .race-page--horizontal .track-lane__bar {
-    height: clamp(1.9rem, 4vh, 2.9rem);
-  }
+  /* Horizontal lane sizing is fully container-driven (issue #23), so it has no
+     breakpoints here — only the vertical/climb layout and page chrome respond to
+     the shorter viewport. */
 
   .race-page--vertical .race-graphic--vertical {
     gap: clamp(0.75rem, 1.6vw, 1.4rem);
@@ -4050,12 +4038,6 @@ button.tournament-match-node:active {
 
   .climb-lane .race-lane__readout-item strong {
     font-size: clamp(0.9rem, 1.25vw, 1.25rem);
-  }
-
-  .ledger-lane__mileposts,
-  .wagon-lane__start,
-  .wagon-lane__finish {
-    font-size: 0.6rem;
   }
 
   .race-page__ticker-item {
@@ -4085,15 +4067,6 @@ button.tournament-match-node:active {
   .race-page__local-logo {
     width: clamp(2.75rem, 4.25vw, 3.7rem);
     height: clamp(1.95rem, 3.05vw, 2.65rem);
-  }
-
-  .race-lane {
-    --race-lane-avatar-size: clamp(4rem, 5.55vw, 5rem);
-    --race-lane-name-max-size: clamp(1.2rem, 2.2vw, 2rem);
-  }
-
-  .race-page--horizontal .track-lane__bar {
-    height: clamp(1.8rem, 3.4vh, 2.35rem);
   }
 }
 
