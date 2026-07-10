@@ -37,6 +37,7 @@ import {
   tournamentIdSchema,
   tournamentRacerSchema,
   updateEventPaymentConfigSchema,
+  updateEventSchema,
   updateRacerPaymentSchema,
   updatePhotoBoothStatusSchema,
   webPushSubscriptionSchema
@@ -679,6 +680,11 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   app.post(`${API_PREFIX}/events`, (req, res) => {
     const input = createEventSchema.parse(req.body);
     res.json(service.createEvent(input.name));
+  });
+
+  app.post(`${API_PREFIX}/events/current`, (req, res) => {
+    const input = updateEventSchema.parse(req.body);
+    res.json(service.updateActiveEvent(input));
   });
 
   app.post(`${API_PREFIX}/events/current/payment`, (req, res) => {

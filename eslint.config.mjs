@@ -54,7 +54,15 @@ export default tseslint.config(
   },
   {
     ...reactDoctor.configs.recommended,
-    files: reactFiles
+    files: reactFiles,
+    // Treat react-doctor findings as errors, not advisory warnings, while
+    // preserving each rule's configured options.
+    rules: Object.fromEntries(
+      Object.entries(reactDoctor.configs.recommended.rules ?? {}).map(([rule, value]) => [
+        rule,
+        Array.isArray(value) ? ["error", ...value.slice(1)] : "error"
+      ])
+    )
   },
   ...scopeToFiles(pluginQuery.configs["flat/recommended-strict"], typedFiles),
   eslintConfigPrettier,

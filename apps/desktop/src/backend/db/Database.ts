@@ -201,6 +201,9 @@ function mapEvent(row: EventRow): EventRecord {
   return {
     id: row.id,
     name: row.name,
+    description: row.description,
+    signupEyebrow: row.signupEyebrow,
+    signupHeading: row.signupHeading,
     includeAllRaceData: row.includeAllRaceData,
     paymentRequiredForQueue: row.paymentRequiredForQueue,
     paymentAmountCents: row.paymentAmountCents,
@@ -705,6 +708,29 @@ export class AppDatabase {
 
   listEvents(): EventRecord[] {
     return this.orm.select().from(events).orderBy(desc(events.createdAt)).all().map(mapEvent);
+  }
+
+  updateEvent(
+    eventId: string,
+    input: {
+      name?: string;
+      description?: string | null;
+      signupEyebrow?: string | null;
+      signupHeading?: string | null;
+    }
+  ): EventRecord {
+    const changes: Partial<typeof events.$inferInsert> = {};
+    if (input.name !== undefined) changes.name = input.name;
+    if (input.description !== undefined) changes.description = input.description;
+    if (input.signupEyebrow !== undefined) changes.signupEyebrow = input.signupEyebrow;
+    if (input.signupHeading !== undefined) changes.signupHeading = input.signupHeading;
+
+    if (Object.keys(changes).length > 0) {
+      changes.updatedAt = nowIso();
+      this.orm.update(events).set(changes).where(eq(events.id, eventId)).run();
+    }
+
+    return this.getActiveEvent()!;
   }
 
   updateEventPaymentConfig(

@@ -110,8 +110,11 @@ _Avoid_: initial avatar, placeholder
 
 ### Queue and events
 
-**Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time.
+**Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time. Carries operator-authored display copy (a description plus `signup prompt` overrides). Editing the active event's fields is in-place and non-destructive; creating a _new_ event is destructive — it starts a fresh session, so racers must register again.
 _Avoid_: session, meet
+
+**Signup prompt**: The projector card that recruits racers into the queue — an eyebrow, a heading, a body line, and the join QR code. Its eyebrow/heading/body each fall back to built-in default copy, and the operator may override any of them per event (blank clears the override back to the default). The body override is the event `description`, which the racer page also shows; the eyebrow and heading appear on the projector only.
+_Avoid_: signup card, join prompt, QR panel
 
 **Queue**: The ordered list of upcoming open time trial races. Entries are slots that the app projects into visible race pairings. Distinct from a `Tournament`, which has its own match structure.
 _Avoid_: lineup, race list

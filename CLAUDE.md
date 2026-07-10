@@ -103,7 +103,9 @@ Themes are manifest-driven (`packages/shared/src/themes.ts`). Each theme declare
 
 ## ESLint Notes
 
-`eslint-plugin-react-doctor` is enabled with a broad advisory baseline. New files should not introduce violations. Run `pnpm lint` to check; new baseline entries require intentional addition to the config.
+`eslint-plugin-react-doctor` is enabled and its rules are configured as **errors**, not warnings (see `eslint.config.mjs`). `pnpm lint` must pass with zero problems.
+
+**Never silence or work around a lint rule.** Do not add `eslint-disable` comments, tweak thresholds, or restructure code just to make the linter stop complaining. Every lint rule (react-doctor included) must be satisfied by the genuinely correct fix — decompose a giant component into real components, associate labels with their inputs, use the idiomatic pattern the rule points at. If a rule seems to demand something wrong, raise it rather than dodging it.
 
 ## Agent skills
 

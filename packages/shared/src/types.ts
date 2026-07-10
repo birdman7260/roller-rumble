@@ -189,6 +189,9 @@ export interface RacerNotification {
 export interface EventRecord {
   id: string;
   name: string;
+  description?: string | null;
+  signupEyebrow?: string | null;
+  signupHeading?: string | null;
   includeAllRaceData: boolean;
   paymentRequiredForQueue: boolean;
   paymentAmountCents?: number | null;

@@ -41,6 +41,23 @@ export const createEventSchema = z.object({
   name: z.string().trim().min(1).max(120)
 });
 
+// Optional event copy. Blank/whitespace normalizes to null (unset → default copy).
+const optionalCopy = (max: number) =>
+  z
+    .string()
+    .trim()
+    .max(max)
+    .transform((value) => (value.length === 0 ? null : value))
+    .nullable()
+    .optional();
+
+export const updateEventSchema = z.object({
+  name: z.string().trim().min(1).max(120).optional(),
+  description: optionalCopy(500),
+  signupEyebrow: optionalCopy(80),
+  signupHeading: optionalCopy(80)
+});
+
 export const queueSignupSchema = z.object({
   racerId: z.string().trim().min(1),
   opponentRacerId: z.string().trim().min(1).optional(),

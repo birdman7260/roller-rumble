@@ -1387,6 +1387,20 @@ export class RollerRumbleApp extends EventEmitter {
     return this.getSnapshot();
   }
 
+  updateActiveEvent(input: {
+    name?: string;
+    description?: string | null;
+    signupEyebrow?: string | null;
+    signupHeading?: string | null;
+  }): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent) {
+      this.db.updateEvent(activeEvent.id, input);
+      this.emitSnapshot();
+    }
+    return this.getSnapshot();
+  }
+
   updateActiveEventPaymentConfig(input: UpdateEventPaymentConfigInput): AppSnapshot {
     this.payment.updateActiveEventPaymentConfig(input);
     this.emitSnapshot();

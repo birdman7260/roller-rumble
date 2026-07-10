@@ -955,3 +955,71 @@ describe("app service tournament staging flow", () => {
     expect(disarmRace).not.toHaveBeenCalled();
   });
 });
+
+interface UpdateActiveEventInput {
+  name?: string;
+  description?: string | null;
+  signupEyebrow?: string | null;
+  signupHeading?: string | null;
+}
+
+type UpdateActiveEventInvoker = (this: unknown, input: UpdateActiveEventInput) => AppSnapshot;
+
+function getUpdateActiveEventInvoker(): UpdateActiveEventInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "updateActiveEvent");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing active event update implementation");
+  }
+
+  return candidate as UpdateActiveEventInvoker;
+}
+
+describe("app service active event update", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("writes the partial update to the active event and rebroadcasts", () => {
+    const snapshot = { generatedAt: "now" } as AppSnapshot;
+    const updateEvent = vi.fn();
+    const emitSnapshot = vi.fn();
+    const getSnapshot = vi.fn(() => snapshot);
+    const target = withAppPrototype({
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        updateEvent
+      },
+      emitSnapshot,
+      getSnapshot
+    });
+
+    const input = { name: "Friday Finals", description: "Bring your A game.", signupEyebrow: null };
+    const result = getUpdateActiveEventInvoker().call(target, input);
+
+    expect(updateEvent).toHaveBeenCalledWith("event-1", input);
+    expect(emitSnapshot).toHaveBeenCalledTimes(1);
+    expect(getSnapshot).toHaveBeenCalledTimes(1);
+    expect(result).toBe(snapshot);
+  });
+
+  it("does nothing when there is no active event", () => {
+    const snapshot = { generatedAt: "now" } as AppSnapshot;
+    const updateEvent = vi.fn();
+    const emitSnapshot = vi.fn();
+    const getSnapshot = vi.fn(() => snapshot);
+    const target = withAppPrototype({
+      db: {
+        getActiveEvent: () => null,
+        updateEvent
+      },
+      emitSnapshot,
+      getSnapshot
+    });
+
+    const result = getUpdateActiveEventInvoker().call(target, { name: "Ignored" });
+
+    expect(updateEvent).not.toHaveBeenCalled();
+    expect(emitSnapshot).not.toHaveBeenCalled();
+    expect(result).toBe(snapshot);
+  });
+});
