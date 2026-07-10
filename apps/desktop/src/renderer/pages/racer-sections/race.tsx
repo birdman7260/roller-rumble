@@ -243,7 +243,7 @@ export function RaceDashboard({
 
     return (
       <div className="racer-card-stack">
-        <Panel title="Race">
+        <Panel title="Roller Rumble">
           <div className="stack-md">
             <div className="racer-public-summary">
               <div>
@@ -304,7 +304,7 @@ export function RaceDashboard({
 
   return (
     <div className="racer-card-stack">
-      <Panel title="Race">
+      <Panel title="Roller Rumble">
         <div className="stack-md">
           {selectedRacerInCurrentRace && currentRace ? (
             <div className="racer-state-card racer-state-card--urgent">

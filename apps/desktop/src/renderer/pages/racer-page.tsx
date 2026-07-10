@@ -1565,6 +1565,9 @@ function RacerPageView({
       <RacerNotificationModal
         modalActionMessage={modalActionMessage}
         notification={activeModalNotification}
+        onAcceptTournamentSpot={() => {
+          handleTabChange("tournament");
+        }}
         onDismiss={dismissNotificationModal}
         onTournamentOptOut={handleTournamentOptOut}
         tournamentOptOutBusy={tournamentOptOutBusy}

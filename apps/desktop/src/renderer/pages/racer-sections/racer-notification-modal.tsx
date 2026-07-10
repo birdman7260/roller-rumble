@@ -19,12 +19,14 @@ function getNotificationModalLabel(notification: RacerNotification): string {
 export function RacerNotificationModal({
   modalActionMessage,
   notification,
+  onAcceptTournamentSpot,
   onDismiss,
   onTournamentOptOut,
   tournamentOptOutBusy
 }: {
   modalActionMessage: string | null;
   notification: RacerNotification | null;
+  onAcceptTournamentSpot?: () => void;
   onDismiss: (notification: RacerNotification) => Promise<void>;
   onTournamentOptOut: () => Promise<void>;
   tournamentOptOutBusy: boolean;
@@ -80,6 +82,7 @@ export function RacerNotificationModal({
                     variant="accent"
                     onClick={() => {
                       fireAndForget(onDismiss(notification), "accept tournament notification");
+                      onAcceptTournamentSpot?.();
                     }}
                   >
                     Accept Spot

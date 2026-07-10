@@ -388,31 +388,33 @@ export class RollerRumbleApp extends EventEmitter {
       return;
     }
 
-    const racerNames = thirdEntry.racerIds
-      .map((racerId) => this.db.getRacer(racerId)?.displayName ?? "Racer")
-      .join(" vs ");
-    this.notifications.createNotificationAndDispatch({
-      eventId,
-      type: "queue_get_ready",
-      title: "Get ready to race",
-      body: `You are the 3rd match coming up: ${racerNames}. Head toward the bikes.`,
-      url: "/racer",
-      triggerKey: `queue-get-ready:${eventId}:${thirdEntry.id}`,
-      racerIds: thirdEntry.racerIds
-    });
+    for (const racerId of thirdEntry.racerIds) {
+      const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
+      this.notifications.createNotificationAndDispatch({
+        eventId,
+        type: "queue_get_ready",
+        title: "Head towards the bikes",
+        body: `${racerName}, only ~4 minutes before you race!`,
+        url: "/racer",
+        triggerKey: `queue-get-ready:${eventId}:${thirdEntry.id}:${racerId}`,
+        racerIds: [racerId]
+      });
+    }
   }
 
   private notifyTournamentStarted(bundle: TournamentBundle): void {
-    const racerIds = getTournamentNotificationRacerIds(bundle);
-    this.notifications.createNotificationAndDispatch({
-      eventId: bundle.tournament.eventId,
-      type: "tournament_started",
-      title: "Tournament started",
-      body: `${bundle.tournament.name} is live. Check the bracket and be ready for your matchup.`,
-      url: "/racer",
-      triggerKey: `tournament-started:${bundle.tournament.id}`,
-      racerIds
-    });
+    for (const racerId of getTournamentNotificationRacerIds(bundle)) {
+      const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
+      this.notifications.createNotificationAndDispatch({
+        eventId: bundle.tournament.eventId,
+        type: "tournament_started",
+        title: "Tournament started",
+        body: `${racerName}, you made the tournament!`,
+        url: "/racer",
+        triggerKey: `tournament-started:${bundle.tournament.id}:${racerId}`,
+        racerIds: [racerId]
+      });
+    }
   }
 
   private resolveAdminNotificationTargets(input: AdminNotificationInput): string[] {

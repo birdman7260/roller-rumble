@@ -1,9 +1,26 @@
 import type { AppSnapshot, QueueEntry, RacerSummary } from "@roller-rumble/shared/types";
 import { EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
-import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
+import { resolveRacerName } from "../../lib/snapshot-display";
 import { QueueActions } from "./queue-actions";
 import type { RacerQueueSignupInput, SectionMotionProps } from "./shared";
+
+function getQueuePositionLabel(index: number): string {
+  switch (index) {
+    case 0:
+      return "NOW!";
+    case 1:
+      return "In 2 minutes";
+    case 2:
+      return "In 4 minutes";
+    case 3:
+      return "Get the mind right";
+    case 4:
+      return "Start stretching";
+    default:
+      return "";
+  }
+}
 
 export function QueueTab({
   liveSnapshot,
@@ -41,10 +58,7 @@ export function QueueTab({
           className="racer-page-grid__card racer-page-grid__card--supporting"
         >
           <Panel title="Tournament Mode">
-            <EmptyState
-              title="Open queue paused"
-              body="The event is currently running a tournament. The open queue is visible for reference, but racers cannot join it until tournament mode ends."
-            />
+            <EmptyState title="Open queue paused" body="Tourney in progress" />
           </Panel>
         </m.div>
       ) : null}
@@ -67,7 +81,7 @@ export function QueueTab({
             />
           ) : (
             <div className={`list${tournamentMode ? " racer-queue-list--paused" : ""}`}>
-              {upcoming.map((entry) => (
+              {upcoming.map((entry, index) => (
                 <div key={entry.id} className="list-row">
                   <strong>
                     #{entry.position}{" "}
@@ -75,7 +89,7 @@ export function QueueTab({
                       .map((racerId) => resolveRacerName(liveSnapshot, racerId))
                       .join(" vs ")}
                   </strong>
-                  <span>{describeQueueEntry(entry)}</span>
+                  <span>{getQueuePositionLabel(index)}</span>
                 </div>
               ))}
             </div>

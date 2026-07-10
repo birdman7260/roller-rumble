@@ -10,6 +10,12 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- On the racer page, the "Race" card is now titled "Roller Rumble" and the queue join button is now labeled "Join Queue". The payment reminder no longer repeats the entry price — it shows only "Checkout will open if you have not paid yet."
+- The "Next Up" card on the Race tab (and the matching list on the Queue tab) is now titled "Next 3 Races!" and shows time-until labels in the right column ("NOW!", "In 2 minutes", "In 4 minutes", "Get the mind right", "Start stretching") instead of race type.
+- When a tournament is active, the Queue tab message is now "Tourney in progress" instead of the long explanation about the open queue being paused.
+- Tournament and get-ready notifications are now personalized: each racer receives their own notification with their display name in the message body ("<Name>, you made the tournament!" and "<Name>, only ~4 minutes before you race!" respectively). The get-ready notification title is now "Head towards the bikes".
+- Tapping "Accept Spot" on the tournament check-in notification now navigates directly to the Tournament tab.
+
 ### Fixed
 
 ## 0.1.19 - 2026-07-09

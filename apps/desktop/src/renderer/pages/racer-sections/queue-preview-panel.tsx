@@ -1,8 +1,25 @@
 import type { AppSnapshot, QueueEntry } from "@roller-rumble/shared/types";
 import { Panel } from "@roller-rumble/shared-ui";
-import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
+import { resolveRacerName } from "../../lib/snapshot-display";
 import type { RacerTabId } from "../racer-page";
 import { InlineTabLink } from "./inline-tab-link";
+
+function getQueuePositionLabel(index: number): string {
+  switch (index) {
+    case 0:
+      return "NOW!";
+    case 1:
+      return "In 2 minutes";
+    case 2:
+      return "In 4 minutes";
+    case 3:
+      return "Get the mind right";
+    case 4:
+      return "Start stretching";
+    default:
+      return "";
+  }
+}
 
 export function QueuePreviewPanel({
   entries,
@@ -20,14 +37,14 @@ export function QueuePreviewPanel({
   }
 
   return (
-    <Panel title="Next Up">
+    <Panel title="Next 3 Races!">
       <div className="racer-race-preview stack-sm">
         <div className="racer-section-heading">
           <strong>Next up</strong>
           <p>The next few queue matches.</p>
         </div>
         <div className="list">
-          {entries.map((entry) => (
+          {entries.map((entry, index) => (
             <div key={entry.id} className="list-row">
               <strong>
                 #{entry.position}{" "}
@@ -35,7 +52,7 @@ export function QueuePreviewPanel({
                   .map((racerId) => resolveRacerName(liveSnapshot, racerId))
                   .join(" vs ")}
               </strong>
-              <span>{describeQueueEntry(entry)}</span>
+              <span>{getQueuePositionLabel(index)}</span>
             </div>
           ))}
         </div>

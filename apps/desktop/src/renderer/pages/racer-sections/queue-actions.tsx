@@ -1,7 +1,6 @@
 import type { AppSnapshot, RacerSummary } from "@roller-rumble/shared/types";
 import { Button, SearchableSelect } from "@roller-rumble/shared-ui";
 import { fireAndForget } from "../../lib/ui-actions";
-import { formatPaymentAmount } from "./shared";
 import type { RacerQueueSignupInput } from "./shared";
 
 export function QueueActions({
@@ -29,10 +28,7 @@ export function QueueActions({
         <strong>Join the next race</strong>
         <p>
           {liveSnapshot.activeEvent.paymentRequiredForQueue
-            ? `Entry is ${formatPaymentAmount(
-                liveSnapshot.activeEvent.paymentAmountCents,
-                liveSnapshot.activeEvent.paymentCurrency
-              )}. Checkout will open if you have not paid yet.`
+            ? "Checkout will open if you have not paid yet."
             : "Jump into the next open time trial race with one tap."}
         </p>
       </div>
@@ -53,7 +49,7 @@ export function QueueActions({
             fireAndForget(onQueueSignup({ requestedType: "auto-match" }), "join queue");
           }}
         >
-          Join Head-to-Head Queue
+          Join Queue
         </Button>
         <Button
           variant="ghost"
