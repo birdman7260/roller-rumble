@@ -33,7 +33,6 @@ interface AdminPageState {
   adminQueueOpponentId: string;
   adminQueueRacerId: string;
   adminQueueRequestedType: "auto-match" | "solo";
-  newEventName: string;
   raceDistanceInput: string;
   racerEmail: string;
   racerName: string;
@@ -51,7 +50,6 @@ const initialAdminPageState: AdminPageState = {
   adminQueueOpponentId: "",
   adminQueueRacerId: "",
   adminQueueRequestedType: "auto-match",
-  newEventName: "",
   raceDistanceInput: "",
   racerEmail: "",
   racerName: "",
@@ -82,7 +80,6 @@ export function AdminPage() {
     adminQueueOpponentId,
     adminQueueRacerId,
     adminQueueRequestedType,
-    newEventName,
     raceDistanceInput,
     racerEmail,
     racerName,
@@ -113,9 +110,6 @@ export function AdminPage() {
   };
   const setSearch: Dispatch<SetStateAction<string>> = (action) => {
     setState({ search: resolveStateAction(action, search) });
-  };
-  const setNewEventName: Dispatch<SetStateAction<string>> = (action) => {
-    setState({ newEventName: resolveStateAction(action, newEventName) });
   };
   const setRacerName: Dispatch<SetStateAction<string>> = (action) => {
     setState({ racerName: resolveStateAction(action, racerName) });
@@ -197,8 +191,6 @@ export function AdminPage() {
   const tournamentRaceLocked = Boolean(
     currentRace && ["staging", "countdown", "active", "interrupted"].includes(currentRace.state)
   );
-  const defaultEventName = `Event ${new Date().toLocaleDateString()}`;
-  const resolvedEventName = newEventName || defaultEventName;
   const activeTabConfig = adminTabs.find((tab) => tab.id === activeTab) ?? adminTabs[0];
   const displayedRaceDistanceInput =
     raceDistanceInput === "" ? String(settings.targetDistanceMeters) : raceDistanceInput;
@@ -254,9 +246,6 @@ export function AdminPage() {
           activeTournament={activeTournament}
           currentRace={currentRace}
           competitionLabel={competitionLabel}
-          newEventName={newEventName}
-          resolvedEventName={resolvedEventName}
-          setNewEventName={setNewEventName}
         />
       );
       break;

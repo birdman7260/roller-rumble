@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
@@ -249,5 +249,74 @@ export function SearchableSelect({
         </div>
       ) : null}
     </div>
+  );
+}
+
+export function ConfirmModal({
+  open,
+  busy = false,
+  eyebrow,
+  title,
+  body,
+  confirmLabel = "Yes",
+  cancelLabel = "No",
+  onConfirm,
+  onCancel
+}: {
+  open: boolean;
+  busy?: boolean;
+  eyebrow?: string;
+  title: string;
+  body: ReactNode;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+}) {
+  const titleId = useId();
+
+  if (!open) {
+    return null;
+  }
+
+  // The dialog element only exists while open, so open it modally the moment it
+  // mounts. showModal() gives focus trapping, Escape-to-close, and the backdrop
+  // for free; initial focus lands on the cancel button (autoFocus below) so a
+  // stray Enter can't confirm. A ref callback (rather than an effect watching a
+  // prop) opens it synchronously at commit — no extra render, no late frame.
+  return (
+    <dialog
+      ref={(dialog) => {
+        if (dialog && !dialog.open) {
+          dialog.showModal();
+        }
+      }}
+      className="confirm-modal"
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        // Escape fires this; route it through onCancel so state stays the source
+        // of truth, and swallow it while a confirm is in flight.
+        event.preventDefault();
+        if (!busy) {
+          onCancel();
+        }
+      }}
+    >
+      <div className="confirm-modal__card">
+        {eyebrow ? <span className="confirm-modal__eyebrow">{eyebrow}</span> : null}
+        <h2 id={titleId} className="confirm-modal__title">
+          {title}
+        </h2>
+        <p className="confirm-modal__body">{body}</p>
+        <div className="confirm-modal__actions">
+          <Button autoFocus variant="ghost" disabled={busy} onClick={onCancel}>
+            {cancelLabel}
+          </Button>
+          <Button variant="accent" disabled={busy} onClick={onConfirm}>
+            {confirmLabel}
+          </Button>
+        </div>
+      </div>
+    </dialog>
   );
 }

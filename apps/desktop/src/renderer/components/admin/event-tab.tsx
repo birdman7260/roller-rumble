@@ -1,9 +1,21 @@
-import type { Dispatch, SetStateAction } from "react";
 import { useReducer } from "react";
 import type { AppSnapshot, RaceRecord, TournamentBundle } from "@roller-rumble/shared/types";
-import { Button, EmptyState, Panel, StatPill, TextInput } from "@roller-rumble/shared-ui";
+import {
+  Button,
+  ConfirmModal,
+  EmptyState,
+  Panel,
+  StatPill,
+  TextInput
+} from "@roller-rumble/shared-ui";
 import { STRIPE_MIN_PAYMENT_AMOUNT_CENTS } from "@roller-rumble/shared/constants";
-import { createEvent, testStripeConnection, updateEventPaymentConfig } from "../../lib/api";
+import {
+  createEvent,
+  testStripeConnection,
+  updateActiveEvent,
+  updateEventPaymentConfig
+} from "../../lib/api";
+import { SIGNUP_PROMPT_DEFAULTS } from "../../lib/signup-prompt-copy";
 import { formatRacerNames } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 
@@ -209,62 +221,183 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
   );
 }
 
+interface EventDetailsState {
+  name: string;
+  description: string;
+  eyebrow: string;
+  heading: string;
+  confirmOpen: boolean;
+  busy: boolean;
+}
+
+function eventDetailsReducer(
+  state: EventDetailsState,
+  patch: Partial<EventDetailsState>
+): EventDetailsState {
+  return { ...state, ...patch };
+}
+
+// Keyed by the active event id so the local field state re-initialises whenever
+// a different event becomes active (e.g. after "Create New Event").
+function EventDetailsPanel({ snapshot }: { snapshot: AppSnapshot }) {
+  const activeEvent = snapshot.activeEvent;
+  const [state, dispatch] = useReducer(eventDetailsReducer, {
+    name: activeEvent.name,
+    description: activeEvent.description ?? "",
+    eyebrow: activeEvent.signupEyebrow ?? "",
+    heading: activeEvent.signupHeading ?? "",
+    confirmOpen: false,
+    busy: false
+  });
+  const nameInputId = "event-details-name";
+  const descriptionInputId = "event-details-description";
+  const eyebrowInputId = "event-details-eyebrow";
+  const headingInputId = "event-details-heading";
+
+  const { name, description, eyebrow, heading, confirmOpen, busy } = state;
+  const nameIsValid = name.trim().length > 0;
+
+  async function handleUpdate(): Promise<void> {
+    if (!nameIsValid) {
+      return;
+    }
+    dispatch({ busy: true });
+    try {
+      await updateActiveEvent({
+        name,
+        description,
+        signupEyebrow: eyebrow,
+        signupHeading: heading
+      });
+    } finally {
+      dispatch({ busy: false });
+    }
+  }
+
+  async function handleCreate(): Promise<void> {
+    if (!nameIsValid) {
+      return;
+    }
+    dispatch({ busy: true });
+    try {
+      await createEvent(name);
+      dispatch({ confirmOpen: false });
+    } finally {
+      dispatch({ busy: false });
+    }
+  }
+
+  return (
+    <Panel title="Event">
+      <div className="stack-sm">
+        <label htmlFor={nameInputId}>
+          Event name
+          <TextInput
+            id={nameInputId}
+            value={name}
+            maxLength={120}
+            onChange={(event) => {
+              dispatch({ name: event.target.value });
+            }}
+            placeholder="Friday Finals"
+          />
+        </label>
+        <label htmlFor={descriptionInputId}>
+          Description
+          <textarea
+            id={descriptionInputId}
+            rows={3}
+            value={description}
+            maxLength={500}
+            onChange={(event) => {
+              dispatch({ description: event.target.value });
+            }}
+            placeholder={SIGNUP_PROMPT_DEFAULTS.body}
+          />
+        </label>
+        <label htmlFor={eyebrowInputId}>
+          Signup eyebrow
+          <TextInput
+            id={eyebrowInputId}
+            value={eyebrow}
+            maxLength={80}
+            onChange={(event) => {
+              dispatch({ eyebrow: event.target.value });
+            }}
+            placeholder={SIGNUP_PROMPT_DEFAULTS.eyebrow}
+          />
+        </label>
+        <label htmlFor={headingInputId}>
+          Signup heading
+          <TextInput
+            id={headingInputId}
+            value={heading}
+            maxLength={80}
+            onChange={(event) => {
+              dispatch({ heading: event.target.value });
+            }}
+            placeholder={SIGNUP_PROMPT_DEFAULTS.heading}
+          />
+        </label>
+        <div className="button-row">
+          <Button
+            disabled={!nameIsValid || busy}
+            onClick={() => {
+              fireAndForget(handleUpdate(), "update event");
+            }}
+          >
+            Update Event
+          </Button>
+          <Button
+            variant="ghost"
+            disabled={!nameIsValid || busy}
+            onClick={() => {
+              dispatch({ confirmOpen: true });
+            }}
+          >
+            Create New Event
+          </Button>
+        </div>
+      </div>
+      <div className="stat-grid">
+        <StatPill label="Active Event" value={activeEvent.name} />
+        <StatPill label="Racers" value={snapshot.racers.length} />
+        <StatPill label="Upcoming" value={snapshot.queue.length} />
+      </div>
+      <ConfirmModal
+        open={confirmOpen}
+        busy={busy}
+        title="Create a new event?"
+        body="Are you sure you want to create a new event? This cannot be undone and will mean racers have to register to this new event."
+        confirmLabel="Yes"
+        cancelLabel="No"
+        onConfirm={() => {
+          fireAndForget(handleCreate(), "create new event");
+        }}
+        onCancel={() => {
+          dispatch({ confirmOpen: false });
+        }}
+      />
+    </Panel>
+  );
+}
+
 export function EventTab({
   snapshot,
   settingsThemeLabel,
   activeTournament,
   currentRace,
-  competitionLabel,
-  newEventName,
-  resolvedEventName,
-  setNewEventName
+  competitionLabel
 }: {
   snapshot: AppSnapshot;
   settingsThemeLabel: string;
   activeTournament: TournamentBundle | null;
   currentRace: RaceRecord | null;
   competitionLabel: string;
-  newEventName: string;
-  resolvedEventName: string;
-  setNewEventName: Dispatch<SetStateAction<string>>;
 }) {
   return (
     <div className="page-grid">
-      <Panel
-        title="Event Control"
-        actions={
-          <Button
-            variant="ghost"
-            onClick={() => {
-              fireAndForget(createEvent(resolvedEventName));
-            }}
-          >
-            Start New Event
-          </Button>
-        }
-      >
-        <div className="form-row">
-          <TextInput
-            value={newEventName}
-            onChange={(event) => {
-              setNewEventName(event.target.value);
-            }}
-            placeholder="Friday Finals"
-          />
-          <Button
-            onClick={() => {
-              fireAndForget(createEvent(resolvedEventName));
-            }}
-          >
-            Create Event
-          </Button>
-        </div>
-        <div className="stat-grid">
-          <StatPill label="Active Event" value={snapshot.activeEvent.name} />
-          <StatPill label="Racers" value={snapshot.racers.length} />
-          <StatPill label="Upcoming" value={snapshot.queue.length} />
-        </div>
-      </Panel>
+      <EventDetailsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 
       <EventPaymentsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 

@@ -1310,6 +1310,42 @@ function useRacerPageViewModel({
   };
 }
 
+function RacerEventBar({
+  activeEvent,
+  eventStatusLabel,
+  selectedRacer,
+  canBrowsePublicRacerInfo
+}: {
+  activeEvent: AppSnapshot["activeEvent"];
+  eventStatusLabel: string;
+  selectedRacer: AppSnapshot["racers"][number] | undefined;
+  canBrowsePublicRacerInfo: boolean;
+}) {
+  return (
+    <header className="racer-event-bar">
+      <div>
+        <span>{eventStatusLabel}</span>
+        <strong>{activeEvent.name}</strong>
+        {activeEvent.description ? (
+          <p className="racer-event-bar__desc">{activeEvent.description}</p>
+        ) : null}
+      </div>
+      <div className="racer-event-bar__meta">
+        {selectedRacer ? (
+          <span>{selectedRacer.racer.displayName}</span>
+        ) : (
+          <span>{canBrowsePublicRacerInfo ? "Viewing event info" : "Sign in to race"}</span>
+        )}
+        {activeEvent.paymentRequiredForQueue ? (
+          <span>
+            {formatPaymentAmount(activeEvent.paymentAmountCents, activeEvent.paymentCurrency)}
+          </span>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
 function RacerPageView({
   activeModalNotification,
   activeTabs,
@@ -1402,27 +1438,12 @@ function RacerPageView({
         }`}
       >
         {!bracketExpanded ? (
-          <header className="racer-event-bar">
-            <div>
-              <span>{eventStatusLabel}</span>
-              <strong>{liveSnapshot.activeEvent.name}</strong>
-            </div>
-            <div className="racer-event-bar__meta">
-              {selectedRacer ? (
-                <span>{selectedRacer.racer.displayName}</span>
-              ) : (
-                <span>{canBrowsePublicRacerInfo ? "Viewing event info" : "Sign in to race"}</span>
-              )}
-              {liveSnapshot.activeEvent.paymentRequiredForQueue ? (
-                <span>
-                  {formatPaymentAmount(
-                    liveSnapshot.activeEvent.paymentAmountCents,
-                    liveSnapshot.activeEvent.paymentCurrency
-                  )}
-                </span>
-              ) : null}
-            </div>
-          </header>
+          <RacerEventBar
+            activeEvent={liveSnapshot.activeEvent}
+            eventStatusLabel={eventStatusLabel}
+            selectedRacer={selectedRacer}
+            canBrowsePublicRacerInfo={canBrowsePublicRacerInfo}
+          />
         ) : null}
 
         <div

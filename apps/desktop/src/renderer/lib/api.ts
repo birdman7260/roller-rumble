@@ -319,6 +319,23 @@ export async function createEvent(name: string): Promise<AppSnapshot> {
   );
 }
 
+export interface UpdateEventInput {
+  name?: string;
+  description?: string | null;
+  signupEyebrow?: string | null;
+  signupHeading?: string | null;
+}
+
+export async function updateActiveEvent(input: UpdateEventInput): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl("/api/events/current"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
+    })
+  );
+}
+
 export async function signUpQueue(input: QueueSignupInput): Promise<AppSnapshot> {
   return parseJson(
     await fetch(buildUrl("/api/admin/queue"), {

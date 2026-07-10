@@ -3,7 +3,8 @@ import {
   accountlessRacerSessionSchema,
   adminNotificationSchema,
   projectorWindowResizeSchema,
-  settingUpdateSchema
+  settingUpdateSchema,
+  updateEventSchema
 } from "./validation";
 
 describe("accountless racer session validation", () => {
@@ -57,6 +58,62 @@ describe("admin settings validation", () => {
         showPublicRacerInfoWithoutLogin: true
       }).success
     ).toBe(true);
+  });
+});
+
+describe("update event validation", () => {
+  it("accepts a partial update with no fields", () => {
+    const result = updateEventSchema.safeParse({});
+    expect(result.success).toBe(true);
+    expect(result.success && result.data).toEqual({});
+  });
+
+  it("trims the name and passes copy fields through", () => {
+    const result = updateEventSchema.safeParse({
+      name: "  Friday Finals  ",
+      description: "  Bring your A game.  ",
+      signupEyebrow: "Queue open",
+      signupHeading: "Scan to race"
+    });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data).toEqual({
+      name: "Friday Finals",
+      description: "Bring your A game.",
+      signupEyebrow: "Queue open",
+      signupHeading: "Scan to race"
+    });
+  });
+
+  it("normalizes blank and whitespace-only copy fields to null", () => {
+    const result = updateEventSchema.safeParse({
+      description: "",
+      signupEyebrow: "   ",
+      signupHeading: "\n\t"
+    });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data).toEqual({
+      description: null,
+      signupEyebrow: null,
+      signupHeading: null
+    });
+  });
+
+  it("passes an explicit null copy field through", () => {
+    const result = updateEventSchema.safeParse({ description: null });
+    expect(result.success).toBe(true);
+    expect(result.success && result.data).toEqual({ description: null });
+  });
+
+  it("rejects a blank or whitespace-only name", () => {
+    expect(updateEventSchema.safeParse({ name: "" }).success).toBe(false);
+    expect(updateEventSchema.safeParse({ name: "   " }).success).toBe(false);
+  });
+
+  it("enforces length caps", () => {
+    expect(updateEventSchema.safeParse({ name: "n".repeat(121) }).success).toBe(false);
+    expect(updateEventSchema.safeParse({ description: "d".repeat(501) }).success).toBe(false);
+    expect(updateEventSchema.safeParse({ signupEyebrow: "e".repeat(81) }).success).toBe(false);
+    expect(updateEventSchema.safeParse({ signupHeading: "h".repeat(81) }).success).toBe(false);
   });
 });
 

@@ -19,6 +19,7 @@ import { findBracketNodeByParticipantIds } from "../components/tournament-flow-l
 import { getActiveTournament } from "../lib/admin-competition";
 import { getConfettiEffectDurationMs } from "../lib/confetti-effects";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
+import { SIGNUP_PROMPT_DEFAULTS } from "../lib/signup-prompt-copy";
 import { buildParticipantEntries, resolveRacerName } from "../lib/snapshot-display";
 
 const TOURNAMENT_PRE_RACE_STATES: RaceRecord["state"][] = ["scheduled", "staging", "interrupted"];
@@ -461,13 +462,23 @@ function RaceTicker({
   );
 }
 
-function RacerSignupPrompt({ qrCodeDataUrl }: { qrCodeDataUrl?: string }) {
+function RacerSignupPrompt({
+  qrCodeDataUrl,
+  eyebrow,
+  heading,
+  description
+}: {
+  qrCodeDataUrl?: string;
+  eyebrow?: string | null;
+  heading?: string | null;
+  description?: string | null;
+}) {
   return (
     <Panel className="panel--glass race-page__signup-prompt">
       <div className="race-page__signup-copy">
-        <span>Race queue is open</span>
-        <strong>Scan to race</strong>
-        <p>Register on your phone, pick your matchup, and jump into the next Roller Rumble run.</p>
+        <span>{eyebrow ?? SIGNUP_PROMPT_DEFAULTS.eyebrow}</span>
+        <strong>{heading ?? SIGNUP_PROMPT_DEFAULTS.heading}</strong>
+        <p className="race-page__signup-desc">{description ?? SIGNUP_PROMPT_DEFAULTS.body}</p>
       </div>
       <div className="race-page__signup-qr-wrap">
         {qrCodeDataUrl ? (
@@ -543,7 +554,12 @@ function RaceLayer({ model }: { model: RacePageViewModel }) {
           glowMode={model.snapshot.settings.raceDisplayGlowMode}
         />
       ) : model.showSignupPrompt ? (
-        <RacerSignupPrompt qrCodeDataUrl={model.qrCodeDataUrl} />
+        <RacerSignupPrompt
+          qrCodeDataUrl={model.qrCodeDataUrl}
+          eyebrow={model.snapshot.activeEvent.signupEyebrow}
+          heading={model.snapshot.activeEvent.signupHeading}
+          description={model.snapshot.activeEvent.description}
+        />
       ) : !model.bracketBundle ? (
         <Panel className="panel--glass">
           <EmptyState

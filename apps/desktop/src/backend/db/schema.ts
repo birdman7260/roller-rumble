@@ -47,6 +47,9 @@ export const identities = sqliteTable(
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
+  description: text("description"),
+  signupEyebrow: text("signup_eyebrow"),
+  signupHeading: text("signup_heading"),
   includeAllRaceData: integer("include_all_race_data", { mode: "boolean" })
     .notNull()
     .default(false),
