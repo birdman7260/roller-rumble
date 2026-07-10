@@ -60,6 +60,7 @@ import type {
 } from "./racer-sections/shared";
 import { RacerBottomTabs } from "./racer-sections/tabs";
 import { TournamentTab } from "./racer-sections/tournament";
+import { TournamentOptOutConfirmModal } from "./racer-sections/tournament-opt-out-confirm-modal";
 
 type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJSON"];
 type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
@@ -319,6 +320,7 @@ interface RacerPageState {
   selectedRacerDetailId: string | null;
   selectedRacerId: string;
   tournamentOptOutBusy: boolean;
+  tournamentOptOutConfirmOpen: boolean;
   tournamentOptOutMessage: string | null;
   upgradeDisplayName: string;
   upgradeEmail: string;
@@ -350,6 +352,7 @@ function createInitialRacerPageState(initialTab: string | undefined): RacerPageS
     selectedRacerDetailId: null,
     selectedRacerId: localStorage.getItem("roller-rumble.racerId") ?? "",
     tournamentOptOutBusy: false,
+    tournamentOptOutConfirmOpen: false,
     tournamentOptOutMessage: null,
     upgradeDisplayName: "",
     upgradeEmail: ""
@@ -391,6 +394,7 @@ interface RacerPageViewProps {
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
   bracketPresentationRequest: BracketPresentationRequest | null;
+  cancelTournamentOptOut: () => void;
   challengeReplacementRequest: ChallengeReplacementRequest | null;
   currentRace: AppSnapshot["raceProjection"]["race"] | null;
   currentRaceNames: string | null;
@@ -428,6 +432,7 @@ interface RacerPageViewProps {
   racerContentRef: RefObject<HTMLDivElement | null>;
   racerNotifications: RacerNotification[];
   reduceMotion: boolean;
+  requestTournamentOptOut: () => Promise<void>;
   selectedOpponent: string;
   selectedRacer: AppSnapshot["racers"][number] | undefined;
   selectedRacerAvatarUrl: string | null;
@@ -442,6 +447,7 @@ interface RacerPageViewProps {
   setUpgradeDisplayName: Dispatch<SetStateAction<string>>;
   setUpgradeEmail: Dispatch<SetStateAction<string>>;
   supportingCardMotion: MotionProps;
+  tournamentOptOutConfirmOpen: boolean;
   tournamentOptOutMessage: string | null;
   tournamentRaceCards: TournamentRaceCard[];
   tournaments: TournamentBundle[];
@@ -488,6 +494,7 @@ function useRacerPageViewModel({
     selectedRacerDetailId,
     selectedRacerId,
     tournamentOptOutBusy,
+    tournamentOptOutConfirmOpen,
     tournamentOptOutMessage,
     upgradeDisplayName,
     upgradeEmail
@@ -547,6 +554,9 @@ function useRacerPageViewModel({
   };
   const setTournamentOptOutBusy: Dispatch<SetStateAction<boolean>> = (action) => {
     patchState("tournamentOptOutBusy", action);
+  };
+  const setTournamentOptOutConfirmOpen: Dispatch<SetStateAction<boolean>> = (action) => {
+    patchState("tournamentOptOutConfirmOpen", action);
   };
   const setTournamentOptOutMessage: Dispatch<SetStateAction<string | null>> = (action) => {
     patchState("tournamentOptOutMessage", action);
@@ -1019,6 +1029,16 @@ function useRacerPageViewModel({
     queryClient.setQueryData(racerNotificationsQueryKey, nextNotifications);
   }
 
+  function requestTournamentOptOut(): Promise<void> {
+    setTournamentOptOutMessage(null);
+    setTournamentOptOutConfirmOpen(true);
+    return Promise.resolve();
+  }
+
+  function cancelTournamentOptOut(): void {
+    setTournamentOptOutConfirmOpen(false);
+  }
+
   async function handleTournamentOptOut(): Promise<void> {
     setTournamentOptOutBusy(true);
     setTournamentOptOutMessage(null);
@@ -1035,6 +1055,7 @@ function useRacerPageViewModel({
       setModalActionMessage(message);
     } finally {
       setTournamentOptOutBusy(false);
+      setTournamentOptOutConfirmOpen(false);
     }
   }
 
@@ -1235,6 +1256,7 @@ function useRacerPageViewModel({
       tournamentMode,
       tournamentOptOutBusy
     },
+    cancelTournamentOptOut,
     handleAvatarUpload,
     handleChallengeRacer,
     handleEnableNotifications,
@@ -1259,6 +1281,7 @@ function useRacerPageViewModel({
     racerContentRef,
     racerNotifications,
     reduceMotion,
+    requestTournamentOptOut,
     selectedOpponent,
     selectedRacer,
     selectedRacerAvatarUrl,
@@ -1273,6 +1296,7 @@ function useRacerPageViewModel({
     setUpgradeDisplayName,
     setUpgradeEmail,
     supportingCardMotion,
+    tournamentOptOutConfirmOpen,
     tournamentOptOutMessage,
     tournamentRaceCards,
     tournaments,
@@ -1296,6 +1320,7 @@ function RacerPageView({
   avatarUploadBusy,
   avatarUploadMessage,
   bracketPresentationRequest,
+  cancelTournamentOptOut,
   challengeReplacementRequest,
   currentRace,
   currentRaceNames,
@@ -1325,6 +1350,7 @@ function RacerPageView({
   racerContentRef,
   racerNotifications,
   reduceMotion,
+  requestTournamentOptOut,
   selectedOpponent,
   selectedRacer,
   selectedRacerAvatarUrl,
@@ -1339,6 +1365,7 @@ function RacerPageView({
   setUpgradeDisplayName,
   setUpgradeEmail,
   supportingCardMotion,
+  tournamentOptOutConfirmOpen,
   tournamentOptOutMessage,
   tournamentRaceCards,
   tournaments,
@@ -1423,7 +1450,7 @@ function RacerPageView({
                   liveSnapshot={liveSnapshot}
                   onQueueSignup={handleQueueSignup}
                   onTabChange={handleTabChange}
-                  onTournamentOptOut={handleTournamentOptOut}
+                  onTournamentOptOut={requestTournamentOptOut}
                   paymentReturnState={paymentReturnState}
                   queueMessage={queueMessage}
                   queuePreviewEntries={raceQueuePreviewEntries}
@@ -1525,7 +1552,7 @@ function RacerPageView({
               expandedBracketTournamentId={expandedBracketTournamentId}
               layoutTransition={layoutTransition}
               liveSnapshot={liveSnapshot}
-              onTournamentOptOut={handleTournamentOptOut}
+              onTournamentOptOut={requestTournamentOptOut}
               reduceMotion={reduceMotion}
               selectedRacerCanOptOutOfVisibleTournament={selectedRacerCanOptOutOfVisibleTournament}
               setBracketPresentationRequest={setBracketPresentationRequest}
@@ -1571,6 +1598,12 @@ function RacerPageView({
         onDismiss={dismissNotificationModal}
         onTournamentOptOut={handleTournamentOptOut}
         tournamentOptOutBusy={tournamentOptOutBusy}
+      />
+      <TournamentOptOutConfirmModal
+        open={tournamentOptOutConfirmOpen}
+        busy={tournamentOptOutBusy}
+        onCancel={cancelTournamentOptOut}
+        onConfirm={handleTournamentOptOut}
       />
     </LayoutGroup>
   );

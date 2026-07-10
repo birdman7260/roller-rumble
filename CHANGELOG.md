@@ -8,6 +8,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Opting out of a tournament from the racer page now asks for confirmation first. Tapping "Opt out" opens a modal that warns you can't be added back in, with "Yes" and "No" buttons — you only leave the tournament after choosing "Yes".
+
 ### Changed
 
 - On the racer page, the "Race" card is now titled "Roller Rumble" and the queue join button is now labeled "Join Queue". The payment reminder no longer repeats the entry price — it shows only "Checkout will open if you have not paid yet."
