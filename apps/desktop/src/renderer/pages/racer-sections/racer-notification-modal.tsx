@@ -7,12 +7,12 @@ function getNotificationModalLabel(notification: RacerNotification): string {
   switch (notification.type) {
     case "queue_get_ready":
       return "Race Coming Up";
+    case "queue_you_are_up":
+      return "You're Up!";
     case "tournament_started":
       return "Tournament Check-In";
     case "admin_message":
       return "Host Message";
-    default:
-      return "Race Update";
   }
 }
 
@@ -95,7 +95,10 @@ export function RacerNotificationModal({
                     fireAndForget(onDismiss(notification), "dismiss racer notification");
                   }}
                 >
-                  {notification.type === "queue_get_ready" ? "I'm On My Way" : "Dismiss"}
+                  {notification.type === "queue_get_ready" ||
+                  notification.type === "queue_you_are_up"
+                    ? "I'm On My Way"
+                    : "Dismiss"}
                 </Button>
               )}
             </div>

@@ -76,6 +76,7 @@ const targetOptions: {
 const notificationTypeLabels: Record<RacerNotificationType, string> = {
   admin_message: "Host Message",
   queue_get_ready: "Queue Get-Ready",
+  queue_you_are_up: "Queue You're Up",
   tournament_started: "Tournament Started"
 };
 
@@ -87,6 +88,10 @@ const notificationTemplates: Record<RacerNotificationType, NotificationTemplate>
   queue_get_ready: {
     title: "You're Almost Up",
     body: "Your match is coming up soon. Please head toward the race desk."
+  },
+  queue_you_are_up: {
+    title: "You're up!",
+    body: "Head to the stage, pedal fast!"
   },
   tournament_started: {
     title: "Tournament Check-In",

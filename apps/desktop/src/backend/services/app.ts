@@ -100,7 +100,11 @@ import {
   type PhotoBoothTokenPayload
 } from "./photo-booth";
 import { getLocalNetworkBaseUrl } from "./network";
-import { getThirdUpcomingQueueEntry, getTournamentNotificationRacerIds } from "./notifications";
+import {
+  getFirstQueuedEntry,
+  getThirdUpcomingQueueEntry,
+  getTournamentNotificationRacerIds
+} from "./notifications";
 import { AppHttpError } from "./http-error";
 import {
   applyManagedEnvValue,
@@ -383,7 +387,25 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   private runQueueNotificationTriggers(eventId: string): void {
-    const thirdEntry = getThirdUpcomingQueueEntry(reindexQueue(this.db.listQueueEntries(eventId)));
+    const queue = reindexQueue(this.db.listQueueEntries(eventId));
+
+    const firstEntry = getFirstQueuedEntry(queue);
+    if (firstEntry) {
+      for (const racerId of firstEntry.racerIds) {
+        const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
+        this.notifications.createNotificationAndDispatch({
+          eventId,
+          type: "queue_you_are_up",
+          title: "You're up!",
+          body: `${racerName}, head to the stage, pedal fast!`,
+          url: "/racer",
+          triggerKey: `queue-you-are-up:${eventId}:${firstEntry.id}:${racerId}`,
+          racerIds: [racerId]
+        });
+      }
+    }
+
+    const thirdEntry = getThirdUpcomingQueueEntry(queue);
     if (!thirdEntry) {
       return;
     }

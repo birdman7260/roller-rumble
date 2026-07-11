@@ -96,7 +96,7 @@ export class NotificationService {
    */
   createNotificationAndDispatch(input: {
     eventId?: string | null;
-    type: "queue_get_ready" | "tournament_started" | "admin_message";
+    type: "queue_get_ready" | "queue_you_are_up" | "tournament_started" | "admin_message";
     title: string;
     body: string;
     url?: string | null;

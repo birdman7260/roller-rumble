@@ -76,6 +76,14 @@ export function getThirdUpcomingQueueEntry(entries: QueueEntry[]): QueueEntry | 
   return visibleQueue[RACE_GET_READY_POSITION - 1] ?? null;
 }
 
+export function getFirstQueuedEntry(entries: QueueEntry[]): QueueEntry | null {
+  return (
+    entries
+      .filter((entry) => entry.status === "queued")
+      .sort((left, right) => left.position - right.position)[0] ?? null
+  );
+}
+
 export function getTournamentNotificationRacerIds(bundle: TournamentBundle): string[] {
   return [
     ...new Set(

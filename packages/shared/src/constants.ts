@@ -97,6 +97,7 @@ export const PASSKEY_AUTH_STATUSES = ["passkey", "register_required", "host_assi
 export const RACER_NOTIFICATION_TYPES = [
   "admin_message",
   "queue_get_ready",
+  "queue_you_are_up",
   "tournament_started"
 ] as const;
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
