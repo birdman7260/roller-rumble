@@ -14,7 +14,6 @@ import { AuthForm } from "./auth";
 import type { AuthFormProps } from "./auth";
 import { QueueActions, QueuePreviewPanel } from "./queue";
 import { InlineTabLink } from "./inline-tab-link";
-import { formatPaymentAmount } from "./shared";
 import type { RacerQueueSignupInput, TournamentRaceCard } from "./shared";
 
 function TournamentRaceCardView({
@@ -323,19 +322,6 @@ export function RaceDashboard({
           ) : null}
 
           {!selectedRacerInCurrentRace ? queueActions : null}
-
-          {liveSnapshot.activeEvent.paymentRequiredForQueue ? (
-            <div className="racer-payment-summary">
-              <span>Payment</span>
-              <strong>{selectedRacer.payment.status}</strong>
-              <p>
-                {formatPaymentAmount(
-                  liveSnapshot.activeEvent.paymentAmountCents,
-                  liveSnapshot.activeEvent.paymentCurrency
-                )}
-              </p>
-            </div>
-          ) : null}
 
           {selectedRacerIsInActiveTournament && visibleTournament ? (
             <div className="racer-state-card">

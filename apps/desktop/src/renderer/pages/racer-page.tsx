@@ -75,26 +75,8 @@ const racerTabs: { id: RacerTabId; label: string }[] = [
   { id: "me", label: "Me" }
 ];
 
-const usdPaymentAmountFormatter = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD"
-});
-
 function normalizeRacerTab(tab: string | undefined): RacerTabId {
   return racerTabs.some((entry) => entry.id === tab) ? (tab as RacerTabId) : "race";
-}
-
-function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
-  if (typeof amountCents !== "number") {
-    return "fee not set";
-  }
-
-  const normalizedCurrency = currency.toUpperCase();
-  if (normalizedCurrency === "USD") {
-    return usdPaymentAmountFormatter.format(amountCents / 100);
-  }
-
-  return `${normalizedCurrency} ${(amountCents / 100).toFixed(2)}`;
 }
 
 function isPushSupported(): boolean {
@@ -1171,8 +1153,9 @@ function useRacerPageViewModel({
       ? selectedRacerDetailId
       : null;
   const authOnlyMode = !selectedRacer && !canBrowsePublicRacerInfo && !bracketExpanded;
-  const eventStatusLabel =
-    currentRace?.state === "active"
+  const eventStatusLabel = !snapshot.settings.queueOpen
+    ? snapshot.settings.queueClosedMessage.trim() || "QUEUE CLOSED"
+    : currentRace?.state === "active"
       ? "Race live"
       : currentRace?.state === "countdown"
         ? "Countdown"
@@ -1312,14 +1295,10 @@ function useRacerPageViewModel({
 
 function RacerEventBar({
   activeEvent,
-  eventStatusLabel,
-  selectedRacer,
-  canBrowsePublicRacerInfo
+  eventStatusLabel
 }: {
   activeEvent: AppSnapshot["activeEvent"];
   eventStatusLabel: string;
-  selectedRacer: AppSnapshot["racers"][number] | undefined;
-  canBrowsePublicRacerInfo: boolean;
 }) {
   return (
     <header className="racer-event-bar">
@@ -1328,18 +1307,6 @@ function RacerEventBar({
         <strong>{activeEvent.name}</strong>
         {activeEvent.description ? (
           <p className="racer-event-bar__desc">{activeEvent.description}</p>
-        ) : null}
-      </div>
-      <div className="racer-event-bar__meta">
-        {selectedRacer ? (
-          <span>{selectedRacer.racer.displayName}</span>
-        ) : (
-          <span>{canBrowsePublicRacerInfo ? "Viewing event info" : "Sign in to race"}</span>
-        )}
-        {activeEvent.paymentRequiredForQueue ? (
-          <span>
-            {formatPaymentAmount(activeEvent.paymentAmountCents, activeEvent.paymentCurrency)}
-          </span>
         ) : null}
       </div>
     </header>
@@ -1441,8 +1408,6 @@ function RacerPageView({
           <RacerEventBar
             activeEvent={liveSnapshot.activeEvent}
             eventStatusLabel={eventStatusLabel}
-            selectedRacer={selectedRacer}
-            canBrowsePublicRacerInfo={canBrowsePublicRacerInfo}
           />
         ) : null}
 
