@@ -189,7 +189,9 @@ function getDefaultAdminSettings(): AdminSettings {
     raceDisplayTickerSpeed: DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
     maxActiveQueueEntriesPerRacer: 3,
     targetDistanceMeters: DEFAULT_TARGET_DISTANCE_METERS,
-    serverPort: DEFAULT_SERVER_PORT
+    serverPort: DEFAULT_SERVER_PORT,
+    queueOpen: true,
+    queueClosedMessage: ""
   };
 }
 

@@ -181,7 +181,9 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     raceDisplayTickerSpeed: 40,
     maxActiveQueueEntriesPerRacer: 2,
     targetDistanceMeters: 250,
-    serverPort: 3187
+    serverPort: 3187,
+    queueOpen: true,
+    queueClosedMessage: ""
   };
 }
 

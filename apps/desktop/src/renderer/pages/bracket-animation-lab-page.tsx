@@ -375,7 +375,9 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     maxActiveQueueEntriesPerRacer: 3,
     serverPort: 3187,
     targetDistanceMeters: 250,
-    themeId: theme.id
+    themeId: theme.id,
+    queueOpen: true,
+    queueClosedMessage: ""
   };
 
   return {

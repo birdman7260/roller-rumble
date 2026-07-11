@@ -2,6 +2,12 @@ export const APP_NAME = "Roller Rumble";
 export const API_PREFIX = "/api";
 export const WS_PATH = "/ws";
 export const DEFAULT_TARGET_DISTANCE_METERS = 250;
+/**
+ * The message racers see where the self-service queue entry points normally are, used when the
+ * operator has closed the queue but left the custom `queueClosedMessage` blank. Kept here so the
+ * racer UI and the backend refusal resolve the same fallback.
+ */
+export const DEFAULT_QUEUE_CLOSED_MESSAGE = "The queue is currently closed.";
 export const DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND = 72;
 export const COUNTDOWN_SECONDS = 4;
 export const COUNTDOWN_DURATION_MS = COUNTDOWN_SECONDS * 1000;

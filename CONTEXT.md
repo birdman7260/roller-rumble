@@ -116,8 +116,14 @@ _Avoid_: session, meet
 **Signup prompt**: The projector card that recruits racers into the queue — an eyebrow, a heading, a body line, and the join QR code. Its eyebrow/heading/body each fall back to built-in default copy, and the operator may override any of them per event (blank clears the override back to the default). The body override is the event `description`, which the racer page also shows; the eyebrow and heading appear on the projector only.
 _Avoid_: signup card, join prompt, QR panel
 
-**Queue**: The ordered list of upcoming open time trial races. Entries are slots that the app projects into visible race pairings. Distinct from a `Tournament`, which has its own match structure.
+**Queue**: The ordered list of upcoming open time trial races. Entries are slots that the app projects into visible race pairings. Distinct from a `Tournament`, which has its own match structure. Whether racers may add themselves is governed by the `closed queue` state.
 _Avoid_: lineup, race list
+
+**closed queue**: The operator-controlled state (`queueOpen`, default open) that stops racers self-adding to the `Queue` — used to drain the queue before starting a `Tournament`. While closed, the racer page hides the three self-service entry points (join, solo, challenge) behind an operator-authored `queueClosedMessage` (blank falls back to a built-in default), and the racer self-service endpoint refuses new entries; the operator's manual add and everyone already queued are unaffected. Manual and operator-messaged — contrast the automatic `tournament pause`.
+_Avoid_: queue lock, queue freeze, paused queue (the last is the `tournament pause`)
+
+**tournament pause**: The automatic state where the `Queue` stops taking self-service signups because a `Tournament` is live — the racer page shows a built-in "open queue paused" card, not an operator message. System-driven; contrast the operator-driven `closed queue`.
+_Avoid_: closed queue (that is the operator-driven gate)
 
 **AppSnapshot**: The complete derived state broadcast over WebSocket to all connected surfaces (admin, projector, racer). Assembled from SQLite on demand; not the source of truth itself.
 _Avoid_: state, live state

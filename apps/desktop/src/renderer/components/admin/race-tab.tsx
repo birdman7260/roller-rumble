@@ -1,4 +1,5 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useRef, type Dispatch, type SetStateAction } from "react";
+import { DEFAULT_QUEUE_CLOSED_MESSAGE } from "@roller-rumble/shared/constants";
 import type { AppSnapshot, RaceRecord } from "@roller-rumble/shared/types";
 import {
   Button,
@@ -8,7 +9,7 @@ import {
   StatPill,
   TextInput
 } from "@roller-rumble/shared-ui";
-import { removeRacerFromQueueEntry } from "../../lib/api";
+import { removeRacerFromQueueEntry, updateSettings } from "../../lib/api";
 import { describeQueueEntry, formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 
@@ -44,6 +45,8 @@ export function RaceTab({
   const queueRacerSelectId = "admin-queue-racer";
   const queueTypeSelectId = "admin-queue-type";
   const queueOpponentSelectId = "admin-queue-opponent";
+  const queueClosedMessageInputRef = useRef<HTMLInputElement>(null);
+  const queueOpen = snapshot.settings.queueOpen;
   // Queue entries do not know which race owns them; the current race keeps that link.
   const stagedQueueEntryId =
     currentRace && ["scheduled", "staging", "countdown", "active"].includes(currentRace.state)
@@ -52,6 +55,50 @@ export function RaceTab({
 
   return (
     <div className="page-grid">
+      <Panel title="Racer Queue Signups">
+        <div className="stack-sm">
+          <div className="stat-grid">
+            <StatPill label="Self-service signups" value={queueOpen ? "Open" : "Closed"} />
+          </div>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={queueOpen}
+              onChange={(event) => {
+                fireAndForget(updateSettings({ queueOpen: event.target.checked }));
+              }}
+            />
+            Let racers add themselves to the queue
+          </label>
+          <label htmlFor="admin-queue-closed-message">
+            Closed message
+            <input
+              id="admin-queue-closed-message"
+              className="text-input"
+              ref={queueClosedMessageInputRef}
+              key={snapshot.settings.queueClosedMessage}
+              type="text"
+              maxLength={200}
+              defaultValue={snapshot.settings.queueClosedMessage}
+              placeholder={DEFAULT_QUEUE_CLOSED_MESSAGE}
+            />
+          </label>
+          <div className="button-row">
+            <Button
+              onClick={() => {
+                fireAndForget(
+                  updateSettings({
+                    queueClosedMessage: queueClosedMessageInputRef.current?.value ?? ""
+                  })
+                );
+              }}
+            >
+              Save Message
+            </Button>
+          </div>
+        </div>
+      </Panel>
+
       <Panel title="Race Distance">
         <div className="form-row">
           <TextInput

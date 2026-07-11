@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { DEFAULT_QUEUE_CLOSED_MESSAGE } from "@roller-rumble/shared/constants";
 import type { EventRecord, Racer, RacerQueueSignupResponse } from "@roller-rumble/shared/types";
 import { AppHttpError } from "./http-error";
 import { PaymentService, type PaymentStore } from "./payment";
@@ -67,6 +68,7 @@ function makeStore() {
 
   const db = {
     getActiveEvent: vi.fn(() => activeEvent),
+    getAdminSettings: vi.fn(() => ({ queueOpen: true, queueClosedMessage: "" })),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
     ensureEventRegistration: vi.fn(),
     getEventRacerPayment: vi.fn(
@@ -306,6 +308,35 @@ describe("RollerRumbleApp payment orchestration", () => {
       signUpQueueForRacer.call(target, "racer-1", { opponentRacerId: "racer-2" })
     ).rejects.toThrow(AppHttpError);
     expect(store.db.createPaymentRecord).not.toHaveBeenCalled();
+  });
+
+  it("refuses racer self-service signup with the custom message when the queue is closed", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.db.getAdminSettings.mockReturnValue({
+      queueOpen: false,
+      queueClosedMessage: "  Draining for the tournament.  "
+    });
+    store.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
+
+    await expect(
+      signUpQueueForRacer.call(target, "racer-1", { requestedType: "solo" })
+    ).rejects.toMatchObject({ code: "queue_closed", message: "Draining for the tournament." });
+    expect(target.signUpQueue).not.toHaveBeenCalled();
+  });
+
+  it("falls back to the default closed message when the operator message is blank", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.db.getAdminSettings.mockReturnValue({ queueOpen: false, queueClosedMessage: "" });
+    store.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
+
+    await expect(
+      signUpQueueForRacer.call(target, "racer-1", { requestedType: "solo" })
+    ).rejects.toMatchObject({
+      code: "queue_closed",
+      message: DEFAULT_QUEUE_CLOSED_MESSAGE
+    });
   });
 
   it("marks Stripe checkout paid and queues the stored intent from the webhook", () => {

@@ -1,5 +1,6 @@
+import { DEFAULT_QUEUE_CLOSED_MESSAGE } from "@roller-rumble/shared/constants";
 import type { AppSnapshot, RacerSummary } from "@roller-rumble/shared/types";
-import { Button, SearchableSelect } from "@roller-rumble/shared-ui";
+import { Button, EmptyState, SearchableSelect } from "@roller-rumble/shared-ui";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerQueueSignupInput } from "./shared";
 
@@ -22,6 +23,15 @@ export function QueueActions({
   selectedRacerId: string;
   setSelectedOpponent: (value: string) => void;
 }) {
+  if (!liveSnapshot.settings.queueOpen) {
+    return (
+      <EmptyState
+        title="Queue closed"
+        body={liveSnapshot.settings.queueClosedMessage.trim() || DEFAULT_QUEUE_CLOSED_MESSAGE}
+      />
+    );
+  }
+
   return (
     <div className="stack-sm">
       <div className="racer-section-heading">

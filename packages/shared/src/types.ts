@@ -608,6 +608,10 @@ export interface AdminSettings {
   maxActiveQueueEntriesPerRacer: number;
   targetDistanceMeters: number;
   serverPort: number;
+  /** Whether racers may add themselves to the queue. When false, self-service signup is closed. */
+  queueOpen: boolean;
+  /** Operator message shown to racers while the queue is closed. Blank falls back to the default. */
+  queueClosedMessage: string;
 }
 
 export interface StripeSetupStatus {

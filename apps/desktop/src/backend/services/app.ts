@@ -8,6 +8,7 @@ import type Stripe from "stripe";
 import {
   COUNTDOWN_DURATION_MS,
   DEFAULT_OS2L_PORT,
+  DEFAULT_QUEUE_CLOSED_MESSAGE,
   DEFAULT_SERVER_PORT
 } from "@roller-rumble/shared/constants";
 import type {
@@ -1724,6 +1725,15 @@ export class RollerRumbleApp extends EventEmitter {
     racerId: string,
     input: RacerQueueSignupInput
   ): Promise<RacerQueueSignupResponse> {
+    const settings = this.db.getAdminSettings();
+    if (!settings.queueOpen) {
+      throw new AppHttpError(
+        settings.queueClosedMessage.trim() || DEFAULT_QUEUE_CLOSED_MESSAGE,
+        403,
+        "queue_closed"
+      );
+    }
+
     const activeEvent = this.db.getActiveEvent()!;
     this.db.ensureEventRegistration(activeEvent.id, racerId);
     const racer = this.db.getRacer(racerId);
