@@ -19,6 +19,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - When a tournament is active, the Queue tab message is now "Tourney in progress" instead of the long explanation about the open queue being paused.
 - Tournament and get-ready notifications are now personalized: each racer receives their own notification with their display name in the message body ("<Name>, you made the tournament!" and "<Name>, only ~4 minutes before you race!" respectively). The get-ready notification title is now "Head towards the bikes".
 - Tapping "Accept Spot" on the tournament check-in notification now navigates directly to the Tournament tab.
+- The race display's winner results overlay no longer shows the large "WINNER!" title, freeing up vertical space for the result cards, and its top edge now sits just below the "Roller Rumble" title instead of overlapping it.
 
 ### Fixed
 

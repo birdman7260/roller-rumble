@@ -84,7 +84,6 @@ export function RaceResultsOverlay({
       transition={{ duration: 0.3, ease: "easeOut" }}
     >
       <div className="race-page__results-modal">
-        <h2>WINNER!</h2>
         <div
           className={`race-page__results-grid ${
             resultParticipants.length === 1 ? "race-page__results-grid--solo" : ""
