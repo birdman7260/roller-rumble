@@ -603,6 +603,16 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(await service.getPhotoBoothAdminStatus());
   });
 
+  app.post(`${API_PREFIX}/booth/enabled`, (req, res) => {
+    const { enabled } = req.body as { enabled: unknown };
+    if (typeof enabled !== "boolean") {
+      res.status(400).json({ message: "enabled must be a boolean" });
+      return;
+    }
+    service.setPhotoBoothEnabled(enabled);
+    res.json({ enabled });
+  });
+
   app.post(`${API_PREFIX}/booth/pairing/rotate`, async (_req, res) => {
     res.json(await service.rotatePhotoBoothPairing());
   });

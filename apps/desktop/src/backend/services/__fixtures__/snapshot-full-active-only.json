@@ -165,6 +165,7 @@
     "lastError": null
   },
   "photoBooth": {
+    "enabled": true,
     "boothId": "booth-1",
     "status": "online",
     "lastSeenAt": "2026-06-24T11:59:55.000Z",

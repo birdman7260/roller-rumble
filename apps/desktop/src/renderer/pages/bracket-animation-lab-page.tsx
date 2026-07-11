@@ -406,6 +406,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
       }
     },
     photoBooth: {
+      enabled: false,
       boothId: "lab-booth",
       status: "idle",
       lastSeenAt: null,

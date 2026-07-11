@@ -183,6 +183,14 @@ export async function fetchPhotoBoothStatus(): Promise<PhotoBoothAdminStatus> {
   return parseJson(await fetch(buildUrl("/api/booth/status")));
 }
 
+export async function setPhotoBoothEnabled(enabled: boolean): Promise<void> {
+  await fetch(buildUrl("/api/booth/enabled"), {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ enabled })
+  });
+}
+
 export async function rotatePhotoBoothPairing(): Promise<PhotoBoothAdminStatus> {
   return parseJson(
     await fetch(buildUrl("/api/booth/pairing/rotate"), {

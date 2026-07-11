@@ -4,6 +4,8 @@ import type { RefObject } from "react";
 import type {
   AdminNotificationTargetType,
   AppSnapshot,
+  PhotoBoothAdminStatus,
+  PhotoBoothStatus,
   ProjectorWindowSizePreset,
   RaceGlowMode
 } from "@roller-rumble/shared/types";
@@ -17,6 +19,7 @@ import {
   rotatePhotoBoothPairing,
   resizeProjectorWindow,
   sendAdminNotification,
+  setPhotoBoothEnabled,
   startTunnel,
   stopTunnel,
   updateSettings
@@ -727,6 +730,99 @@ function RuntimeEnvironmentPanel({
   );
 }
 
+function PhotoBoothPanel({
+  meta,
+  photoBoothAdminStatus,
+  photoBoothStatus
+}: {
+  meta?: { localBaseUrl: string };
+  photoBoothAdminStatus: PhotoBoothAdminStatus | undefined;
+  photoBoothStatus: PhotoBoothStatus;
+}) {
+  const queryClient = useQueryClient();
+  return (
+    <Panel
+      title="Kaleidoscope Photo Booth"
+      collapsible
+      defaultCollapsed
+      actions={
+        <Button
+          variant="ghost"
+          onClick={() => {
+            fireAndForget(
+              rotatePhotoBoothPairing().then(() =>
+                queryClient.invalidateQueries({ queryKey: photoBoothStatusQueryKey })
+              ),
+              "rotate photo booth pairing"
+            );
+          }}
+        >
+          Rotate Pairing
+        </Button>
+      }
+    >
+      <div className="photo-booth-admin">
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={photoBoothStatus.enabled}
+            onChange={(event) => {
+              fireAndForget(setPhotoBoothEnabled(event.target.checked), "toggle photo booth");
+            }}
+          />
+          Enable Photo Booth
+        </label>
+        <StatPill label="Booth Status" value={photoBoothStatus.status} />
+        <StatPill label="Pending Sync" value={photoBoothStatus.pendingUploadCount} />
+        <StatPill
+          label="Last Seen"
+          value={
+            photoBoothStatus.lastSeenAt
+              ? new Date(photoBoothStatus.lastSeenAt).toLocaleTimeString()
+              : "Not yet"
+          }
+        />
+        <div className="photo-booth-admin__hardware">
+          {Object.entries(boothHardwareLabels).map(([key, label]) => {
+            const health =
+              photoBoothStatus.hardware?.[key as keyof typeof boothHardwareLabels] ?? null;
+            return (
+              <div
+                key={key}
+                className={`photo-booth-hardware photo-booth-hardware--${health?.status ?? "unknown"}`}
+              >
+                <strong>{label}</strong>
+                <span>{health?.status ?? "unknown"}</span>
+                {health?.message ? <small>{health.message}</small> : null}
+              </div>
+            );
+          })}
+        </div>
+        <div className="photo-booth-admin__pairing">
+          <div>
+            <strong>Pairing Config</strong>
+            <p>
+              Scan this from the Raspberry Pi setup flow, or copy the values into the booth agent
+              environment.
+            </p>
+            <code>Server: {photoBoothAdminStatus?.serverBaseUrl ?? meta?.localBaseUrl}</code>
+            <code>Booth: {photoBoothStatus.boothId}</code>
+            <code>Secret: {photoBoothAdminStatus?.pairingSecret ?? "Loading…"}</code>
+          </div>
+          {photoBoothAdminStatus?.pairingQrCodeDataUrl ? (
+            <img
+              className="qr-code"
+              src={photoBoothAdminStatus.pairingQrCodeDataUrl}
+              alt="Pairing code"
+            />
+          ) : null}
+        </div>
+        {photoBoothStatus.message ? <p>{photoBoothStatus.message}</p> : null}
+      </div>
+    </Panel>
+  );
+}
+
 export function SettingsTab({
   snapshot,
   meta
@@ -948,75 +1044,11 @@ export function SettingsTab({
         runtimeEnvWorking={runtimeEnvWorking}
       />
 
-      <Panel
-        title="Kaleidoscope Photo Booth"
-        collapsible
-        defaultCollapsed
-        actions={
-          <Button
-            variant="ghost"
-            onClick={() => {
-              fireAndForget(
-                rotatePhotoBoothPairing().then(() =>
-                  queryClient.invalidateQueries({ queryKey: photoBoothStatusQueryKey })
-                ),
-                "rotate photo booth pairing"
-              );
-            }}
-          >
-            Rotate Pairing
-          </Button>
-        }
-      >
-        <div className="photo-booth-admin">
-          <StatPill label="Booth Status" value={photoBoothStatus.status} />
-          <StatPill label="Pending Sync" value={photoBoothStatus.pendingUploadCount} />
-          <StatPill
-            label="Last Seen"
-            value={
-              photoBoothStatus.lastSeenAt
-                ? new Date(photoBoothStatus.lastSeenAt).toLocaleTimeString()
-                : "Not yet"
-            }
-          />
-          <div className="photo-booth-admin__hardware">
-            {Object.entries(boothHardwareLabels).map(([key, label]) => {
-              const health =
-                photoBoothStatus.hardware?.[key as keyof typeof boothHardwareLabels] ?? null;
-              return (
-                <div
-                  key={key}
-                  className={`photo-booth-hardware photo-booth-hardware--${health?.status ?? "unknown"}`}
-                >
-                  <strong>{label}</strong>
-                  <span>{health?.status ?? "unknown"}</span>
-                  {health?.message ? <small>{health.message}</small> : null}
-                </div>
-              );
-            })}
-          </div>
-          <div className="photo-booth-admin__pairing">
-            <div>
-              <strong>Pairing Config</strong>
-              <p>
-                Scan this from the Raspberry Pi setup flow, or copy the values into the booth agent
-                environment.
-              </p>
-              <code>Server: {photoBoothAdminStatus?.serverBaseUrl ?? meta?.localBaseUrl}</code>
-              <code>Booth: {photoBoothStatus.boothId}</code>
-              <code>Secret: {photoBoothAdminStatus?.pairingSecret ?? "Loading…"}</code>
-            </div>
-            {photoBoothAdminStatus?.pairingQrCodeDataUrl ? (
-              <img
-                className="qr-code"
-                src={photoBoothAdminStatus.pairingQrCodeDataUrl}
-                alt="Pairing code"
-              />
-            ) : null}
-          </div>
-          {photoBoothStatus.message ? <p>{photoBoothStatus.message}</p> : null}
-        </div>
-      </Panel>
+      <PhotoBoothPanel
+        meta={meta}
+        photoBoothAdminStatus={photoBoothAdminStatus}
+        photoBoothStatus={photoBoothStatus}
+      />
 
       <ManagedSettingsPanel snapshot={snapshot} />
     </div>

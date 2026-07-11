@@ -1513,6 +1513,7 @@ function RacerPageView({
                 onMarkNotificationRead={onMarkNotificationRead}
                 onPasskeyRegistration={handlePasskeyRegistration}
                 onSignOut={handleSignOut}
+                photoBoothEnabled={liveSnapshot.photoBooth.enabled}
                 racerNotifications={racerNotifications}
                 selectedRacer={selectedRacer}
                 selectedRacerAvatarUrl={selectedRacerAvatarUrl}

@@ -1097,11 +1097,21 @@ export class RollerRumbleApp extends EventEmitter {
     return pairing;
   }
 
+  getPhotoBoothEnabled(): boolean {
+    return this.db.getSetting<boolean>("photoBoothEnabled", false).value;
+  }
+
+  setPhotoBoothEnabled(enabled: boolean): void {
+    this.db.setSetting("photoBoothEnabled", enabled);
+    this.emitSnapshot();
+  }
+
   getPhotoBoothStatus(): PhotoBoothStatus {
     const pairing = this.getPhotoBoothPairing();
     const stored = this.db.getSetting<Partial<PhotoBoothStatus>>("photoBoothStatus", {}).value;
 
     return {
+      enabled: this.getPhotoBoothEnabled(),
       boothId: pairing.boothId,
       status: stored.status ?? "idle",
       lastSeenAt: stored.lastSeenAt ?? null,
@@ -1167,6 +1177,7 @@ export class RollerRumbleApp extends EventEmitter {
   }): PhotoBoothStatus {
     const current = this.getPhotoBoothStatus();
     const next: PhotoBoothStatus = {
+      enabled: current.enabled,
       boothId: input.boothId,
       status: input.status,
       lastSeenAt: nowIso(),

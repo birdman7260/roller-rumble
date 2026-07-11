@@ -179,6 +179,7 @@ export class SnapshotAssembler {
         lastError: null
       },
       photoBooth: {
+        enabled: snapshot.photoBooth.enabled,
         boothId: snapshot.photoBooth.boothId,
         status: snapshot.photoBooth.status,
         lastSeenAt: null,

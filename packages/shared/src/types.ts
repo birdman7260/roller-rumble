@@ -99,6 +99,7 @@ export interface PhotoBoothHardwareHealth {
 }
 
 export interface PhotoBoothStatus {
+  enabled: boolean;
   boothId: string;
   status: "idle" | "online" | "capturing" | "syncing" | "error";
   lastSeenAt?: string | null;

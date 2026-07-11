@@ -156,6 +156,7 @@
     "lastError": null
   },
   "photoBooth": {
+    "enabled": true,
     "boothId": "booth-1",
     "status": "online",
     "lastSeenAt": null,

@@ -242,6 +242,7 @@ export const SCENARIO_OS2L: Os2lDiagnostics = {
 };
 
 export const SCENARIO_PHOTO_BOOTH: PhotoBoothStatus = {
+  enabled: true,
   boothId: "booth-1",
   status: "online",
   lastSeenAt: "2026-06-24T11:59:55.000Z",

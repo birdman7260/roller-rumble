@@ -123,6 +123,7 @@ export function MeTab({
   onMarkNotificationRead,
   onPasskeyRegistration,
   onSignOut,
+  photoBoothEnabled,
   racerNotifications,
   selectedRacer,
   selectedRacerAvatarUrl,
@@ -153,6 +154,7 @@ export function MeTab({
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
   onPasskeyRegistration: (input: { displayName: string; email: string }) => Promise<void>;
   onSignOut: () => Promise<void>;
+  photoBoothEnabled: boolean;
   racerNotifications: RacerNotification[];
   selectedRacer?: RacerSummary | null;
   selectedRacerAvatarUrl: string | null;
@@ -367,7 +369,7 @@ export function MeTab({
           <AuthForm {...authFormProps} />
         )}
       </Panel>
-      {selectedRacer && !selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}
+      {photoBoothEnabled && selectedRacer && !selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}
       {selectedRacer ? (
         <Panel title="Your Stats">
           <ExpandedRacerStats
@@ -377,7 +379,7 @@ export function MeTab({
           />
         </Panel>
       ) : null}
-      {selectedRacer && selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}
+      {photoBoothEnabled && selectedRacer && selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}
     </m.div>
   );
 }

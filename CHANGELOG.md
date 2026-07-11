@@ -8,6 +8,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- The Kaleidoscope Photo Booth feature can now be enabled or disabled from the admin Settings tab. It is disabled by default; when disabled, the Photo Booth QR card no longer appears on the racer page.
 - Racers at the front of the open queue now receive a "You're up!" push notification — title "You're up!" and message "<Name>, head to the stage, pedal fast!" — as soon as they become next to race.
 - The Event tab now lets you edit the active event in place, without starting a new one. A single "Event" card holds the event name plus three optional text fields — a description and the projector signup prompt's eyebrow and heading — and an "Update Event" button saves your changes. Leaving a field blank falls back to its built-in default (shown as placeholder text). The description also appears on the projector's "Scan to race" card (replacing the default line) and under the event name on the racer page, keeping any line breaks you type. "Create New Event" now asks for confirmation first, warning that it can't be undone and that racers will have to register again.
 - Opting out of a tournament from the racer page now asks for confirmation first. Tapping "Opt out" opens a modal that warns you can't be added back in, with "Yes" and "No" buttons — you only leave the tournament after choosing "Yes".
