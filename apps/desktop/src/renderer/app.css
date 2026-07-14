@@ -3121,6 +3121,45 @@ p {
   max-height: 42vw;
 }
 
+.racer-avatar-uploading {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  gap: 0.6rem;
+  align-content: center;
+  border-radius: 999px;
+  color: var(--theme-text);
+  background: color-mix(in srgb, var(--theme-surface) 68%, transparent);
+  backdrop-filter: blur(2px);
+}
+
+.racer-avatar-uploading__spinner {
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 999px;
+  border: 3px solid color-mix(in srgb, var(--theme-text) 26%, transparent);
+  border-top-color: var(--theme-accent);
+  animation: racer-avatar-uploading-spin 0.8s linear infinite;
+}
+
+.racer-avatar-uploading__label {
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+@keyframes racer-avatar-uploading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .racer-avatar-uploading__spinner {
+    animation-duration: 2.4s;
+  }
+}
+
 .racer-avatar-edit-button {
   position: absolute;
   top: 0.5rem;

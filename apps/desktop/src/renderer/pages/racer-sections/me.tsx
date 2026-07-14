@@ -188,6 +188,12 @@ export function MeTab({
                     src={selectedRacerAvatarUrl}
                     alt={selectedRacer.racer.displayName}
                   />
+                  {avatarUploadBusy ? (
+                    <output className="racer-avatar-uploading" aria-live="polite">
+                      <span className="racer-avatar-uploading__spinner" aria-hidden="true" />
+                      <span className="racer-avatar-uploading__label">Uploading…</span>
+                    </output>
+                  ) : null}
                   <label
                     className={`racer-avatar-edit-button${avatarUploadBusy ? " is-disabled" : ""}`}
                     aria-label="Upload new avatar"
@@ -217,7 +223,9 @@ export function MeTab({
                 <strong>{selectedRacer.racer.displayName}</strong>
               </div>
             </div>
-            {selectedRacerAvatarUrl && avatarUploadMessage ? <p>{avatarUploadMessage}</p> : null}
+            {selectedRacerAvatarUrl && (avatarUploadBusy || avatarUploadMessage) ? (
+              <p>{avatarUploadBusy ? "Uploading avatar…" : avatarUploadMessage}</p>
+            ) : null}
             <div className="button-row">
               <Button
                 variant="ghost"
@@ -305,7 +313,7 @@ export function MeTab({
             {!selectedRacerAvatarUrl ? (
               <>
                 <label htmlFor="racer-avatar-upload">
-                  Upload avatar
+                  {avatarUploadBusy ? "Uploading avatar…" : "Upload avatar"}
                   <input
                     id="racer-avatar-upload"
                     type="file"
@@ -316,7 +324,11 @@ export function MeTab({
                     }}
                   />
                 </label>
-                {avatarUploadMessage ? <p>{avatarUploadMessage}</p> : null}
+                {avatarUploadBusy ? (
+                  <output aria-live="polite">Uploading avatar…</output>
+                ) : avatarUploadMessage ? (
+                  <p>{avatarUploadMessage}</p>
+                ) : null}
               </>
             ) : null}
             {!selectedRacerHasEmail ? (

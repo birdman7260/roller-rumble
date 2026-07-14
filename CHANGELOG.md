@@ -12,6 +12,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Uploading a new avatar on the racer page now shows clear progress: a spinner overlays your avatar and an "Uploading avatar…" message appears while the photo uploads, so it's obvious the upload is working instead of appearing to do nothing.
 - Race notifications no longer pile up on your phone. Each racer now has a single live "race status" notification that updates in place as their situation changes, instead of stacking a new alert every time. It only buzzes when the news is more urgent (you're getting closer to racing) and updates quietly otherwise.
 - Your race-status notification now tracks your place in the queue: it reads "You're up!" when you're next, "get ready" when you're second or third, and quietly downgrades to a calm "hang tight" if you slip further back (for example when someone is added ahead of you). If you leave the queue, it updates to let you know you're no longer in line instead of leaving a stale "You're up!" behind.
 - Only "you're getting closer" updates buzz your phone; a notification that gives you more time updates silently, and time-sensitive alerts like "You're up!" are dropped rather than delivered late if your phone was offline. "You're up!" also now stays on screen until you act on it.
