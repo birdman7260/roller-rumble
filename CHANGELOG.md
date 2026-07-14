@@ -8,9 +8,19 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Race notifications can now be branded: push notifications show the Roller Rumble icon and status-bar badge instead of the browser's own logo (previously the Chrome logo appeared on Android). The racer page is also now an installable web app (Add to Home Screen), which is what lets iPhones receive race push notifications at all — a placeholder icon set ships now and should be replaced with the final artwork.
+
 ### Changed
 
+- Race notifications no longer pile up on your phone. Each racer now has a single live "race status" notification that updates in place as their situation changes, instead of stacking a new alert every time. It only buzzes when the news is more urgent (you're getting closer to racing) and updates quietly otherwise.
+- Your race-status notification now tracks your place in the queue: it reads "You're up!" when you're next, "get ready" when you're second or third, and quietly downgrades to a calm "hang tight" if you slip further back (for example when someone is added ahead of you). If you leave the queue, it updates to let you know you're no longer in line instead of leaving a stale "You're up!" behind.
+- Only "you're getting closer" updates buzz your phone; a notification that gives you more time updates silently, and time-sensitive alerts like "You're up!" are dropped rather than delivered late if your phone was offline. "You're up!" also now stays on screen until you act on it.
+- Tournament check-in notifications now clean up after themselves: once your tournament race is done, or the tournament ends, or you're removed from it, the "you made the tournament!" notification is replaced with an accurate message instead of lingering.
+- Acknowledging a race notification inside the app (for example tapping "I'm On My Way") now clears that notification from your phone's tray, so you won't find a stale copy of it later.
+
 ### Fixed
+
+- After you finish your race, a stale "You're up!" notification no longer lingers on your phone — it's replaced in place with a friendly "Nice work! …" message pointing you to your results, so checking your phone later can't confuse you into thinking you still need to race.
 
 ## 0.1.20 - 2026-07-14
 

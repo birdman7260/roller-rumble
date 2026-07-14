@@ -16,12 +16,21 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(notification.title, {
       body: notification.body,
+      icon: "/brand/notification-icon.png",
+      badge: "/brand/notification-badge.png",
       data: {
         notificationId: notification.notificationId,
         url: notification.url || "/racer"
       },
-      tag: notification.notificationId || "roller-rumble-update",
-      renotify: true
+      // Replace-in-place by channel: same tag updates the tray entry instead of
+      // stacking a new one (ADR-0013). Silent/de-escalation updates pass
+      // renotify:false and silent:true so they refresh without buzzing.
+      tag: notification.tag || notification.notificationId || "roller-rumble-update",
+      // A silent notification must not also renotify (Chrome rejects that combo),
+      // so silence wins regardless of what the payload claims.
+      renotify: notification.renotify !== false && notification.silent !== true,
+      silent: notification.silent === true,
+      requireInteraction: notification.requireInteraction === true
     })
   );
 });

@@ -10,7 +10,8 @@ vi.mock("./notifications", () => ({
     publicKey: "pk-test",
     message: "Push is ready."
   })),
-  sendNotificationPushes: vi.fn(async () => undefined)
+  sendNotificationPushes: vi.fn(async () => undefined),
+  isSilentNotificationType: vi.fn(() => false)
 }));
 
 const timestamp = "2026-05-29T00:00:00.000Z";

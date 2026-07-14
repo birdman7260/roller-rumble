@@ -28,6 +28,74 @@ export interface NotificationPushPayload {
   body: string;
   url: string;
   createdAt: string;
+  /** Tray identity: the channel key (replace-in-place) or the notification id. */
+  tag: string;
+  /** Re-alert on replace. False for silent de-escalation/teardown updates (ADR-0013). */
+  renotify: boolean;
+  /** Suppress sound/vibration entirely. */
+  silent: boolean;
+  /** Keep the notification on screen until acknowledged (Android). */
+  requireInteraction: boolean;
+}
+
+/**
+ * Per-type notification presentation policy (ADR-0013): escalation buzzes and
+ * (for "you're up") sticks; de-escalation and teardown update silently. `urgency`
+ * and `ttlSeconds` are transport hints — time-sensitive pushes get a short TTL so
+ * a phone that was offline never receives a stale alert late.
+ */
+export interface NotificationPresentation {
+  renotify: boolean;
+  silent: boolean;
+  requireInteraction: boolean;
+  urgency: "very-low" | "low" | "normal" | "high";
+  ttlSeconds?: number;
+}
+
+const SILENT_UPDATE: NotificationPresentation = {
+  renotify: false,
+  silent: true,
+  requireInteraction: false,
+  urgency: "low"
+};
+
+const NOTIFICATION_PRESENTATION: Record<RacerNotificationType, NotificationPresentation> = {
+  admin_message: { renotify: true, silent: false, requireInteraction: false, urgency: "normal" },
+  queue_get_ready: {
+    renotify: true,
+    silent: false,
+    requireInteraction: false,
+    urgency: "high",
+    ttlSeconds: 600
+  },
+  queue_you_are_up: {
+    renotify: true,
+    silent: false,
+    requireInteraction: true,
+    urgency: "high",
+    // Longest window of the time-sensitive alerts: this is the most important
+    // one, so a racer who is genuinely up but briefly off-network still gets it.
+    // It's still bounded so a phone offline for the whole race never buzzes late.
+    ttlSeconds: 900
+  },
+  queue_hang_tight: SILENT_UPDATE,
+  queue_status_update: SILENT_UPDATE,
+  tournament_started: {
+    renotify: true,
+    silent: false,
+    requireInteraction: false,
+    urgency: "high"
+  },
+  tournament_update: SILENT_UPDATE
+};
+
+export function getNotificationPresentation(type: RacerNotificationType): NotificationPresentation {
+  return NOTIFICATION_PRESENTATION[type];
+}
+
+/** Types whose delivery is created pre-read so they never pop an in-app modal. */
+export function isSilentNotificationType(type: RacerNotificationType): boolean {
+  return getNotificationPresentation(type).silent;
 }
 
 export function getWebPushRuntimeConfig(
@@ -59,13 +127,18 @@ export function getWebPushRuntimeConfig(
 export function buildNotificationPushPayload(
   notification: StoredNotificationRecord
 ): NotificationPushPayload {
+  const presentation = getNotificationPresentation(notification.type);
   return {
     notificationId: notification.id,
     type: notification.type,
     title: notification.title,
     body: notification.body,
     url: notification.url ?? "/racer",
-    createdAt: notification.createdAt
+    createdAt: notification.createdAt,
+    tag: notification.channelKey ?? notification.id,
+    renotify: presentation.renotify,
+    silent: presentation.silent,
+    requireInteraction: presentation.requireInteraction
   };
 }
 
@@ -142,6 +215,11 @@ export async function sendNotificationPushes(input: {
 
   webpush.setVapidDetails(input.config.subject, input.config.publicKey, input.config.privateKey);
   const payload = JSON.stringify(buildNotificationPushPayload(input.notification));
+  const presentation = getNotificationPresentation(input.notification.type);
+  const sendOptions: Parameters<typeof webpush.sendNotification>[2] = {
+    urgency: presentation.urgency,
+    ...(presentation.ttlSeconds !== undefined ? { TTL: presentation.ttlSeconds } : {})
+  };
 
   for (const delivery of input.deliveries) {
     const racerSubscriptions = subscriptionsByRacerId.get(delivery.racerId) ?? [];
@@ -157,7 +235,11 @@ export async function sendNotificationPushes(input: {
     let lastError: string | null = null;
     for (const subscription of racerSubscriptions) {
       try {
-        await webpush.sendNotification(toWebPushSubscription(subscription.subscription), payload);
+        await webpush.sendNotification(
+          toWebPushSubscription(subscription.subscription),
+          payload,
+          sendOptions
+        );
         sentSubscriptionId = subscription.id;
       } catch (error) {
         const statusCode =

@@ -1,5 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AdminSettings, AppSnapshot, RaceRecord } from "@roller-rumble/shared/types";
+import type {
+  AdminSettings,
+  AppSnapshot,
+  QueueEntry,
+  RaceRecord,
+  RacerNotificationType
+} from "@roller-rumble/shared/types";
 import type { SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { RollerRumbleApp } from "./app";
 
@@ -86,6 +92,88 @@ function getReconcileQueueRaceStatusesInvoker(): ReconcileQueueRaceStatusesInvok
   }
 
   return candidate as ReconcileQueueRaceStatusesInvoker;
+}
+
+type NotifyRaceCompletedInvoker = (this: unknown, race: RaceRecord) => void;
+
+function getNotifyRaceCompletedInvoker(): NotifyRaceCompletedInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "notifyRaceCompleted");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing race-completed notification implementation");
+  }
+
+  return candidate as NotifyRaceCompletedInvoker;
+}
+
+type NotifyTournamentEndedInvoker = (
+  this: unknown,
+  bundle: unknown,
+  excludeRacerIds?: string[]
+) => void;
+type NotifyTournamentWithdrawnInvoker = (this: unknown, bundle: unknown, racerId: string) => void;
+
+function getNotifyTournamentEndedInvoker(): NotifyTournamentEndedInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "notifyTournamentEnded");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing tournament-ended notification implementation");
+  }
+  return candidate as NotifyTournamentEndedInvoker;
+}
+
+function getNotifyTournamentWithdrawnInvoker(): NotifyTournamentWithdrawnInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "notifyTournamentWithdrawn");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing tournament-withdrawn notification implementation");
+  }
+  return candidate as NotifyTournamentWithdrawnInvoker;
+}
+
+function getTournamentChannelKeyMethod(): (this: unknown, ...args: unknown[]) => string {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "tournamentChannelKey");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing tournament channel key implementation");
+  }
+  return candidate as (this: unknown, ...args: unknown[]) => string;
+}
+
+type RunQueueTriggersInvoker = (this: unknown, eventId: string) => void;
+
+function getRunQueueTriggersInvoker(): RunQueueTriggersInvoker {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "runQueueNotificationTriggers");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing queue notification reconciler implementation");
+  }
+
+  // reconcileQueueStatusNotification is called via `this`, so bind it onto the
+  // target in each test's context.
+  return candidate as RunQueueTriggersInvoker;
+}
+
+function getReconcileQueueStatusMethod(): (this: unknown, ...args: unknown[]) => void {
+  const candidate: unknown = Reflect.get(
+    RollerRumbleApp.prototype,
+    "reconcileQueueStatusNotification"
+  );
+  if (typeof candidate !== "function") {
+    throw new Error("Missing queue-status reconcile implementation");
+  }
+  return candidate as (this: unknown, ...args: unknown[]) => void;
+}
+
+function getQueueStatusChannelKeyMethod(): (this: unknown, ...args: unknown[]) => string {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "queueStatusChannelKey");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing queue-status channel key implementation");
+  }
+  return candidate as (this: unknown, ...args: unknown[]) => string;
+}
+
+function getQueueStatusChannelPrefixMethod(): (this: unknown, ...args: unknown[]) => string {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "queueStatusChannelPrefix");
+  if (typeof candidate !== "function") {
+    throw new Error("Missing queue-status channel prefix implementation");
+  }
+  return candidate as (this: unknown, ...args: unknown[]) => string;
 }
 
 function getUnstageOpenRaceInvoker(): UnstageOpenRaceInvoker {
@@ -353,6 +441,7 @@ describe("app service countdown flow", () => {
     const emitSnapshot = vi.fn();
     const maybeAutoStageNextRace = vi.fn(() => true);
     const reconcileQueueRaceStatuses = vi.fn();
+    const notifyRaceCompleted = vi.fn();
     const invoker = getClearResultPresentationInvoker();
 
     invoker.call({
@@ -362,6 +451,7 @@ describe("app service countdown flow", () => {
       emitSnapshot,
       maybeAutoStageNextRace,
       reconcileQueueRaceStatuses,
+      notifyRaceCompleted,
       resultPresentation: {
         expiresAt: "later",
         race: { eventId: "event-1", id: "race-1", queueEntryId: "queue-1" } as RaceRecord,
@@ -372,6 +462,7 @@ describe("app service countdown flow", () => {
 
     expect(markQueueEntryStatus).toHaveBeenCalledWith("queue-1", "completed");
     expect(reconcileQueueRaceStatuses).toHaveBeenCalledWith("event-1");
+    expect(notifyRaceCompleted).toHaveBeenCalledTimes(1);
     expect(maybeAutoStageNextRace).toHaveBeenCalledTimes(1);
     expect(emitSnapshot).not.toHaveBeenCalled();
   });
@@ -1021,5 +1112,250 @@ describe("app service active event update", () => {
     expect(updateEvent).not.toHaveBeenCalled();
     expect(emitSnapshot).not.toHaveBeenCalled();
     expect(result).toBe(snapshot);
+  });
+});
+
+describe("app service race-completed notifications", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function makeTarget() {
+    const createNotificationAndDispatch = vi.fn(() => 1);
+    const target = {
+      db: {
+        getRacer: (racerId: string) => ({ displayName: `Name ${racerId}` })
+      },
+      notifications: { createNotificationAndDispatch },
+      queueStatusChannelKey: (eventId: string, racerId: string) =>
+        `queue-status:${eventId}:${racerId}`,
+      tournamentChannelKey: (tournamentId: string, racerId: string) =>
+        `tournament:${tournamentId}:${racerId}`
+    };
+    return { target, createNotificationAndDispatch };
+  }
+
+  it("supersedes each participant's own queue-status channel with a silent update", () => {
+    const { target, createNotificationAndDispatch } = makeTarget();
+
+    getNotifyRaceCompletedInvoker().call(
+      target,
+      buildRaceRecord({
+        id: "race-9",
+        eventId: "event-1",
+        queueEntryId: "queue-1",
+        participants: [
+          { lane: "left", racerId: "racer-1" },
+          { lane: "right", racerId: "racer-2" }
+        ]
+      })
+    );
+
+    expect(createNotificationAndDispatch).toHaveBeenCalledTimes(2);
+    expect(createNotificationAndDispatch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: "queue_status_update",
+        channelKey: "queue-status:event-1:racer-1",
+        triggerKey: "queue-raced:race-9:racer-1",
+        racerIds: ["racer-1"]
+      })
+    );
+    expect(createNotificationAndDispatch).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ channelKey: "queue-status:event-1:racer-2" })
+    );
+  });
+
+  it("supersedes each participant's tournament channel for a tournament race", () => {
+    const { target, createNotificationAndDispatch } = makeTarget();
+
+    getNotifyRaceCompletedInvoker().call(
+      target,
+      buildRaceRecord({
+        id: "race-t",
+        queueEntryId: null,
+        tournamentId: "tournament-1",
+        participants: [
+          { lane: "left", racerId: "racer-1" },
+          { lane: "right", racerId: "racer-2" }
+        ]
+      })
+    );
+
+    expect(createNotificationAndDispatch).toHaveBeenCalledTimes(2);
+    expect(createNotificationAndDispatch).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        type: "tournament_update",
+        channelKey: "tournament:tournament-1:racer-1",
+        triggerKey: "tournament-race-done:race-t:racer-1"
+      })
+    );
+  });
+
+  it("does nothing for a race with neither a queue entry nor a tournament", () => {
+    const { target, createNotificationAndDispatch } = makeTarget();
+
+    getNotifyRaceCompletedInvoker().call(
+      target,
+      buildRaceRecord({ queueEntryId: null, tournamentId: null })
+    );
+
+    expect(createNotificationAndDispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("app service queue-status reconciler", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function makeEntry(position: number, status: QueueEntry["status"], racerId: string): QueueEntry {
+    return {
+      id: `entry-${racerId}`,
+      position,
+      status,
+      racerIds: [racerId]
+    } as unknown as QueueEntry;
+  }
+
+  function runReconcile(
+    entries: QueueEntry[],
+    live: { channelKey: string; type: RacerNotificationType }[]
+  ) {
+    const createNotificationAndDispatch =
+      vi.fn<(input: { channelKey?: string; type: string }) => number>();
+    const target = {
+      db: {
+        listQueueEntries: () => entries,
+        listLiveChannelNotifications: () => live,
+        getRacer: (racerId: string) => ({ displayName: `Name ${racerId}` })
+      },
+      notifications: { createNotificationAndDispatch },
+      queueStatusChannelKey: getQueueStatusChannelKeyMethod(),
+      queueStatusChannelPrefix: getQueueStatusChannelPrefixMethod(),
+      reconcileQueueStatusNotification: getReconcileQueueStatusMethod()
+    };
+    getRunQueueTriggersInvoker().call(target, "event-1");
+    return createNotificationAndDispatch;
+  }
+
+  it("assigns you're-up / get-ready / hang-tight by queue position", () => {
+    const dispatch = runReconcile(
+      [
+        makeEntry(1, "queued", "r1"),
+        makeEntry(2, "queued", "r2"),
+        makeEntry(3, "queued", "r3"),
+        makeEntry(4, "queued", "r4")
+      ],
+      []
+    );
+
+    const byChannel = new Map(dispatch.mock.calls.map(([arg]) => [arg.channelKey, arg.type]));
+    expect(byChannel.get("queue-status:event-1:r1")).toBe("queue_you_are_up");
+    expect(byChannel.get("queue-status:event-1:r2")).toBe("queue_get_ready");
+    expect(byChannel.get("queue-status:event-1:r3")).toBe("queue_get_ready");
+    expect(byChannel.get("queue-status:event-1:r4")).toBe("queue_hang_tight");
+  });
+
+  it("does not re-notify when the live status already matches the desired state", () => {
+    const dispatch = runReconcile(
+      [makeEntry(1, "queued", "r1")],
+      [{ channelKey: "queue-status:event-1:r1", type: "queue_you_are_up" }]
+    );
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+
+  it("supersedes a removed racer's live waiting status with a silent update", () => {
+    const dispatch = runReconcile(
+      [],
+      [{ channelKey: "queue-status:event-1:r1", type: "queue_you_are_up" }]
+    );
+    expect(dispatch).toHaveBeenCalledTimes(1);
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "queue_status_update",
+        channelKey: "queue-status:event-1:r1"
+      })
+    );
+  });
+
+  it("leaves a racing racer's status alone (not treated as removed)", () => {
+    const dispatch = runReconcile(
+      [makeEntry(1, "racing", "r1")],
+      [{ channelKey: "queue-status:event-1:r1", type: "queue_you_are_up" }]
+    );
+    expect(dispatch).not.toHaveBeenCalled();
+  });
+});
+
+describe("app service tournament notifications", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  function makeBundle(racerIds: string[]) {
+    return {
+      tournament: { id: "t1", eventId: "event-1" },
+      seeds: racerIds.map((racerId) => ({ racerId })),
+      bracketNodes: [],
+      groupMatches: []
+    };
+  }
+
+  function makeTarget() {
+    const createNotificationAndDispatch =
+      vi.fn<(input: { type: string; channelKey?: string; triggerKey?: string }) => number>();
+    const target = {
+      db: { getRacer: (racerId: string) => ({ displayName: `Name ${racerId}` }) },
+      notifications: { createNotificationAndDispatch },
+      tournamentChannelKey: getTournamentChannelKeyMethod()
+    };
+    return { target, createNotificationAndDispatch };
+  }
+
+  it("supersedes every participant's tournament channel when the tournament ends", () => {
+    const { target, createNotificationAndDispatch } = makeTarget();
+
+    getNotifyTournamentEndedInvoker().call(target, makeBundle(["r1", "r2"]));
+
+    expect(createNotificationAndDispatch).toHaveBeenCalledTimes(2);
+    expect(createNotificationAndDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tournament_update",
+        channelKey: "tournament:t1:r1",
+        triggerKey: "tournament-ended:t1:r1"
+      })
+    );
+  });
+
+  it("skips excluded racers so a withdrawn racer is not also told 'thanks for racing'", () => {
+    const { target, createNotificationAndDispatch } = makeTarget();
+
+    getNotifyTournamentEndedInvoker().call(target, makeBundle(["r1", "r2"]), ["r1"]);
+
+    expect(createNotificationAndDispatch).toHaveBeenCalledTimes(1);
+    expect(createNotificationAndDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ channelKey: "tournament:t1:r2" })
+    );
+    expect(createNotificationAndDispatch).not.toHaveBeenCalledWith(
+      expect.objectContaining({ channelKey: "tournament:t1:r1" })
+    );
+  });
+
+  it("supersedes the withdrawn racer's tournament channel with a removal notice", () => {
+    const { target, createNotificationAndDispatch } = makeTarget();
+
+    getNotifyTournamentWithdrawnInvoker().call(target, makeBundle(["r1", "r2"]), "r1");
+
+    expect(createNotificationAndDispatch).toHaveBeenCalledTimes(1);
+    expect(createNotificationAndDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "tournament_update",
+        channelKey: "tournament:t1:r1",
+        triggerKey: "tournament-withdrawn:t1:r1"
+      })
+    );
   });
 });

@@ -182,6 +182,8 @@ export interface RacerNotification {
   body: string;
   url?: string | null;
   eventId?: string | null;
+  /** Tray channel key; the client closes matching OS notifications on acknowledgement. */
+  channelKey?: string | null;
   readAt?: string | null;
   deliveryStatus: NotificationDeliveryStatus;
   createdAt: string;
