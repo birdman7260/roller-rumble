@@ -13,6 +13,7 @@ import type {
   TournamentBundle,
   WebPushSubscriptionInput
 } from "@roller-rumble/shared/types";
+import { ToastProvider, useToast } from "@roller-rumble/shared-ui/toast";
 import type { BracketPresentationRequest } from "../components/elimination-bracket-view";
 import {
   ApiError,
@@ -474,6 +475,7 @@ function useRacerPageViewModel({
   const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
   const notificationConfigQuery = useNotificationConfigQuery();
+  const { showToast } = useToast();
   const [state, setState] = useReducer(racerPageReducer, initialTab, createInitialRacerPageState);
   const {
     accountlessDisplayName,
@@ -746,17 +748,62 @@ function useRacerPageViewModel({
     notifications.forEach((notification) => {
       knownNotificationIdsRef.current?.add(notification.notificationId);
     });
-    if (newUnreadNotifications.length === 0) {
+
+    // A channel's newest record supersedes older ones server-side, so a
+    // superseded or acknowledged notification drops out of `notifications`
+    // entirely. Reconcile the modal queue against what's still live and unread
+    // so in-app modals replace in place just like the OS tray: a modal whose
+    // record is gone has been superseded and is swapped for its successor
+    // ("Race Coming Up" → "You're Up!") or cleared outright ("You're Up!" → the
+    // silent "Nice work!" once the race finishes) — never stacked behind a stale
+    // copy the racer has to dismiss first.
+    const liveUnreadIds = new Set<string>();
+    for (const notification of notifications) {
+      if (!notification.readAt) {
+        liveUnreadIds.add(notification.notificationId);
+      }
+    }
+    const retained = modalNotifications.filter((notification) =>
+      liveUnreadIds.has(notification.notificationId)
+    );
+    const retainedIds = new Set(retained.map((notification) => notification.notificationId));
+    const additions = [...newUnreadNotifications]
+      .reverse()
+      .filter((notification) => !retainedIds.has(notification.notificationId));
+    const nextModalNotifications = [...retained, ...additions];
+
+    const sameQueue =
+      nextModalNotifications.length === modalNotifications.length &&
+      nextModalNotifications.every(
+        (notification, index) =>
+          notification.notificationId === modalNotifications[index]?.notificationId
+      );
+    if (sameQueue) {
       return;
     }
 
-    scheduleModalNotifications([...newUnreadNotifications].reverse());
+    // Clear the stale acknowledgement line whenever the visible (front) modal
+    // changes so a superseding modal starts clean.
+    const activeModalChanged =
+      nextModalNotifications[0]?.notificationId !== modalNotifications[0]?.notificationId;
+
+    modalTimer = window.setTimeout(() => {
+      setState({
+        modalActionMessage: activeModalChanged ? null : modalActionMessage,
+        modalNotifications: nextModalNotifications
+      });
+    }, 0);
     return () => {
       if (modalTimer !== null) {
         window.clearTimeout(modalTimer);
       }
     };
-  }, [launchedNotificationId, modalNotifications, racerNotificationsQuery.data]);
+  }, [
+    launchedNotificationId,
+    modalActionMessage,
+    modalNotifications,
+    racerNotificationsQuery.data
+  ]);
 
   function rememberSignedInRacer(result: {
     racer: { id: string; displayName: string };
@@ -874,7 +921,14 @@ function useRacerPageViewModel({
       return;
     }
 
-    const registration = await navigator.serviceWorker.register("/racer-notifications-sw.js");
+    // `updateViaCache: "none"` stops the browser from serving a stale worker
+    // script from the HTTP cache, and the explicit update() forces an immediate
+    // check so a device on an older worker picks up the current push handler
+    // (paired with skipWaiting/clients.claim in the worker) rather than waiting.
+    const registration = await navigator.serviceWorker.register("/racer-notifications-sw.js", {
+      updateViaCache: "none"
+    });
+    await registration.update();
     const existingSubscription = await registration.pushManager.getSubscription();
     const subscription =
       existingSubscription ??
@@ -934,6 +988,30 @@ function useRacerPageViewModel({
     await saveGrantedNotificationSubscription();
   }
 
+  function showQueueSignupToast(input: {
+    opponentRacerId?: string;
+    requestedType?: "solo" | "auto-match";
+    replaceQueueEntryId?: string;
+  }): void {
+    // The challenge-replacement confirm re-enters this success path with
+    // replaceQueueEntryId set; that flow has its own modal, so stay quiet here.
+    if (input.replaceQueueEntryId) {
+      return;
+    }
+    if (input.opponentRacerId) {
+      const opponentName = snapshot ? resolveRacerName(snapshot, input.opponentRacerId, "") : "";
+      showToast({
+        message: opponentName ? `Challenge sent to ${opponentName}.` : "Challenge sent."
+      });
+      return;
+    }
+    if (input.requestedType === "solo") {
+      showToast({ message: "Solo run queued — you're up next." });
+      return;
+    }
+    showToast({ message: "You're in the queue for the next race." });
+  }
+
   async function handleQueueSignup(input: {
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
@@ -980,6 +1058,7 @@ function useRacerPageViewModel({
       queryClient.setQueryData(snapshotQueryKey, result.snapshot);
       setQueueMessage(null);
       setNotificationPromptVisible(true);
+      showQueueSignupToast(input);
     } catch (error) {
       if (error instanceof ApiError && error.code === "payment_required") {
         setQueueMessage(error.message);
@@ -1626,6 +1705,14 @@ function RacerPageView({
 }
 
 export function RacerPage(props: RacerPageProps) {
+  return (
+    <ToastProvider>
+      <RacerPageContent {...props} />
+    </ToastProvider>
+  );
+}
+
+function RacerPageContent(props: RacerPageProps) {
   const viewModel = useRacerPageViewModel(props);
   useEffect(() => {
     document.body.classList.add("route-racer");

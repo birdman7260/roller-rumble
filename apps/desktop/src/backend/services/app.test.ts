@@ -462,7 +462,8 @@ describe("app service countdown flow", () => {
 
     expect(markQueueEntryStatus).toHaveBeenCalledWith("queue-1", "completed");
     expect(reconcileQueueRaceStatuses).toHaveBeenCalledWith("event-1");
-    expect(notifyRaceCompleted).toHaveBeenCalledTimes(1);
+    // "Nice work!" now fires at finalization, not when the overlay clears.
+    expect(notifyRaceCompleted).not.toHaveBeenCalled();
     expect(maybeAutoStageNextRace).toHaveBeenCalledTimes(1);
     expect(emitSnapshot).not.toHaveBeenCalled();
   });
@@ -1241,7 +1242,7 @@ describe("app service queue-status reconciler", () => {
     return createNotificationAndDispatch;
   }
 
-  it("assigns you're-up / get-ready / hang-tight by queue position", () => {
+  it("assigns you're-up / get-ready by queue position and stays silent further back", () => {
     const dispatch = runReconcile(
       [
         makeEntry(1, "queued", "r1"),
@@ -1256,7 +1257,28 @@ describe("app service queue-status reconciler", () => {
     expect(byChannel.get("queue-status:event-1:r1")).toBe("queue_you_are_up");
     expect(byChannel.get("queue-status:event-1:r2")).toBe("queue_get_ready");
     expect(byChannel.get("queue-status:event-1:r3")).toBe("queue_get_ready");
-    expect(byChannel.get("queue-status:event-1:r4")).toBe("queue_hang_tight");
+    // A racer joining behind the get-ready zone with no live status gets nothing
+    // (hang-tight is only a silent downgrade, never a first touch).
+    expect(byChannel.has("queue-status:event-1:r4")).toBe(false);
+  });
+
+  it("downgrades a racer who drifts back into the hang-tight zone", () => {
+    const dispatch = runReconcile(
+      [
+        makeEntry(1, "queued", "r1"),
+        makeEntry(2, "queued", "r2"),
+        makeEntry(3, "queued", "r3"),
+        makeEntry(4, "queued", "r4")
+      ],
+      [{ channelKey: "queue-status:event-1:r4", type: "queue_get_ready" }]
+    );
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "queue_hang_tight",
+        channelKey: "queue-status:event-1:r4"
+      })
+    );
   });
 
   it("does not re-notify when the live status already matches the desired state", () => {

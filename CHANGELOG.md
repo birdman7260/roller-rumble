@@ -8,6 +8,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- The racer page now confirms your action with a brief toast that slides up from the bottom and fades away on its own (tap it to dismiss sooner). You'll see "You're in the queue for the next race." after tapping Join Queue, "Solo run queued — you're up next." after a Solo Run, and "Challenge sent to <name>." after challenging someone from either the queue controls or the Racers tab.
 - Race notifications can now be branded: push notifications show the Roller Rumble icon and status-bar badge instead of the browser's own logo (previously the Chrome logo appeared on Android). The racer page is also now an installable web app (Add to Home Screen), which is what lets iPhones receive race push notifications at all — a placeholder icon set ships now and should be replaced with the final artwork.
 
 ### Changed
@@ -21,7 +22,12 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Race notifications now actually replace each other in the tray instead of stacking up on your phone. Devices could keep running an older background notification handler that stacked every alert; the app now updates that handler right away so the single live "race status" notification behaves as intended.
 - After you finish your race, a stale "You're up!" notification no longer lingers on your phone — it's replaced in place with a friendly "Nice work! …" message pointing you to your results, so checking your phone later can't confuse you into thinking you still need to race.
+- The "Nice work!" message now arrives the moment your race finishes, instead of waiting until the winner overlay clears about fifteen seconds later.
+- Finishing your race no longer briefly flashes a "Queue update — you're no longer in the race queue" notification before the "Nice work!" message. That false "you left the queue" alert is gone.
+- Joining the queue several races back no longer buzzes you with a "You're in the queue" notification right away. Your first race-status notification now arrives as you approach the front ("get ready"); the quiet "hang tight" message only appears if you slip backward after already being close.
+- The pop-up messages on the racer page now replace each other in place, matching how the phone notifications behave. When your status changes from "Race Coming Up" to "You're Up!", the pop-up swaps to the new message instead of making you dismiss the old one first, and a "You're Up!" pop-up clears itself once your race is done rather than lingering.
 
 ## 0.1.20 - 2026-07-14
 

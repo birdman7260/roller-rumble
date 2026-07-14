@@ -1,5 +1,17 @@
 /* global self, URL */
 
+// Take over as soon as a new version is fetched instead of waiting for every
+// Roller Rumble tab to close. Without this, a device that already registered an
+// older worker keeps running its push handler indefinitely — which is how stale
+// "replace-in-place" logic leaves notifications stacking in the tray.
+self.addEventListener("install", () => {
+  self.skipWaiting();
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener("push", (event) => {
   const fallback = {
     title: "Roller Rumble",

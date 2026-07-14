@@ -197,6 +197,12 @@ async function proxyDevRequest(
     }
     res.setHeader(key, value);
   });
+  // Vite serves dev assets (CSS especially) at stable URLs, and phones reaching us
+  // over the tunnel will cache them aggressively — leaving a device stuck on a
+  // stale bundle after an edit until its site data is cleared by hand. This proxy
+  // only runs in dev, so force no-store here to keep every test device honest.
+  // Production static serving keeps its hashed filenames and normal caching.
+  res.setHeader("Cache-Control", "no-store");
   res.send(body);
 }
 

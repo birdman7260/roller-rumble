@@ -8,6 +8,10 @@
       "types": "./src/ui.tsx",
       "import": "./src/ui.tsx"
     },
+    "./toast": {
+      "types": "./src/toast.ts",
+      "import": "./src/toast.ts"
+    },
     "./theme": {
       "types": "./src/theme.ts",
       "import": "./src/theme.ts"

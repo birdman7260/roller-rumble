@@ -498,6 +498,19 @@ export class RollerRumbleApp extends EventEmitter {
       if (currentType === message.type) {
         return;
       }
+      // "Hang tight" is only ever a silent *downgrade* of an already-shown
+      // status (ADR-0013), never a first touch. A racer who joins further back
+      // than the get-ready zone — or who re-queues after a "Nice work!" — has no
+      // live waiting status to downgrade, so materializing one from nothing is
+      // just noise. Skip it; their first real alert is "get ready" as they near
+      // the front. Only an actual you're-up/get-ready racer drifting back sends.
+      if (
+        desired === "hang_tight" &&
+        currentType !== "queue_you_are_up" &&
+        currentType !== "queue_get_ready"
+      ) {
+        return;
+      }
       this.notifications.createNotificationAndDispatch({
         eventId,
         type: message.type,
@@ -758,7 +771,8 @@ export class RollerRumbleApp extends EventEmitter {
       this.db.markQueueEntryStatus(completedRace.queueEntryId, "completed");
     }
     this.reconcileQueueRaceStatuses(completedRace.eventId);
-    this.notifyRaceCompleted(completedRace);
+    // "Nice work!" already fired at finalization (handleRaceFinalized); the
+    // per-racer triggerKey means re-calling here would be a no-op anyway.
     this.resultPresentation = null;
     // Auto-stage waits until the audience result beat is finished so the projector and admin
     // workflow both move forward at the same deliberate moment.
@@ -2504,6 +2518,13 @@ export class RollerRumbleApp extends EventEmitter {
   private handleRaceFinalized({ race, winnerRacerId }: FinalizedRaceResult): void {
     this.currentActiveRace = null;
     this.applyTournamentRaceOutcome(race, winnerRacerId);
+    // Supersede the participants' live queue status with "Nice work!" the instant
+    // the race finishes — not when the winner overlay clears 15s later. Doing it
+    // here both delivers the "you're done" beat on time and closes the window
+    // where reconcileQueueRaceStatuses (via getSnapshot) has already flipped the
+    // entry to "completed" while the racer still shows a live "You're up!",
+    // which otherwise leaked a spurious "Queue update: no longer in the queue".
+    this.notifyRaceCompleted(race);
     this.showRaceResultPresentation(race, winnerRacerId);
     if (!this.maybeAutoStageNextRace()) {
       this.runQueueNotificationTriggers(race.eventId);
