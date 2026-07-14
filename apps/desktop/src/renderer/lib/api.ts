@@ -139,6 +139,14 @@ export async function fetchMeta(): Promise<{
   return parseJson(await fetch(buildUrl("/api/meta")));
 }
 
+export async function fetchRacerQrCodeSvg(): Promise<string> {
+  const response = await fetch(buildUrl("/api/meta/qr-code.svg"));
+  if (!response.ok) {
+    throw new ApiError("Failed to load QR code.", response.status);
+  }
+  return response.text();
+}
+
 export async function fetchRuntimeEnvInfo(): Promise<RuntimeEnvInfo> {
   return parseJson(await fetch(buildUrl("/api/runtime-env")));
 }

@@ -12,6 +12,7 @@ import type {
 import { Button, Panel, StatPill } from "@roller-rumble/shared-ui";
 import {
   ensureRuntimeEnvFile,
+  fetchRacerQrCodeSvg,
   generateRuntimeEnvPushKeys,
   installCloudflared,
   openLabPage,
@@ -41,6 +42,19 @@ const boothHardwareLabels = {
   umbrella: "Umbrella",
   hallSensor: "Hall Sensor"
 } as const;
+
+async function downloadRacerQrCodeSvg(): Promise<void> {
+  const svg = await fetchRacerQrCodeSvg();
+  const blob = new Blob([svg], { type: "image/svg+xml" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = "racer-signup-qr.svg";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 function parseTickerMessages(value: string): string[] {
   return value
@@ -1006,6 +1020,14 @@ export function SettingsTab({
           {meta?.qrCodeDataUrl ? (
             <img className="qr-code" src={meta.qrCodeDataUrl} alt="Racer page signup" />
           ) : null}
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(downloadRacerQrCodeSvg(), "download racer QR code");
+            }}
+          >
+            Save QR Code (SVG)
+          </Button>
         </div>
       </Panel>
 

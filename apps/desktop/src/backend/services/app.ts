@@ -1063,15 +1063,19 @@ export class RollerRumbleApp extends EventEmitter {
     });
   }
 
-  getRacerPageUrl(): string {
-    const tunnel = this.tunnelManager.getState();
-    const activeEvent = this.db.getActiveEvent();
-    const baseUrl = tunnel.publicUrl ?? `${this.getLocalBaseUrl()}/racer`;
-    const url = new URL(baseUrl);
+  // Event-agnostic QR code (no eventId/source params) so the same SVG can be
+  // printed once and reused across every event.
+  async getRacerPageQrCodeSvg(): Promise<string> {
+    return QRCode.toString(this.getRacerPageShareUrl(), {
+      type: "svg",
+      margin: 1,
+      width: 220
+    });
+  }
 
-    if (!url.pathname.endsWith("/racer")) {
-      url.pathname = "/racer";
-    }
+  getRacerPageUrl(): string {
+    const url = this.buildRacerPageUrl();
+    const activeEvent = this.db.getActiveEvent();
 
     if (activeEvent) {
       url.searchParams.set("eventId", activeEvent.id);
@@ -1079,6 +1083,23 @@ export class RollerRumbleApp extends EventEmitter {
     url.searchParams.set("source", "projector");
 
     return url.toString();
+  }
+
+  // Racer page URL without any event-specific query params.
+  getRacerPageShareUrl(): string {
+    return this.buildRacerPageUrl().toString();
+  }
+
+  private buildRacerPageUrl(): URL {
+    const tunnel = this.tunnelManager.getState();
+    const baseUrl = tunnel.publicUrl ?? `${this.getLocalBaseUrl()}/racer`;
+    const url = new URL(baseUrl);
+
+    if (!url.pathname.endsWith("/racer")) {
+      url.pathname = "/racer";
+    }
+
+    return url;
   }
 
   private getPhotoBoothPairing(): PhotoBoothPairing {

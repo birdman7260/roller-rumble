@@ -440,6 +440,17 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     });
   });
 
+  app.get(`${API_PREFIX}/meta/qr-code.svg`, async (_req, res, next) => {
+    try {
+      const svg = await service.getRacerPageQrCodeSvg();
+      res.setHeader("Content-Type", "image/svg+xml");
+      res.setHeader("Content-Disposition", 'attachment; filename="racer-signup-qr.svg"');
+      res.send(svg);
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post(`${API_PREFIX}/projector/window-size`, async (req, res, next) => {
     try {
       if (!options.resizeProjectorWindow) {
