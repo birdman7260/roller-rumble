@@ -77,7 +77,10 @@ const notificationTypeLabels: Record<RacerNotificationType, string> = {
   admin_message: "Host Message",
   queue_get_ready: "Queue Get-Ready",
   queue_you_are_up: "Queue You're Up",
-  tournament_started: "Tournament Started"
+  queue_hang_tight: "Queue Hang Tight",
+  queue_status_update: "Queue Status Update",
+  tournament_started: "Tournament Started",
+  tournament_update: "Tournament Update"
 };
 
 const notificationTemplates: Record<RacerNotificationType, NotificationTemplate> = {
@@ -93,9 +96,21 @@ const notificationTemplates: Record<RacerNotificationType, NotificationTemplate>
     title: "You're up!",
     body: "Head to the stage, pedal fast!"
   },
+  queue_hang_tight: {
+    title: "You're in the queue",
+    body: "Hang tight — we'll buzz you when you're close."
+  },
+  queue_status_update: {
+    title: "Nice work!",
+    body: "That's your race done — results are on your phone."
+  },
   tournament_started: {
     title: "Tournament Check-In",
     body: "The tournament is starting. Confirm with the host if you need to drop out."
+  },
+  tournament_update: {
+    title: "Tournament Update",
+    body: "You're checked in — hang tight for your match."
   }
 };
 

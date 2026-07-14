@@ -3,9 +3,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { QueueEntry, TournamentBundle } from "@roller-rumble/shared/types";
 import {
   buildNotificationPushPayload,
+  getNotificationPresentation,
   getThirdUpcomingQueueEntry,
   getTournamentNotificationRacerIds,
   getWebPushRuntimeConfig,
+  isSilentNotificationType,
   sendNotificationPushes
 } from "./notifications";
 
@@ -102,7 +104,7 @@ describe("notification helpers", () => {
     ]);
   });
 
-  it("builds a compact service-worker push payload", () => {
+  it("builds a compact service-worker push payload with channel tag and presentation", () => {
     expect(
       buildNotificationPushPayload({
         id: "notification-1",
@@ -112,6 +114,8 @@ describe("notification helpers", () => {
         body: "You are third.",
         url: "/racer",
         triggerKey: "queue-third",
+        channelKey: "queue-status:event-1:racer-1",
+        supersededAt: null,
         createdBy: null,
         createdAt: timestamp
       })
@@ -121,8 +125,59 @@ describe("notification helpers", () => {
       title: "Get ready",
       body: "You are third.",
       url: "/racer",
+      createdAt: timestamp,
+      tag: "queue-status:event-1:racer-1",
+      renotify: true,
+      silent: false,
+      requireInteraction: false
+    });
+  });
+
+  it("buzzes and sticks on escalation, updates silently on teardown (ADR-0013)", () => {
+    // Escalation: "you're up" re-alerts and stays on screen.
+    const youAreUp = getNotificationPresentation("queue_you_are_up");
+    expect(youAreUp.silent).toBe(false);
+    expect(youAreUp.renotify).toBe(true);
+    expect(youAreUp.requireInteraction).toBe(true);
+    expect(youAreUp.urgency).toBe("high");
+    expect(youAreUp.ttlSeconds).toBeGreaterThan(0);
+
+    // Teardown/de-escalation: silent replace-in-place.
+    expect(isSilentNotificationType("queue_status_update")).toBe(true);
+    expect(isSilentNotificationType("tournament_update")).toBe(true);
+    const statusUpdate = getNotificationPresentation("queue_status_update");
+    expect(statusUpdate.silent).toBe(true);
+    expect(statusUpdate.renotify).toBe(false);
+
+    // Escalation types are never created pre-read.
+    expect(isSilentNotificationType("queue_you_are_up")).toBe(false);
+    expect(isSilentNotificationType("admin_message")).toBe(false);
+  });
+
+  it("uses the notification id as the tag when there is no channel", () => {
+    const payload = buildNotificationPushPayload({
+      id: "notification-2",
+      type: "admin_message",
+      title: "Hello",
+      body: "Host message.",
+      url: "/racer",
       createdAt: timestamp
     });
+    expect(payload.tag).toBe("notification-2");
+  });
+
+  it("marks silent status updates for quiet replace-in-place", () => {
+    const payload = buildNotificationPushPayload({
+      id: "notification-3",
+      type: "queue_status_update",
+      title: "Nice work!",
+      body: "That's your race done.",
+      url: "/racer",
+      channelKey: "queue-status:event-1:racer-1",
+      createdAt: timestamp
+    });
+    expect(payload.silent).toBe(true);
+    expect(payload.renotify).toBe(false);
   });
 
   it("keeps inbox delivery records when Web Push is not configured", async () => {

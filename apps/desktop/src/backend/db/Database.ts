@@ -135,6 +135,8 @@ export interface StoredNotificationRecord {
   body: string;
   url?: string | null;
   triggerKey?: string | null;
+  channelKey?: string | null;
+  supersededAt?: string | null;
   createdBy?: string | null;
   createdAt: string;
 }
@@ -250,6 +252,12 @@ function mapPushSubscription(row: PushSubscriptionRow): StoredPushSubscription {
   };
 }
 
+// Escape SQL LIKE wildcards so a channel-key prefix built from ids (nanoid can
+// contain `_`, a LIKE wildcard) matches literally. Paired with `ESCAPE '\'`.
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, (match) => `\\${match}`);
+}
+
 function mapNotification(row: NotificationRow): StoredNotificationRecord {
   return {
     id: row.id,
@@ -259,6 +267,8 @@ function mapNotification(row: NotificationRow): StoredNotificationRecord {
     body: row.body,
     url: row.url,
     triggerKey: row.triggerKey,
+    channelKey: row.channelKey,
+    supersededAt: row.supersededAt,
     createdBy: row.createdBy,
     createdAt: row.createdAt
   };
@@ -1250,6 +1260,13 @@ export class AppDatabase {
     body: string;
     url?: string | null;
     triggerKey?: string | null;
+    channelKey?: string | null;
+    /**
+     * Silent notifications are informational teardown/de-escalation updates
+     * (ADR-0013): they refresh the tray without buzzing and are created
+     * pre-read so they never pop an in-app modal or bump the unread count.
+     */
+    silent?: boolean;
     createdBy?: string | null;
     racerIds: string[];
   }): CreatedNotificationBatch | null {
@@ -1271,12 +1288,13 @@ export class AppDatabase {
 
     const notificationId = nanoid();
     const timestamp = nowIso();
+    const deliveryReadAt = input.silent ? timestamp : null;
     const deliveries: StoredNotificationDeliveryRecord[] = racerIds.map((racerId) => ({
       id: nanoid(),
       notificationId,
       racerId,
       status: "pending",
-      readAt: null,
+      readAt: deliveryReadAt,
       pushSubscriptionId: null,
       pushError: null,
       sentAt: null,
@@ -1285,9 +1303,19 @@ export class AppDatabase {
     }));
 
     const transaction = this.db.transaction(() => {
+      // Replace-in-place: retire any live record in this channel before the new
+      // one lands, so the inbox and tray only ever show the latest truth.
+      if (input.channelKey) {
+        this.db
+          .prepare(
+            "UPDATE notifications SET superseded_at = ? WHERE channel_key = ? AND superseded_at IS NULL"
+          )
+          .run(timestamp, input.channelKey);
+      }
+
       this.db
         .prepare(
-          "INSERT INTO notifications (id, event_id, type, title, body, url, trigger_key, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          "INSERT INTO notifications (id, event_id, type, title, body, url, trigger_key, channel_key, superseded_at, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
         )
         .run(
           notificationId,
@@ -1297,6 +1325,8 @@ export class AppDatabase {
           input.body,
           input.url ?? null,
           input.triggerKey ?? null,
+          input.channelKey ?? null,
+          null,
           input.createdBy ?? null,
           timestamp
         );
@@ -1330,11 +1360,34 @@ export class AppDatabase {
         body: input.body,
         url: input.url ?? null,
         triggerKey: input.triggerKey ?? null,
+        channelKey: input.channelKey ?? null,
+        supersededAt: null,
         createdBy: input.createdBy ?? null,
         createdAt: timestamp
       },
       deliveries
     };
+  }
+
+  /**
+   * The current (non-superseded) notification type per channel for a channel-key
+   * prefix — used by the queue reconciler to decide whether a racer's live
+   * status differs from what they should now see (ADR-0013).
+   */
+  listLiveChannelNotifications(
+    channelKeyPrefix: string
+  ): { channelKey: string; type: RacerNotificationType }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT channel_key AS channelKey, type
+         FROM notifications
+         WHERE superseded_at IS NULL AND channel_key LIKE ? ESCAPE '\\'`
+      )
+      .all(`${escapeLikePattern(channelKeyPrefix)}%`) as {
+      channelKey: string;
+      type: RacerNotificationType;
+    }[];
+    return rows;
   }
 
   getNotification(notificationId: string): StoredNotificationRecord | null {
@@ -1402,10 +1455,12 @@ export class AppDatabase {
            notifications.body AS body,
            notifications.url AS url,
            notifications.event_id AS eventId,
+           notifications.channel_key AS channelKey,
            notifications.created_at AS createdAt
          FROM notification_deliveries
          INNER JOIN notifications ON notifications.id = notification_deliveries.notification_id
          WHERE notification_deliveries.racer_id = ?
+           AND notifications.superseded_at IS NULL
          ORDER BY notifications.created_at DESC
          LIMIT ?`
       )
@@ -1420,6 +1475,7 @@ export class AppDatabase {
         `SELECT
            COUNT(notification_deliveries.id) AS deliveryCount,
            MAX(notifications.created_at) AS newestNotificationAt,
+           MAX(notifications.superseded_at) AS newestSupersededAt,
            MAX(notification_deliveries.read_at) AS newestReadAt
          FROM notification_deliveries
          INNER JOIN notifications ON notifications.id = notification_deliveries.notification_id`
@@ -1427,12 +1483,16 @@ export class AppDatabase {
       .get() as {
       deliveryCount: number;
       newestNotificationAt: string | null;
+      newestSupersededAt: string | null;
       newestReadAt: string | null;
     };
 
-    return [String(row.deliveryCount), row.newestNotificationAt ?? "", row.newestReadAt ?? ""].join(
-      ":"
-    );
+    return [
+      String(row.deliveryCount),
+      row.newestNotificationAt ?? "",
+      row.newestSupersededAt ?? "",
+      row.newestReadAt ?? ""
+    ].join(":");
   }
 
   markNotificationRead(racerId: string, notificationId: string): void {

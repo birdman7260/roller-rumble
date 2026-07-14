@@ -128,6 +128,20 @@ _Avoid_: closed queue (that is the operator-driven gate)
 **AppSnapshot**: The complete derived state broadcast over WebSocket to all connected surfaces (admin, projector, racer). Assembled from SQLite on demand; not the source of truth itself.
 _Avoid_: state, live state
 
+### Notifications
+
+**notification channel**: A keyed stream of notifications to one racer (`channelKey`, e.g. `queue-status:<eventId>:<racerId>`) of which only the latest, non-superseded record is ever shown — the push tray uses the `channelKey` as its notification `tag`, and the racer inbox/modal show one row per channel. Automatic notifications belong to a channel; a manual `admin message` is a discrete one-off.
+_Avoid_: notification thread, notification group.
+
+**queue-status notification**: The single live `notification channel` tracking one racer's standing in the `Queue` — it escalates (approaching → you're up) and winds down (raced, removed, queue closed) by `supersession`, never by stacking new tray entries. Only escalation re-alerts (buzzes); de-escalation and teardown update silently.
+_Avoid_: race reminder, up-next alert (those name individual states, not the channel).
+
+**supersession**: Retiring a notification by replacing it in place with the current truth rather than clearing it. The app essentially never truly clears a _backgrounded_ notification, because iOS forces a visible notification on every push — so "dismissal" of a background notification always means "show an accurate replacement."
+_Avoid_: dismiss, clear (reserve those for the foreground `local clear`).
+
+**local clear**: The one path that _truly removes_ a notification — when a racer acknowledges inside the open app, the foreground page calls `getNotifications({ tag }).close()` directly, with no push involved, so it works on every platform. Contrast `supersession`, the background/server-driven path.
+_Avoid_: dismiss (ambiguous between the two paths).
+
 ### Snapshot assembly
 
 **SnapshotAssembler**: The deep module that owns the full `AppSnapshot` shape end-to-end—assembling it from SQLite plus an injected runtime context, and projecting it per surface. Pure and read-only; the caller runs any DB writes (like queue reconciliation) before calling it.

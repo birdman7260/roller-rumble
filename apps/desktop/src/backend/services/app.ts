@@ -33,6 +33,7 @@ import type {
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   RacerNotification,
+  RacerNotificationType,
   StripeConnectionTestResult,
   PasskeyRegistrationStartInput,
   PasskeyRegistrationStartResponse,
@@ -101,11 +102,7 @@ import {
   type PhotoBoothTokenPayload
 } from "./photo-booth";
 import { getLocalNetworkBaseUrl } from "./network";
-import {
-  getFirstQueuedEntry,
-  getThirdUpcomingQueueEntry,
-  getTournamentNotificationRacerIds
-} from "./notifications";
+import { getTournamentNotificationRacerIds } from "./notifications";
 import { AppHttpError } from "./http-error";
 import {
   applyManagedEnvValue,
@@ -123,6 +120,43 @@ import { NotificationService } from "./notifications-service";
 export { AppHttpError } from "./http-error";
 
 const RESULT_MODAL_DURATION_MS = 15000;
+
+// Queue-status reconciliation (ADR-0013). Positions 2–3 are "get ready"; the
+// first is "you're up"; everyone further back is a quiet "hang tight".
+const RACE_GET_READY_POSITION = 3;
+
+type QueueWaitingState = "you_are_up" | "get_ready" | "hang_tight";
+
+interface QueueWaitingMessage {
+  type: Extract<RacerNotificationType, "queue_you_are_up" | "queue_get_ready" | "queue_hang_tight">;
+  title: string;
+  body: (racerName: string) => string;
+}
+
+const QUEUE_WAITING_MESSAGES: Record<QueueWaitingState, QueueWaitingMessage> = {
+  you_are_up: {
+    type: "queue_you_are_up",
+    title: "You're up!",
+    body: (name) => `${name}, head to the stage, pedal fast!`
+  },
+  get_ready: {
+    type: "queue_get_ready",
+    title: "Head towards the bikes",
+    body: (name) => `${name}, you're coming up soon — get ready!`
+  },
+  hang_tight: {
+    type: "queue_hang_tight",
+    title: "You're in the queue",
+    body: (name) => `${name}, hang tight — we'll buzz you when you're close.`
+  }
+};
+
+// The live "waiting" states a racer can be superseded away from on removal.
+const QUEUE_WAITING_TYPES = new Set<RacerNotificationType>([
+  "queue_you_are_up",
+  "queue_get_ready",
+  "queue_hang_tight"
+]);
 
 interface AppServiceOptions {
   dataDir: string;
@@ -387,42 +421,162 @@ export class RollerRumbleApp extends EventEmitter {
     return this.notifications.markRacerNotificationRead(racerId, notificationId);
   }
 
+  private queueStatusChannelKey(eventId: string, racerId: string): string {
+    return `queue-status:${eventId}:${racerId}`;
+  }
+
+  private queueStatusChannelPrefix(eventId: string): string {
+    return `queue-status:${eventId}:`;
+  }
+
+  /**
+   * Reconciles every waiting racer's single live queue-status notification to
+   * their current standing (ADR-0013). Level-triggered, not edge-triggered: it
+   * derives each racer's desired state from their queue position and only sends
+   * a push when that differs from what they currently show — so escalation
+   * buzzes, backward drift quietly downgrades, and a racer who leaves the queue
+   * gets a silent "you're out" instead of a stale "You're up!". Idempotent, so
+   * it is safe to call after any queue mutation.
+   */
   private runQueueNotificationTriggers(eventId: string): void {
     const queue = reindexQueue(this.db.listQueueEntries(eventId));
+    const upcoming = queue.filter(
+      (entry) => entry.status === "queued" || entry.status === "staging"
+    );
+    // Racers still in play (including the one currently racing) must not be
+    // treated as "removed"; a racing racer keeps their status until they finish.
+    const inPlayRacerIds = new Set(
+      queue
+        .filter((entry) => ["queued", "staging", "racing"].includes(entry.status))
+        .flatMap((entry) => entry.racerIds)
+    );
 
-    const firstEntry = getFirstQueuedEntry(queue);
-    if (firstEntry) {
-      for (const racerId of firstEntry.racerIds) {
-        const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
-        this.notifications.createNotificationAndDispatch({
-          eventId,
-          type: "queue_you_are_up",
-          title: "You're up!",
-          body: `${racerName}, head to the stage, pedal fast!`,
-          url: "/racer",
-          triggerKey: `queue-you-are-up:${eventId}:${firstEntry.id}:${racerId}`,
-          racerIds: [racerId]
-        });
+    const desiredByRacer = new Map<string, QueueWaitingState>();
+    upcoming.forEach((entry, index) => {
+      const state: QueueWaitingState =
+        index === 0 ? "you_are_up" : index < RACE_GET_READY_POSITION ? "get_ready" : "hang_tight";
+      for (const racerId of entry.racerIds) {
+        // A racer in several entries is driven by their most imminent one.
+        if (!desiredByRacer.has(racerId)) {
+          desiredByRacer.set(racerId, state);
+        }
       }
+    });
+
+    const liveTypeByRacer = new Map<string, RacerNotificationType>();
+    for (const live of this.db.listLiveChannelNotifications(
+      this.queueStatusChannelPrefix(eventId)
+    )) {
+      const racerId = live.channelKey.slice(this.queueStatusChannelPrefix(eventId).length);
+      liveTypeByRacer.set(racerId, live.type);
     }
 
-    const thirdEntry = getThirdUpcomingQueueEntry(queue);
-    if (!thirdEntry) {
+    const racerIds = new Set<string>([...desiredByRacer.keys(), ...liveTypeByRacer.keys()]);
+    for (const racerId of racerIds) {
+      this.reconcileQueueStatusNotification(
+        eventId,
+        racerId,
+        desiredByRacer.get(racerId) ?? null,
+        liveTypeByRacer.get(racerId),
+        inPlayRacerIds.has(racerId)
+      );
+    }
+  }
+
+  private reconcileQueueStatusNotification(
+    eventId: string,
+    racerId: string,
+    desired: QueueWaitingState | null,
+    currentType: RacerNotificationType | undefined,
+    inPlay: boolean
+  ): void {
+    const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
+    const channelKey = this.queueStatusChannelKey(eventId, racerId);
+
+    if (desired) {
+      const message = QUEUE_WAITING_MESSAGES[desired];
+      if (currentType === message.type) {
+        return;
+      }
+      this.notifications.createNotificationAndDispatch({
+        eventId,
+        type: message.type,
+        title: message.title,
+        body: message.body(racerName),
+        url: "/racer",
+        channelKey,
+        racerIds: [racerId]
+      });
       return;
     }
 
-    for (const racerId of thirdEntry.racerIds) {
-      const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
-      this.notifications.createNotificationAndDispatch({
-        eventId,
-        type: "queue_get_ready",
-        title: "Head towards the bikes",
-        body: `${racerName}, only ~4 minutes before you race!`,
-        url: "/racer",
-        triggerKey: `queue-get-ready:${eventId}:${thirdEntry.id}:${racerId}`,
-        racerIds: [racerId]
-      });
+    // Not upcoming. Leave racing racers alone (race completion supersedes them),
+    // and only announce a removal when they were showing a live waiting status.
+    if (inPlay || !currentType || !QUEUE_WAITING_TYPES.has(currentType)) {
+      return;
     }
+    this.notifications.createNotificationAndDispatch({
+      eventId,
+      type: "queue_status_update",
+      title: "Queue update",
+      body: `${racerName}, you're no longer in the race queue.`,
+      url: "/racer",
+      channelKey,
+      racerIds: [racerId]
+    });
+  }
+
+  /**
+   * Supersede each participant's live queue-status notification with a silent
+   * terminal message once their race finishes (ADR-0013) — this is the fix for
+   * the stale "You're up!" sitting in a racer's pocket after they've raced.
+   *
+   * Keyed off `completedRace.id`, so the `queue-raced:` triggerKey dedups a
+   * given race exactly once. Only queue races carry a `queueEntryId`; tournament
+   * races skip this (they have their own `tournament:` channel). If a queue race
+   * is ever undone and re-finalized under the same id, the unique triggerKey
+   * would suppress a repeat "Nice work!" — fold a finalization nonce into the
+   * key if that redo path is added.
+   */
+  private notifyRaceCompleted(completedRace: RaceRecord): void {
+    if (completedRace.queueEntryId) {
+      for (const participant of completedRace.participants) {
+        const racerName = this.db.getRacer(participant.racerId)?.displayName ?? "Racer";
+        this.notifications.createNotificationAndDispatch({
+          eventId: completedRace.eventId,
+          type: "queue_status_update",
+          title: "Nice work!",
+          body: `${racerName}, that's your race done — results are on your phone.`,
+          url: "/racer",
+          triggerKey: `queue-raced:${completedRace.id}:${participant.racerId}`,
+          channelKey: this.queueStatusChannelKey(completedRace.eventId, participant.racerId),
+          racerIds: [participant.racerId]
+        });
+      }
+      return;
+    }
+
+    // Tournament race: supersede each participant's tournament check-in
+    // notification so an unactioned "you made the tournament!" doesn't linger.
+    if (completedRace.tournamentId) {
+      for (const participant of completedRace.participants) {
+        const racerName = this.db.getRacer(participant.racerId)?.displayName ?? "Racer";
+        this.notifications.createNotificationAndDispatch({
+          eventId: completedRace.eventId,
+          type: "tournament_update",
+          title: "Tournament race done!",
+          body: `${racerName}, nice work out there — check the bracket for what's next.`,
+          url: "/racer",
+          triggerKey: `tournament-race-done:${completedRace.id}:${participant.racerId}`,
+          channelKey: this.tournamentChannelKey(completedRace.tournamentId, participant.racerId),
+          racerIds: [participant.racerId]
+        });
+      }
+    }
+  }
+
+  private tournamentChannelKey(tournamentId: string, racerId: string): string {
+    return `tournament:${tournamentId}:${racerId}`;
   }
 
   private notifyTournamentStarted(bundle: TournamentBundle): void {
@@ -435,9 +589,54 @@ export class RollerRumbleApp extends EventEmitter {
         body: `${racerName}, you made the tournament!`,
         url: "/racer",
         triggerKey: `tournament-started:${bundle.tournament.id}:${racerId}`,
+        channelKey: this.tournamentChannelKey(bundle.tournament.id, racerId),
         racerIds: [racerId]
       });
     }
+  }
+
+  /**
+   * Supersede every participant's tournament check-in with a silent "it's over"
+   * message when the tournament completes (ADR-0013). Fires once per racer via
+   * the triggerKey, so it's safe to call from any completion path.
+   *
+   * `excludeRacerIds` skips racers who were just given a more specific message in
+   * the same operation — e.g. an opt-out that removes the last unplayed racer and
+   * thereby completes the tournament: the withdrawn racer should keep their
+   * "Removed from tournament" notice, not be told "thanks for racing!".
+   */
+  private notifyTournamentEnded(bundle: TournamentBundle, excludeRacerIds: string[] = []): void {
+    const excluded = new Set(excludeRacerIds);
+    for (const racerId of getTournamentNotificationRacerIds(bundle)) {
+      if (excluded.has(racerId)) {
+        continue;
+      }
+      const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
+      this.notifications.createNotificationAndDispatch({
+        eventId: bundle.tournament.eventId,
+        type: "tournament_update",
+        title: "Tournament complete",
+        body: `${racerName}, the tournament has ended — thanks for racing!`,
+        url: "/racer",
+        triggerKey: `tournament-ended:${bundle.tournament.id}:${racerId}`,
+        channelKey: this.tournamentChannelKey(bundle.tournament.id, racerId),
+        racerIds: [racerId]
+      });
+    }
+  }
+
+  private notifyTournamentWithdrawn(bundle: TournamentBundle, racerId: string): void {
+    const racerName = this.db.getRacer(racerId)?.displayName ?? "Racer";
+    this.notifications.createNotificationAndDispatch({
+      eventId: bundle.tournament.eventId,
+      type: "tournament_update",
+      title: "Removed from tournament",
+      body: `${racerName}, you've been taken out of the tournament.`,
+      url: "/racer",
+      triggerKey: `tournament-withdrawn:${bundle.tournament.id}:${racerId}`,
+      channelKey: this.tournamentChannelKey(bundle.tournament.id, racerId),
+      racerIds: [racerId]
+    });
   }
 
   private resolveAdminNotificationTargets(input: AdminNotificationInput): string[] {
@@ -559,6 +758,7 @@ export class RollerRumbleApp extends EventEmitter {
       this.db.markQueueEntryStatus(completedRace.queueEntryId, "completed");
     }
     this.reconcileQueueRaceStatuses(completedRace.eventId);
+    this.notifyRaceCompleted(completedRace);
     this.resultPresentation = null;
     // Auto-stage waits until the audience result beat is finished so the projector and admin
     // workflow both move forward at the same deliberate moment.
@@ -683,7 +883,8 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     this.cancelStagedTournamentRaceForOptOut(bundle, racerId);
-    const finalizedBundle = this.markTournamentCompleteIfFinished(result.bundle);
+    this.notifyTournamentWithdrawn(bundle, racerId);
+    const finalizedBundle = this.markTournamentCompleteIfFinished(result.bundle, [racerId]);
     this.db.saveTournamentBundle(finalizedBundle);
     if (finalizedBundle.tournament.status === "complete") {
       this.db.updateAdminSettings({
@@ -811,7 +1012,8 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     this.cancelStagedTournamentRaceForOptOut(bundle, racerId);
-    const finalizedBundle = this.markTournamentCompleteIfFinished(result.bundle);
+    this.notifyTournamentWithdrawn(bundle, racerId);
+    const finalizedBundle = this.markTournamentCompleteIfFinished(result.bundle, [racerId]);
     this.db.saveTournamentBundle(finalizedBundle);
     if (finalizedBundle.tournament.status === "complete") {
       this.db.updateAdminSettings({
@@ -975,7 +1177,10 @@ export class RollerRumbleApp extends EventEmitter {
     };
   }
 
-  private markTournamentCompleteIfFinished(bundle: TournamentBundle): TournamentBundle {
+  private markTournamentCompleteIfFinished(
+    bundle: TournamentBundle,
+    excludeFromEndedNotice: string[] = []
+  ): TournamentBundle {
     const unfinishedGroupMatch = bundle.groupMatches.some((match) => !match.winnerRacerId);
     const unfinishedBracketNode = bundle.bracketNodes.some(
       (node) =>
@@ -986,14 +1191,20 @@ export class RollerRumbleApp extends EventEmitter {
       return bundle;
     }
 
-    return {
+    const completedBundle = {
       ...bundle,
       tournament: {
         ...bundle.tournament,
-        status: "complete",
+        status: "complete" as const,
         updatedAt: nowIso()
       }
     };
+    // Announce the ending at the single transition point, so no completion path
+    // leaves a stale tournament check-in behind. A racer who was just withdrawn
+    // in this same operation is excluded so they don't get "thanks for racing!"
+    // on top of their "Removed from tournament" notice.
+    this.notifyTournamentEnded(completedBundle, excludeFromEndedNotice);
+    return completedBundle;
   }
 
   private applyTournamentRaceOutcome(race: RaceRecord, winnerRacerId: string | null): void {

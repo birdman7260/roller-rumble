@@ -83,6 +83,30 @@ function isPushSupported(): boolean {
   return "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
 }
 
+/**
+ * Foreground true-clear (ADR-0013): when a racer acknowledges inside the open
+ * app we close the matching OS notification directly from the page — no push
+ * involved, so it works on every platform, unlike a background supersede.
+ */
+async function closeTrayNotification(notification: RacerNotification): Promise<void> {
+  if (!("serviceWorker" in navigator)) {
+    return;
+  }
+  try {
+    const registration = await navigator.serviceWorker.getRegistration();
+    if (!registration) {
+      return;
+    }
+    const tag = notification.channelKey ?? notification.notificationId;
+    const openNotifications = await registration.getNotifications({ tag });
+    for (const openNotification of openNotifications) {
+      openNotification.close();
+    }
+  } catch {
+    // Best-effort: a missing/blocked SW just means the tray entry lingers.
+  }
+}
+
 function getPasskeyUnavailableMessage(): string | null {
   if (!("PublicKeyCredential" in window)) {
     return "This browser does not support passkeys.";
@@ -1007,6 +1031,7 @@ function useRacerPageViewModel({
     setModalNotifications((currentNotifications) =>
       currentNotifications.filter((entry) => entry.notificationId !== notification.notificationId)
     );
+    await closeTrayNotification(notification);
     const nextNotifications = await markRacerNotificationRead(notification.notificationId);
     queryClient.setQueryData(racerNotificationsQueryKey, nextNotifications);
   }
@@ -1116,7 +1141,10 @@ function useRacerPageViewModel({
     (notification) => !notification.readAt
   ).length;
   const activeModalNotification = modalNotifications.length > 0 ? modalNotifications[0] : null;
+  // Capability-gated (ADR-0014): hide the enable CTA where Web Push can't work —
+  // notably an iOS Safari tab, where PushManager only exists in the installed PWA.
   const shouldShowNotificationPrompt =
+    isPushSupported() &&
     !deviceNotificationsEnabled &&
     (notificationPromptVisible ||
       paymentReturnState === "success" ||
@@ -1254,6 +1282,7 @@ function useRacerPageViewModel({
     notificationConfigMessage: notificationConfigQuery.data?.message,
     notificationMessage,
     onMarkNotificationRead: async (notification) => {
+      await closeTrayNotification(notification);
       const nextNotifications = await markRacerNotificationRead(notification.notificationId);
       queryClient.setQueryData(racerNotificationsQueryKey, nextNotifications);
     },

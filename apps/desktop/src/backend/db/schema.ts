@@ -155,17 +155,23 @@ export const pushSubscriptions = sqliteTable(
   (table) => [index("push_subscriptions_racer_active_idx").on(table.racerId, table.revokedAt)]
 );
 
-export const notifications = sqliteTable("notifications", {
-  id: text("id").primaryKey(),
-  eventId: text("event_id").references(() => events.id, { onDelete: "cascade" }),
-  type: text("type").$type<RacerNotificationType>().notNull(),
-  title: text("title").notNull(),
-  body: text("body").notNull(),
-  url: text("url"),
-  triggerKey: text("trigger_key").unique(),
-  createdBy: text("created_by"),
-  createdAt: text("created_at").notNull()
-});
+export const notifications = sqliteTable(
+  "notifications",
+  {
+    id: text("id").primaryKey(),
+    eventId: text("event_id").references(() => events.id, { onDelete: "cascade" }),
+    type: text("type").$type<RacerNotificationType>().notNull(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    url: text("url"),
+    triggerKey: text("trigger_key").unique(),
+    channelKey: text("channel_key"),
+    supersededAt: text("superseded_at"),
+    createdBy: text("created_by"),
+    createdAt: text("created_at").notNull()
+  },
+  (table) => [index("notifications_channel_active_idx").on(table.channelKey, table.supersededAt)]
+);
 
 export const notificationDeliveries = sqliteTable(
   "notification_deliveries",

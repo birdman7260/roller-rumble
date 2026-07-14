@@ -1,11 +1,16 @@
 import type {
   NotificationConfig,
   RacerNotification,
+  RacerNotificationType,
   WebPushSubscriptionInput
 } from "@roller-rumble/shared/types";
 import type { AppDatabase } from "../db/Database";
 import { AppHttpError } from "./http-error";
-import { getWebPushRuntimeConfig, sendNotificationPushes } from "./notifications";
+import {
+  getWebPushRuntimeConfig,
+  isSilentNotificationType,
+  sendNotificationPushes
+} from "./notifications";
 
 /**
  * Narrow database port for racer push subscriptions and notification delivery.
@@ -96,15 +101,19 @@ export class NotificationService {
    */
   createNotificationAndDispatch(input: {
     eventId?: string | null;
-    type: "queue_get_ready" | "queue_you_are_up" | "tournament_started" | "admin_message";
+    type: RacerNotificationType;
     title: string;
     body: string;
     url?: string | null;
     triggerKey?: string | null;
+    channelKey?: string | null;
     createdBy?: string | null;
     racerIds: string[];
   }): number {
-    const batch = this.db.createNotification(input);
+    const batch = this.db.createNotification({
+      ...input,
+      silent: isSilentNotificationType(input.type)
+    });
     if (!batch) {
       return 0;
     }

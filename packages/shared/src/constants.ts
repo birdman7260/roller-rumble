@@ -104,7 +104,10 @@ export const RACER_NOTIFICATION_TYPES = [
   "admin_message",
   "queue_get_ready",
   "queue_you_are_up",
-  "tournament_started"
+  "queue_hang_tight",
+  "queue_status_update",
+  "tournament_started",
+  "tournament_update"
 ] as const;
 export const TOURNAMENT_STATUSES = ["draft", "active", "complete"] as const;
 export const TOURNAMENT_STAGE_KINDS = ["elimination", "round-robin", "groups"] as const;
