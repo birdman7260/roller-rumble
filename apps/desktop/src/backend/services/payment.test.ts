@@ -319,6 +319,7 @@ describe("RollerRumbleApp payment orchestration", () => {
     const target = makeTarget(store);
     store.db.getAdminSettings.mockReturnValue({
       queueOpen: false,
+      allowSoloQueue: true,
       queueClosedMessage: "  Draining for the tournament.  "
     });
     store.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
@@ -332,7 +333,11 @@ describe("RollerRumbleApp payment orchestration", () => {
   it("falls back to the default closed message when the operator message is blank", async () => {
     const store = makeStore();
     const target = makeTarget(store);
-    store.db.getAdminSettings.mockReturnValue({ queueOpen: false, queueClosedMessage: "" });
+    store.db.getAdminSettings.mockReturnValue({
+      queueOpen: false,
+      allowSoloQueue: true,
+      queueClosedMessage: ""
+    });
     store.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
 
     await expect(
