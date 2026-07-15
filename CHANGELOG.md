@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.21 - 2026-07-15
+
+### Added
+
 - Racers can now leave the queue from their own phone. Every upcoming race a racer is part of gains a "Leave" button, and the Queue Controls gain a "Leave the queue entirely" button that clears all of their spots at once — both ask for confirmation first (and a challenge names the opponent you're cancelling on). Leaving only affects races that are still waiting, never one that is staging or already live, so racers can bow out without finding the host. It stays available even when the host has closed the queue (getting out is the opposite of joining) and is hidden only while a tournament is running. If you leave a challenge you started against someone who wasn't otherwise in the queue, they're taken out too and told why; a challenger who backs out of someone already in the queue simply leaves them where they were.
 - The Race Desk tab's "Racer Queue Signups" card now has a "Let racers queue a solo run" toggle. It is off by default; while off, the racer page hides the "Solo Run" button entirely, so racers can only Join Queue or Challenge. Turn it on to let racers queue their own solo runs. Adding a solo run from the admin panel still works regardless.
 - The racer page now confirms your action with a brief toast that slides up from the bottom and fades away on its own (tap it to dismiss sooner). You'll see "You're in the queue for the next race." after tapping Join Queue, "Solo run queued — you're up next." after a Solo Run, and "Challenge sent to <name>." after challenging someone from either the queue controls or the Racers tab.
