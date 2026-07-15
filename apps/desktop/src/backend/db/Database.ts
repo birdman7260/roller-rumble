@@ -193,6 +193,7 @@ function getDefaultAdminSettings(): AdminSettings {
     targetDistanceMeters: DEFAULT_TARGET_DISTANCE_METERS,
     serverPort: DEFAULT_SERVER_PORT,
     queueOpen: true,
+    allowSoloQueue: false,
     queueClosedMessage: ""
   };
 }

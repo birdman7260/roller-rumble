@@ -68,7 +68,11 @@ function makeStore() {
 
   const db = {
     getActiveEvent: vi.fn(() => activeEvent),
-    getAdminSettings: vi.fn(() => ({ queueOpen: true, queueClosedMessage: "" })),
+    getAdminSettings: vi.fn(() => ({
+      queueOpen: true,
+      allowSoloQueue: true,
+      queueClosedMessage: ""
+    })),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
     ensureEventRegistration: vi.fn(),
     getEventRacerPayment: vi.fn(
@@ -337,6 +341,36 @@ describe("RollerRumbleApp payment orchestration", () => {
       code: "queue_closed",
       message: DEFAULT_QUEUE_CLOSED_MESSAGE
     });
+  });
+
+  it("refuses a racer solo run when solo queueing is disabled", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.db.getAdminSettings.mockReturnValue({
+      queueOpen: true,
+      allowSoloQueue: false,
+      queueClosedMessage: ""
+    });
+    store.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
+
+    await expect(
+      signUpQueueForRacer.call(target, "racer-1", { requestedType: "solo" })
+    ).rejects.toMatchObject({ code: "solo_queue_disabled" });
+    expect(target.signUpQueue).not.toHaveBeenCalled();
+  });
+
+  it("still lets a racer join the auto-match queue when solo queueing is disabled", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.db.getAdminSettings.mockReturnValue({
+      queueOpen: true,
+      allowSoloQueue: false,
+      queueClosedMessage: ""
+    });
+    store.racers.set("racer-1", makeRacer("racer-1", "Current Racer", "current@example.com"));
+
+    await signUpQueueForRacer.call(target, "racer-1", { requestedType: "auto-match" });
+    expect(target.signUpQueue).toHaveBeenCalled();
   });
 
   it("marks Stripe checkout paid and queues the stored intent from the webhook", () => {

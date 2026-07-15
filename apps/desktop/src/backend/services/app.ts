@@ -1980,6 +1980,10 @@ export class RollerRumbleApp extends EventEmitter {
       );
     }
 
+    if (input.requestedType === "solo" && !settings.allowSoloQueue) {
+      throw new AppHttpError("Solo runs are currently disabled.", 403, "solo_queue_disabled");
+    }
+
     const activeEvent = this.db.getActiveEvent()!;
     this.db.ensureEventRegistration(activeEvent.id, racerId);
     const racer = this.db.getRacer(racerId);

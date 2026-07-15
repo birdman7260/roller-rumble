@@ -70,6 +70,16 @@ export function RaceTab({
             />
             Let racers add themselves to the queue
           </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={snapshot.settings.allowSoloQueue}
+              onChange={(event) => {
+                fireAndForget(updateSettings({ allowSoloQueue: event.target.checked }));
+              }}
+            />
+            Let racers queue a solo run
+          </label>
           <label htmlFor="admin-queue-closed-message">
             Closed message
             <input

@@ -377,6 +377,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     targetDistanceMeters: 250,
     themeId: theme.id,
     queueOpen: true,
+    allowSoloQueue: false,
     queueClosedMessage: ""
   };
 

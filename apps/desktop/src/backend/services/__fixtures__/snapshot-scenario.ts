@@ -183,6 +183,7 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     targetDistanceMeters: 250,
     serverPort: 3187,
     queueOpen: true,
+    allowSoloQueue: true,
     queueClosedMessage: ""
   };
 }

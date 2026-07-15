@@ -170,6 +170,7 @@ export const settingUpdateSchema = z.object({
   maxActiveQueueEntriesPerRacer: z.number().int().min(1).max(10).optional(),
   targetDistanceMeters: z.number().finite().positive().max(100000).optional(),
   queueOpen: z.boolean().optional(),
+  allowSoloQueue: z.boolean().optional(),
   queueClosedMessage: z.string().trim().max(200).optional()
 });
 

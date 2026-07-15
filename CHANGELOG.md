@@ -8,6 +8,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- The Race Desk tab's "Racer Queue Signups" card now has a "Let racers queue a solo run" toggle. It is off by default; while off, the racer page hides the "Solo Run" button entirely, so racers can only Join Queue or Challenge. Turn it on to let racers queue their own solo runs. Adding a solo run from the admin panel still works regardless.
 - The racer page now confirms your action with a brief toast that slides up from the bottom and fades away on its own (tap it to dismiss sooner). You'll see "You're in the queue for the next race." after tapping Join Queue, "Solo run queued — you're up next." after a Solo Run, and "Challenge sent to <name>." after challenging someone from either the queue controls or the Racers tab.
 - Race notifications can now be branded: push notifications show the Roller Rumble icon and status-bar badge instead of the browser's own logo (previously the Chrome logo appeared on Android). The racer page is also now an installable web app (Add to Home Screen), which is what lets iPhones receive race push notifications at all — a placeholder icon set ships now and should be replaced with the final artwork.
 

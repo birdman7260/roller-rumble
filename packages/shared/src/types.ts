@@ -612,6 +612,8 @@ export interface AdminSettings {
   serverPort: number;
   /** Whether racers may add themselves to the queue. When false, self-service signup is closed. */
   queueOpen: boolean;
+  /** Whether racers may queue a solo run themselves. When false, the racer's Solo Run button is hidden. */
+  allowSoloQueue: boolean;
   /** Operator message shown to racers while the queue is closed. Blank falls back to the default. */
   queueClosedMessage: string;
 }

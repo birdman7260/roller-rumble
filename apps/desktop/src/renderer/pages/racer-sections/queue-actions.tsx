@@ -61,14 +61,16 @@ export function QueueActions({
         >
           Join Queue
         </Button>
-        <Button
-          variant="ghost"
-          onClick={() => {
-            fireAndForget(onQueueSignup({ requestedType: "solo" }), "join solo queue");
-          }}
-        >
-          Solo Run
-        </Button>
+        {liveSnapshot.settings.allowSoloQueue ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              fireAndForget(onQueueSignup({ requestedType: "solo" }), "join solo queue");
+            }}
+          >
+            Solo Run
+          </Button>
+        ) : null}
       </div>
       <div className="racer-challenge-controls">
         <label className="racer-picker-label" htmlFor="racer-challenge-opponent">
