@@ -12,6 +12,7 @@ import {
 import { removeRacerFromQueueEntry, updateSettings } from "../../lib/api";
 import { describeQueueEntry, formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
+import { useMasonryGrid } from "../../lib/use-masonry-grid";
 
 export function RaceTab({
   snapshot,
@@ -52,9 +53,10 @@ export function RaceTab({
     currentRace && ["scheduled", "staging", "countdown", "active"].includes(currentRace.state)
       ? currentRace.queueEntryId
       : null;
+  const gridRef = useMasonryGrid();
 
   return (
-    <div className="page-grid">
+    <div ref={gridRef} className="page-grid page-grid--masonry">
       <Panel title="Racer Queue Signups">
         <div className="stack-sm">
           <div className="stat-grid">

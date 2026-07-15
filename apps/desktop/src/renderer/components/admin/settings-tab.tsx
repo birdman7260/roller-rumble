@@ -1,5 +1,5 @@
 import { useQueryClient } from "@tanstack/react-query";
-import { useEffect, useReducer, useRef } from "react";
+import { useReducer, useRef } from "react";
 import type { RefObject } from "react";
 import type {
   AdminNotificationTargetType,
@@ -33,6 +33,7 @@ import {
   useRuntimeEnvQuery
 } from "../../lib/query";
 import { fireAndForget } from "../../lib/ui-actions";
+import { useMasonryGrid } from "../../lib/use-masonry-grid";
 import { DiagnosticsPanel, ManagedSettingsPanel, SubsystemStatusPanel } from "./operator-settings";
 
 const boothHardwareLabels = {
@@ -88,56 +89,6 @@ function cloudflaredSourceLabel(source: AppSnapshot["tunnel"]["binarySource"]): 
 
 function diagnosticTimeLabel(value: string | null): string {
   return value ? new Date(value).toLocaleTimeString() : "Not yet";
-}
-
-function useMasonryGrid() {
-  const gridRef = useRef<HTMLDivElement | null>(null);
-
-  useEffect(() => {
-    const grid = gridRef.current;
-    if (!grid || typeof ResizeObserver === "undefined") {
-      return undefined;
-    }
-
-    let animationFrame = 0;
-    const updateLayout = () => {
-      cancelAnimationFrame(animationFrame);
-      animationFrame = requestAnimationFrame(() => {
-        const styles = getComputedStyle(grid);
-        const rowHeight = Number.parseFloat(styles.gridAutoRows) || 8;
-        const rowGap = Number.parseFloat(styles.rowGap) || 0;
-        const rowUnit = rowHeight + rowGap;
-
-        for (const child of Array.from(grid.children)) {
-          if (!(child instanceof HTMLElement)) {
-            continue;
-          }
-
-          child.style.gridRowEnd = "";
-          const height = child.getBoundingClientRect().height;
-          const span = Math.max(1, Math.ceil((height + rowGap) / rowUnit));
-          child.style.gridRowEnd = `span ${span}`;
-        }
-      });
-    };
-
-    const observer = new ResizeObserver(updateLayout);
-    observer.observe(grid);
-    for (const child of Array.from(grid.children)) {
-      observer.observe(child);
-    }
-
-    updateLayout();
-    window.addEventListener("resize", updateLayout);
-
-    return () => {
-      cancelAnimationFrame(animationFrame);
-      window.removeEventListener("resize", updateLayout);
-      observer.disconnect();
-    };
-  }, []);
-
-  return gridRef;
 }
 
 interface SettingsUiState {

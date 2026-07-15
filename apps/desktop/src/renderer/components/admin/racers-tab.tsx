@@ -3,6 +3,7 @@ import type { RacerSummary } from "@roller-rumble/shared/types";
 import { Button, Panel, TextInput } from "@roller-rumble/shared-ui";
 import { removeRacerFromUpcoming, signUpQueue, updateRacerPayment } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
+import { useMasonryGrid } from "../../lib/use-masonry-grid";
 
 export function RacersTab({
   filteredRacers,
@@ -32,9 +33,10 @@ export function RacersTab({
   const quickAddNameId = "quick-add-racer-name";
   const quickAddEmailId = "quick-add-racer-email";
   const quickAddPhoneId = "quick-add-racer-phone";
+  const gridRef = useMasonryGrid();
 
   return (
-    <div className="page-grid">
+    <div ref={gridRef} className="page-grid page-grid--masonry">
       <Panel title="Quick Add Racer">
         <div className="form-grid">
           <label htmlFor={quickAddNameId}>

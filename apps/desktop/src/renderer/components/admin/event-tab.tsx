@@ -18,6 +18,7 @@ import {
 import { SIGNUP_PROMPT_DEFAULTS } from "../../lib/signup-prompt-copy";
 import { formatRacerNames } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
+import { useMasonryGrid } from "../../lib/use-masonry-grid";
 
 const usdPaymentAmountFormatter = new Intl.NumberFormat(undefined, {
   style: "currency",
@@ -395,8 +396,9 @@ export function EventTab({
   currentRace: RaceRecord | null;
   competitionLabel: string;
 }) {
+  const gridRef = useMasonryGrid();
   return (
-    <div className="page-grid">
+    <div ref={gridRef} className="page-grid page-grid--masonry">
       <EventDetailsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 
       <EventPaymentsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />

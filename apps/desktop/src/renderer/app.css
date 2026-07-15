@@ -1092,10 +1092,14 @@ p {
   min-width: 0;
 }
 
+.page-grid--masonry,
 .settings-page-grid {
   align-items: start;
   grid-auto-flow: dense;
   grid-auto-rows: 0.5rem;
+}
+
+.settings-page-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
 }
 

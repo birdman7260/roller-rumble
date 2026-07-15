@@ -14,6 +14,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- The Event, Race Desk, and Racers admin tabs now tile their cards the same way the Settings tab does: cards pack tightly into a masonry layout so a short card no longer leaves a tall gap beside a taller neighbour.
 - Race notification and installed-app icons now use the real Fiercely Local owl artwork instead of the solid-color placeholders: racers see the owl on push notifications, the status-bar badge, and the "Add to Home Screen" icon.
 - Uploading a new avatar on the racer page now shows clear progress: a spinner overlays your avatar and an "Uploading avatar…" message appears while the photo uploads, so it's obvious the upload is working instead of appearing to do nothing.
 - Race notifications no longer pile up on your phone. Each racer now has a single live "race status" notification that updates in place as their situation changes, instead of stacking a new alert every time. It only buzzes when the news is more urgent (you're getting closer to racing) and updates quietly otherwise.
