@@ -6,7 +6,11 @@ import type {
   TournamentBundle
 } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
-import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
+import {
+  describeQueueEntry,
+  isLeavableByRacer,
+  resolveRacerName
+} from "../../lib/snapshot-display";
 import { resolveBackendAssetUrl } from "../../lib/assets";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
@@ -134,6 +138,7 @@ export function RaceDashboard({
   currentRaceNames,
   liveSnapshot,
   onQueueSignup,
+  onRequestLeaveQueue,
   onTabChange,
   onTournamentOptOut,
   paymentReturnState,
@@ -163,6 +168,7 @@ export function RaceDashboard({
   currentRaceNames: string | null;
   liveSnapshot: AppSnapshot;
   onQueueSignup: (input: RacerQueueSignupInput) => Promise<void>;
+  onRequestLeaveQueue: () => void;
   onTabChange: (tabId: RacerTabId) => void;
   onTournamentOptOut: () => Promise<void>;
   paymentReturnState: string | null;
@@ -196,6 +202,22 @@ export function RaceDashboard({
       setSelectedOpponent={setSelectedOpponent}
     />
   );
+  // Leaving stays available under a closed queue, so it sits outside the
+  // queueOpen gate inside QueueActions (issue #28).
+  const hasQueuedSpot =
+    Boolean(selectedRacer) && upcoming.some((entry) => isLeavableByRacer(entry, selectedRacerId));
+  const leaveQueueControl = hasQueuedSpot ? (
+    <div className="racer-queue-leave-all">
+      <Button
+        variant="ghost"
+        onClick={() => {
+          onRequestLeaveQueue();
+        }}
+      >
+        Leave the queue entirely
+      </Button>
+    </div>
+  ) : null;
   const tournamentPreview = (
     <TournamentRacePreview
       activeTournament={activeTournament}
@@ -330,6 +352,8 @@ export function RaceDashboard({
               <p>{visibleTournament.tournament.status}</p>
             </div>
           ) : null}
+
+          {leaveQueueControl}
         </div>
       </Panel>
       {queuePreview}

@@ -1,7 +1,7 @@
 import type { AppSnapshot, QueueEntry, RacerSummary } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
-import { resolveRacerName } from "../../lib/snapshot-display";
+import { isLeavableByRacer, resolveRacerName } from "../../lib/snapshot-display";
 import { QueueActions } from "./queue-actions";
 import type { RacerQueueSignupInput, SectionMotionProps } from "./shared";
 
@@ -20,16 +20,6 @@ function getQueuePositionLabel(index: number): string {
     default:
       return "";
   }
-}
-
-// A racer can only leave a spot that is still `queued`; a race that is already
-// staging or live is the host's to unwind (issue #28).
-function isLeavableByRacer(entry: QueueEntry, selectedRacerId: string): boolean {
-  return (
-    entry.status === "queued" &&
-    Boolean(selectedRacerId) &&
-    entry.racerIds.includes(selectedRacerId)
-  );
 }
 
 export function QueueTab({

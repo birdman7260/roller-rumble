@@ -37,6 +37,16 @@ export function describeQueueEntry(entry: QueueEntry): string {
   return "Head-to-head";
 }
 
+// A racer can only leave a spot that is still `queued`; a race that is already
+// staging or live is the host's to unwind (issue #28).
+export function isLeavableByRacer(entry: QueueEntry, selectedRacerId: string): boolean {
+  return (
+    entry.status === "queued" &&
+    Boolean(selectedRacerId) &&
+    entry.racerIds.includes(selectedRacerId)
+  );
+}
+
 export function buildParticipantEntries(
   snapshot: AppSnapshot,
   race: RaceRecord | null = snapshot.raceProjection.race

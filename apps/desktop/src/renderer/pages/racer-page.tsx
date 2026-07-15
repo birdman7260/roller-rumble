@@ -1624,6 +1624,7 @@ function RacerPageView({
                   currentRaceNames={currentRaceNames}
                   liveSnapshot={liveSnapshot}
                   onQueueSignup={handleQueueSignup}
+                  onRequestLeaveQueue={requestLeaveQueue}
                   onTabChange={handleTabChange}
                   onTournamentOptOut={requestTournamentOptOut}
                   paymentReturnState={paymentReturnState}
