@@ -5,6 +5,8 @@ import {
   ChallengeReplacementRequiredError,
   ChallengeTargetUnavailableError,
   findNextQueuedEntry,
+  leaveQueueEntryForRacer,
+  leaveQueueForRacer,
   projectQueueEntries,
   removeRacerFromQueue,
   removeRacerFromSpecificQueueEntry
@@ -23,6 +25,7 @@ function occurrence(
     racerId,
     status: "queued",
     intent: "auto-match",
+    priorIntent: null,
     lockGroupId: null,
     signupSequence: Number(id.replace(/\D/gu, "")) || 1,
     bumpCount: 0,
@@ -741,16 +744,26 @@ describe("queue service", () => {
     expect(result.entries[1].priorityScore).toBe(-20);
   });
 
-  it("releases the remaining racer from a broken challenge back into auto-match flow", () => {
+  it("restores a previously-queued opponent to auto-match when a challenge breaks", () => {
     const entries = [
       entry("q1", ["o1", "o2"], ["r1", "r2"], {
         requestedType: "match",
         lockType: "challenge"
       })
     ];
+    // r1 held an auto-match spot that the challenge upgraded, so abandoning it
+    // returns them to the auto-match flow instead of stranding them.
     const occurrences = [
-      occurrence("o1", "r1", { intent: "challenge", lockGroupId: "lock-1" }),
-      occurrence("o2", "r2", { intent: "challenge", lockGroupId: "lock-1" }),
+      occurrence("o1", "r1", {
+        intent: "challenge",
+        priorIntent: "auto-match",
+        lockGroupId: "lock-1"
+      }),
+      occurrence("o2", "r2", {
+        intent: "challenge",
+        priorIntent: null,
+        lockGroupId: "lock-1"
+      }),
       occurrence("o3", "r3")
     ];
 
@@ -762,5 +775,114 @@ describe("queue service", () => {
       lockType: "flex",
       racerIds: ["r1", "r3"]
     });
+  });
+
+  it("removes a fresh-pulled opponent when the challenge that pulled them in is abandoned", () => {
+    // Neither occurrence held a prior spot (both priorIntent null), so the
+    // challenge minted them fresh; abandoning it should leave nobody behind.
+    const occurrences = [
+      occurrence("o1", "r1", {
+        intent: "challenge",
+        priorIntent: null,
+        lockGroupId: "lock-1"
+      }),
+      occurrence("o2", "r2", {
+        intent: "challenge",
+        priorIntent: null,
+        lockGroupId: "lock-1"
+      })
+    ];
+
+    const removed = leaveQueueForRacer(occurrences, "r1");
+
+    expect(removed.filter((o) => o.status === "queued")).toEqual([]);
+    expect(removed.find((o) => o.id === "o2")?.status).toBe("removed");
+  });
+
+  it("restores a previously-solo opponent to a solo run when a challenge breaks", () => {
+    // The bug-fix case: an abandoned challenge used to flatten a solo run into a
+    // head-to-head; prior intent now returns it to solo.
+    const occurrences = [
+      occurrence("o1", "r1", {
+        intent: "challenge",
+        priorIntent: null,
+        lockGroupId: "lock-1"
+      }),
+      occurrence("o2", "r2", {
+        intent: "challenge",
+        priorIntent: "solo",
+        lockGroupId: "lock-1"
+      })
+    ];
+
+    const removed = leaveQueueForRacer(occurrences, "r1");
+    const survivor = removed.find((o) => o.id === "o2");
+
+    expect(survivor).toMatchObject({ status: "queued", intent: "solo", lockGroupId: null });
+    expect(survivor?.priorIntent).toBeNull();
+  });
+
+  it("records prior intent when a signup upgrades an existing spot to a challenge", () => {
+    const occurrences = [occurrence("o1", "r1", { intent: "auto-match" })];
+
+    const updated = addQueueSignup(occurrences, {
+      eventId: "e1",
+      racerId: "r1",
+      opponentRacerId: "r2",
+      occurrenceId: "o2",
+      opponentOccurrenceId: "o3",
+      lockGroupId: "lock-1",
+      timestamp,
+      signupSequence: 2,
+      raceCountAtJoin: 0,
+      opponentRaceCountAtJoin: 0,
+      maxActiveOccurrencesPerRacer: 3
+    });
+
+    // The challenger's upgraded spot remembers auto-match; the freshly minted
+    // opponent has no prior intent.
+    expect(updated.find((o) => o.racerId === "r1")).toMatchObject({
+      intent: "challenge",
+      priorIntent: "auto-match"
+    });
+    expect(updated.find((o) => o.racerId === "r2")).toMatchObject({
+      intent: "challenge",
+      priorIntent: null
+    });
+  });
+
+  it("leaves only queued occurrences when a racer leaves, sparing staging and racing spots", () => {
+    const occurrences = [
+      occurrence("o1", "r1", { status: "racing" }),
+      occurrence("o2", "r1", { status: "staging" }),
+      occurrence("o3", "r1", { status: "queued" })
+    ];
+
+    const left = leaveQueueForRacer(occurrences, "r1");
+
+    expect(left.find((o) => o.id === "o1")?.status).toBe("racing");
+    expect(left.find((o) => o.id === "o2")?.status).toBe("staging");
+    expect(left.find((o) => o.id === "o3")?.status).toBe("removed");
+  });
+
+  it("leaves a single queue entry and re-orders the remaining races", () => {
+    const entries = [
+      entry("q1", ["o1"], ["r1"], { requestedType: "solo" }),
+      entry("q2", ["o2"], ["r2"], { requestedType: "solo" }),
+      entry("q3", ["o3"], ["r3"], { requestedType: "solo" })
+    ];
+    const occurrences = [
+      occurrence("o1", "r1", { intent: "solo", projectedPosition: 1 }),
+      occurrence("o2", "r2", { intent: "solo", projectedPosition: 2 }),
+      occurrence("o3", "r3", { intent: "solo", projectedPosition: 3 })
+    ];
+
+    const left = leaveQueueEntryForRacer(entries, occurrences, "q2", "r2");
+    const result = project(left, entries);
+
+    expect(result.entries.map((e) => ({ position: e.position, racerIds: e.racerIds }))).toEqual([
+      { position: 1, racerIds: ["r1"] },
+      { position: 2, racerIds: ["r3"] }
+    ]);
   });
 });

@@ -24,6 +24,8 @@ import {
   finishPasskeyRegistration,
   finishPasskeySignIn,
   forgetRacerSessionToken,
+  leaveRacerQueue,
+  leaveRacerQueueEntry,
   markRacerNotificationRead,
   rememberRacerSessionToken,
   optOutOfCurrentTournament,
@@ -62,6 +64,8 @@ import type {
 import { RacerBottomTabs } from "./racer-sections/tabs";
 import { TournamentTab } from "./racer-sections/tournament";
 import { TournamentOptOutConfirmModal } from "./racer-sections/tournament-opt-out-confirm-modal";
+import { QueueLeaveConfirmModal } from "./racer-sections/queue-leave-confirm-modal";
+import type { QueueLeaveRequest } from "./racer-sections/queue-leave-confirm-modal";
 
 type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJSON"];
 type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
@@ -322,6 +326,8 @@ interface RacerPageState {
   notificationPromptVisible: boolean;
   phone: string;
   queueIssueModal: QueueIssueModal | null;
+  queueLeaveBusy: boolean;
+  queueLeaveRequest: QueueLeaveRequest | null;
   queueMessage: string | null;
   selectedOpponent: string;
   selectedRacerDetailId: string | null;
@@ -354,6 +360,8 @@ function createInitialRacerPageState(initialTab: string | undefined): RacerPageS
     notificationPromptVisible: false,
     phone: "",
     queueIssueModal: null,
+    queueLeaveBusy: false,
+    queueLeaveRequest: null,
     queueMessage: null,
     selectedOpponent: "",
     selectedRacerDetailId: null,
@@ -401,8 +409,10 @@ interface RacerPageViewProps {
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
   bracketPresentationRequest: BracketPresentationRequest | null;
+  cancelQueueLeave: () => void;
   cancelTournamentOptOut: () => void;
   challengeReplacementRequest: ChallengeReplacementRequest | null;
+  confirmQueueLeave: () => Promise<void>;
   currentRace: AppSnapshot["raceProjection"]["race"] | null;
   currentRaceNames: string | null;
   dismissNotificationModal: (notification: RacerNotification) => Promise<void>;
@@ -434,11 +444,15 @@ interface RacerPageViewProps {
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
   paymentReturnState: string | null;
   queueIssueModal: QueueIssueModal | null;
+  queueLeaveBusy: boolean;
+  queueLeaveRequest: QueueLeaveRequest | null;
   queueMessage: string | null;
   raceQueuePreviewEntries: AppSnapshot["queue"];
   racerContentRef: RefObject<HTMLDivElement | null>;
   racerNotifications: RacerNotification[];
   reduceMotion: boolean;
+  requestLeaveQueue: () => void;
+  requestLeaveQueueEntry: (entry: AppSnapshot["queue"][number]) => void;
   requestTournamentOptOut: () => Promise<void>;
   selectedOpponent: string;
   selectedRacer: AppSnapshot["racers"][number] | undefined;
@@ -497,6 +511,8 @@ function useRacerPageViewModel({
     notificationPromptVisible,
     phone,
     queueIssueModal,
+    queueLeaveBusy,
+    queueLeaveRequest,
     queueMessage,
     selectedOpponent,
     selectedRacerDetailId,
@@ -1115,6 +1131,59 @@ function useRacerPageViewModel({
     queryClient.setQueryData(racerNotificationsQueryKey, nextNotifications);
   }
 
+  function requestLeaveQueueEntry(entry: AppSnapshot["queue"][number]): void {
+    const opponentRacerId =
+      entry.lockType === "challenge"
+        ? entry.racerIds.find((racerId) => racerId !== selectedRacerId)
+        : undefined;
+    setState({
+      queueLeaveRequest: {
+        mode: "entry",
+        entryId: entry.id,
+        opponentName:
+          opponentRacerId && snapshot ? resolveRacerName(snapshot, opponentRacerId) : null
+      }
+    });
+  }
+
+  function requestLeaveQueue(): void {
+    setState({ queueLeaveRequest: { mode: "all" } });
+  }
+
+  function cancelQueueLeave(): void {
+    setState({ queueLeaveRequest: null });
+  }
+
+  async function confirmQueueLeave(): Promise<void> {
+    const request = queueLeaveRequest;
+    if (!request) {
+      return;
+    }
+
+    setState({ queueLeaveBusy: true });
+    try {
+      const nextSnapshot =
+        request.mode === "all"
+          ? await leaveRacerQueue()
+          : await leaveRacerQueueEntry(request.entryId ?? "");
+      queryClient.setQueryData(snapshotQueryKey, nextSnapshot);
+      showToast({
+        message: request.mode === "all" ? "You've left the queue." : "You've left that race."
+      });
+      setState({ queueLeaveRequest: null });
+    } catch (error) {
+      // A toast, not queueMessage: leaving stays available under a closed queue,
+      // where the queue-controls message area is replaced by the closed notice.
+      showToast({
+        message: error instanceof Error ? error.message : "Could not leave the queue.",
+        variant: "error"
+      });
+      setState({ queueLeaveRequest: null });
+    } finally {
+      setState({ queueLeaveBusy: false });
+    }
+  }
+
   function requestTournamentOptOut(): Promise<void> {
     setTournamentOptOutMessage(null);
     setTournamentOptOutConfirmOpen(true);
@@ -1346,7 +1415,9 @@ function useRacerPageViewModel({
       tournamentMode,
       tournamentOptOutBusy
     },
+    cancelQueueLeave,
     cancelTournamentOptOut,
+    confirmQueueLeave,
     handleAvatarUpload,
     handleChallengeRacer,
     handleEnableNotifications,
@@ -1367,11 +1438,15 @@ function useRacerPageViewModel({
     },
     paymentReturnState,
     queueIssueModal,
+    queueLeaveBusy,
+    queueLeaveRequest,
     queueMessage,
     raceQueuePreviewEntries,
     racerContentRef,
     racerNotifications,
     reduceMotion,
+    requestLeaveQueue,
+    requestLeaveQueueEntry,
     requestTournamentOptOut,
     selectedOpponent,
     selectedRacer,
@@ -1431,8 +1506,10 @@ function RacerPageView({
   avatarUploadBusy,
   avatarUploadMessage,
   bracketPresentationRequest,
+  cancelQueueLeave,
   cancelTournamentOptOut,
   challengeReplacementRequest,
+  confirmQueueLeave,
   currentRace,
   currentRaceNames,
   dismissNotificationModal,
@@ -1456,11 +1533,15 @@ function RacerPageView({
   onMarkNotificationRead,
   paymentReturnState,
   queueIssueModal,
+  queueLeaveBusy,
+  queueLeaveRequest,
   queueMessage,
   raceQueuePreviewEntries,
   racerContentRef,
   racerNotifications,
   reduceMotion,
+  requestLeaveQueue,
+  requestLeaveQueueEntry,
   requestTournamentOptOut,
   selectedOpponent,
   selectedRacer,
@@ -1609,6 +1690,8 @@ function RacerPageView({
                 layoutTransition={layoutTransition}
                 liveSnapshot={liveSnapshot}
                 onQueueSignup={handleQueueSignup}
+                onRequestLeaveEntry={requestLeaveQueueEntry}
+                onRequestLeaveQueue={requestLeaveQueue}
                 paymentReturnState={paymentReturnState}
                 queueMessage={queueMessage}
                 selectedOpponent={selectedOpponent}
@@ -1699,6 +1782,12 @@ function RacerPageView({
         busy={tournamentOptOutBusy}
         onCancel={cancelTournamentOptOut}
         onConfirm={handleTournamentOptOut}
+      />
+      <QueueLeaveConfirmModal
+        request={queueLeaveRequest}
+        busy={queueLeaveBusy}
+        onCancel={cancelQueueLeave}
+        onConfirm={confirmQueueLeave}
       />
     </LayoutGroup>
   );

@@ -232,6 +232,13 @@ export interface QueueOccurrence {
   racerId: string;
   status: QueueEntryStatus;
   intent: QueueOccurrenceIntent;
+  /**
+   * The intent this occurrence held immediately before a `challenge` upgraded
+   * it, or `null` when the challenge created the occurrence fresh (or the
+   * occurrence is not a challenge). Drives challenge-abandonment resolution
+   * (ADR-0015): `null` → remove the orphan, `solo`/`auto-match` → restore it.
+   */
+  priorIntent: QueueOccurrenceIntent | null;
   lockGroupId: string | null;
   signupSequence: number;
   bumpCount: number;

@@ -462,6 +462,26 @@ export async function optOutOfCurrentTournament(): Promise<TournamentOptOutRespo
   );
 }
 
+export async function leaveRacerQueue(): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/queue"), {
+      method: "DELETE",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+export async function leaveRacerQueueEntry(entryId: string): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/racer/queue/${encodeURIComponent(entryId)}`), {
+      method: "DELETE",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
 export async function sendAdminNotification(
   input: AdminNotificationInput
 ): Promise<{ snapshot: AppSnapshot; targetCount: number }> {

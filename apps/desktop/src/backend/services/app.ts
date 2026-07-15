@@ -26,6 +26,7 @@ import type {
   PhotoBoothSession,
   PhotoBoothStatus,
   PhotoBoothTokenResponse,
+  QueueOccurrence,
   RaceRecord,
   RaceResultPresentation,
   Racer,
@@ -78,6 +79,8 @@ import {
   ChallengeTargetUnavailableError,
   findNextQueuedEntry,
   InvalidChallengeReplacementError,
+  leaveQueueEntryForRacer,
+  leaveQueueForRacer,
   projectQueueEntries,
   reindexQueue,
   removeRacerFromQueue,
@@ -2201,6 +2204,111 @@ export class RollerRumbleApp extends EventEmitter {
       this.emitSnapshot();
     }
     return this.getSnapshot();
+  }
+
+  /**
+   * Getting out of the queue is the opposite of joining, so leaving stays
+   * available under a `closed queue`; only a `tournament pause` freezes it, when
+   * the whole open queue is suspended and the host owns removals.
+   */
+  private assertLeaveAllowed(eventId: string): void {
+    if (this.getActiveTournamentBundle(eventId)) {
+      throw new AppHttpError(
+        "The open queue is paused for a tournament. Ask the host to remove you.",
+        409,
+        "queue_leave_paused"
+      );
+    }
+  }
+
+  /**
+   * A racer leaving the whole queue from their own phone. Clears only their
+   * `queued` occurrences — a race that is already staging or live is the host's
+   * to unwind — then resolves any challenge partners the departure stranded and
+   * tells the ones it removed.
+   */
+  leaveQueueForSessionRacer(racerId: string): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    this.assertLeaveAllowed(activeEvent.id);
+    const timestamp = nowIso();
+    const before = this.db.listQueueOccurrences(activeEvent.id);
+    const updated = leaveQueueForRacer(before, racerId);
+    this.saveProjectedQueue(activeEvent.id, updated, timestamp);
+    this.notifyChallengeAbandonmentRemovals(activeEvent.id, before, updated, racerId);
+    if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(activeEvent.id);
+      this.emitSnapshot();
+    }
+    return this.getSnapshot();
+  }
+
+  leaveQueueEntryForSessionRacer(entryId: string, racerId: string): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    this.assertLeaveAllowed(activeEvent.id);
+    const timestamp = nowIso();
+    const before = this.db.listQueueOccurrences(activeEvent.id);
+    const updated = leaveQueueEntryForRacer(
+      this.db.listQueueEntries(activeEvent.id),
+      before,
+      entryId,
+      racerId
+    );
+    this.saveProjectedQueue(activeEvent.id, updated, timestamp);
+    this.notifyChallengeAbandonmentRemovals(activeEvent.id, before, updated, racerId);
+    if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(activeEvent.id);
+      this.emitSnapshot();
+    }
+    return this.getSnapshot();
+  }
+
+  /**
+   * Tell any opponent that a `challenge abandonment` removed outright — the ones
+   * the challenge pulled into the queue fresh (ADR-0015). An opponent who was
+   * merely restored to their prior intent kept their place and stays silent.
+   * Uses the racer's existing `queue-status` channel via supersession, so it
+   * replaces any stale "you're up" rather than stacking a second alert.
+   */
+  private notifyChallengeAbandonmentRemovals(
+    eventId: string,
+    before: QueueOccurrence[],
+    updated: QueueOccurrence[],
+    leavingRacerId: string
+  ): void {
+    const wasQueued = new Set(
+      before
+        .filter((occurrence) => occurrence.status === "queued")
+        .map((occurrence) => occurrence.id)
+    );
+    const stillQueuedRacerIds = new Set(
+      updated
+        .filter((occurrence) => occurrence.status === "queued")
+        .map((occurrence) => occurrence.racerId)
+    );
+    const removedOpponentIds = new Set<string>();
+    for (const occurrence of updated) {
+      if (
+        occurrence.racerId !== leavingRacerId &&
+        occurrence.status === "removed" &&
+        wasQueued.has(occurrence.id) &&
+        !stillQueuedRacerIds.has(occurrence.racerId)
+      ) {
+        removedOpponentIds.add(occurrence.racerId);
+      }
+    }
+
+    for (const opponentId of removedOpponentIds) {
+      const racerName = this.db.getRacer(opponentId)?.displayName ?? "Racer";
+      this.notifications.createNotificationAndDispatch({
+        eventId,
+        type: "queue_status_update",
+        title: "Challenge called off",
+        body: `${racerName}, the racer who challenged you left, so you're out of the race queue.`,
+        url: "/racer",
+        channelKey: this.queueStatusChannelKey(eventId, opponentId),
+        racerIds: [opponentId]
+      });
+    }
   }
 
   stageNextRace(): AppSnapshot {

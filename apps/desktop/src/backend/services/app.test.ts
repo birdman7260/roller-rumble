@@ -3,6 +3,7 @@ import type {
   AdminSettings,
   AppSnapshot,
   QueueEntry,
+  QueueOccurrence,
   RaceRecord,
   RacerNotificationType
 } from "@roller-rumble/shared/types";
@@ -158,6 +159,16 @@ function getReconcileQueueStatusMethod(): (this: unknown, ...args: unknown[]) =>
     throw new Error("Missing queue-status reconcile implementation");
   }
   return candidate as (this: unknown, ...args: unknown[]) => void;
+}
+
+type AppPrototypeMethod = (this: unknown, ...args: never[]) => unknown;
+
+function getAppMethod(name: string): AppPrototypeMethod {
+  const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, name);
+  if (typeof candidate !== "function") {
+    throw new Error(`Missing ${name} implementation`);
+  }
+  return candidate as AppPrototypeMethod;
 }
 
 function getQueueStatusChannelKeyMethod(): (this: unknown, ...args: unknown[]) => string {
@@ -1379,5 +1390,169 @@ describe("app service tournament notifications", () => {
         triggerKey: "tournament-withdrawn:t1:r1"
       })
     );
+  });
+});
+
+describe("app service racer leave", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  type LeaveAllInvoker = (this: unknown, racerId: string) => AppSnapshot;
+  type LeaveEntryInvoker = (this: unknown, entryId: string, racerId: string) => AppSnapshot;
+
+  function occurrence(
+    id: string,
+    racerId: string,
+    overrides: Partial<QueueOccurrence> = {}
+  ): QueueOccurrence {
+    return {
+      id,
+      eventId: "event-1",
+      racerId,
+      status: "queued",
+      intent: "auto-match",
+      priorIntent: null,
+      lockGroupId: null,
+      signupSequence: Number(id.replace(/\D/gu, "")) || 1,
+      bumpCount: 0,
+      raceCountAtJoin: 0,
+      projectedPosition: null,
+      createdAt: "2025-01-01T00:00:00.000Z",
+      updatedAt: "2025-01-01T00:00:00.000Z",
+      ...overrides
+    };
+  }
+
+  function makeTarget(options: {
+    before: QueueOccurrence[];
+    entries?: QueueEntry[];
+    tournamentActive?: boolean;
+  }) {
+    const createNotificationAndDispatch = vi.fn<(input: { type: string }) => number>();
+    const saveProjectedQueue = vi.fn();
+    const runQueueNotificationTriggers = vi.fn();
+    const target = {
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        listQueueOccurrences: () => options.before,
+        listQueueEntries: () => options.entries ?? [],
+        getRacer: (racerId: string) => ({ displayName: `Name ${racerId}` })
+      },
+      notifications: { createNotificationAndDispatch },
+      getActiveTournamentBundle: () =>
+        options.tournamentActive ? { tournament: { id: "t1" } } : null,
+      saveProjectedQueue,
+      maybeAutoStageNextRace: () => false,
+      runQueueNotificationTriggers,
+      emitSnapshot: vi.fn(),
+      getSnapshot: () => ({}) as AppSnapshot,
+      queueStatusChannelKey: getQueueStatusChannelKeyMethod(),
+      assertLeaveAllowed: getAppMethod("assertLeaveAllowed"),
+      notifyChallengeAbandonmentRemovals: getAppMethod("notifyChallengeAbandonmentRemovals")
+    };
+    return { target, createNotificationAndDispatch, saveProjectedQueue };
+  }
+
+  const leaveAll = getAppMethod("leaveQueueForSessionRacer") as unknown as LeaveAllInvoker;
+  const leaveEntry = getAppMethod("leaveQueueEntryForSessionRacer") as unknown as LeaveEntryInvoker;
+
+  function savedOccurrences(saveProjectedQueue: ReturnType<typeof vi.fn>): QueueOccurrence[] {
+    return saveProjectedQueue.mock.calls[0][1] as QueueOccurrence[];
+  }
+
+  it("leave-all clears only the session racer's queued occurrences", () => {
+    const before = [
+      occurrence("o1", "r1", { intent: "solo" }),
+      occurrence("o2", "r2", { intent: "auto-match" })
+    ];
+    const { target, saveProjectedQueue, createNotificationAndDispatch } = makeTarget({ before });
+
+    leaveAll.call(target, "r1");
+
+    const saved = savedOccurrences(saveProjectedQueue);
+    expect(saved.find((o) => o.id === "o1")?.status).toBe("removed");
+    expect(saved.find((o) => o.id === "o2")?.status).toBe("queued");
+    expect(createNotificationAndDispatch).not.toHaveBeenCalled();
+  });
+
+  it("leave-one clears only the named entry's occurrence for the session racer", () => {
+    const before = [
+      occurrence("o1", "r1", { intent: "solo" }),
+      occurrence("o2", "r2", { intent: "solo" })
+    ];
+    const entries = [
+      {
+        id: "q1",
+        occurrenceIds: ["o1"],
+        racerIds: ["r1"],
+        status: "queued"
+      } as unknown as QueueEntry,
+      {
+        id: "q2",
+        occurrenceIds: ["o2"],
+        racerIds: ["r2"],
+        status: "queued"
+      } as unknown as QueueEntry
+    ];
+    const { target, saveProjectedQueue } = makeTarget({ before, entries });
+
+    leaveEntry.call(target, "q1", "r1");
+
+    const saved = savedOccurrences(saveProjectedQueue);
+    expect(saved.find((o) => o.id === "o1")?.status).toBe("removed");
+    expect(saved.find((o) => o.id === "o2")?.status).toBe("queued");
+  });
+
+  it("notifies a fresh-pulled opponent when leaving abandons the challenge", () => {
+    const before = [
+      occurrence("o1", "r1", {
+        intent: "challenge",
+        priorIntent: "auto-match",
+        lockGroupId: "lock-1"
+      }),
+      occurrence("o2", "r2", { intent: "challenge", priorIntent: null, lockGroupId: "lock-1" })
+    ];
+    const { target, createNotificationAndDispatch, saveProjectedQueue } = makeTarget({ before });
+
+    leaveAll.call(target, "r1");
+
+    expect(saveProjectedQueue.mock.calls[0][1]).toBeDefined();
+    expect(createNotificationAndDispatch).toHaveBeenCalledTimes(1);
+    expect(createNotificationAndDispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "queue_status_update",
+        channelKey: "queue-status:event-1:r2",
+        racerIds: ["r2"]
+      })
+    );
+  });
+
+  it("stays silent when leaving only restores the opponent to their prior intent", () => {
+    const before = [
+      occurrence("o1", "r1", { intent: "challenge", priorIntent: null, lockGroupId: "lock-1" }),
+      occurrence("o2", "r2", {
+        intent: "challenge",
+        priorIntent: "auto-match",
+        lockGroupId: "lock-1"
+      })
+    ];
+    const { target, createNotificationAndDispatch, saveProjectedQueue } = makeTarget({ before });
+
+    leaveAll.call(target, "r1");
+
+    const saved = savedOccurrences(saveProjectedQueue);
+    expect(saved.find((o) => o.id === "o2")).toMatchObject({
+      status: "queued",
+      intent: "auto-match"
+    });
+    expect(createNotificationAndDispatch).not.toHaveBeenCalled();
+  });
+
+  it("blocks leaving while a tournament pause is in effect", () => {
+    const before = [occurrence("o1", "r1")];
+    const { target } = makeTarget({ before, tournamentActive: true });
+
+    expect(() => leaveAll.call(target, "r1")).toThrow();
   });
 });

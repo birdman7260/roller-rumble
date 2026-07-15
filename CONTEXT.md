@@ -122,8 +122,17 @@ _Avoid_: lineup, race list
 **closed queue**: The operator-controlled state (`queueOpen`, default open) that stops racers self-adding to the `Queue` — used to drain the queue before starting a `Tournament`. While closed, the racer page hides the three self-service entry points (join, solo, challenge) behind an operator-authored `queueClosedMessage` (blank falls back to a built-in default), and the racer self-service endpoint refuses new entries; the operator's manual add and everyone already queued are unaffected. Manual and operator-messaged — contrast the automatic `tournament pause`.
 _Avoid_: queue lock, queue freeze, paused queue (the last is the `tournament pause`)
 
-**tournament pause**: The automatic state where the `Queue` stops taking self-service signups because a `Tournament` is live — the racer page shows a built-in "open queue paused" card, not an operator message. System-driven; contrast the operator-driven `closed queue`.
+**tournament pause**: The automatic state where the `Queue` stops taking self-service signups because a `Tournament` is live — the racer page shows a built-in "open queue paused" card, not an operator message. System-driven; contrast the operator-driven `closed queue`. Also freezes `leave` — during a `tournament pause` the racer cannot self-remove; only the host can.
 _Avoid_: closed queue (that is the operator-driven gate)
+
+**queue occurrence**: One racer's single instance in the `Queue`. A racer may hold several at once (up to a configured max). Each carries an `intent` (`solo`, `auto-match`, or `challenge`) and a lifecycle status (`queued` → `staging` → `racing`, or `removed`). The app pairs `queued` occurrences into the visible race entries; `intent` decides how (a `challenge` locks two occurrences together, an `auto-match` waits to be paired with any other, a `solo` races alone).
+_Avoid_: queue slot, queue entry (an entry is the projected pairing; an occurrence is one racer's membership)
+
+**leave**: A racer's self-service withdrawal from the `Queue` — either one spot (a single `queue occurrence`) or every spot at once. Distinct from the host's `remove`, which is the operator doing it on a racer's behalf. `leave` only ever touches `queued` occurrences: a racer cannot leave a spot that is already `staging` or `racing` (the host handles those). Always available while the racer holds `queued` spots, even under a `closed queue`; blocked only by a `tournament pause`.
+_Avoid_: remove (reserve for the host action), withdraw, quit, drop out
+
+**challenge abandonment**: What happens to the opponent when a racer `leave`s a `challenge` occurrence. The opponent's fate depends on how they entered: if the challenge itself pulled them in fresh (they held no prior spot) they are removed entirely and told via their `queue-status notification`; if they already had a spot that the challenge upgraded, they fall back to their `prior intent` (`solo` or `auto-match`) and stay queued silently. Resolved by the occurrence's remembered `prior intent`, not guessed at leave time.
+_Avoid_: challenge cancel, challenge decline (a `decline` would be the opponent's action; abandonment is the challenger's)
 
 **AppSnapshot**: The complete derived state broadcast over WebSocket to all connected surfaces (admin, projector, racer). Assembled from SQLite on demand; not the source of truth itself.
 _Avoid_: state, live state

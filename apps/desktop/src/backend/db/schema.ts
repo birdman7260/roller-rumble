@@ -229,6 +229,7 @@ export const queueOccurrences = sqliteTable("queue_occurrences", {
     .references(() => racers.id, { onDelete: "cascade" }),
   status: text("status").$type<QueueEntry["status"]>().notNull(),
   intent: text("intent").$type<QueueOccurrence["intent"]>().notNull(),
+  priorIntent: text("prior_intent").$type<QueueOccurrence["intent"]>(),
   lockGroupId: text("lock_group_id"),
   signupSequence: integer("signup_sequence").notNull(),
   bumpCount: integer("bump_count").notNull(),

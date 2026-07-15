@@ -757,6 +757,19 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.optOutOfActiveTournament(racer.id));
   });
 
+  // Racer self-service leave. The racer id always comes from the authenticated
+  // session — never the URL — so a racer can only ever remove their own spots,
+  // unlike the host's admin `DELETE /queue/...` routes.
+  app.delete(`${API_PREFIX}/racer/queue`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(service.leaveQueueForSessionRacer(racer.id));
+  });
+
+  app.delete(`${API_PREFIX}/racer/queue/:entryId`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(service.leaveQueueEntryForSessionRacer(req.params.entryId, racer.id));
+  });
+
   app.post(`${API_PREFIX}/racer/payments/:paymentId/cancel`, (req, res) => {
     const racer = requireRacerSession(req, service);
     res.json(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId));

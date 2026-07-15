@@ -165,6 +165,10 @@ function createOccurrence(input: {
     racerId: input.racerId,
     status: "queued",
     intent: input.intent,
+    // A freshly minted occurrence has no earlier intent to fall back to. When it
+    // is a fresh challenge occurrence, `null` marks the partner as pulled in by
+    // the challenge, so abandoning it removes them (ADR-0015).
+    priorIntent: null,
     lockGroupId: input.lockGroupId,
     signupSequence: input.signupSequence,
     bumpCount: 0,
@@ -173,6 +177,16 @@ function createOccurrence(input: {
     createdAt: input.timestamp,
     updatedAt: input.timestamp
   };
+}
+
+/**
+ * The intent an existing occurrence should fall back to if a challenge that
+ * upgrades it is later abandoned (ADR-0015). A `solo` run returns to `solo`;
+ * everything else (including replacing one challenge with another) returns to
+ * `auto-match`, since a prior challenge cannot be restored on its own.
+ */
+function challengeFallbackIntent(previousIntent: QueueOccurrence["intent"]): "solo" | "auto-match" {
+  return previousIntent === "solo" ? "solo" : "auto-match";
 }
 
 function getOccurrenceSlotPosition(occurrence: QueueOccurrence): number {
@@ -230,7 +244,23 @@ function createQueueSlot(
   };
 }
 
-function releaseOrphanedChallengeOccurrences(occurrences: QueueOccurrence[]): QueueOccurrence[] {
+/**
+ * Resolve every challenge occurrence whose partner has left, using the
+ * occurrence's remembered `priorIntent` (ADR-0015):
+ *
+ * - `null` (the challenge pulled them in fresh) → remove them entirely; they
+ *   never opted into the open queue.
+ * - `solo` / `auto-match` (an existing spot the challenge upgraded) → restore
+ *   that intent and keep them queued.
+ *
+ * This can shrink the occurrence set — the `null` branch marks occurrences
+ * `removed` — so callers must account for occurrences disappearing, not just
+ * being relabelled.
+ */
+function releaseOrphanedChallengeOccurrences(
+  occurrences: QueueOccurrence[],
+  timestamp?: string
+): QueueOccurrence[] {
   const activeChallengeCounts = new Map<string, number>();
   for (const occurrence of occurrences) {
     if (
@@ -255,10 +285,23 @@ function releaseOrphanedChallengeOccurrences(occurrences: QueueOccurrence[]): Qu
       return occurrence;
     }
 
+    const updatedAt = timestamp ?? occurrence.updatedAt;
+    if (occurrence.priorIntent === "solo" || occurrence.priorIntent === "auto-match") {
+      return {
+        ...occurrence,
+        intent: occurrence.priorIntent,
+        priorIntent: null,
+        lockGroupId: null,
+        updatedAt
+      };
+    }
+
     return {
       ...occurrence,
-      intent: "auto-match",
-      lockGroupId: null
+      status: "removed",
+      priorIntent: null,
+      lockGroupId: null,
+      updatedAt
     };
   });
 }
@@ -519,6 +562,7 @@ function releaseReplacementSlotRemainder(
     .map((occurrence) => ({
       ...occurrence,
       intent: "auto-match" as const,
+      priorIntent: null,
       lockGroupId: null,
       updatedAt: timestamp
     }));
@@ -537,7 +581,7 @@ export function addQueueSignup(
   }
 
   const racerStatsById = input.racerStatsById ?? new Map<string, QueueRacerStats>();
-  const normalizedOccurrences = releaseOrphanedChallengeOccurrences(occurrences);
+  const normalizedOccurrences = releaseOrphanedChallengeOccurrences(occurrences, input.timestamp);
   const slots = buildQueueSlots(normalizedOccurrences, racerStatsById);
 
   if (!input.opponentRacerId) {
@@ -604,6 +648,9 @@ export function addQueueSignup(
       ? {
           ...challengerAnchor.occurrence,
           intent: "challenge",
+          // Remember what this spot was before the challenge upgraded it, so an
+          // abandonment restores it rather than stranding the racer (ADR-0015).
+          priorIntent: challengeFallbackIntent(challengerAnchor.occurrence.intent),
           lockGroupId,
           updatedAt: input.timestamp
         }
@@ -621,6 +668,7 @@ export function addQueueSignup(
       ? {
           ...opponentAnchor.occurrence,
           intent: "challenge",
+          priorIntent: challengeFallbackIntent(opponentAnchor.occurrence.intent),
           lockGroupId,
           updatedAt: input.timestamp
         }
@@ -665,22 +713,44 @@ export function addQueueSignup(
   return mergeOccurrencesWithSlots(normalizedOccurrences, nextSlots, input.timestamp);
 }
 
-export function removeRacerFromQueue(
+const QUEUED_ONLY_STATUSES = new Set<QueueOccurrence["status"]>(["queued"]);
+
+/**
+ * Sweep a racer's occurrences into `removed` and then resolve any challenge
+ * partners the sweep stranded. `sweepableStatuses` is the reach of the caller:
+ * the host's admin removal sweeps every active status, while a racer's own
+ * `leave` is constrained to `queued` so it can never pull someone out of a race
+ * that is already staging or live. An optional `occurrenceIds` filter narrows
+ * the sweep to a single queue entry.
+ */
+function sweepRacerOccurrences(
   occurrences: QueueOccurrence[],
-  racerId: string
+  racerId: string,
+  sweepableStatuses: Set<QueueOccurrence["status"]>,
+  occurrenceIds: Set<string> | null
 ): QueueOccurrence[] {
   const timestamp = new Date().toISOString();
   return releaseOrphanedChallengeOccurrences(
     occurrences.map((occurrence) =>
-      occurrence.racerId === racerId && ACTIVE_OCCURRENCE_STATUSES.has(occurrence.status)
+      occurrence.racerId === racerId &&
+      sweepableStatuses.has(occurrence.status) &&
+      (occurrenceIds === null || occurrenceIds.has(occurrence.id))
         ? {
             ...occurrence,
             status: "removed",
             updatedAt: timestamp
           }
         : occurrence
-    )
+    ),
+    timestamp
   );
+}
+
+export function removeRacerFromQueue(
+  occurrences: QueueOccurrence[],
+  racerId: string
+): QueueOccurrence[] {
+  return sweepRacerOccurrences(occurrences, racerId, ACTIVE_OCCURRENCE_STATUSES, null);
 }
 
 export function removeRacerFromSpecificQueueEntry(
@@ -694,20 +764,42 @@ export function removeRacerFromSpecificQueueEntry(
     return occurrences;
   }
 
-  const removableOccurrenceIds = new Set(entry.occurrenceIds);
-  const timestamp = new Date().toISOString();
-  return releaseOrphanedChallengeOccurrences(
-    occurrences.map((occurrence) =>
-      occurrence.racerId === racerId &&
-      removableOccurrenceIds.has(occurrence.id) &&
-      ACTIVE_OCCURRENCE_STATUSES.has(occurrence.status)
-        ? {
-            ...occurrence,
-            status: "removed",
-            updatedAt: timestamp
-          }
-        : occurrence
-    )
+  return sweepRacerOccurrences(
+    occurrences,
+    racerId,
+    ACTIVE_OCCURRENCE_STATUSES,
+    new Set(entry.occurrenceIds)
+  );
+}
+
+/**
+ * A racer leaving the open queue from their own phone. Unlike the host's
+ * `removeRacerFrom*`, this only ever touches `queued` occurrences — a racer
+ * cannot self-remove from a race that is already staging or live.
+ */
+export function leaveQueueForRacer(
+  occurrences: QueueOccurrence[],
+  racerId: string
+): QueueOccurrence[] {
+  return sweepRacerOccurrences(occurrences, racerId, QUEUED_ONLY_STATUSES, null);
+}
+
+export function leaveQueueEntryForRacer(
+  entries: QueueEntry[],
+  occurrences: QueueOccurrence[],
+  entryId: string,
+  racerId: string
+): QueueOccurrence[] {
+  const entry = entries.find((candidate) => candidate.id === entryId);
+  if (!entry) {
+    return occurrences;
+  }
+
+  return sweepRacerOccurrences(
+    occurrences,
+    racerId,
+    QUEUED_ONLY_STATUSES,
+    new Set(entry.occurrenceIds)
   );
 }
 
@@ -716,7 +808,10 @@ export function projectQueueEntries(input: QueueProjectionInput): {
   occurrences: QueueOccurrence[];
 } {
   const racerStatsById = input.racerStatsById ?? new Map<string, QueueRacerStats>();
-  const normalizedOccurrences = releaseOrphanedChallengeOccurrences(input.occurrences);
+  const normalizedOccurrences = releaseOrphanedChallengeOccurrences(
+    input.occurrences,
+    input.timestamp
+  );
   const slots = buildQueueSlots(normalizedOccurrences, racerStatsById);
   const blocks = deriveQueueBlocks(slots);
   const existingByOccurrenceKey = new Map(

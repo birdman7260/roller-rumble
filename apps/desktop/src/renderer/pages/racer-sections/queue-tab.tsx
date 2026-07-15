@@ -1,5 +1,5 @@
 import type { AppSnapshot, QueueEntry, RacerSummary } from "@roller-rumble/shared/types";
-import { EmptyState, Panel } from "@roller-rumble/shared-ui";
+import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { resolveRacerName } from "../../lib/snapshot-display";
 import { QueueActions } from "./queue-actions";
@@ -22,9 +22,21 @@ function getQueuePositionLabel(index: number): string {
   }
 }
 
+// A racer can only leave a spot that is still `queued`; a race that is already
+// staging or live is the host's to unwind (issue #28).
+function isLeavableByRacer(entry: QueueEntry, selectedRacerId: string): boolean {
+  return (
+    entry.status === "queued" &&
+    Boolean(selectedRacerId) &&
+    entry.racerIds.includes(selectedRacerId)
+  );
+}
+
 export function QueueTab({
   liveSnapshot,
   onQueueSignup,
+  onRequestLeaveEntry,
+  onRequestLeaveQueue,
   paymentReturnState,
   queueMessage,
   selectedOpponent,
@@ -38,6 +50,8 @@ export function QueueTab({
 }: SectionMotionProps & {
   liveSnapshot: AppSnapshot;
   onQueueSignup: (input: RacerQueueSignupInput) => Promise<void>;
+  onRequestLeaveEntry: (entry: QueueEntry) => void;
+  onRequestLeaveQueue: () => void;
   paymentReturnState: string | null;
   queueMessage: string | null;
   selectedOpponent: string;
@@ -47,6 +61,12 @@ export function QueueTab({
   tournamentMode: boolean;
   upcoming: QueueEntry[];
 }) {
+  // Leaving is frozen during a tournament pause but stays available under a
+  // closed queue — getting out is the opposite of joining (issue #28).
+  const canLeave = Boolean(selectedRacer) && !tournamentMode;
+  const hasQueuedSpot =
+    canLeave && upcoming.some((entry) => isLeavableByRacer(entry, selectedRacerId));
+
   return (
     <>
       {tournamentMode ? (
@@ -90,6 +110,16 @@ export function QueueTab({
                       .join(" vs ")}
                   </strong>
                   <span>{getQueuePositionLabel(index)}</span>
+                  {canLeave && isLeavableByRacer(entry, selectedRacerId) ? (
+                    <Button
+                      variant="ghost"
+                      onClick={() => {
+                        onRequestLeaveEntry(entry);
+                      }}
+                    >
+                      Leave
+                    </Button>
+                  ) : null}
                 </div>
               ))}
             </div>
@@ -115,6 +145,18 @@ export function QueueTab({
               selectedRacerId={selectedRacerId}
               setSelectedOpponent={setSelectedOpponent}
             />
+            {hasQueuedSpot ? (
+              <div className="racer-queue-leave-all">
+                <Button
+                  variant="ghost"
+                  onClick={() => {
+                    onRequestLeaveQueue();
+                  }}
+                >
+                  Leave the queue entirely
+                </Button>
+              </div>
+            ) : null}
           </Panel>
         </m.div>
       ) : null}
