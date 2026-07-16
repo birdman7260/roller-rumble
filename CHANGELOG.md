@@ -10,6 +10,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+### Fixed
+
+## 0.1.22 - 2026-07-16
+
+### Added
+
+### Changed
+
 - Made the stats ali9gn around center on the winner overlay.
 - Trimmed the "You're up!" push notification to "<name>, head to the stage!" and reworded the post-race notification to "<name>, solid effort! Your results are on your phone."
 
