@@ -1904,7 +1904,7 @@ p {
 
 .race-page__result-stats div {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: 1fr 1fr;
   gap: 1rem;
   align-items: baseline;
   padding-top: clamp(0.35rem, 0.7vh, 0.65rem);
@@ -1921,6 +1921,7 @@ p {
   font-size: clamp(0.64rem, 0.9vw, 1rem);
   font-weight: 850;
   letter-spacing: 0.12em;
+  text-align: right;
   text-transform: uppercase;
 }
 
@@ -1929,6 +1930,7 @@ p {
   font-size: clamp(1.05rem, 1.7vw, 2rem);
   font-weight: 950;
   line-height: 0.95;
+  text-align: left;
 }
 
 .race-page__result-card--winner .race-page__result-stats dt {

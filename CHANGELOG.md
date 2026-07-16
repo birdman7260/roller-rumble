@@ -10,6 +10,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Made the stats ali9gn around center on the winner overlay.
+
 ### Fixed
 
 ## 0.1.21 - 2026-07-15
