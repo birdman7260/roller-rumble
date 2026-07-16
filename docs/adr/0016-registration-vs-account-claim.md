@@ -1,0 +1,17 @@
+# Registration always mints a new racer; claiming is a separate accountless-only path
+
+A shared or stale-session phone that tapped "Register" was silently overwriting whoever was already signed in: `registration` and the accountless "Secure This Account" upgrade shared one code path that threaded the current session's racer id into the new registration and wrote the new display name/email/phone (and the new `passkey`) onto that existing `racer account` (`AuthService.finishPasskeyRegistration`'s `challenge.racerId` branch). We split the two intents. **Registration** (`/auth/passkeys/register/*`) never reads the session and always creates a new `Racer` row plus a fresh session. **Claim account** (`/auth/passkeys/claim/*`) is a separate, session-bound endpoint that attaches an `email` `identity` and a `passkey` to the current `accountless racer` in place, keeping that racer's id and history — and is refused server-side when the session racer already has an email.
+
+## Considered Options
+
+- **Two endpoints, register ignores the session (chosen).** Registration and claiming become first-class, independently reachable intents; it is impossible to trigger an in-place overwrite from the new-account flow because that path never resolves a session racer.
+- **One endpoint, decide by whether the session racer is accountless (rejected).** Cannot distinguish "upgrade my own accountless racer" from "a different human registering on this shared phone" — both present a valid session, so it would still let one person overwrite another's `accountless racer`.
+- **One endpoint with an explicit `intent` flag (rejected).** Smaller surface, but the whole safety property hinges on the client always setting the flag correctly; a single client bug re-opens the clobber.
+
+## Consequences
+
+- Registration persists through an **insert-only** `Database.createRacer`, not `createOrUpdateRacer`. The latter merges into any racer sharing an `email` **or** `phone` identity, which is a second clobber vector independent of the session: registering a "new" racer while reusing a phone number would otherwise rewrite that phone's owner. `AuthService` no longer has `createOrUpdateRacer` in its store port at all, so the merge path is unreachable from registration by construction. A colliding email/phone is simply left with its current owner (the unique identity index) rather than rewriting that racer.
+- Registration ignores **both** the `Authorization: Bearer` token and the `roller_rumble_racer_session` cookie for account creation, then overwrites both with the new account's session. This holds the "a fresh register yields a fresh token" invariant even when the bearer token and the httpOnly cookie had desynced (a real trigger: a valid 30-day session whose racer isn't in the current event snapshot renders the sign-in screen while the cookie is still live server-side).
+- `accountlessId` is rotated on **every** identity transition — passkey sign-in, register, and sign-out — not just sign-out, so a device's accountless identity can't resurrect a prior person's `accountless racer`.
+- To register a different person on a phone already signed in, the current racer signs out first; v1 adds no "not you?" shortcut.
+- The session token stays the single source of truth for identity; `roller-rumble.racerId` in localStorage is a non-authoritative first-paint hint, always reconciled by the `/auth/session` hydrate.

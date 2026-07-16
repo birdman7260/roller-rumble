@@ -21,6 +21,7 @@ import {
   createAccountlessRacerSession,
   fetchRacerAuthSession,
   fetchNotificationConfig,
+  finishAccountClaim,
   finishPasskeyRegistration,
   finishPasskeySignIn,
   forgetRacerSessionToken,
@@ -32,6 +33,7 @@ import {
   saveRacerPushSubscription,
   signOutRacer,
   signUpRacerQueue,
+  startAccountClaim,
   startPasskeyRegistration,
   startPasskeySignIn,
   uploadAvatar
@@ -423,7 +425,7 @@ interface RacerPageViewProps {
   handleAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleChallengeRacer: (opponentRacerId: string) => void;
   handleEnableNotifications: () => Promise<void>;
-  handlePasskeyRegistration: (input: {
+  handleAccountClaim: (input: {
     displayName: string;
     email: string;
     phone?: string;
@@ -865,6 +867,9 @@ function useRacerPageViewModel({
         response: credential
       });
       rememberSignedInRacer(signedIn);
+      // The device is a known account now — retire its accountless identity so a
+      // later "Continue accountless" can't resurrect a prior racer (ADR-0016).
+      rotateAccountlessId();
     } catch (error) {
       setAuthMessage(error instanceof Error ? error.message : "Could not sign in.");
     } finally {
@@ -895,11 +900,47 @@ function useRacerPageViewModel({
         response: credential
       });
       rememberSignedInRacer(registered);
+      // A brand-new account owns the device now — retire the accountless
+      // identity so it can't later resurrect a prior racer (ADR-0016).
+      rotateAccountlessId();
       setAuthMode("email");
+    } catch (error) {
+      setAuthMessage(error instanceof Error ? error.message : "Could not register passkey.");
+    } finally {
+      setAuthBusy(false);
+    }
+  }
+
+  // Claiming attaches an email + passkey to the current accountless racer,
+  // keeping its id and history — so it does NOT rotate the accountless identity
+  // the way registration and sign-in do (ADR-0016).
+  async function handleAccountClaim(input: {
+    email: string;
+    displayName: string;
+    phone?: string;
+  }): Promise<void> {
+    setAuthBusy(true);
+    setAuthMessage(null);
+    try {
+      const result = await startAccountClaim(input);
+      if (result.status === "host_assist") {
+        setAuthMode("host-assist");
+        setAuthMessage(result.message);
+        return;
+      }
+
+      const credential = await startRegistration({
+        optionsJSON: result.options as RegistrationOptionsJSON
+      });
+      const claimed = await finishAccountClaim({
+        challengeId: result.challengeId,
+        response: credential
+      });
+      rememberSignedInRacer(claimed);
       setUpgradeEmail("");
       setUpgradeDisplayName("");
     } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : "Could not register passkey.");
+      setAuthMessage(error instanceof Error ? error.message : "Could not secure this account.");
     } finally {
       setAuthBusy(false);
     }
@@ -1421,7 +1462,7 @@ function useRacerPageViewModel({
     handleAvatarUpload,
     handleChallengeRacer,
     handleEnableNotifications,
-    handlePasskeyRegistration,
+    handleAccountClaim,
     handleQueueSignup,
     handleSignOut,
     handleTabChange,
@@ -1520,7 +1561,7 @@ function RacerPageView({
   handleAvatarUpload,
   handleChallengeRacer,
   handleEnableNotifications,
-  handlePasskeyRegistration,
+  handleAccountClaim,
   handleQueueSignup,
   handleSignOut,
   handleTabChange,
@@ -1666,7 +1707,7 @@ function RacerPageView({
                 onAvatarUpload={handleAvatarUpload}
                 onEnableNotifications={handleEnableNotifications}
                 onMarkNotificationRead={onMarkNotificationRead}
-                onPasskeyRegistration={handlePasskeyRegistration}
+                onAccountClaim={handleAccountClaim}
                 onSignOut={handleSignOut}
                 photoBoothEnabled={liveSnapshot.photoBooth.enabled}
                 racerNotifications={racerNotifications}

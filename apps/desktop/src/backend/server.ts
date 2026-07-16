@@ -589,8 +589,9 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     try {
       const input = passkeyRegistrationStartSchema.parse(req.body);
       const context = service.getPasskeyRequestContext(getRequestOrigin(req));
-      const sessionRacer = service.getRacerAuthSession(getSessionToken(req));
-      res.json(await service.startPasskeyRegistration(input, context, sessionRacer?.id));
+      // Registration never reads the session: it always mints a new racer
+      // account (ADR-0016), so a stale token/cookie can't be overwritten.
+      res.json(await service.startPasskeyRegistration(input, context));
     } catch (error) {
       next(error);
     }
@@ -600,6 +601,29 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     try {
       const input = passkeyChallengeSchema.parse(req.body);
       const result = await service.finishPasskeyRegistration(input.challengeId, input.response);
+      const sessionToken = service.createRacerSessionToken(result.racer.id);
+      setRacerSessionCookie(req, res, sessionToken);
+      res.json({ ...result, sessionToken });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/auth/passkeys/claim/options`, async (req, res, next) => {
+    try {
+      const input = passkeyRegistrationStartSchema.parse(req.body);
+      const context = service.getPasskeyRequestContext(getRequestOrigin(req));
+      const sessionRacer = requireRacerSession(req, service);
+      res.json(await service.startAccountClaim(input, context, sessionRacer.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/auth/passkeys/claim/verify`, async (req, res, next) => {
+    try {
+      const input = passkeyChallengeSchema.parse(req.body);
+      const result = await service.finishAccountClaim(input.challengeId, input.response);
       const sessionToken = service.createRacerSessionToken(result.racer.id);
       setRacerSessionCookie(req, res, sessionToken);
       res.json({ ...result, sessionToken });

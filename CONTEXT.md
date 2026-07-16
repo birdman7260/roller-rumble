@@ -24,6 +24,12 @@ _Avoid_: pairing code, login QR
 **accountless racer**: A racer who signs in with a display name only — no email, no passkey. Enabled by an optional host setting. Their results are not linked to a `racer account` unless later reconciled.
 _Avoid_: guest, anonymous (pick one canonical term — `accountless`)
 
+**registration**: Creating a brand-new `racer account` from the sign-in screen (an unknown email leads into passkey enrollment). Always mints a new `Racer` row and a fresh session, and deliberately ignores any session already present on the device — a phone still holding someone else's token or cookie must never have that account overwritten. Distinct from `claim account`, which attaches to an existing `accountless racer` in place.
+_Avoid_: sign-up; register (as a synonym for `claim account`)
+
+**claim account**: The path where an `accountless racer` attaches an `email` `identity` and a `passkey` to their existing `Racer` row, keeping the same racer id and all history (results, queue occurrences). Session-bound: it writes onto the currently signed-in accountless racer, and is refused server-side if that racer already has an email. Racer-facing copy is "Secure This Account." Distinct from `registration` (which creates a new row) and from the host-driven `attach QR`/`host-assist` (which bind a phone to an already-registered account).
+_Avoid_: upgrade, secure account (pick one canonical term — `claim account`); attach (that is the host `attach QR`)
+
 **passkey recovery**: The set of paths offered when a returning racer's email is known but has no usable `passkey` on this device (new phone, switched ecosystem, lost device, different browser). v1 offers three: `email one-time code` (primary), `race under your name` (fast fallback), and `host-assist` (backstop when email can't send).
 _Avoid_: account recovery, sign-in help
 

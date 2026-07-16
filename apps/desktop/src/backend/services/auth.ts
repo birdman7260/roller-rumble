@@ -42,7 +42,7 @@ export type AuthStore = Pick<
   | "getPasskeyCredentialByCredentialId"
   | "updatePasskeyCredentialUse"
   | "updateRacerRegistration"
-  | "createOrUpdateRacer"
+  | "createRacer"
   | "createPasskeyCredential"
 >;
 
@@ -53,7 +53,7 @@ export interface PasskeyRequestContext {
 
 interface PasskeyChallenge {
   id: string;
-  kind: "sign-in" | "registration";
+  kind: "sign-in" | "registration" | "claim";
   challenge: string;
   email: string;
   origin: string;
@@ -282,14 +282,22 @@ export class AuthService {
     return racer;
   }
 
+  /**
+   * Registration always mints a brand-new `racer account` and deliberately
+   * ignores whatever session the device is holding (ADR-0016): a phone still
+   * logged in as someone else must never have that account overwritten. An
+   * email that already belongs to a racer can't be re-registered — that racer
+   * recovers via `host-assist` instead. Attaching an email/passkey to an
+   * existing accountless racer is a separate, session-bound path
+   * (`startAccountClaim`).
+   */
   async startPasskeyRegistration(
     input: PasskeyRegistrationStartInput,
-    context: PasskeyRequestContext,
-    sessionRacerId?: string | null
+    context: PasskeyRequestContext
   ): Promise<PasskeyRegistrationStartResponse> {
     const email = normalizeEmail(input.email);
     const existingRacer = this.db.findRacerByIdentity("email", email);
-    if (existingRacer && existingRacer.id !== sessionRacerId) {
+    if (existingRacer) {
       return {
         status: "host_assist",
         email,
@@ -297,19 +305,12 @@ export class AuthService {
       };
     }
 
-    const racerForCredential = sessionRacerId ? this.db.getRacer(sessionRacerId) : null;
-    const excludeCredentials = racerForCredential
-      ? this.db.listPasskeyCredentialsForRacer(racerForCredential.id).map((credential) => ({
-          id: credential.credentialId,
-          transports: credential.transports as AuthenticatorTransportFuture[]
-        }))
-      : [];
     const options = await generateRegistrationOptions({
       rpName: "Roller Rumble",
       rpID: context.rpId,
       userName: email,
       userDisplayName: input.displayName,
-      excludeCredentials,
+      excludeCredentials: [],
       authenticatorSelection: {
         residentKey: "preferred",
         userVerification: "preferred"
@@ -321,7 +322,6 @@ export class AuthService {
       email,
       displayName: input.displayName,
       phone: input.phone,
-      racerId: sessionRacerId ?? undefined,
       origin: context.origin,
       rpId: context.rpId
     });
@@ -336,6 +336,119 @@ export class AuthService {
 
   async finishPasskeyRegistration(challengeId: string, response: unknown): Promise<Racer> {
     const challenge = this.consumePasskeyChallenge(challengeId, "registration");
+    const enrollment = await this.verifyPasskeyEnrollment(challenge, response);
+
+    const racer = this.db.createRacer({
+      displayName: challenge.displayName ?? challenge.email,
+      email: challenge.email,
+      phone: challenge.phone
+    });
+
+    this.finalizePasskeyEnrollment(racer, enrollment);
+    return racer;
+  }
+
+  /**
+   * Account claim: an `accountless racer` attaches an email identity and a
+   * passkey to their existing `Racer` row, keeping the same id and history. It
+   * writes onto the currently signed-in racer, so it is refused when that racer
+   * is not claimable (already has an email). An email that belongs to a
+   * different racer routes to `host-assist` rather than being pulled across.
+   */
+  async startAccountClaim(
+    input: PasskeyRegistrationStartInput,
+    context: PasskeyRequestContext,
+    sessionRacerId: string
+  ): Promise<PasskeyRegistrationStartResponse> {
+    const racer = this.db.getRacer(sessionRacerId);
+    if (!racer) {
+      throw new AppHttpError("Please sign in before securing your account.", 401, "auth_required");
+    }
+    this.assertClaimable(racer);
+
+    const email = normalizeEmail(input.email);
+    const existingRacer = this.db.findRacerByIdentity("email", email);
+    if (existingRacer && existingRacer.id !== racer.id) {
+      return {
+        status: "host_assist",
+        email,
+        message: "That email is already registered. Please ask the host to help attach a passkey."
+      };
+    }
+
+    const excludeCredentials = this.db
+      .listPasskeyCredentialsForRacer(racer.id)
+      .map((credential) => ({
+        id: credential.credentialId,
+        transports: credential.transports as AuthenticatorTransportFuture[]
+      }));
+    const options = await generateRegistrationOptions({
+      rpName: "Roller Rumble",
+      rpID: context.rpId,
+      userName: email,
+      userDisplayName: input.displayName,
+      excludeCredentials,
+      authenticatorSelection: {
+        residentKey: "preferred",
+        userVerification: "preferred"
+      }
+    });
+    const challengeId = this.rememberPasskeyChallenge({
+      kind: "claim",
+      challenge: options.challenge,
+      email,
+      displayName: input.displayName,
+      phone: input.phone,
+      racerId: racer.id,
+      origin: context.origin,
+      rpId: context.rpId
+    });
+
+    return {
+      status: "passkey",
+      email,
+      challengeId,
+      options
+    };
+  }
+
+  async finishAccountClaim(challengeId: string, response: unknown): Promise<Racer> {
+    const challenge = this.consumePasskeyChallenge(challengeId, "claim");
+    if (!challenge.racerId) {
+      throw new AppHttpError("This claim is no longer valid.", 400, "invalid_claim");
+    }
+    const existing = this.db.getRacer(challenge.racerId);
+    if (!existing) {
+      throw new AppHttpError("Racer account was not found.", 404, "racer_not_found");
+    }
+    this.assertClaimable(existing);
+
+    const enrollment = await this.verifyPasskeyEnrollment(challenge, response);
+
+    const racer = this.db.updateRacerRegistration(existing.id, {
+      displayName: challenge.displayName ?? existing.displayName,
+      email: challenge.email,
+      phone: challenge.phone
+    });
+    if (!racer) {
+      throw new AppHttpError("Could not secure racer account.", 500, "claim_failed");
+    }
+
+    this.finalizePasskeyEnrollment(racer, enrollment);
+    return racer;
+  }
+
+  private assertClaimable(racer: Racer): void {
+    if (racer.identities.some((identity) => identity.type === "email")) {
+      throw new AppHttpError(
+        "This account is already secured with an email.",
+        409,
+        "already_secured"
+      );
+    }
+  }
+
+  private async verifyPasskeyEnrollment(challenge: PasskeyChallenge, response: unknown) {
     const verification = await verifyRegistrationResponse({
       response: response as RegistrationResponseJSON,
       expectedChallenge: challenge.challenge,
@@ -347,46 +460,32 @@ export class AuthService {
       throw new AppHttpError("Passkey registration was not verified.", 401, "invalid_passkey");
     }
 
-    const credential = verification.registrationInfo.credential;
+    const { credential, credentialDeviceType, credentialBackedUp } = verification.registrationInfo;
     const existingCredential = this.db.getPasskeyCredentialByCredentialId(credential.id);
     if (existingCredential) {
       throw new AppHttpError("That passkey is already registered.", 409, "duplicate_passkey");
     }
+    return { credential, credentialDeviceType, credentialBackedUp };
+  }
 
-    let racer = challenge.racerId ? this.db.getRacer(challenge.racerId) : null;
-    if (racer) {
-      this.db.updateRacerRegistration(racer.id, {
-        displayName: challenge.displayName ?? racer.displayName,
-        email: challenge.email,
-        phone: challenge.phone
-      });
-      racer = this.db.getRacer(racer.id);
-    } else {
-      racer = this.db.createOrUpdateRacer({
-        displayName: challenge.displayName ?? challenge.email,
-        email: challenge.email,
-        phone: challenge.phone
-      });
-    }
-
-    if (!racer) {
-      throw new AppHttpError("Could not create racer account.", 500, "registration_failed");
-    }
-
+  private finalizePasskeyEnrollment(
+    racer: Racer,
+    enrollment: Awaited<ReturnType<AuthService["verifyPasskeyEnrollment"]>>
+  ): void {
+    const { credential, credentialDeviceType, credentialBackedUp } = enrollment;
     this.db.createPasskeyCredential({
       racerId: racer.id,
       credentialId: credential.id,
       publicKey: Buffer.from(credential.publicKey).toString("base64url"),
       counter: credential.counter,
       transports: credential.transports ?? [],
-      deviceType: verification.registrationInfo.credentialDeviceType,
-      backedUp: verification.registrationInfo.credentialBackedUp
+      deviceType: credentialDeviceType,
+      backedUp: credentialBackedUp
     });
 
     const activeEvent = this.db.getActiveEvent();
     if (activeEvent) {
       this.db.ensureEventRegistration(activeEvent.id, racer.id);
     }
-    return racer;
   }
 }

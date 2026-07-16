@@ -15,6 +15,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Registering no longer overwrites another racer's account. "Register" now always creates a brand-new racer and a fresh session: it never writes onto whoever was signed in on the device, and it can't absorb an existing racer that happens to share a phone number. Securing an accountless racer with an email and passkey ("Secure This Account") stays a separate action that keeps that racer's history — and it's now refused if the account already has an email.
+
 ## 0.1.21 - 2026-07-15
 
 ### Added

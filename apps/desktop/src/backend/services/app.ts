@@ -1621,10 +1621,9 @@ export class RollerRumbleApp extends EventEmitter {
 
   startPasskeyRegistration(
     input: PasskeyRegistrationStartInput,
-    context: PasskeyRequestContext,
-    sessionRacerId?: string | null
+    context: PasskeyRequestContext
   ): Promise<PasskeyRegistrationStartResponse> {
-    return this.auth.startPasskeyRegistration(input, context, sessionRacerId);
+    return this.auth.startPasskeyRegistration(input, context);
   }
 
   async finishPasskeyRegistration(
@@ -1632,6 +1631,26 @@ export class RollerRumbleApp extends EventEmitter {
     response: unknown
   ): Promise<RacerAuthSuccessResponse> {
     const racer = await this.auth.finishPasskeyRegistration(challengeId, response);
+    this.emitSnapshot();
+    return {
+      racer,
+      snapshot: this.getSnapshot()
+    };
+  }
+
+  startAccountClaim(
+    input: PasskeyRegistrationStartInput,
+    context: PasskeyRequestContext,
+    sessionRacerId: string
+  ): Promise<PasskeyRegistrationStartResponse> {
+    return this.auth.startAccountClaim(input, context, sessionRacerId);
+  }
+
+  async finishAccountClaim(
+    challengeId: string,
+    response: unknown
+  ): Promise<RacerAuthSuccessResponse> {
+    const racer = await this.auth.finishAccountClaim(challengeId, response);
     this.emitSnapshot();
     return {
       racer,

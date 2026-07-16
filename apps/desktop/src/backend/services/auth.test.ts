@@ -136,7 +136,7 @@ function makeStore(): AuthStore & {
         return credential;
       }
     ),
-    createOrUpdateRacer: vi.fn((input: { displayName: string; email?: string }) => {
+    createRacer: vi.fn((input: { displayName: string; email?: string }) => {
       const racer = makeRacer(`racer-${racers.size + 1}`, input.displayName, input.email);
       racers.set(racer.id, racer);
       return racer;
@@ -215,6 +215,78 @@ describe("AuthService", () => {
         expectedRPID: passkeyContext.rpId
       })
     );
+  });
+
+  it("registration always creates a new racer and never rewrites the signed-in one", async () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    // A racer is already signed in on this device (e.g. a shared phone).
+    store.racers.set("racer-1", makeRacer("racer-1", "Already Here"));
+
+    const start = await auth.startPasskeyRegistration(
+      { email: "new@example.com", displayName: "New Person" },
+      passkeyContext
+    );
+    const challengeId = (start as { challengeId: string }).challengeId;
+    const racer = await auth.finishPasskeyRegistration(challengeId, { id: "credential-1" });
+
+    expect(racer.id).not.toBe("racer-1");
+    expect(racer.displayName).toBe("New Person");
+    // The racer that was already signed in is untouched, and a second racer exists.
+    expect(store.racers.get("racer-1")?.displayName).toBe("Already Here");
+    expect(store.racers.size).toBe(2);
+  });
+
+  it("claims an accountless racer by attaching an email and passkey in place", async () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    store.racers.set("racer-1", makeRacer("racer-1", "Accountless Ace"));
+
+    const start = await auth.startAccountClaim(
+      { email: "ace@example.com", displayName: "Accountless Ace" },
+      passkeyContext,
+      "racer-1"
+    );
+    expect(start).toMatchObject({ status: "passkey" });
+    const challengeId = (start as { challengeId: string }).challengeId;
+    const racer = await auth.finishAccountClaim(challengeId, { id: "credential-1" });
+
+    // Same racer id and history — no new row was created.
+    expect(racer.id).toBe("racer-1");
+    expect(store.racers.size).toBe(1);
+    expect(racer.identities).toEqual(
+      expect.arrayContaining([expect.objectContaining({ type: "email", value: "ace@example.com" })])
+    );
+    expect(store.credentials.size).toBe(1);
+  });
+
+  it("refuses to claim a racer that already has an email", async () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    store.racers.set("racer-1", makeRacer("racer-1", "Secured", "secured@example.com"));
+
+    await expect(
+      auth.startAccountClaim(
+        { email: "another@example.com", displayName: "Secured" },
+        passkeyContext,
+        "racer-1"
+      )
+    ).rejects.toMatchObject({ code: "already_secured" });
+  });
+
+  it("routes a claim to host-assist when the email belongs to another racer", async () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    store.racers.set("racer-1", makeRacer("racer-1", "Accountless Ace"));
+    store.racers.set("racer-2", makeRacer("racer-2", "Owner", "owner@example.com"));
+
+    const result = await auth.startAccountClaim(
+      { email: "owner@example.com", displayName: "Accountless Ace" },
+      passkeyContext,
+      "racer-1"
+    );
+
+    expect(result).toMatchObject({ status: "host_assist" });
   });
 
   it("expires passkey challenges instead of accepting stale browser responses", async () => {

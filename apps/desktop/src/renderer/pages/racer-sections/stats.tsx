@@ -42,7 +42,10 @@ export function ExpandedRacerStats({
         <RacerStat label="Best Finish" value={formatFinishTime(entry.stats.bestFinishTimeMs)} />
         <RacerStat label="Top Speed" value={`${entry.stats.topSpeedKph.toFixed(1)} km/h`} />
         <RacerStat label="Average Speed" value={`${entry.stats.averageSpeedKph.toFixed(1)} km/h`} />
-        <RacerStat label="Roller Rumble Events Attended" value={String(entry.stats.careerEventCount)} />
+        <RacerStat
+          label="Roller Rumble Events Attended"
+          value={String(entry.stats.careerEventCount)}
+        />
       </div>
 
       <div className="racer-detail-section">

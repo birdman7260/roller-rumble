@@ -827,7 +827,21 @@ export class AppDatabase {
       return this.getRacer(existing.id)!;
     }
 
+    const racer = this.createRacer(input);
+    this.attachIdentity(racer.id, "anonymous", input.accountlessId);
+    return this.getRacer(racer.id)!;
+  }
+
+  /**
+   * Insert a brand-new racer, never merging into an existing one. Registration
+   * uses this (ADR-0016) so a shared identity — email OR phone — can never pull
+   * the new account onto someone else's row the way `createOrUpdateRacer` does.
+   * A colliding email/phone simply isn't attached (the unique identity index
+   * leaves it with its current owner) rather than rewriting that racer.
+   */
+  createRacer(input: { displayName: string; email?: string; phone?: string }): Racer {
     const racerId = nanoid();
+    const timestamp = nowIso();
     this.orm
       .insert(racers)
       .values({
@@ -841,7 +855,6 @@ export class AppDatabase {
 
     this.attachIdentity(racerId, "email", input.email);
     this.attachIdentity(racerId, "phone", input.phone);
-    this.attachIdentity(racerId, "anonymous", input.accountlessId);
     return this.getRacer(racerId)!;
   }
 

@@ -272,13 +272,16 @@ export async function finishPasskeySignIn(
   );
 }
 
+// Registration deliberately omits the session Authorization header: the server
+// never reads it for account creation (ADR-0016). `credentials: "include"` stays
+// so the response's new session cookie is stored on the device.
 export async function startPasskeyRegistration(
   input: PasskeyRegistrationStartInput
 ): Promise<PasskeyRegistrationStartResponse> {
   return parseJson(
     await fetch(buildUrl("/api/auth/passkeys/register/options"), {
       method: "POST",
-      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      headers: buildJsonHeaders(),
       credentials: "include",
       body: JSON.stringify(input)
     })
@@ -290,6 +293,34 @@ export async function finishPasskeyRegistration(
 ): Promise<RacerAuthSuccessResponse> {
   return parseJson(
     await fetch(buildUrl("/api/auth/passkeys/register/verify"), {
+      method: "POST",
+      headers: buildJsonHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+// Account claim is session-bound: it attaches an email + passkey to the current
+// accountless racer, so it sends the session headers registration omits.
+export async function startAccountClaim(
+  input: PasskeyRegistrationStartInput
+): Promise<PasskeyRegistrationStartResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/passkeys/claim/options"), {
+      method: "POST",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
+export async function finishAccountClaim(
+  input: PasskeyChallengeInput
+): Promise<RacerAuthSuccessResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/passkeys/claim/verify"), {
       method: "POST",
       headers: buildJsonHeaders(getRacerSessionHeaders()),
       credentials: "include",

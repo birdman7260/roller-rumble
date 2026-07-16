@@ -121,7 +121,7 @@ export function MeTab({
   onAvatarUpload,
   onEnableNotifications,
   onMarkNotificationRead,
-  onPasskeyRegistration,
+  onAccountClaim,
   onSignOut,
   photoBoothEnabled,
   racerNotifications,
@@ -152,7 +152,7 @@ export function MeTab({
   onAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   onEnableNotifications: () => Promise<void>;
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
-  onPasskeyRegistration: (input: { displayName: string; email: string }) => Promise<void>;
+  onAccountClaim: (input: { displayName: string; email: string }) => Promise<void>;
   onSignOut: () => Promise<void>;
   photoBoothEnabled: boolean;
   racerNotifications: RacerNotification[];
@@ -363,11 +363,11 @@ export function MeTab({
                   disabled={!upgradeEmail || authBusy}
                   onClick={() => {
                     fireAndForget(
-                      onPasskeyRegistration({
+                      onAccountClaim({
                         email: upgradeEmail,
                         displayName: upgradeDisplayName.trim() || selectedRacer.racer.displayName
                       }),
-                      "upgrade accountless racer"
+                      "claim racer account"
                     );
                   }}
                 >
