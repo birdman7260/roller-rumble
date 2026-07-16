@@ -140,7 +140,7 @@ const QUEUE_WAITING_MESSAGES: Record<QueueWaitingState, QueueWaitingMessage> = {
   you_are_up: {
     type: "queue_you_are_up",
     title: "You're up!",
-    body: (name) => `${name}, head to the stage, pedal fast!`
+    body: (name) => `${name}, head to the stage!`
   },
   get_ready: {
     type: "queue_get_ready",
@@ -562,7 +562,7 @@ export class RollerRumbleApp extends EventEmitter {
           eventId: completedRace.eventId,
           type: "queue_status_update",
           title: "Nice work!",
-          body: `${racerName}, that's your race done — results are on your phone.`,
+          body: `${racerName}, solid effort! Your results are on your phone.`,
           url: "/racer",
           triggerKey: `queue-raced:${completedRace.id}:${participant.racerId}`,
           channelKey: this.queueStatusChannelKey(completedRace.eventId, participant.racerId),

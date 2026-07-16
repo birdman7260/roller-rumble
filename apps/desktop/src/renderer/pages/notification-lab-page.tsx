@@ -94,7 +94,7 @@ const notificationTemplates: Record<RacerNotificationType, NotificationTemplate>
   },
   queue_you_are_up: {
     title: "You're up!",
-    body: "Head to the stage, pedal fast!"
+    body: "Head to the stage!"
   },
   queue_hang_tight: {
     title: "You're in the queue",
@@ -102,7 +102,7 @@ const notificationTemplates: Record<RacerNotificationType, NotificationTemplate>
   },
   queue_status_update: {
     title: "Nice work!",
-    body: "That's your race done — results are on your phone."
+    body: "Solid effort! Your results are on your phone."
   },
   tournament_started: {
     title: "Tournament Check-In",
