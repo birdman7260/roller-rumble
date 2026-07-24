@@ -9,3 +9,7 @@ apps/desktop/src/renderer/routeTree.gen.ts
 
 # Golden snapshot fixtures — byte-exact wire-shape captures, must not be reformatted
 apps/desktop/src/backend/services/__fixtures__/snapshot-*.json
+
+# Agent skill docs — vendored pocock-skill copies, not held to the app's prettier style
+.claude/skills
+.agents/skills

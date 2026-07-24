@@ -7,6 +7,7 @@ import type {
   RaceRecord,
   RacerNotificationType
 } from "@roller-rumble/shared/types";
+import { COUNTDOWN_DURATION_MS } from "@roller-rumble/shared/constants";
 import type { SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { RollerRumbleApp } from "./app";
 
@@ -368,44 +369,31 @@ describe("app service countdown flow", () => {
     expect(stageNextRace).not.toHaveBeenCalled();
   });
 
-  it("uses an OS2L-provided countdown duration before activating the race", () => {
-    vi.useFakeTimers();
+  it("persists the countdown state, disarms OS2L, and hands timing to RaceCountdown", () => {
     const snapshot = { generatedAt: "now" } as AppSnapshot;
     const updateRace = vi.fn();
-    const emitSnapshot = vi.fn();
-    const activateRace = vi.fn();
-    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const disarmRace = vi.fn();
+    const start = vi.fn();
     const currentRace = buildRaceRecord();
     const target = withAppPrototype({
-      countdownStartTimer: null,
-      countdownTicker: null,
-      countdownRuntime: null,
       db: {
         getActiveEvent: () => ({ id: "event-1" }),
         getAdminSettings: () => ({ os2lEnabled: true }),
         getCurrentRace: () => currentRace,
         updateRace
       },
-      emitSnapshot,
+      emitSnapshot: vi.fn(),
       getSnapshot: () => snapshot,
-      os2lTrigger: {
-        disarmRace: vi.fn()
-      },
-      sensorAdapter: { drivesCountdown: false }
-    });
-    Object.defineProperty(target, "activateRace", {
-      configurable: true,
-      value: activateRace
+      os2lTrigger: { disarmRace },
+      raceCountdown: { start }
     });
 
     invokeStartCountdown(target, "os2l", { countdownDurationMs: 5_500 });
 
-    expect(target.countdownRuntime).toEqual({ durationMs: 5_500, raceId: "race-1" });
-    vi.advanceTimersByTime(5_499);
-    expect(activateRace).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(activateRace).toHaveBeenCalledWith("race-1");
-    expect(clearIntervalSpy).toHaveBeenCalled();
+    // The coordinator owns the coarse lifecycle flip and OS2L disarm; RaceCountdown owns the timing.
+    expect(updateRace).toHaveBeenCalledWith("race-1", { state: "countdown" });
+    expect(disarmRace).toHaveBeenCalled();
+    expect(start).toHaveBeenCalledWith({ race: currentRace, durationMs: 5_500 });
   });
 
   it("arms an already staged race when OS2L is enabled after staging", () => {
@@ -519,181 +507,106 @@ describe("app service hardware-driven countdown", () => {
     vi.useRealTimers();
   });
 
-  function buildHardwareCountdownTarget(overrides: {
-    armCountdown: ReturnType<typeof vi.fn>;
-    activateRace: ReturnType<typeof vi.fn>;
-    currentRace: RaceRecord;
-    os2lEnabled?: boolean;
+  function buildCountdownHandoffTarget(overrides: {
+    start?: ReturnType<typeof vi.fn>;
     updateRace?: ReturnType<typeof vi.fn>;
+    disarmRace?: ReturnType<typeof vi.fn>;
+    os2lEnabled?: boolean;
+    currentRace?: RaceRecord;
   }) {
     const snapshot = { generatedAt: "now" } as AppSnapshot;
-    const target = withAppPrototype({
-      countdownStartTimer: null,
-      armGoTimer: null,
-      countdownTicker: null,
-      countdownRuntime: null,
-      hardwareCountdownRaceId: null,
+    return withAppPrototype({
       db: {
         getActiveEvent: () => ({ id: "event-1" }),
         getAdminSettings: () => ({ os2lEnabled: overrides.os2lEnabled ?? false }),
-        getCurrentRace: () => overrides.currentRace,
-        getRace: () => buildRaceRecord({ state: "countdown" }),
+        getCurrentRace: () => overrides.currentRace ?? buildRaceRecord(),
         updateRace: overrides.updateRace ?? vi.fn()
       },
       emitSnapshot: vi.fn(),
       getSnapshot: () => snapshot,
-      os2lTrigger: { disarmRace: vi.fn() },
-      sensorAdapter: {
-        drivesCountdown: true,
-        armCountdown: overrides.armCountdown,
-        endRace: vi.fn()
-      }
+      os2lTrigger: { disarmRace: overrides.disarmRace ?? vi.fn() },
+      raceCountdown: { start: overrides.start ?? vi.fn() }
     });
-    Object.defineProperty(target, "activateRace", {
-      configurable: true,
-      value: overrides.activateRace
-    });
-    return target;
   }
 
-  it("holds the box GO for the pre-roll and activates on the app clock at N", () => {
-    vi.useFakeTimers();
-    const armCountdown = vi.fn();
-    const activateRace = vi.fn();
+  it("falls back to the shared default duration when the cue carries no time", () => {
+    const start = vi.fn();
     const currentRace = buildRaceRecord();
-    const target = buildHardwareCountdownTarget({ armCountdown, activateRace, currentRace });
-
-    // N (10s) is longer than the default box countdown (4s), so the pre-roll is 6s.
-    invokeStartCountdown(target, "manual", { countdownDurationMs: 10_000 });
-    expect(target.hardwareCountdownRaceId).toBe("race-1");
-
-    // `g` is held until the tail of the countdown, not sent immediately.
-    vi.advanceTimersByTime(5_999);
-    expect(armCountdown).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(armCountdown).toHaveBeenCalledWith(currentRace.participants);
-
-    // GO fires on the app clock at N regardless of any box signal.
-    expect(activateRace).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(4_000);
-    expect(activateRace).toHaveBeenCalledWith("race-1");
-    expect(target.hardwareCountdownRaceId).toBeNull();
-  });
-
-  it("sends the box GO immediately for a sub-floor countdown, still activating at N", () => {
-    vi.useFakeTimers();
-    const armCountdown = vi.fn();
-    const activateRace = vi.fn();
-    const currentRace = buildRaceRecord();
-    const target = buildHardwareCountdownTarget({ armCountdown, activateRace, currentRace });
-
-    // 1s is below the 4s box countdown → pre-roll clamps to zero, `g` goes now.
-    invokeStartCountdown(target, "manual", { countdownDurationMs: 1_000 });
-    expect(armCountdown).toHaveBeenCalledWith(currentRace.participants);
-    expect(activateRace).not.toHaveBeenCalled();
-
-    vi.advanceTimersByTime(1_000);
-    expect(activateRace).toHaveBeenCalledWith("race-1");
-  });
-
-  it("falls back to the shared default countdown when the cue carries no time", () => {
-    vi.useFakeTimers();
-    const armCountdown = vi.fn();
-    const activateRace = vi.fn();
-    const currentRace = buildRaceRecord();
-    const target = buildHardwareCountdownTarget({
-      armCountdown,
-      activateRace,
-      currentRace,
-      os2lEnabled: true
-    });
+    const target = buildCountdownHandoffTarget({ start, currentRace, os2lEnabled: true });
 
     invokeStartCountdown(target, "os2l");
 
-    // The default equals the box countdown, so the pre-roll is zero and GO fires at 4s.
-    expect(target.countdownRuntime).toEqual({ raceId: "race-1", durationMs: 4_000 });
-    expect(armCountdown).toHaveBeenCalledWith(currentRace.participants);
-    vi.advanceTimersByTime(3_999);
-    expect(activateRace).not.toHaveBeenCalled();
-    vi.advanceTimersByTime(1);
-    expect(activateRace).toHaveBeenCalledWith("race-1");
+    expect(start).toHaveBeenCalledWith({ race: currentRace, durationMs: COUNTDOWN_DURATION_MS });
   });
 
-  it("does not activate when the box reports GO — the app clock owns GO", () => {
-    const activateRace = vi.fn();
+  it("ignores an OS2L start when OS2L is disabled", () => {
+    const start = vi.fn();
+    const updateRace = vi.fn();
+    const target = buildCountdownHandoffTarget({ start, updateRace, os2lEnabled: false });
+
+    invokeStartCountdown(target, "os2l");
+
+    expect(updateRace).not.toHaveBeenCalled();
+    expect(start).not.toHaveBeenCalled();
+  });
+
+  it("does not act on a box lifecycle event that is not an abort", () => {
+    const abort = vi.fn();
+    const updateRace = vi.fn();
     const target = withAppPrototype({
-      hardwareCountdownRaceId: "race-1",
-      countdownStartTimer: null,
-      armGoTimer: null,
-      countdownTicker: null,
-      countdownRuntime: { raceId: "race-1", durationMs: 4_000 }
-    });
-    Object.defineProperty(target, "activateRace", {
-      configurable: true,
-      value: activateRace
+      raceCountdown: {
+        getTiming: () => ({ raceId: "race-1", startedAtMs: 0, durationMs: 4_000 }),
+        abort
+      },
+      db: { updateRace },
+      emitSnapshot: vi.fn()
     });
 
+    // The app owns GO on its own clock (ADR 0010): the box's `go`/`countdown` events never activate.
     getLifecycleInvoker().call(target, { type: "go" });
 
-    // The countdown stays in flight; the app's own timer fires GO at N.
-    expect(activateRace).not.toHaveBeenCalled();
-    expect(target.hardwareCountdownRaceId).toBe("race-1");
-  });
-
-  it("does not re-stamp the countdown UI from the box's CD: cadence", () => {
-    const updateRace = vi.fn();
-    const emitSnapshot = vi.fn();
-    const target = withAppPrototype({
-      hardwareCountdownRaceId: "race-1",
-      countdownRuntime: null,
-      db: { updateRace },
-      emitSnapshot
-    });
-
-    getLifecycleInvoker().call(target, { type: "countdown", secondsRemaining: 2 });
-
-    expect(target.countdownRuntime).toBeNull();
+    expect(abort).not.toHaveBeenCalled();
     expect(updateRace).not.toHaveBeenCalled();
-    expect(emitSnapshot).not.toHaveBeenCalled();
   });
 
-  it("reverts to staging when the box aborts the countdown", () => {
+  it("reverts to staging when the box aborts an in-flight countdown", () => {
+    const abort = vi.fn();
     const updateRace = vi.fn();
-    const endRace = vi.fn();
     const target = withAppPrototype({
-      hardwareCountdownRaceId: "race-1",
-      countdownStartTimer: null,
-      armGoTimer: null,
-      countdownTicker: null,
+      raceCountdown: {
+        getTiming: () => ({ raceId: "race-1", startedAtMs: 0, durationMs: 4_000 }),
+        abort
+      },
       db: {
         getRace: () => buildRaceRecord({ state: "countdown" }),
         updateRace
       },
-      emitSnapshot: vi.fn(),
-      sensorAdapter: { endRace }
+      emitSnapshot: vi.fn()
     });
 
     getLifecycleInvoker().call(target, { type: "abort", reason: "cable yanked" });
 
-    expect(endRace).toHaveBeenCalled();
+    // RaceCountdown silences the box inside abort(); the coordinator reverts the persisted state.
+    expect(abort).toHaveBeenCalledTimes(1);
     expect(updateRace).toHaveBeenCalledWith("race-1", {
       state: "staging",
       countdownStartedAt: null
     });
-    expect(target.hardwareCountdownRaceId).toBeNull();
   });
 
-  it("ignores box lifecycle events when no hardware countdown is in flight", () => {
-    const activateRace = vi.fn();
-    const target = withAppPrototype({ hardwareCountdownRaceId: null });
-    Object.defineProperty(target, "activateRace", {
-      configurable: true,
-      value: activateRace
+  it("ignores a box abort when no countdown is in flight", () => {
+    const abort = vi.fn();
+    const updateRace = vi.fn();
+    const target = withAppPrototype({
+      raceCountdown: { getTiming: () => null, abort },
+      db: { updateRace },
+      emitSnapshot: vi.fn()
     });
 
-    getLifecycleInvoker().call(target, { type: "go" });
+    getLifecycleInvoker().call(target, { type: "abort", reason: "stray" });
 
-    expect(activateRace).not.toHaveBeenCalled();
+    expect(abort).not.toHaveBeenCalled();
+    expect(updateRace).not.toHaveBeenCalled();
   });
 
   it("interrupts the live race when the box disconnects mid-race", () => {
@@ -745,9 +658,7 @@ describe("app service current race controls", () => {
     const invoker = getUnstageCurrentRaceInvoker();
     const target = withAppPrototype({
       autoStagePausedUntilManualStage: false,
-      countdownStartTimer: null,
-      countdownTicker: null,
-      currentRuntime: null,
+      raceCountdown: { dispose: vi.fn() },
       db: {
         getActiveEvent: () => ({ id: "event-1" }),
         getCurrentRace: () => buildRaceRecord(),
@@ -789,9 +700,6 @@ describe("app service current race controls", () => {
     const markQueueEntryStatus = vi.fn();
     const invoker = getUnstageCurrentRaceInvoker();
     const target = withAppPrototype({
-      countdownStartTimer: null,
-      countdownTicker: null,
-      currentRuntime: null,
       db: {
         getActiveEvent: () => ({ id: "event-1" }),
         getCurrentRace: () => buildRaceRecord({ state: "active" }),
@@ -822,11 +730,7 @@ describe("app service current race controls", () => {
     const endRace = vi.fn();
     const invoker = getResetRaceToStagedInvoker();
     const target = withAppPrototype({
-      countdownStartTimer: null,
-      countdownTicker: null,
-      currentRuntime: {
-        finalizeTimer: null
-      },
+      raceCountdown: { dispose: vi.fn() },
       db: {
         getActiveEvent: () => ({ id: "event-1" }),
         getAdminSettings: () => ({ os2lEnabled: true }),

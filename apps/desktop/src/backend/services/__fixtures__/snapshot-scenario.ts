@@ -13,7 +13,7 @@ import type {
   StripeSetupStatus,
   TunnelState
 } from "@roller-rumble/shared/types";
-import { COUNTDOWN_DURATION_MS, DEFAULT_THEME_ID } from "@roller-rumble/shared/constants";
+import { DEFAULT_THEME_ID } from "@roller-rumble/shared/constants";
 import { MANAGED_SETTINGS } from "@roller-rumble/shared/managed-settings";
 import type { SensorStatus } from "../../adapters/sensor";
 import type { AppDatabase } from "../../db/Database";
@@ -111,7 +111,7 @@ const QUEUE: QueueEntry[] = [
 ];
 
 // A mid-flight race so metricsByRacerId (written by ActiveRace) is exercised.
-const CURRENT_RACE: RaceRecord = {
+export const CURRENT_RACE: RaceRecord = {
   id: "race-current",
   eventId: ACTIVE_EVENT_ID,
   queueEntryId: "queue-0",
@@ -308,13 +308,14 @@ export const SCENARIO_RUNTIME_ENV: RuntimeEnvInfo = {
   })
 };
 
-export const SCENARIO_COUNTDOWN_DURATION_MS = COUNTDOWN_DURATION_MS;
-
 /**
  * A mock AppDatabase exposing only the read methods getSnapshot / SnapshotAssembler use.
  * Deterministic — no SQLite, matching the prototype-mock convention in app.test.ts.
  */
-export function makeSnapshotDb(includeAllRaceData: boolean): AppDatabase {
+export function makeSnapshotDb(
+  includeAllRaceData: boolean,
+  currentRace: RaceRecord = CURRENT_RACE
+): AppDatabase {
   const settings = makeSettings(includeAllRaceData);
   const event = makeEvent(includeAllRaceData);
 
@@ -324,7 +325,7 @@ export function makeSnapshotDb(includeAllRaceData: boolean): AppDatabase {
     getNotificationRevision: () => "revision-1",
     listResults: () => ALL_RESULTS.map((result) => ({ ...result })),
     listQueueEntries: () => QUEUE.map((entry) => ({ ...entry })),
-    getCurrentRace: () => ({ ...CURRENT_RACE }),
+    getCurrentRace: () => ({ ...currentRace }),
     listTournamentBundles: () => [],
     listEventRacers: () => RACERS.map((racer) => ({ ...racer })),
     getEventRacerPayment: () => ({ ...PAYMENT })
