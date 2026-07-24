@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { SnapshotAssembler, type SnapshotContext } from "./snapshot-assembler";
 import {
+  CURRENT_RACE,
   FIXED_NOW_MS,
   makeSnapshotDb,
-  SCENARIO_COUNTDOWN_DURATION_MS,
   SCENARIO_OS2L,
   SCENARIO_PHOTO_BOOTH,
   SCENARIO_RESULT_PRESENTATION,
@@ -22,10 +22,15 @@ function makeContext(overrides: Partial<SnapshotContext> = {}): SnapshotContext 
     stripe: SCENARIO_STRIPE,
     sensor: SCENARIO_SENSOR,
     runtimeEnv: SCENARIO_RUNTIME_ENV,
-    countdownDurationMsFor: () => SCENARIO_COUNTDOWN_DURATION_MS,
+    countdown: null,
     now: () => FIXED_NOW_MS,
     ...overrides
   };
+}
+
+/** A mock db whose current race is mid-countdown, for exercising the projector countdown clock. */
+function makeCountdownDb(raceId: string): ReturnType<typeof makeSnapshotDb> {
+  return makeSnapshotDb(true, { ...CURRENT_RACE, id: raceId, state: "countdown" });
 }
 
 function healthFor(snapshot: ReturnType<SnapshotAssembler["assemble"]>, id: string) {
@@ -51,6 +56,30 @@ describe("SnapshotAssembler.assemble", () => {
     await expect(JSON.stringify(full, null, 2)).toMatchFileSnapshot(
       "./__fixtures__/snapshot-full-active-only.json"
     );
+  });
+
+  it("derives the projector countdown clock from RaceCountdown's in-memory timing (ADR 0017)", () => {
+    const raceId = "race-countdown";
+    const assembler = new SnapshotAssembler(makeCountdownDb(raceId));
+
+    const snapshot = assembler.assemble(
+      makeContext({
+        countdown: { raceId, startedAtMs: FIXED_NOW_MS - 1_500, durationMs: 4_000 }
+      })
+    );
+
+    // 4000ms countdown, 1500ms elapsed at FIXED_NOW → ceil(2500/1000) = 3s remaining, derived from
+    // the module's live timing rather than a persisted countdownStartedAt.
+    expect(snapshot.raceProjection.countdownSecondsRemaining).toBe(3);
+  });
+
+  it("shows no countdown clock when the race is staged as countdown but the module is idle", () => {
+    const raceId = "race-countdown";
+    const assembler = new SnapshotAssembler(makeCountdownDb(raceId));
+
+    const snapshot = assembler.assemble(makeContext({ countdown: null }));
+
+    expect(snapshot.raceProjection.countdownSecondsRemaining).toBeNull();
   });
 });
 

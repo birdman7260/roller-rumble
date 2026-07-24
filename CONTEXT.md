@@ -47,6 +47,9 @@ _Avoid_: dedupe, link (alone)
 
 ### Race lifecycle
 
+**RaceCountdown**: The live, in-process owner of a single race's countdown—from the manual or OS2L trigger that starts it through `GO`, at which point it hands off to an `ActiveRace`. Owns the app-owned visible countdown timer, the `pre-roll` that delays the box's `g`, and the music-locked `GO` at the end. Holds the countdown's timing in memory only—never persisted—and surfaces it to the `AppSnapshot` through `SnapshotContext`; the coordinator (`RollerRumbleApp`) still owns the persisted `state="countdown"` flip and, on the `onGo` signal, activation. Exactly one runs at a time, or none.
+_Avoid_: countdown timer, GO sequencer (that names its role, not the module)
+
 **ActiveRace**: The live, in-process owner of a single race from activation through finalization. Holds lane telemetry state for each participant, processes rotation samples into metrics, tracks the `finish budget` timer, assigns the winner, and persists results. Exactly one `ActiveRace` exists at a time, or none.
 _Avoid_: runtime, currentRuntime
 

@@ -61,6 +61,7 @@ import { OpenSprintsSensorAdapter } from "../adapters/opensprints-sensor";
 import { readSensorBoxCountdownMs, readSensorMode } from "../adapters/sensor-config";
 import type { SensorAdapter, SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { ActiveRace, type FinalizedRaceResult } from "./active-race";
+import { RaceCountdown } from "./race-countdown";
 import {
   SnapshotAssembler,
   type SnapshotContext,
@@ -281,16 +282,9 @@ export class RollerRumbleApp extends EventEmitter {
   private readonly payment: PaymentService;
   private readonly notifications: NotificationService;
   private readonly tournaments = new TournamentService();
-  private countdownTicker: NodeJS.Timeout | null = null;
-  private countdownStartTimer: NodeJS.Timeout | null = null;
-  // The delayed-GO (pre-roll) timer for a box that runs its own silent countdown: the app holds the
-  // box's `g` command until the tail of the app-owned countdown so the box's silence lands at zero
-  // (ADR 0010). Torn down alongside countdownStartTimer on every countdown-exit path.
-  private armGoTimer: NodeJS.Timeout | null = null;
-  private countdownRuntime: { raceId: string; durationMs: number } | null = null;
-  // Set while a hardware-driven countdown is in flight, so a box abort while arming is matched to
-  // the race that is counting down (and stray box chatter outside a countdown is ignored).
-  private hardwareCountdownRaceId: string | null = null;
+  // Owns the countdown/GO state machine — timers, pre-roll, box arming — behind a small interface
+  // (ADR 0017). The coordinator keeps the persisted state="countdown" flip and, via onGo, activation.
+  private readonly raceCountdown: RaceCountdown;
   private currentActiveRace: ActiveRace | null = null;
   private resultPresentation: RaceResultPresentation | null = null;
   private resultPresentationTimer: NodeJS.Timeout | null = null;
@@ -320,6 +314,12 @@ export class RollerRumbleApp extends EventEmitter {
     this.payment = new PaymentService(this.db);
     this.notifications = new NotificationService(this.db, () => this.emitSnapshot());
     this.tunnelManager = new CloudflaredTunnelManager({ dataDir: options.dataDir });
+    this.raceCountdown = new RaceCountdown({
+      armingPort: this.sensorAdapter,
+      boxCountdownMs: readSensorBoxCountdownMs(),
+      onTick: () => this.emitSnapshot(),
+      onGo: (raceId) => this.activateRace(raceId)
+    });
   }
 
   async init(): Promise<void> {
@@ -348,12 +348,7 @@ export class RollerRumbleApp extends EventEmitter {
     this.manualTrigger.stop();
     this.os2lTrigger.stop();
     this.tunnelManager.stop();
-    if (this.countdownTicker) {
-      clearInterval(this.countdownTicker);
-      this.countdownTicker = null;
-    }
-    this.clearCountdownStartTimer();
-    this.hardwareCountdownRaceId = null;
+    this.raceCountdown.dispose();
     this.currentActiveRace?.dispose();
     if (this.resultPresentationTimer) {
       clearTimeout(this.resultPresentationTimer);
@@ -374,23 +369,6 @@ export class RollerRumbleApp extends EventEmitter {
       return;
     }
     this.emit("snapshot", this.getSnapshot());
-  }
-
-  private clearCountdownStartTimer(): void {
-    if (this.countdownStartTimer) {
-      clearTimeout(this.countdownStartTimer);
-      this.countdownStartTimer = null;
-    }
-    if (this.armGoTimer) {
-      clearTimeout(this.armGoTimer);
-      this.armGoTimer = null;
-    }
-  }
-
-  private getCountdownDurationMs(raceId: string): number {
-    return this.countdownRuntime?.raceId === raceId
-      ? this.countdownRuntime.durationMs
-      : COUNTDOWN_DURATION_MS;
   }
 
   getNotificationConfig(): NotificationConfig {
@@ -735,7 +713,7 @@ export class RollerRumbleApp extends EventEmitter {
       stripe: this.payment.getStripeSetupStatus(),
       sensor: this.getSensorStatus(),
       runtimeEnv: getRuntimeEnvInfo(this.runtimeEnvFilePath ?? "", this.loadedDotenvFiles),
-      countdownDurationMsFor: (raceId) => this.getCountdownDurationMs(raceId)
+      countdown: this.raceCountdown.getTiming()
     };
   }
 
@@ -2378,15 +2356,10 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   private clearRaceStartState(): void {
-    if (this.countdownTicker) {
-      clearInterval(this.countdownTicker);
-      this.countdownTicker = null;
-    }
-    this.clearCountdownStartTimer();
-    this.countdownRuntime = null;
-    // Drop the in-flight-countdown guard so a late box abort after an unstage/reset is a harmless
-    // no-op rather than re-reverting an already-cleared race.
-    this.hardwareCountdownRaceId = null;
+    // dispose() (not abort()) tears down the countdown timers without silencing the box, because
+    // this method silences it explicitly below — covering the active-race path too, where no
+    // countdown is running. A late box abort after this is a harmless no-op (RaceCountdown is idle).
+    this.raceCountdown.dispose();
     this.currentActiveRace?.dispose();
     this.currentActiveRace = null;
     this.sensorAdapter.endRace();
@@ -2479,112 +2452,44 @@ export class RollerRumbleApp extends EventEmitter {
       return this.getSnapshot();
     }
 
-    const countdownStartedAt = nowIso();
     const countdownDurationMs =
       options.countdownDurationMs != null &&
       Number.isFinite(options.countdownDurationMs) &&
       options.countdownDurationMs >= 0
         ? Math.round(options.countdownDurationMs)
         : COUNTDOWN_DURATION_MS;
-    this.countdownRuntime = {
-      raceId: currentRace.id,
-      durationMs: countdownDurationMs
-    };
-    this.db.updateRace(currentRace.id, {
-      state: "countdown",
-      countdownStartedAt
-    });
 
+    // Persist the coarse lifecycle flag; RaceCountdown owns the timing (in-memory, ADR 0017).
+    this.db.updateRace(currentRace.id, { state: "countdown" });
     this.os2lTrigger.disarmRace();
-    if (this.countdownTicker) {
-      clearInterval(this.countdownTicker);
-    }
-    // Countdown time is derived from the stored start timestamp, so we just re-broadcast snapshots.
-    this.countdownTicker = setInterval(() => {
-      this.emitSnapshot();
-    }, 250);
-
-    this.clearCountdownStartTimer();
-    // The app owns the whole visible countdown and fires GO on its own clock at N — music-locked, so
-    // an OS2L cue's start lands exactly where the DJ placed it (ADR 0010). This is true for the
-    // simulator and the box alike; the box's own timing never triggers activation.
-    this.countdownStartTimer = setTimeout(() => {
-      this.countdownStartTimer = null;
-      this.hardwareCountdownRaceId = null;
-      if (this.countdownTicker) {
-        clearInterval(this.countdownTicker);
-        this.countdownTicker = null;
-      }
-      this.activateRace(currentRace.id);
-    }, countdownDurationMs);
-
-    if (this.sensorAdapter.drivesCountdown) {
-      // The box runs its own silent countdown after `g`. Delay `g` by the pre-roll
-      // `max(0, N − BOX_COUNTDOWN_MS)` so that silence becomes the tail of the app countdown and the
-      // box is streaming by the time GO fires above. When N is at or below the box countdown, the
-      // pre-roll clamps to zero (send `g` now) and the box's ticks simply arrive a beat late — the
-      // unavoidable hardware floor. If the box is disconnected when we arm, it emits an `abort`
-      // (handleSensorLifecycle) that reverts the race to staging and tears down the GO timer above.
-      this.hardwareCountdownRaceId = currentRace.id;
-      const preRollMs = Math.max(0, countdownDurationMs - readSensorBoxCountdownMs());
-      if (preRollMs === 0) {
-        this.sensorAdapter.armCountdown?.(currentRace.participants);
-      } else {
-        this.armGoTimer = setTimeout(() => {
-          this.armGoTimer = null;
-          this.sensorAdapter.armCountdown?.(currentRace.participants);
-        }, preRollMs);
-      }
-    }
+    this.raceCountdown.start({ race: currentRace, durationMs: countdownDurationMs });
 
     this.emitSnapshot();
     return this.getSnapshot();
   }
 
   private handleSensorLifecycle(event: SensorLifecycleEvent): void {
-    const raceId = this.hardwareCountdownRaceId;
-    if (!raceId) {
-      // No hardware-driven countdown in flight; ignore stray box chatter.
+    // The app owns the visible countdown and the music-locked GO on its own clock (ADR 0010): the
+    // box's `countdown` cadence and its first-tick `go` never drive activation, so only an `abort`
+    // is actionable here. A `drivesCountdown` box is the only adapter that emits these events.
+    if (event.type !== "abort") {
       return;
     }
 
-    switch (event.type) {
-      case "countdown": {
-        // The app owns the visible countdown on its own clock (ADR 0010); the box's CD cadence no
-        // longer re-stamps it. Real basic_msg boxes are silent here anyway, so this is usually a
-        // no-op — kept only to swallow a talkative ss_basic box's steps.
-        break;
-      }
-      case "go": {
-        // The box's first tick / GO confirms its stream started, but the app — not the box — owns
-        // GO on its own timer (music-locked). Do not activate here.
-        break;
-      }
-      case "abort": {
-        // A disconnect while arming still reverts the race to staging so the operator can retry.
-        this.abortHardwareCountdown(raceId, event.reason);
-        break;
-      }
-    }
-  }
-
-  private abortHardwareCountdown(raceId: string, reason: string): void {
-    if (this.hardwareCountdownRaceId !== raceId) {
+    const timing = this.raceCountdown.getTiming();
+    if (!timing) {
+      // No countdown in flight; a stray box abort after GO or teardown is a no-op.
       return;
     }
-    this.hardwareCountdownRaceId = null;
-    this.clearCountdownStartTimer();
-    if (this.countdownTicker) {
-      clearInterval(this.countdownTicker);
-      this.countdownTicker = null;
-    }
-    // Silence the box and return the race to staging so the operator can retry.
-    this.sensorAdapter.endRace();
-    const race = this.db.getRace(raceId);
+
+    // A disconnect while arming reverts the race to staging (and silences the box, inside abort) so
+    // the operator can retry.
+    this.raceCountdown.abort();
+    const race = this.db.getRace(timing.raceId);
     if (race?.state === "countdown") {
-      this.db.updateRace(raceId, { state: "staging", countdownStartedAt: null });
+      this.db.updateRace(timing.raceId, { state: "staging", countdownStartedAt: null });
     }
-    console.warn(`[race] hardware countdown aborted: ${reason}`);
+    console.warn(`[race] hardware countdown aborted: ${event.reason}`);
     this.emitSnapshot();
   }
 

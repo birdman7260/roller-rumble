@@ -13,6 +13,7 @@ import type {
 import { getTheme, themes } from "@roller-rumble/shared/themes";
 import type { AppDatabase } from "../db/Database";
 import type { SensorStatus } from "../adapters/sensor";
+import type { RaceCountdownTiming } from "./race-countdown";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
 import { assembleSubsystemHealth } from "./subsystem-health";
 
@@ -31,7 +32,9 @@ export interface SnapshotContext {
   stripe: StripeSetupStatus;
   sensor: SensorStatus;
   runtimeEnv: RuntimeEnvInfo;
-  countdownDurationMsFor: (raceId: string) => number;
+  /** The live countdown timing owned by RaceCountdown (in-memory, never persisted — ADR 0017), or
+   * null when no countdown is running. The projector's remaining-seconds clock derives from this. */
+  countdown: RaceCountdownTiming | null;
   /** Defaults to Date.now; injected for deterministic tests. */
   now?: () => number;
 }
@@ -69,16 +72,12 @@ export class SnapshotAssembler {
     const tournamentBundles = this.db.listTournamentBundles(activeEvent.id);
     const selectedTheme = getTheme(settings.themeId);
 
+    // Gate on the persisted lifecycle flag, but derive the remaining time from RaceCountdown's live
+    // in-memory timing (ADR 0017) rather than a persisted start timestamp.
+    const countdown = ctx.countdown;
     const countdownSecondsRemaining =
-      currentRace?.state === "countdown" && currentRace.countdownStartedAt
-        ? Math.max(
-            0,
-            Math.ceil(
-              (ctx.countdownDurationMsFor(currentRace.id) -
-                (now() - new Date(currentRace.countdownStartedAt).getTime())) /
-                1000
-            )
-          )
+      currentRace?.state === "countdown" && countdown?.raceId === currentRace.id
+        ? Math.max(0, Math.ceil((countdown.durationMs - (now() - countdown.startedAtMs)) / 1000))
         : null;
 
     const metricsByRacerId = Object.fromEntries(
