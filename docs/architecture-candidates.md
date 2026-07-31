@@ -9,7 +9,7 @@ durable capture so each candidate can be picked up in a fresh conversation.
 
 1. Open a **new conversation** (clear context — each candidate is an independent trip
    through the main flow).
-2. Run **`/grill-with-docs`** with the candidate's *seed prompt* below to stress-test the
+2. Run **`/grill-with-docs`** with the candidate's _seed prompt_ below to stress-test the
    design before building. It will re-derive the friction straight from the code.
 3. The grilling settles the seam and interface; it may write an **ADR** and update
    **`CONTEXT.md`**. Then **`/implement`** (test-first via `/tdd`, closing with
@@ -27,13 +27,13 @@ emit snapshots).
 
 ## Status
 
-| # | Candidate | Strength | Status |
-|---|-----------|----------|--------|
-| 2 | Collapse the countdown into a GO sequencer (`RaceCountdown`) | Strong | ✅ Done — merged to `main` (PR #29), ADR-0017 |
-| 1 | Inject the hardware adapters | Strong | ⏭️ Next up |
-| 3 | Give `TournamentService` the tournament state machine | Worth exploring | Backlog (ADR-0003 pass 2) |
-| 4 | Split the queue-status decision from its dispatch | Worth exploring | Backlog |
-| 5 | Deepen the racer view-model behind a pure selector | Strong | Backlog |
+| #   | Candidate                                                    | Strength        | Status                                        |
+| --- | ------------------------------------------------------------ | --------------- | --------------------------------------------- |
+| 2   | Collapse the countdown into a GO sequencer (`RaceCountdown`) | Strong          | ✅ Done — merged to `main` (PR #29), ADR-0017 |
+| 1   | Inject the hardware adapters                                 | Strong          | ⏭️ Next up                                    |
+| 3   | Give `TournamentService` the tournament state machine        | Worth exploring | Backlog (ADR-0003 pass 2)                     |
+| 4   | Split the queue-status decision from its dispatch            | Worth exploring | Backlog                                       |
+| 5   | Deepen the racer view-model behind a pure selector           | Strong          | Backlog                                       |
 
 **Suggested sequence:** 1 (builds on the #2 seam, retires the reflection test pattern) →
 3 / 4 (the ADR-0003 pass-2 work) → 5 (independent frontend track).
@@ -52,7 +52,7 @@ pattern); `apps/desktop/src/backend/adapters/sensor.ts`, `adapters/trigger.ts`.
 
 **Problem.** `RollerRumbleApp` constructs its entire world inside its constructor — sensor,
 triggers, tunnel, db, and every service are `new`'d internally, nothing injected. So no
-test can stand the coordinator up with fakes: the whole `app.test.ts` suite reaches *past*
+test can stand the coordinator up with fakes: the whole `app.test.ts` suite reaches _past_
 the interface via `Reflect.get(RollerRumbleApp.prototype, "<privateMethod>")` and
 re-attaches the prototype to a hand-built `this`. Evidence: **zero** `new RollerRumbleApp(`
 in the suite; tests pin **private method names**, not the interface. Renaming a private
@@ -75,6 +75,7 @@ branches cleanly off `main` — no constraint remains. Its implementation still 
 up-to-date `main`.
 
 **Seed prompt:**
+
 > `/grill-with-docs` inject the hardware adapters (sensor, triggers, tunnel, db) into
 > `RollerRumbleApp` instead of constructing them in the constructor, so tests build the
 > real coordinator with fakes and we can delete the `Reflect`-based test pattern.
@@ -93,7 +94,7 @@ method — `createTournamentBundle`); `apps/desktop/src/backend/services/competi
 
 **Problem.** `TournamentService` is **shallow**: app.ts calls one method
 (`createTournamentBundle`) and keeps the whole bracket state machine for itself —
-advancement, group→finals sync, completion checks — reaching *straight past* the service
+advancement, group→finals sync, completion checks — reaching _straight past_ the service
 into `competition.ts` (`advanceSingleElimination` / `advanceDoubleElimination` /
 `computeRoundRobinStandings`). The service is a helper bag, not an owning module.
 
@@ -109,6 +110,7 @@ god object.
 the cascade moves; the cascade does not move"). Aligns with the ADR, doesn't reopen it.
 
 **Seed prompt:**
+
 > `/grill-with-docs` deepen `TournamentService` so it owns the tournament state machine
 > (advance, group→finals sync, completion) and returns a new `TournamentBundle`, instead of
 > app.ts owning that logic and reaching past the service into `competition.ts`. This is
@@ -126,25 +128,26 @@ the cascade moves; the cascade does not move"). Aligns with the ADR, doesn't reo
 
 **Problem.** The ADR-0013 supersession rules (escalate → you're up; downgrade → hang tight;
 teardown → you're out) are **interleaved with `createNotificationAndDispatch` side
-effects**. The *decision* — what each waiting racer should see — can only be exercised by
+effects**. The _decision_ — what each waiting racer should see — can only be exercised by
 driving the whole coordinator with a fake db and a fake push service. Decision and effect
 aren't separable; this is the shape that bred the "spurious Queue update" ordering leak the
 code comments describe.
 
 **Direction.** A pure `reconcileQueueStatusNotifications(queue, liveTypes, inPlay) →
 Intent[]` that returns notification intents; the coordinator applies them (keeping the
-trigger *timing* in the coordinator).
+trigger _timing_ in the coordinator).
 
 **Wins.** Return intents, not side effects · test the ADR-0013 rules with plain data (no
 db, no fake push) · locality: the rules live in one module.
 
 **ADR interaction.** ⚠️ **Mild tension with ADR-0003** ("triggers stay in the app"). The
-framing: keep the trigger's *timing* in the coordinator, move only the *pure derivation*
+framing: keep the trigger's _timing_ in the coordinator, move only the _pure derivation_
 behind a seam — a deepening within the trigger step, not a relocation of it. Confirm that
 reading holds during grilling; if it doesn't, this may warrant an ADR of its own.
 
 **Seed prompt:**
-> `/grill-with-docs` extract the ADR-0013 queue-status supersession *decision* into a pure
+
+> `/grill-with-docs` extract the ADR-0013 queue-status supersession _decision_ into a pure
 > `reconcileQueueStatusNotifications(queue, liveTypes, inPlay) → Intent[]`, so the rules are
 > testable with plain data while the coordinator keeps the dispatch and timing.
 
@@ -177,6 +180,7 @@ queue-signup rules become unit-tested · locality: one selector, N sections.
 **ADR interaction.** None known. Keep the `AppSnapshot` wire shape unchanged (ADR-0002).
 
 **Seed prompt:**
+
 > `/grill-with-docs` deepen the racer page behind a pure `selectRacerView(snapshot,
-> racerId) → RacerView` selector and a testable queue-signup decision function, so sections
+racerId) → RacerView` selector and a testable queue-signup decision function, so sections
 > read a narrow view and the 1859-line `racer-page.tsx` becomes a thin coordinator.
