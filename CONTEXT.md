@@ -119,8 +119,17 @@ _Avoid_: initial avatar, placeholder
 
 ### Queue and events
 
-**Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time. Carries operator-authored display copy (a description plus `signup prompt` overrides). Editing the active event's fields is in-place and non-destructive; creating a _new_ event is destructive — it starts a fresh session, so racers must register again.
+**Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time. Carries an `event kind` fixed at creation plus operator-authored display copy (a description plus `signup prompt` overrides). Editing the active event's fields is in-place and non-destructive; creating a _new_ event is destructive — it starts a fresh session, so racers must register again.
 _Avoid_: session, meet
+
+**event kind**: The discriminator on an `Event` naming which shape of session it is — `standard` or `walk-up`. Chosen when the event is created and immutable afterward, so an event's `event capability` set never shifts under the data already filed beneath it; changing shape means starting a new event. Orthogonal to competition format, which is `mode`.
+_Avoid_: mode (that is competition format), event type, booth mode
+
+**walk-up event**: An `Event` whose `event kind` is `walk-up` — the stripped-down shape for a public stall, where riders arrive on the spot with no phone and no `Queue`, the host composes each race directly, riders pick whichever bike they like, and the projector shows a top-racers board between races.
+_Avoid_: booth event, booth mode (both collide with the `photo booth`), pop-up event
+
+**event capability**: One entry in the closed set of behaviors an `event kind` grants or withholds — whether the event has a racer page, a `Queue`, tournaments, payments, host-composed races or lead capture, and what the projector shows while idle. Derived from the kind rather than stored per event, and the thing every `surface` asks about: surfaces branch on capabilities, never on the kind's id.
+_Avoid_: event flag, event setting, feature flag
 
 **Signup prompt**: The projector card that recruits racers into the queue — an eyebrow, a heading, a body line, and the join QR code. Its eyebrow/heading/body each fall back to built-in default copy, and the operator may override any of them per event (blank clears the override back to the default). The body override is the event `description`, which the racer page also shows; the eyebrow and heading appear on the projector only.
 _Avoid_: signup card, join prompt, QR panel
