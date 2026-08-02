@@ -9,6 +9,7 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as WalkUpLabRouteImport } from './routes/walk-up-lab'
 import { Route as RaceRouteImport } from './routes/race'
 import { Route as QueueLabRouteImport } from './routes/queue-lab'
 import { Route as NotificationLabRouteImport } from './routes/notification-lab'
@@ -19,6 +20,11 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as RacerIndexRouteImport } from './routes/racer/index'
 import { Route as RacerEventsEventIdRouteImport } from './routes/racer/events/$eventId'
 
+const WalkUpLabRoute = WalkUpLabRouteImport.update({
+  id: '/walk-up-lab',
+  path: '/walk-up-lab',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RaceRoute = RaceRouteImport.update({
   id: '/race',
   path: '/race',
@@ -73,6 +79,7 @@ export interface FileRoutesByFullPath {
   '/notification-lab': typeof NotificationLabRoute
   '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
+  '/walk-up-lab': typeof WalkUpLabRoute
   '/racer/': typeof RacerIndexRoute
   '/racer/events/$eventId': typeof RacerEventsEventIdRoute
 }
@@ -84,6 +91,7 @@ export interface FileRoutesByTo {
   '/notification-lab': typeof NotificationLabRoute
   '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
+  '/walk-up-lab': typeof WalkUpLabRoute
   '/racer': typeof RacerIndexRoute
   '/racer/events/$eventId': typeof RacerEventsEventIdRoute
 }
@@ -96,6 +104,7 @@ export interface FileRoutesById {
   '/notification-lab': typeof NotificationLabRoute
   '/queue-lab': typeof QueueLabRoute
   '/race': typeof RaceRoute
+  '/walk-up-lab': typeof WalkUpLabRoute
   '/racer/': typeof RacerIndexRoute
   '/racer/events/$eventId': typeof RacerEventsEventIdRoute
 }
@@ -109,6 +118,7 @@ export interface FileRouteTypes {
     | '/notification-lab'
     | '/queue-lab'
     | '/race'
+    | '/walk-up-lab'
     | '/racer/'
     | '/racer/events/$eventId'
   fileRoutesByTo: FileRoutesByTo
@@ -120,6 +130,7 @@ export interface FileRouteTypes {
     | '/notification-lab'
     | '/queue-lab'
     | '/race'
+    | '/walk-up-lab'
     | '/racer'
     | '/racer/events/$eventId'
   id:
@@ -131,6 +142,7 @@ export interface FileRouteTypes {
     | '/notification-lab'
     | '/queue-lab'
     | '/race'
+    | '/walk-up-lab'
     | '/racer/'
     | '/racer/events/$eventId'
   fileRoutesById: FileRoutesById
@@ -143,12 +155,20 @@ export interface RootRouteChildren {
   NotificationLabRoute: typeof NotificationLabRoute
   QueueLabRoute: typeof QueueLabRoute
   RaceRoute: typeof RaceRoute
+  WalkUpLabRoute: typeof WalkUpLabRoute
   RacerIndexRoute: typeof RacerIndexRoute
   RacerEventsEventIdRoute: typeof RacerEventsEventIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/walk-up-lab': {
+      id: '/walk-up-lab'
+      path: '/walk-up-lab'
+      fullPath: '/walk-up-lab'
+      preLoaderRoute: typeof WalkUpLabRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/race': {
       id: '/race'
       path: '/race'
@@ -223,6 +243,7 @@ const rootRouteChildren: RootRouteChildren = {
   NotificationLabRoute: NotificationLabRoute,
   QueueLabRoute: QueueLabRoute,
   RaceRoute: RaceRoute,
+  WalkUpLabRoute: WalkUpLabRoute,
   RacerIndexRoute: RacerIndexRoute,
   RacerEventsEventIdRoute: RacerEventsEventIdRoute,
 }

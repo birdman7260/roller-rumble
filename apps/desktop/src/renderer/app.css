@@ -2387,6 +2387,515 @@ p {
   }
 }
 
+/* PROTOTYPE — THROWAWAY STYLES for /walk-up-lab (issue #36). Delete with the route. */
+
+/*
+ * The chrome bar is fixed to the bottom, so every variant gives up a strip of window for it rather
+ * than being judged with its own footer covered up.
+ */
+.walk-up-lab {
+  --walk-up-lab-chrome: 4.5rem;
+
+  min-height: 100vh;
+}
+
+.walk-up-lab .admin-layout {
+  height: calc(100vh - var(--walk-up-lab-chrome));
+}
+
+/* Variant A — command line. No tab rail: the desk owns the whole window. */
+
+.walk-up-lab-cli {
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 2rem;
+  height: calc(100vh - var(--walk-up-lab-chrome));
+  padding: 3rem clamp(2rem, 8vw, 8rem) 1.5rem;
+}
+
+.walk-up-lab-cli__header h1 {
+  margin: 0.2rem 0 0;
+  font-size: clamp(1.6rem, 3vw, 2.4rem);
+}
+
+.walk-up-lab-cli__console {
+  position: relative;
+  display: grid;
+  gap: 0.6rem;
+}
+
+.walk-up-lab-cli__label {
+  color: var(--theme-text-muted);
+  font-size: 0.9rem;
+}
+
+.walk-up-lab-cli__input {
+  width: 100%;
+  border: none;
+  border-bottom: 3px solid var(--theme-accent);
+  border-radius: 0;
+  padding: 0.6rem 0.2rem;
+  color: var(--theme-text);
+  background: transparent;
+  font-family: inherit;
+  font-size: clamp(2rem, 5vw, 3.4rem);
+  font-weight: 800;
+}
+
+.walk-up-lab-cli__input:disabled {
+  border-bottom-color: var(--theme-border);
+  opacity: 0.4;
+}
+
+.walk-up-lab-cli__suggestions {
+  position: absolute;
+  top: 100%;
+  z-index: 3;
+  display: grid;
+  gap: 0.2rem;
+  width: min(34rem, 100%);
+  margin: 0.4rem 0 0;
+  padding: 0.4rem;
+  list-style: none;
+  border: 1px solid var(--theme-accent-soft);
+  border-radius: 1rem;
+  background: var(--theme-surface-raised, var(--theme-surface-alt));
+  box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.3);
+}
+
+.walk-up-lab-cli__suggestion {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  border: none;
+  border-radius: 0.7rem;
+  padding: 0.55rem 0.75rem;
+  text-align: left;
+  color: var(--theme-text);
+  background: transparent;
+  cursor: pointer;
+}
+
+.walk-up-lab-cli__suggestion--active,
+.walk-up-lab-cli__suggestion:hover {
+  background: var(--theme-accent-soft);
+}
+
+.walk-up-lab-cli__suggestion-name {
+  font-weight: 700;
+}
+
+.walk-up-lab-cli__suggestion-meta {
+  color: var(--theme-text-muted);
+  font-size: 0.82rem;
+}
+
+.walk-up-lab-cli__bikes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  align-content: center;
+}
+
+.walk-up-lab-cli__bike {
+  display: grid;
+  gap: 0.35rem;
+  align-content: center;
+  min-height: 9rem;
+  border: 2px dashed var(--theme-accent-soft);
+  border-radius: 1.4rem;
+  padding: 1.5rem;
+  background: color-mix(in srgb, var(--theme-surface) 55%, transparent);
+}
+
+.walk-up-lab-cli__bike--taken {
+  border-style: solid;
+  border-color: var(--theme-accent);
+  background: var(--theme-surface-alt);
+}
+
+.walk-up-lab-cli__bike-label {
+  color: var(--theme-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.walk-up-lab-cli__bike-name {
+  font-size: clamp(1.4rem, 2.6vw, 2.1rem);
+}
+
+.walk-up-lab-cli__bike-meta {
+  color: var(--theme-text-muted);
+  font-size: 0.86rem;
+}
+
+.walk-up-lab-cli__footer {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.walk-up-lab-cli__phase-actions,
+.walk-up-lab-cli__results {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.walk-up-lab-cli__phase,
+.walk-up-lab-cli__result {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.walk-up-lab-cli__hint {
+  margin: 0;
+  color: var(--theme-text-muted);
+  font-size: 0.85rem;
+}
+
+.walk-up-lab-cli__hint kbd {
+  border: 1px solid var(--theme-border);
+  border-radius: 0.3rem;
+  padding: 0 0.3rem;
+}
+
+/* Variant B — two bikes. The seats are the surface. */
+
+.walk-up-lab-bikes {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem;
+  align-content: start;
+}
+
+.walk-up-lab-seat {
+  display: grid;
+  gap: 0.6rem;
+  align-content: start;
+  min-height: 19rem;
+  border: 2px solid var(--theme-accent-soft);
+  border-radius: 1.6rem;
+  padding: 1.75rem;
+  background: var(--theme-surface);
+}
+
+.walk-up-lab-seat--taken {
+  border-color: var(--theme-accent);
+  background: linear-gradient(180deg, var(--theme-accent-soft), var(--theme-surface));
+}
+
+.walk-up-lab-seat--empty {
+  border-style: dashed;
+}
+
+.walk-up-lab-seat__label {
+  margin: 0;
+  color: var(--theme-text-muted);
+  font-size: 0.85rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.walk-up-lab-seat__name {
+  font-size: clamp(1.8rem, 3.4vw, 2.8rem);
+  line-height: 1.1;
+}
+
+.walk-up-lab-seat__meta {
+  margin: 0;
+  color: var(--theme-text-muted);
+}
+
+.walk-up-lab-seat__status {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 800;
+}
+
+.walk-up-lab-seat__status--result {
+  color: var(--theme-success);
+}
+
+.walk-up-lab-seat__add {
+  display: grid;
+  gap: 0.5rem;
+  place-content: center;
+  justify-items: center;
+  min-height: 13rem;
+  border: none;
+  border-radius: 1.2rem;
+  color: var(--theme-text-muted);
+  background: transparent;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.walk-up-lab-seat__add span[aria-hidden="true"] {
+  font-size: 3rem;
+  line-height: 1;
+}
+
+.walk-up-lab-seat__add:hover:not(:disabled) {
+  color: var(--theme-text);
+  background: var(--theme-accent-soft);
+}
+
+.walk-up-lab-seat__add:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.walk-up-lab-seat__picker {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.walk-up-lab-seat__picker-label {
+  color: var(--theme-text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.walk-up-lab-seat__matches {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.walk-up-lab-chip {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border: 1px solid var(--theme-accent-soft);
+  border-radius: 0.8rem;
+  padding: 0.55rem 0.8rem;
+  color: var(--theme-text);
+  background: var(--theme-surface-alt);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.walk-up-lab-chip:hover {
+  border-color: var(--theme-accent);
+}
+
+.walk-up-lab-chip__name {
+  font-weight: 700;
+}
+
+.walk-up-lab-chip__meta {
+  color: var(--theme-text-muted);
+  font-size: 0.8rem;
+}
+
+.walk-up-lab-bikes__footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+  border-top: 1px solid var(--theme-accent-soft);
+  padding-top: 1rem;
+}
+
+.walk-up-lab-bikes__summary {
+  color: var(--theme-text-muted);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.walk-up-lab-go {
+  flex: 1 1 20rem;
+  border: none;
+  border-radius: 1.2rem;
+  padding: 1.4rem;
+  color: var(--theme-background);
+  background: var(--theme-accent);
+  font-family: inherit;
+  font-size: 1.5rem;
+  font-weight: 900;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.walk-up-lab-go:disabled {
+  color: var(--theme-text-muted);
+  background: var(--theme-surface-alt);
+  cursor: not-allowed;
+}
+
+/* Variant C — tonight's roster. Dense, tap-first, tray at the bottom. */
+
+.walk-up-lab-roster__new {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+  border: 1px solid var(--theme-accent-soft);
+  border-radius: 1.1rem;
+  padding: 0.85rem 1rem;
+  background: var(--theme-surface-alt);
+}
+
+.walk-up-lab-roster__new label {
+  color: var(--theme-text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.walk-up-lab-roster__new .text-input {
+  flex: 1 1 auto;
+}
+
+.walk-up-lab-roster__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12.5rem, 1fr));
+  gap: 0.75rem;
+}
+
+.walk-up-lab-roster__chip {
+  display: grid;
+  gap: 0.2rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 1rem;
+  padding: 0.8rem 0.9rem;
+  text-align: left;
+  color: var(--theme-text);
+  background: var(--theme-surface);
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.walk-up-lab-roster__chip:hover:not(:disabled) {
+  border-color: var(--theme-accent);
+  background: var(--theme-surface-alt);
+}
+
+.walk-up-lab-roster__chip:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.walk-up-lab-roster__chip--seated-left,
+.walk-up-lab-roster__chip--seated-right {
+  border-width: 2px;
+  border-color: var(--theme-accent);
+  background: var(--theme-accent-soft);
+}
+
+.walk-up-lab-roster__chip--seated-right {
+  border-color: var(--theme-lane-b, var(--theme-warning));
+}
+
+.walk-up-lab-roster__chip-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.walk-up-lab-roster__chip-seat {
+  border-radius: 0.45rem;
+  padding: 0.05rem 0.45rem;
+  color: var(--theme-background);
+  background: var(--theme-accent);
+  font-size: 0.78rem;
+  font-weight: 900;
+}
+
+.walk-up-lab-roster__chip-meta {
+  color: var(--theme-text-muted);
+  font-size: 0.78rem;
+}
+
+.walk-up-lab-roster__lineup {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+/* The switcher chrome. Deliberately unlike anything in the app. */
+
+.prototype-switcher {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  z-index: 50;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  max-width: calc(100vw - 2rem);
+  transform: translateX(-50%);
+  border: 2px solid #f5f5f5;
+  border-radius: 999px;
+  padding: 0.45rem 0.9rem;
+  color: #f5f5f5;
+  background: #101014;
+  box-shadow: 0 0.8rem 2rem rgba(0, 0, 0, 0.45);
+  font-family:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  font-size: 0.8rem;
+}
+
+.prototype-switcher__arrow {
+  border: 1px solid #55555f;
+  border-radius: 999px;
+  padding: 0.15rem 0.7rem;
+  color: inherit;
+  background: #22222a;
+  font-family: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+}
+
+.prototype-switcher__arrow:hover {
+  background: #35353f;
+}
+
+.prototype-switcher__label {
+  min-width: 11rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.prototype-switcher__divider {
+  width: 1px;
+  height: 1.2rem;
+  background: #44444d;
+}
+
+.prototype-switcher__cost strong {
+  color: #ffd479;
+}
+
+.prototype-switcher__log {
+  max-width: 18rem;
+  overflow: hidden;
+  color: #a8a8b3;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .walk-up-lab-bikes,
+  .walk-up-lab-cli__bikes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
 .race-graphic {
   border-radius: 1.5rem;
   background: var(--theme-accent-soft);

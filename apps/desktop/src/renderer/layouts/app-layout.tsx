@@ -10,6 +10,10 @@ export function AppLayout() {
   const adminMode = location.pathname.startsWith("/admin");
   const raceMode = location.pathname.startsWith("/race");
   const racerMode = location.pathname.startsWith("/racer");
+  // PROTOTYPE (issue #36) — the walk-up lab prototypes an *admin window*, so it has to render
+  // without the operations shell around it or every variant is judged at the wrong density.
+  // Remove with the /walk-up-lab route.
+  const walkUpLabMode = location.pathname.startsWith("/walk-up-lab");
   const streamSurface = racerMode ? "racer" : raceMode ? "projector" : "admin";
   const streamConnected = useSnapshotStream(streamSurface);
   const showReconnecting = racerMode && !streamConnected;
@@ -22,7 +26,7 @@ export function AppLayout() {
     applyThemeToDocument(selectedTheme);
   }, [selectedTheme]);
 
-  if (raceMode || adminMode) {
+  if (raceMode || adminMode || walkUpLabMode) {
     return <Outlet />;
   }
 
@@ -56,6 +60,10 @@ export function AppLayout() {
           </Link>
           <Link to="/notification-lab" activeProps={{ className: "active" }}>
             Notification Lab
+          </Link>
+          {/* PROTOTYPE (issue #36) — remove with the /walk-up-lab route. */}
+          <Link to="/walk-up-lab" activeProps={{ className: "active" }}>
+            Walk-Up Lab
           </Link>
         </nav>
       </aside>
