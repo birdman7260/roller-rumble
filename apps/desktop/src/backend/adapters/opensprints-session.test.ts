@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RaceParticipant } from "@roller-rumble/shared/types";
 import type { RotationEvent, SensorLifecycleEvent } from "./sensor";
+import type { SensorLaneAssignment } from "./sensor-config";
 import { parseOpenSprintsLine } from "./opensprints-protocol";
 import { OpenSprintsSession } from "./opensprints-session";
+import { swapParticipantLanes } from "@roller-rumble/shared/race-lanes";
 
 const PARTICIPANTS: RaceParticipant[] = [
   { racerId: "r-left", lane: "left" },
@@ -15,12 +17,16 @@ interface Recorder {
   session: OpenSprintsSession;
 }
 
-function makeSession(now: () => number = () => 1_000): Recorder {
+function makeSession(
+  now: () => number = () => 1_000,
+  laneAssignments?: SensorLaneAssignment[]
+): Recorder {
   const rotations: RotationEvent[] = [];
   const lifecycle: SensorLifecycleEvent[] = [];
   const session = new OpenSprintsSession({
     onRotation: (event) => rotations.push(event),
     onLifecycle: (event) => lifecycle.push(event),
+    laneAssignments,
     now
   });
   return { rotations, lifecycle, session };
@@ -116,6 +122,47 @@ describe("OpenSprintsSession", () => {
     ]);
   });
 
+  it("hears a solo racer on the bike they actually took when no lane map is configured", () => {
+    // Riders pick their own bike, so a solo racer can be on the right one. Without a lane map the
+    // session assumes the conventional wiring (port 0 = left bike, port 1 = right) rather than
+    // pinning the lone racer to port 0.
+    const { session, rotations } = makeSession(() => 0);
+    session.begin([{ racerId: "r-solo", lane: "right" }]);
+    feed(session, "CD:0");
+
+    feed(session, "R:0,4,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-solo", lane: "right", timestampMs: 100, deltaRotations: 4 }
+    ]);
+  });
+
+  it("keeps a legacy solo-lane race on the left port when no lane map is configured", () => {
+    // A race staged before the lane swap existed carries lane:"solo", which names no bike.
+    const { session, rotations } = makeSession(() => 0);
+    session.begin([{ racerId: "r-legacy", lane: "solo" }]);
+    feed(session, "CD:0");
+
+    feed(session, "R:3,0,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-legacy", lane: "solo", timestampMs: 100, deltaRotations: 3 }
+    ]);
+  });
+
+  it("follows a configured lane map over the conventional wiring", () => {
+    const { session, rotations } = makeSession(() => 0, ["right", "left"]);
+    session.begin(PARTICIPANTS);
+    feed(session, "CD:0");
+
+    feed(session, "R:6,2,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-right", lane: "right", timestampMs: 100, deltaRotations: 6 },
+      { racerId: "r-left", lane: "left", timestampMs: 100, deltaRotations: 2 }
+    ]);
+  });
+
   it("ignores version, finish, false-start, and length-ack chatter", () => {
     const { session, rotations, lifecycle } = makeSession();
     session.begin(PARTICIPANTS);
@@ -127,5 +174,41 @@ describe("OpenSprintsSession", () => {
 
     expect(rotations).toEqual([]);
     expect(lifecycle).toEqual([{ type: "go" }]);
+  });
+});
+
+describe("OpenSprintsSession after a lane swap", () => {
+  // The seam the whole "riders pick their own bike" behaviour rests on: the lineup the host
+  // corrected is what the session maps ports with. `startCountdown` re-reads the race before
+  // arming, so a swap applied while staging is the lineup that reaches the box.
+  it("hears a swapped solo racer on the bike they moved to, and not on the one they left", () => {
+    const staged: RaceParticipant[] = [{ racerId: "r-solo", lane: "left" }];
+    const afterSwap = swapParticipantLanes(staged);
+
+    const { session, rotations } = makeSession(() => 0);
+    session.begin(afterSwap);
+    feed(session, "CD:0");
+
+    // Port 0 is the bike they got off; port 1 is the one they are actually on.
+    feed(session, "R:9,4,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-solo", lane: "right", timestampMs: 100, deltaRotations: 4 }
+    ]);
+  });
+
+  it("hands each head-to-head racer the other bike's ticks", () => {
+    const afterSwap = swapParticipantLanes(PARTICIPANTS);
+
+    const { session, rotations } = makeSession(() => 0);
+    session.begin(afterSwap);
+    feed(session, "CD:0");
+
+    feed(session, "R:5,7,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-right", lane: "left", timestampMs: 100, deltaRotations: 5 },
+      { racerId: "r-left", lane: "right", timestampMs: 100, deltaRotations: 7 }
+    ]);
   });
 });

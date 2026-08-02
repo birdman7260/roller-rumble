@@ -21,6 +21,14 @@ export type SensorLaneAssignment = RaceParticipant["lane"] | null;
 
 const VALID_LANES: readonly RaceParticipant["lane"][] = ["left", "right", "solo"];
 
+/**
+ * The wiring the session assumes when no `lane map` is configured: the box's first sensor port is
+ * the left bike and its second is the right one. Riders pick their own bike, so the lane a racer is
+ * on is real information even in a solo race — resolving ports by lane rather than by the racer's
+ * position in the lineup is what lets a `lane swap` reach the hardware.
+ */
+export const DEFAULT_SENSOR_LANE_ASSIGNMENTS: readonly SensorLaneAssignment[] = ["left", "right"];
+
 function read(env: NodeJS.ProcessEnv, key: string): string {
   return (env[key] ?? "").trim();
 }
@@ -50,7 +58,7 @@ export function readSensorProtocol(env: NodeJS.ProcessEnv = process.env): Sensor
 /**
  * The lane each sensor port (by index) feeds, parsed from a comma-separated list of
  * `left`/`right`/`solo`/`unused`. Returns `null` when unset or malformed so the session falls
- * back to its positional default rather than mapping ticks to the wrong racer.
+ * back to {@link DEFAULT_SENSOR_LANE_ASSIGNMENTS} rather than mapping ticks to the wrong racer.
  */
 export function readSensorLaneAssignments(
   env: NodeJS.ProcessEnv = process.env

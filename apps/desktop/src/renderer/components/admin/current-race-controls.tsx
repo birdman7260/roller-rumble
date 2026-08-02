@@ -1,5 +1,7 @@
 import type { AppSnapshot, RaceRecord } from "@roller-rumble/shared/types";
-import { formatRacerNames } from "../../lib/snapshot-display";
+import { formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
+import { canSwapRaceLanes } from "@roller-rumble/shared/race-lanes";
+import { describeBike, describeLaneSwap, LANE_SWAP_SHORTCUT_KEY } from "../../lib/lane-swap";
 import { Button } from "@roller-rumble/shared-ui";
 
 export function CurrentRaceActionRows({
@@ -9,6 +11,7 @@ export function CurrentRaceActionRows({
   onStageNextRace,
   onUnstageCurrent,
   onResetCurrent,
+  onSwapLanes,
   onStartCountdown,
   onFinalizeCurrent,
   onResumeInterrupted,
@@ -21,6 +24,7 @@ export function CurrentRaceActionRows({
   onStageNextRace?: () => void;
   onUnstageCurrent?: () => void;
   onResetCurrent?: () => void;
+  onSwapLanes?: () => void;
   onStartCountdown: () => void;
   onFinalizeCurrent: () => void;
   onResumeInterrupted: () => void;
@@ -33,6 +37,7 @@ export function CurrentRaceActionRows({
     currentRace != null && ["scheduled", "staging"].includes(currentRace.state);
   const showUnstageAction =
     currentRace != null && ["scheduled", "staging"].includes(currentRace.state);
+  const showSwapAction = canSwapRaceLanes(currentRace);
   const showResetAction =
     currentRace != null && ["countdown", "active"].includes(currentRace.state);
   const showFinalizeAction = currentRace?.state === "active";
@@ -71,6 +76,7 @@ export function CurrentRaceActionRows({
     !showStageAction &&
     !showStartAction &&
     !showUnstageAction &&
+    !showSwapAction &&
     !showResetAction &&
     !showFinalizeAction
   ) {
@@ -98,6 +104,17 @@ export function CurrentRaceActionRows({
             }}
           >
             Unstage Race
+          </Button>
+        ) : null}
+        {showSwapAction ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onSwapLanes?.();
+            }}
+          >
+            {describeLaneSwap(currentRace?.participants ?? [])} (
+            {LANE_SWAP_SHORTCUT_KEY.toUpperCase()})
           </Button>
         ) : null}
         {showStartAction ? (
@@ -153,6 +170,16 @@ export function CurrentRaceSummary({
           snapshot,
           currentRace.participants.map((participant) => participant.racerId)
         )}
+      </span>
+      {/* The lineup the app believes, spelled out per bike: a lane swap is only checkable if the
+          operator can compare it against the riders actually sitting in front of them. */}
+      <span className="admin-race-tray__detail">
+        {currentRace.participants
+          .map(
+            (participant) =>
+              `${describeBike(participant.lane)}: ${resolveRacerName(snapshot, participant.racerId)}`
+          )
+          .join(" • ")}
       </span>
     </div>
   );

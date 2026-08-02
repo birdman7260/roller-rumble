@@ -17,14 +17,16 @@ import type { RaceParticipant } from "@roller-rumble/shared/types";
 import type { RotationEvent, SensorLifecycleEvent } from "./sensor";
 import type { OpenSprintsMessage } from "./opensprints-protocol";
 import type { SensorLaneAssignment } from "./sensor-config";
+import { DEFAULT_SENSOR_LANE_ASSIGNMENTS } from "./sensor-config";
+import { toBikeLane } from "@roller-rumble/shared/race-lanes";
 
 export interface OpenSprintsSessionOptions {
   onRotation: (event: RotationEvent) => void;
   onLifecycle: (event: SensorLifecycleEvent) => void;
   /**
-   * Which race lane each sensor port (by index) feeds. When omitted, `begin` falls back to a
-   * positional map (sensor i → participants[i]); when present, each participant is matched to the
-   * sensor port configured for its lane, so the box's fixed port order can't crown the wrong racer.
+   * Which race lane each sensor port (by index) feeds. Each participant is matched to the sensor
+   * port configured for its lane, so the box's fixed port order can't crown the wrong racer. When
+   * omitted, `begin` assumes the conventional wiring ({@link DEFAULT_SENSOR_LANE_ASSIGNMENTS}).
    */
   laneAssignments?: SensorLaneAssignment[];
   /** Injectable wall clock (defaults to Date.now) so tests are deterministic. */
@@ -37,9 +39,9 @@ export class OpenSprintsSession {
   private readonly laneAssignments: SensorLaneAssignment[] | null;
   private readonly now: () => number;
 
-  // Sensor position index (0-3) → participant. Positional by default: the box's
-  // first reported sensor maps to the first participant. The future lane-map
-  // managed setting refines this; the recon probe confirms the real wiring.
+  // Sensor position index (0-3) → participant, resolved by lane so a `lane swap`
+  // reroutes ticks with it. The lane-map managed setting overrides the assumed
+  // wiring; the recon probe confirms which jack is really which.
   private laneMap: (RaceParticipant | null)[] = [];
   // Last cumulative tick count seen per sensor, for per-sample deltas.
   private lastTicks: number[] = [];
@@ -65,19 +67,26 @@ export class OpenSprintsSession {
   }
 
   /**
-   * Map each sensor port (index) to the participant on it. With a configured lane map each port
-   * resolves to the participant whose lane it is wired to (unmapped/unused ports stay null);
-   * without one, ports map positionally to participants in order.
+   * Map each sensor port (index) to the participant on it. Every port resolves by lane — the
+   * participant whose lane that port is wired to — so a `lane swap` reroutes the ticks with it and
+   * a solo racer is heard on whichever bike they mounted. Unmapped/unused ports stay null. Without
+   * a configured lane map the session assumes the conventional wiring
+   * ({@link DEFAULT_SENSOR_LANE_ASSIGNMENTS}).
    */
   private buildLaneMap(participants: RaceParticipant[]): (RaceParticipant | null)[] {
-    if (!this.laneAssignments) {
-      return participants.map((participant) => participant);
-    }
-    return this.laneAssignments.map((lane) => {
+    // An operator's own lane map is taken literally — it records where they put the ports, so a
+    // `solo` entry in it still means what it always did. Only the assumed wiring reads a race
+    // staged before the lane swap existed, whose lane:"solo" names no bike, as the left bike.
+    const configured = this.laneAssignments != null;
+    const assignments = this.laneAssignments ?? DEFAULT_SENSOR_LANE_ASSIGNMENTS;
+    const laneOf = (participant: RaceParticipant): SensorLaneAssignment =>
+      configured ? participant.lane : toBikeLane(participant.lane);
+
+    return assignments.map((lane) => {
       if (!lane) {
         return null;
       }
-      return participants.find((participant) => participant.lane === lane) ?? null;
+      return participants.find((participant) => laneOf(participant) === lane) ?? null;
     });
   }
 

@@ -836,6 +836,10 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.unstageCurrentRace());
   });
 
+  app.post(`${API_PREFIX}/races/current/swap-lanes`, (_req, res) => {
+    res.json(service.swapCurrentRaceLanes());
+  });
+
   app.post(`${API_PREFIX}/races/current/reset-to-staged`, (_req, res) => {
     res.json(service.resetCurrentRaceToStaged());
   });

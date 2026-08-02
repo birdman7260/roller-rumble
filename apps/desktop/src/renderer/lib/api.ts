@@ -550,6 +550,10 @@ export async function unstageCurrentRace(): Promise<AppSnapshot> {
   return parseJson(await fetch(buildUrl("/api/races/current/unstage"), { method: "POST" }));
 }
 
+export async function swapCurrentRaceLanes(): Promise<AppSnapshot> {
+  return parseJson(await fetch(buildUrl("/api/races/current/swap-lanes"), { method: "POST" }));
+}
+
 export async function resetCurrentRaceToStaged(): Promise<AppSnapshot> {
   return parseJson(await fetch(buildUrl("/api/races/current/reset-to-staged"), { method: "POST" }));
 }

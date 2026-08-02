@@ -81,6 +81,6 @@ Override `ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS` only for a box with a non-standar
 
 Sensor-port → lane wiring was confirmed by a pedal test on the same date: **port 0 = left, port 1 =
 right** (ports 2/3 unused, only two bikes wired). Set `ROLLER_RUMBLE_SENSOR_LANE_MAP=left,right` to
-make that explicit rather than relying on the positional default. Note the firmware caps race length
+make that explicit rather than relying on the assumed `left,right` wiring. Note the firmware caps race length
 at a signed 16-bit int (32767 ticks); `buildArmCommands("basic")` sets it there so the box streams
 for the whole app-owned race instead of finishing early.

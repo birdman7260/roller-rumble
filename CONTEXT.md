@@ -114,13 +114,25 @@ _Avoid_: meta bar, stats header
 **readout**: The live stats cluster shown on a `lane card` (RPM today). Belongs to one lane.
 _Avoid_: stats box, metrics panel
 
+**solo presentation**: The single-centered-`lane card` geometry a race gets when one rider raced. Derived from the participant count, never from a lane id — a solo racer is staged on a real `left`/`right` lane like anyone else, because `lane` names the roller their ticks come off. Races staged before the `lane swap` existed carry a third lane value, `solo`, which names no bike.
+_Avoid_: solo lane (that names the retired lane id, not the layout)
+
 **monogram**: The lane-colored disc showing a racer's initial, rendered on the `lane card` in place of an avatar when the racer has none.
 _Avoid_: initial avatar, placeholder
 
 ### Queue and events
 
-**Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time. Carries operator-authored display copy (a description plus `signup prompt` overrides). Editing the active event's fields is in-place and non-destructive; creating a _new_ event is destructive — it starts a fresh session, so racers must register again.
+**Event**: The top-level container for a race session — holds racers, queue entries, races, and tournament data. One event is active at a time. Carries an `event kind` fixed at creation plus operator-authored display copy (a description plus `signup prompt` overrides). Editing the active event's fields is in-place and non-destructive; creating a _new_ event is destructive — it starts a fresh session, so racers must register again.
 _Avoid_: session, meet
+
+**event kind**: The discriminator on an `Event` naming which shape of session it is — `standard` or `walk-up`. Chosen when the event is created and immutable afterward, so an event's `event capability` set never shifts under the data already filed beneath it; changing shape means starting a new event. Orthogonal to competition format, which is `mode`.
+_Avoid_: mode (that is competition format), event type, booth mode
+
+**walk-up event**: An `Event` whose `event kind` is `walk-up` — the stripped-down shape for a public stall, where riders arrive on the spot with no phone and no `Queue`, the host composes each race directly, riders pick whichever bike they like, and the projector shows a top-racers board between races.
+_Avoid_: booth event, booth mode (both collide with the `photo booth`), pop-up event
+
+**event capability**: One entry in the closed set of behaviors an `event kind` grants or withholds — whether the event has a racer page, a `Queue`, tournaments, payments, host-composed races or lead capture, and what the projector shows while idle. Derived from the kind rather than stored per event, and the thing every `surface` asks about: surfaces branch on capabilities, never on the kind's id.
+_Avoid_: event flag, event setting, feature flag
 
 **Signup prompt**: The projector card that recruits racers into the queue — an eyebrow, a heading, a body line, and the join QR code. Its eyebrow/heading/body each fall back to built-in default copy, and the operator may override any of them per event (blank clears the override back to the default). The body override is the event `description`, which the racer page also shows; the eyebrow and heading appear on the projector only.
 _Avoid_: signup card, join prompt, QR panel
@@ -182,8 +194,11 @@ _Avoid_: pulse, count, rotation (when the hardware unit is meant)
 **rollout**: The real-world distance a bike travels per one roller revolution — the calibration constant that converts ticks into meters. Hardware-specific; measured, not assumed.
 _Avoid_: wheel circumference, roller diameter
 
-**lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack.
+**lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack. When none is configured the app assumes the conventional wiring (port 0 is the left bike, port 1 the right) rather than mapping ports to racers in lineup order, so a `lane swap` reroutes the ticks with it.
 _Avoid_: sensor mapping, channel assignment
+
+**lane swap**: The host's correction to which physical bike each racer in a staged race is on — one keystroke (`S`) or a button in the race tray. Head-to-head exchanges the two racers; solo moves the lone rider to the other bike. Nobody is assigned a bike, riders mount whichever they like, and rotation ticks alone can never say who is who, so this is how the app learns who is where. Allowed while the race is `scheduled` or `staging` and refused once the countdown starts — past that the box may be armed against the old `lane map` and an active race has ticks banked per lane, so the host resets the race to staged first. Available in every `event kind`, not just a `walk-up event`. See ADR 0019.
+_Avoid_: lane flip (that is `raceDisplayLaneColorsFlipped`, a display setting), bike assignment, rebind
 
 **box countdown**: The fixed, **silent** interval the OpenSprints box runs after the `g` (GO) command before it starts streaming ticks — roughly four seconds on the `basic_msg` firmware, emitting no countdown steps. Not configurable and not observable mid-way, so the app treats it as a tuned constant rather than something it can mirror.
 _Avoid_: hardware countdown, box timer

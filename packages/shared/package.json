@@ -20,6 +20,10 @@
       "types": "./src/presets.ts",
       "import": "./src/presets.ts"
     },
+    "./race-lanes": {
+      "types": "./src/race-lanes.ts",
+      "import": "./src/race-lanes.ts"
+    },
     "./themes": {
       "types": "./src/themes.ts",
       "import": "./src/themes.ts"

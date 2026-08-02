@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from "react";
+import { useEffect, type Dispatch, type SetStateAction } from "react";
 import type { AppSnapshot, TournamentBundle } from "@roller-rumble/shared/types";
 import {
   dismissRaceResultPresentation,
@@ -9,13 +9,22 @@ import {
   resumeInterruptedRace,
   stageNextRace,
   startCurrentRace,
+  swapCurrentRaceLanes,
   unstageCurrentRace
 } from "../../lib/api";
 import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
+import { canSwapRaceLanes } from "@roller-rumble/shared/race-lanes";
+import { LANE_SWAP_SHORTCUT_KEY } from "../../lib/lane-swap";
+import { isShortcutKeystroke } from "../../lib/shortcuts";
 import { fireAndForget } from "../../lib/ui-actions";
 import { Button } from "@roller-rumble/shared-ui";
 import { CurrentRaceActionRows, CurrentRaceSummary } from "./current-race-controls";
 import type { AdminTabId } from "./types";
+
+/** Module-scoped so the button and the keystroke fire exactly the same request. */
+function requestLaneSwap(): void {
+  fireAndForget(swapCurrentRaceLanes(), "swap race bikes");
+}
 
 export function AdminRaceTray({
   snapshot,
@@ -35,6 +44,29 @@ export function AdminRaceTray({
     activeTournament && currentRace?.tournamentId === activeTournament.tournament.id
       ? currentRace
       : null;
+
+  // A lane swap is the one race control with a keystroke: the riders are already on the bikes and
+  // the host is looking at them, not at the laptop, so reaching for a button costs the moment.
+  const swapShortcutEnabled = !resultPresentation && canSwapRaceLanes(currentRace);
+
+  useEffect(() => {
+    if (!swapShortcutEnabled) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent): void {
+      if (!isShortcutKeystroke(event, LANE_SWAP_SHORTCUT_KEY)) {
+        return;
+      }
+      event.preventDefault();
+      requestLaneSwap();
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [swapShortcutEnabled]);
 
   // The tray only appears when there is an actual race workflow to act on from any tab.
   const showTray = Boolean(resultPresentation ?? currentRace ?? activeTournament ?? nextQueueEntry);
@@ -139,6 +171,9 @@ export function AdminRaceTray({
                 resetCurrentRaceToStaged(),
                 currentTournamentRace ? "reset tournament race" : "reset race"
               );
+            }}
+            onSwapLanes={() => {
+              requestLaneSwap();
             }}
             onFinalizeCurrent={() => {
               fireAndForget(
