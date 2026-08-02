@@ -83,6 +83,10 @@ export function WalkUpLabPage({
         completed={state.completed.length}
         average={averageCost(state.completed)}
         lastLogLine={state.log[0]}
+        trigger={state.trigger}
+        onTriggerChange={(trigger) => {
+          dispatch({ type: "set-trigger", trigger });
+        }}
         onReset={() => {
           dispatch({ type: "reset" });
         }}

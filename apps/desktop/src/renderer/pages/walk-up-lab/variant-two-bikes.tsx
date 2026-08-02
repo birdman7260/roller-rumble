@@ -16,12 +16,15 @@
 
 import { useState } from "react";
 import { Button } from "@roller-rumble/shared-ui";
+import { describeLaneSwap } from "../../lib/lane-swap";
 import { LabTabRail, type LabTab } from "./lab-chrome";
 import {
   BIKE_LANES,
   canStart,
+  canSwap,
   countdownSecondsLeft,
   describeBike,
+  describeStartAction,
   describeLastSeen,
   describeRider,
   findRider,
@@ -31,6 +34,7 @@ import {
   raceSecondsElapsed,
   ridersByRecency,
   stagedLanes,
+  toParticipants,
   type BikeLane,
   type LabResultEntry,
   type WalkUpLabAction,
@@ -197,28 +201,36 @@ function SeatActions({
     );
   }
 
-  if (state.phase !== "composing") {
+  // Only the lone rider gets a per-seat move. A swap moves *everyone* (ADR 0019), so offering it on
+  // both seats of a head-to-head would be two buttons doing one act — and would make the tap count
+  // read high for a correction the host only makes once.
+  const showSoloMove = canSwap(state) && isSolo(state);
+  if (state.phase !== "composing" && !showSoloMove) {
     return null;
   }
 
   return (
     <div className="button-row">
-      <Button
-        variant="ghost"
-        onClick={() => {
-          dispatch({ type: "swap-bikes" });
-        }}
-      >
-        Move Across
-      </Button>
-      <Button
-        variant="ghost"
-        onClick={() => {
-          dispatch({ type: "clear-bike", lane });
-        }}
-      >
-        Clear
-      </Button>
+      {showSoloMove ? (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            dispatch({ type: "swap-bikes" });
+          }}
+        >
+          {describeLaneSwap(toParticipants(state))}
+        </Button>
+      ) : null}
+      {state.phase === "composing" ? (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            dispatch({ type: "clear-bike", lane });
+          }}
+        >
+          Clear
+        </Button>
+      ) : null}
     </div>
   );
 }
@@ -260,15 +272,29 @@ function SeatPicker({
             return;
           }
           event.preventDefault();
-          const exact = available.at(0);
-          if (exact?.displayName.toLowerCase() === draft.trim().toLowerCase()) {
-            dispatch({ type: "stage-rider", riderId: exact.id, lane, typedChars: draft.length });
+          // Enter takes the top match, the same rule the command-line variant uses. Matching only on
+          // an exact full name would let "Mar" quietly create a second Marisol Vega and price a
+          // returning rider as a new one — the issue's "the host should not retype them".
+          const topMatch = available.at(0);
+          if (topMatch) {
+            dispatch({ type: "stage-rider", riderId: topMatch.id, lane, typedChars: draft.length });
           } else {
             dispatch({ type: "add-rider", displayName: draft, lane, typedChars: draft.length });
           }
           onDone();
         }}
       />
+      {draft.trim() !== "" && available.length > 0 ? (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            dispatch({ type: "add-rider", displayName: draft, lane, typedChars: draft.length });
+            onDone();
+          }}
+        >
+          Add “{draft.trim()}” as someone new
+        </Button>
+      ) : null}
       <div className="walk-up-lab-seat__matches">
         {available.map((rider) => (
           <button
@@ -323,6 +349,17 @@ function TwoBikesFooter({
             ? `Solo run · ${describeBike(occupied[0])}`
             : "Head-to-head"}
       </span>
+      {/* Head-to-head swaps both riders at once, so the control belongs to the race, not a seat. */}
+      {canSwap(state) && !isSolo(state) ? (
+        <Button
+          variant="ghost"
+          onClick={() => {
+            dispatch({ type: "swap-bikes" });
+          }}
+        >
+          Swap Bikes
+        </Button>
+      ) : null}
       <button
         type="button"
         className="walk-up-lab-go"
@@ -331,11 +368,7 @@ function TwoBikesFooter({
           dispatch({ type: "start-countdown" });
         }}
       >
-        {state.phase === "countdown"
-          ? `Countdown ${countdownSecondsLeft(state)}`
-          : state.phase === "racing"
-            ? `Racing ${formatSeconds(raceSecondsElapsed(state))}`
-            : "Start Countdown"}
+        {describeStartAction(state)}
       </button>
     </div>
   );

@@ -12,7 +12,7 @@
 
 import { useEffect, useEffectEvent } from "react";
 import { isShortcutKeystroke } from "../../lib/shortcuts";
-import type { LabCost } from "./prototype-model";
+import type { LabCost, LabTrigger } from "./prototype-model";
 
 export function PrototypeSwitcher({
   variantKeys,
@@ -23,6 +23,8 @@ export function PrototypeSwitcher({
   completed,
   average,
   lastLogLine,
+  trigger,
+  onTriggerChange,
   onReset
 }: {
   variantKeys: readonly string[];
@@ -33,6 +35,8 @@ export function PrototypeSwitcher({
   completed: number;
   average: LabCost | null;
   lastLogLine: string | undefined;
+  trigger: LabTrigger;
+  onTriggerChange: (trigger: LabTrigger) => void;
   onReset: () => void;
 }) {
   const activeIndex = variantKeys.indexOf(activeKey);
@@ -103,6 +107,20 @@ export function PrototypeSwitcher({
           ? "no races yet"
           : `avg over ${completed} · ${average.taps} taps · ${average.typedChars} chars`}
       </span>
+
+      <span className="prototype-switcher__divider" aria-hidden="true" />
+
+      {/* Orthogonal to the variant: who owns GO. The issue asks for manual-vs-cue to be confirmed
+          rather than assumed, so it flips against whichever surface is on screen. */}
+      <button
+        type="button"
+        className="prototype-switcher__arrow"
+        onClick={() => {
+          onTriggerChange(trigger === "manual" ? "os2l" : "manual");
+        }}
+      >
+        trigger: {trigger === "os2l" ? "OS2L cue" : "manual"}
+      </button>
 
       <span className="prototype-switcher__divider" aria-hidden="true" />
 

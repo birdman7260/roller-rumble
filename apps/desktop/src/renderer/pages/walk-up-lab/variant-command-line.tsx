@@ -20,8 +20,8 @@ import {
   BIKE_LANES,
   canStart,
   canSwap,
-  countdownSecondsLeft,
   describeBike,
+  describeStartAction,
   describeLastSeen,
   describeRider,
   findRider,
@@ -29,7 +29,6 @@ import {
   formatSeconds,
   isSolo,
   matchRiders,
-  raceSecondsElapsed,
   sortResult,
   stagedLanes,
   type BikeLane,
@@ -204,17 +203,23 @@ function CommandLinePhase({
   state: WalkUpLabState;
   dispatch: (action: WalkUpLabAction) => void;
 }) {
-  if (state.phase === "countdown") {
+  if (state.phase === "armed" || state.phase === "countdown" || state.phase === "racing") {
     return (
-      <strong className="walk-up-lab-cli__phase">Countdown {countdownSecondsLeft(state)}</strong>
-    );
-  }
-
-  if (state.phase === "racing") {
-    return (
-      <strong className="walk-up-lab-cli__phase">
-        Racing {formatSeconds(raceSecondsElapsed(state))}
-      </strong>
+      <div className="walk-up-lab-cli__phase-actions">
+        <strong className="walk-up-lab-cli__phase">{describeStartAction(state)}</strong>
+        {/* Armed-for-cue is still inside the swap window (ADR 0019), and it is the one moment the
+            host is definitely looking at the riders rather than the laptop. */}
+        {canSwap(state) ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              dispatch({ type: "swap-bikes" });
+            }}
+          >
+            Swap Bikes
+          </Button>
+        ) : null}
+      </div>
     );
   }
 
@@ -267,7 +272,7 @@ function CommandLinePhase({
           dispatch({ type: "start-countdown" });
         }}
       >
-        Start Countdown
+        {describeStartAction(state)}
       </Button>
     </div>
   );

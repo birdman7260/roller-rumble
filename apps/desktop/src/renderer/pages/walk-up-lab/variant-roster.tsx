@@ -24,15 +24,14 @@ import {
   BIKE_LANES,
   canStart,
   canSwap,
-  countdownSecondsLeft,
   describeBike,
+  describeStartAction,
   describeLastSeen,
   describeRider,
   findRider,
   firstFreeLane,
   formatSeconds,
   isSolo,
-  raceSecondsElapsed,
   ridersByRecency,
   sortResult,
   stagedLanes,
@@ -247,11 +246,7 @@ function RosterTray({
                   dispatch({ type: "start-countdown" });
                 }}
               >
-                {state.phase === "countdown"
-                  ? `Countdown ${countdownSecondsLeft(state)}`
-                  : state.phase === "racing"
-                    ? `Racing ${formatSeconds(raceSecondsElapsed(state))}`
-                    : "Start Countdown"}
+                {describeStartAction(state)}
               </Button>
             </>
           )}

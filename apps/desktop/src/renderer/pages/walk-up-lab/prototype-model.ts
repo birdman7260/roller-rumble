@@ -18,7 +18,15 @@
  *   compare a command line against a roster of chips without arguing about taste.
  */
 
-/** A real bike. Matches `BikeLane` in `@roller-rumble/shared/race-lanes`; duplicated to stay standalone. */
+import type { RaceParticipant } from "@roller-rumble/shared/types";
+import { describeBike } from "../../lib/lane-swap";
+
+export { describeBike };
+
+/**
+ * A real bike. Narrower than `@roller-rumble/shared/race-lanes`'s `BikeLane` only in that the
+ * prototype never stages the legacy `solo` lane, so there is nothing here to migrate.
+ */
 export type BikeLane = "left" | "right";
 
 export const BIKE_LANES: readonly BikeLane[] = ["left", "right"];
@@ -32,7 +40,20 @@ export interface LabRider {
   minutesSinceLastRace: number | null;
 }
 
-export type LabPhase = "composing" | "countdown" | "racing" | "results";
+/**
+ * `composing` and `armed` together stand in for the real `scheduled`/`staging` states — the window
+ * where a `lane swap` is still allowed. From `countdown` on it is refused, exactly as
+ * `canSwapRaceLanes` enforces in production (ADR 0019).
+ */
+export type LabPhase = "composing" | "armed" | "countdown" | "racing" | "results";
+
+/**
+ * Who owns GO. The issue asks this to be confirmed rather than assumed: a walk-up event almost
+ * certainly wants the manual trigger, but an operator running the stall next to a DJ booth might
+ * not. Under `os2l` the host arms the race and the cue starts it, so GO stops being theirs — and
+ * the swap window gets *longer*, because arming is not the countdown.
+ */
+export type LabTrigger = "manual" | "os2l";
 
 export interface LabResultEntry {
   riderId: string;
@@ -50,6 +71,7 @@ export interface WalkUpLabState {
   riders: LabRider[];
   bikes: Record<BikeLane, string | null>;
   phase: LabPhase;
+  trigger: LabTrigger;
   /** `Date.now()` when the current phase began; drives the fake countdown and race clocks. */
   phaseStartedAt: number;
   now: number;
@@ -65,6 +87,8 @@ export interface WalkUpLabState {
 
 const COUNTDOWN_MS = 3000;
 const RACE_MS = 6000;
+/** How long the armed race waits on the DJ before the cue lands. Stands in for a musical moment. */
+const CUE_WAIT_MS = 4000;
 const LOG_LIMIT = 12;
 
 const NO_COST: LabCost = { taps: 0, typedChars: 0 };
@@ -128,11 +152,12 @@ const SEED_RIDERS: LabRider[] = [
   }
 ];
 
-export function createInitialState(now: number): WalkUpLabState {
+export function createInitialState(now: number, trigger: LabTrigger = "manual"): WalkUpLabState {
   return {
     riders: SEED_RIDERS,
     bikes: { left: null, right: null },
     phase: "composing",
+    trigger,
     phaseStartedAt: now,
     now,
     result: null,
@@ -151,6 +176,7 @@ export type WalkUpLabAction =
   | { type: "start-countdown" }
   /** The host clears the finished race. `keep` names the bikes whose rider stays on for another go. */
   | { type: "dismiss-results"; keep: readonly BikeLane[] }
+  | { type: "set-trigger"; trigger: LabTrigger }
   | { type: "tick"; now: number }
   | { type: "reset" };
 
@@ -168,11 +194,14 @@ export function walkUpLabReducer(state: WalkUpLabState, action: WalkUpLabAction)
       return startCountdown(state);
     case "dismiss-results":
       return dismissResults(state, action.keep);
+    case "set-trigger":
+      // Chrome, not the operator's loop — switching the rig costs the race nothing.
+      return { ...state, trigger: action.trigger };
     case "tick":
       return advanceClock(state, action.now);
     case "reset":
       // Reuses the clock the reducer already holds, so nothing outside it has to read the wall clock.
-      return createInitialState(state.now);
+      return createInitialState(state.now, state.trigger);
   }
 }
 
@@ -255,9 +284,12 @@ function clearBike(state: WalkUpLabState, lane: BikeLane): WalkUpLabState {
  * The `lane swap` from ADR 0019, in miniature: every staged rider moves to the other bike. Variants
  * that ask the host to place riders on a named bike up front should never need this — whether that
  * is true in practice is one of the things this prototype is for.
+ *
+ * Refused from `countdown` on, matching `canSwapRaceLanes`: past that the box may be armed against
+ * the old `lane map` and an active race has ticks banked per lane.
  */
 function swapBikes(state: WalkUpLabState): WalkUpLabState {
-  if (state.phase !== "composing" && state.phase !== "countdown") {
+  if (!canSwap(state)) {
     return state;
   }
   return {
@@ -268,16 +300,22 @@ function swapBikes(state: WalkUpLabState): WalkUpLabState {
   };
 }
 
+/**
+ * The host's last act on a race. Under the manual trigger that is GO; under an `OS2L cue` it only
+ * arms the race and the DJ's cue supplies GO, which is the difference the issue asked to see rather
+ * than assume.
+ */
 function startCountdown(state: WalkUpLabState): WalkUpLabState {
   if (!canStart(state)) {
     return state;
   }
+  const armedForCue = state.trigger === "os2l";
   return {
     ...state,
-    phase: "countdown",
+    phase: armedForCue ? "armed" : "countdown",
     phaseStartedAt: state.now,
     current: spend(state.current, 1, 0),
-    log: note(state, "Countdown started")
+    log: note(state, armedForCue ? "Armed — waiting for the DJ cue" : "Countdown started")
   };
 }
 
@@ -296,7 +334,10 @@ function dismissResults(state: WalkUpLabState, keep: readonly BikeLane[]): WalkU
     phase: "composing",
     phaseStartedAt: state.now,
     result: null,
-    current: NO_COST,
+    // Clearing the results is the first act of composing the *next* race, so it opens that race's
+    // budget rather than vanishing. Charging it to the finished race would hide the one tap the
+    // back-to-back case is entirely about.
+    current: spend(NO_COST, 1, 0),
     log: note(
       state,
       kept.length === 0
@@ -313,6 +354,15 @@ function dismissResults(state: WalkUpLabState, keep: readonly BikeLane[]): WalkU
  */
 function advanceClock(state: WalkUpLabState, now: number): WalkUpLabState {
   const elapsed = now - state.phaseStartedAt;
+  if (state.phase === "armed" && elapsed >= CUE_WAIT_MS) {
+    return {
+      ...state,
+      now,
+      phase: "countdown",
+      phaseStartedAt: now,
+      log: note(state, "DJ cue landed")
+    };
+  }
   if (state.phase === "countdown" && elapsed >= COUNTDOWN_MS) {
     return { ...state, now, phase: "racing", phaseStartedAt: now, log: note(state, "GO") };
   }
@@ -358,10 +408,6 @@ function applyResultToRiders(riders: LabRider[], result: LabResultEntry[]): LabR
   });
 }
 
-export function describeBike(lane: BikeLane): string {
-  return lane === "left" ? "Left bike" : "Right bike";
-}
-
 export function findRider(state: WalkUpLabState, riderId: string): LabRider | undefined {
   return state.riders.find((rider) => rider.id === riderId);
 }
@@ -371,8 +417,12 @@ export function stagedLanes(state: WalkUpLabState): BikeLane[] {
   return BIKE_LANES.filter((lane) => state.bikes[lane] !== null);
 }
 
-export function stagedRiderIds(state: WalkUpLabState): string[] {
-  return stagedLanes(state).map((lane) => state.bikes[lane]!);
+/**
+ * The staged lineup in the shape the real code passes around, so variants can name the swap with
+ * the production `describeLaneSwap` rather than inventing their own words for it.
+ */
+export function toParticipants(state: WalkUpLabState): RaceParticipant[] {
+  return stagedLanes(state).map((lane) => ({ racerId: state.bikes[lane]!, lane }));
 }
 
 /** Solo versus head-to-head is inferred from how many bikes are taken — never declared. */
@@ -384,10 +434,28 @@ export function canStart(state: WalkUpLabState): boolean {
   return state.phase === "composing" && stagedLanes(state).length > 0;
 }
 
+/**
+ * Whether a `lane swap` is still allowed. `composing` and `armed` are this prototype's
+ * `scheduled`/`staging`; from `countdown` on it is refused, which is what `canSwapRaceLanes` does in
+ * production (ADR 0019). Note the `OS2L cue` path leaves this window open *longer* — arming is not
+ * the countdown — which is a real difference between the two triggers, not an accident here.
+ */
 export function canSwap(state: WalkUpLabState): boolean {
-  return (
-    (state.phase === "composing" || state.phase === "countdown") && stagedLanes(state).length > 0
-  );
+  return (state.phase === "composing" || state.phase === "armed") && stagedLanes(state).length > 0;
+}
+
+/** What the host's start control does under the current trigger, in their words. */
+export function describeStartAction(state: WalkUpLabState): string {
+  if (state.phase === "armed") {
+    return "Waiting for DJ cue…";
+  }
+  if (state.phase === "countdown") {
+    return `Countdown ${countdownSecondsLeft(state)}`;
+  }
+  if (state.phase === "racing") {
+    return `Racing ${formatSeconds(raceSecondsElapsed(state))}`;
+  }
+  return state.trigger === "os2l" ? "Arm For DJ Cue" : "Start Countdown";
 }
 
 /** The bike a rider lands on when the host has not named one. */
