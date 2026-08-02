@@ -4,6 +4,7 @@ import type { RotationEvent, SensorLifecycleEvent } from "./sensor";
 import type { SensorLaneAssignment } from "./sensor-config";
 import { parseOpenSprintsLine } from "./opensprints-protocol";
 import { OpenSprintsSession } from "./opensprints-session";
+import { swapParticipantLanes } from "@roller-rumble/shared/race-lanes";
 
 const PARTICIPANTS: RaceParticipant[] = [
   { racerId: "r-left", lane: "left" },
@@ -173,5 +174,41 @@ describe("OpenSprintsSession", () => {
 
     expect(rotations).toEqual([]);
     expect(lifecycle).toEqual([{ type: "go" }]);
+  });
+});
+
+describe("OpenSprintsSession after a lane swap", () => {
+  // The seam the whole "riders pick their own bike" behaviour rests on: the lineup the host
+  // corrected is what the session maps ports with. `startCountdown` re-reads the race before
+  // arming, so a swap applied while staging is the lineup that reaches the box.
+  it("hears a swapped solo racer on the bike they moved to, and not on the one they left", () => {
+    const staged: RaceParticipant[] = [{ racerId: "r-solo", lane: "left" }];
+    const afterSwap = swapParticipantLanes(staged);
+
+    const { session, rotations } = makeSession(() => 0);
+    session.begin(afterSwap);
+    feed(session, "CD:0");
+
+    // Port 0 is the bike they got off; port 1 is the one they are actually on.
+    feed(session, "R:9,4,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-solo", lane: "right", timestampMs: 100, deltaRotations: 4 }
+    ]);
+  });
+
+  it("hands each head-to-head racer the other bike's ticks", () => {
+    const afterSwap = swapParticipantLanes(PARTICIPANTS);
+
+    const { session, rotations } = makeSession(() => 0);
+    session.begin(afterSwap);
+    feed(session, "CD:0");
+
+    feed(session, "R:5,7,0,0,100");
+
+    expect(rotations).toEqual([
+      { racerId: "r-right", lane: "left", timestampMs: 100, deltaRotations: 5 },
+      { racerId: "r-left", lane: "right", timestampMs: 100, deltaRotations: 7 }
+    ]);
   });
 });
