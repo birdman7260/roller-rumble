@@ -53,6 +53,7 @@ import type {
   WebPushSubscriptionInput
 } from "@roller-rumble/shared/types";
 import { nowIso } from "@roller-rumble/shared/utils";
+import { canSwapRaceLanes, swapParticipantLanes } from "@roller-rumble/shared/race-lanes";
 import { AppDatabase, type StoredPaymentRecord } from "../db/Database";
 import { ManualRaceTriggerAdapter } from "../adapters/trigger-manual";
 import { Os2lRaceTriggerAdapter } from "../adapters/trigger-os2l";
@@ -825,7 +826,7 @@ export class RollerRumbleApp extends EventEmitter {
       return;
     }
 
-    if (!["scheduled", "staging"].includes(currentRace.state)) {
+    if (!canSwapRaceLanes(currentRace)) {
       throw new AppHttpError(
         "You cannot opt out while your tournament race is already starting or active.",
         409,
@@ -2323,10 +2324,13 @@ export class RollerRumbleApp extends EventEmitter {
 
     this.autoStagePausedUntilManualStage = false;
     this.db.markQueueEntryStatus(nextEntry.id, "staging");
-    // Solo races use a dedicated "solo" lane so themes can render a centered single-rider layout.
+    // Every racer is staged on a real bike, solo included: the lane is which roller their ticks
+    // come off, and the host repairs it with a `lane swap` when the riders picked the other way
+    // round (ADR 0019). A solo race is centered on the projector because it has one rider, not
+    // because of its lane.
     const participants =
       nextEntry.racerIds.length === 1
-        ? [{ racerId: nextEntry.racerIds[0], lane: "solo" as const }]
+        ? [{ racerId: nextEntry.racerIds[0], lane: "left" as const }]
         : [
             { racerId: nextEntry.racerIds[0], lane: "left" as const },
             { racerId: nextEntry.racerIds[1], lane: "right" as const }
@@ -2393,6 +2397,38 @@ export class RollerRumbleApp extends EventEmitter {
       this.autoStagePausedUntilManualStage = true;
     }
     this.runQueueNotificationTriggers(activeEvent.id);
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  /**
+   * Apply a `lane swap` to the staged race: every racer moves to the other bike. Nobody is assigned
+   * a bike — riders mount whichever they like — and rotation ticks alone can never say who is who,
+   * so this is the host's one-keystroke repair once they see where the riders actually got on
+   * (ADR 0019). Head-to-head exchanges the pair; solo moves the lone rider across.
+   *
+   * Only before the countdown: from `countdown` on, the box may already be armed against the old
+   * lane map, and an active race has ticks banked per lane. The host resets the race to staged
+   * first, which is the path that already exists for changing a race mid-flight.
+   */
+  swapCurrentRaceLanes(): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    const currentRace = this.db.getCurrentRace(activeEvent.id);
+    if (!currentRace) {
+      return this.getSnapshot();
+    }
+
+    if (!canSwapRaceLanes(currentRace)) {
+      throw new AppHttpError(
+        "Bikes can only be swapped before the countdown starts. Reset the race to staged first.",
+        409,
+        "race_already_started"
+      );
+    }
+
+    this.db.updateRace(currentRace.id, {
+      participants: swapParticipantLanes(currentRace.participants)
+    });
     this.emitSnapshot();
     return this.getSnapshot();
   }

@@ -1460,3 +1460,190 @@ describe("app service racer leave", () => {
     expect(() => leaveAll.call(target, "r1")).toThrow();
   });
 });
+
+describe("app service lane swap", () => {
+  type StageNextRaceInvoker = (this: unknown) => AppSnapshot;
+  type SwapLanesInvoker = (this: unknown) => AppSnapshot;
+
+  function getStageNextRaceInvoker(): StageNextRaceInvoker {
+    const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "stageNextRace");
+    if (typeof candidate !== "function") {
+      throw new Error("Missing stageNextRace implementation");
+    }
+    return candidate as StageNextRaceInvoker;
+  }
+
+  function getSwapLanesInvoker(): SwapLanesInvoker {
+    const candidate: unknown = Reflect.get(RollerRumbleApp.prototype, "swapCurrentRaceLanes");
+    if (typeof candidate !== "function") {
+      throw new Error("Missing swapCurrentRaceLanes implementation");
+    }
+    return candidate as SwapLanesInvoker;
+  }
+
+  function buildQueueEntry(racerIds: string[]): QueueEntry {
+    return {
+      createdAt: "now",
+      eventId: "event-1",
+      id: "queue-1",
+      lockType: "flex",
+      occurrenceIds: racerIds.map((racerId) => `occ-${racerId}`),
+      position: 1,
+      priorityScore: 0,
+      racerIds,
+      requestedType: racerIds.length > 1 ? "match" : "solo",
+      status: "queued",
+      type: racerIds.length > 1 ? "match" : "solo",
+      updatedAt: "now"
+    };
+  }
+
+  function buildStagingTarget(racerIds: string[]) {
+    const createRace = vi.fn((input: { participants: unknown }) =>
+      buildRaceRecord({ participants: input.participants as RaceRecord["participants"] })
+    );
+    const target = withAppPrototype({
+      autoStagePausedUntilManualStage: true,
+      db: {
+        createRace,
+        getActiveEvent: () => ({ id: "event-1" }),
+        getAdminSettings: () => ({
+          mode: "open-time-trial",
+          os2lEnabled: false,
+          targetDistanceMeters: 250,
+          themeId: "neon-night"
+        }),
+        getCurrentRace: () => null,
+        listQueueEntries: () => [buildQueueEntry(racerIds)],
+        markQueueEntryStatus: vi.fn(),
+        updateRace: vi.fn()
+      },
+      emitSnapshot: vi.fn(),
+      getSnapshot: () => ({ generatedAt: "now" }) as AppSnapshot,
+      os2lTrigger: { armRace: vi.fn() },
+      runQueueNotificationTriggers: vi.fn()
+    });
+    return { createRace, target };
+  }
+
+  function buildSwapTarget(participants: RaceRecord["participants"], state = "staging") {
+    const snapshot = { generatedAt: "now" } as AppSnapshot;
+    const updateRace = vi.fn();
+    const emitSnapshot = vi.fn();
+    const target = withAppPrototype({
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        getCurrentRace: () =>
+          buildRaceRecord({ participants, state: state as RaceRecord["state"] }),
+        updateRace
+      },
+      emitSnapshot,
+      getSnapshot: () => snapshot
+    });
+    return { emitSnapshot, snapshot, target, updateRace };
+  }
+
+  it("stages a solo race on a real bike rather than a lane that names none", () => {
+    // Riders pick their own bike, so a solo racer has to be on one of the two real lanes for their
+    // ticks to route through the lane map and for a lane swap to have somewhere to go.
+    const { createRace, target } = buildStagingTarget(["racer-1"]);
+
+    getStageNextRaceInvoker().call(target);
+
+    expect(createRace).toHaveBeenCalledWith(
+      expect.objectContaining({ participants: [{ lane: "left", racerId: "racer-1" }] })
+    );
+  });
+
+  it("still stages a head-to-head race left then right", () => {
+    const { createRace, target } = buildStagingTarget(["racer-1", "racer-2"]);
+
+    getStageNextRaceInvoker().call(target);
+
+    expect(createRace).toHaveBeenCalledWith(
+      expect.objectContaining({
+        participants: [
+          { lane: "left", racerId: "racer-1" },
+          { lane: "right", racerId: "racer-2" }
+        ]
+      })
+    );
+  });
+
+  it("exchanges the two racers in a staged head-to-head race", () => {
+    const { emitSnapshot, snapshot, target, updateRace } = buildSwapTarget([
+      { lane: "left", racerId: "racer-1" },
+      { lane: "right", racerId: "racer-2" }
+    ]);
+
+    const result = getSwapLanesInvoker().call(target);
+
+    expect(updateRace).toHaveBeenCalledWith("race-1", {
+      participants: [
+        { lane: "left", racerId: "racer-2" },
+        { lane: "right", racerId: "racer-1" }
+      ]
+    });
+    expect(emitSnapshot).toHaveBeenCalledTimes(1);
+    expect(result).toBe(snapshot);
+  });
+
+  it("moves a staged solo racer to the other bike", () => {
+    const { target, updateRace } = buildSwapTarget([{ lane: "left", racerId: "racer-1" }]);
+
+    getSwapLanesInvoker().call(target);
+
+    expect(updateRace).toHaveBeenCalledWith("race-1", {
+      participants: [{ lane: "right", racerId: "racer-1" }]
+    });
+  });
+
+  it("swaps a scheduled race that has not been staged yet", () => {
+    const { target, updateRace } = buildSwapTarget(
+      [
+        { lane: "left", racerId: "racer-1" },
+        { lane: "right", racerId: "racer-2" }
+      ],
+      "scheduled"
+    );
+
+    getSwapLanesInvoker().call(target);
+
+    expect(updateRace).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses to swap once the countdown has started", () => {
+    // Past staging the box may already be armed against the old lane map, and an active race has
+    // ticks banked per lane. The host resets the race to staged first.
+    const { emitSnapshot, target, updateRace } = buildSwapTarget(
+      [
+        { lane: "left", racerId: "racer-1" },
+        { lane: "right", racerId: "racer-2" }
+      ],
+      "countdown"
+    );
+
+    expect(() => getSwapLanesInvoker().call(target)).toThrow("before the countdown starts");
+    expect(updateRace).not.toHaveBeenCalled();
+    expect(emitSnapshot).not.toHaveBeenCalled();
+  });
+
+  it("does nothing when no race is staged", () => {
+    const snapshot = { generatedAt: "now" } as AppSnapshot;
+    const updateRace = vi.fn();
+    const emitSnapshot = vi.fn();
+    const target = withAppPrototype({
+      db: {
+        getActiveEvent: () => ({ id: "event-1" }),
+        getCurrentRace: () => null,
+        updateRace
+      },
+      emitSnapshot,
+      getSnapshot: () => snapshot
+    });
+
+    expect(getSwapLanesInvoker().call(target)).toBe(snapshot);
+    expect(updateRace).not.toHaveBeenCalled();
+    expect(emitSnapshot).not.toHaveBeenCalled();
+  });
+});

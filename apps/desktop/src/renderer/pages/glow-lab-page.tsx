@@ -1,7 +1,7 @@
 import { type CSSProperties, useEffect, useReducer } from "react";
 import type {
   RaceMetricsSnapshot,
-  RacerSummary,
+  RaceParticipant,
   ThemeDefinition
 } from "@roller-rumble/shared/types";
 import { DEFAULT_WHEEL_CIRCUMFERENCE_METERS } from "@roller-rumble/shared/constants";
@@ -9,6 +9,7 @@ import { themes } from "@roller-rumble/shared/themes";
 import { applyThemeToDocument } from "@roller-rumble/shared-ui/theme";
 import { Button, Panel } from "@roller-rumble/shared-ui";
 import { RaceGraphic } from "../components/race-graphics";
+import type { ProjectorParticipantEntry } from "../lib/snapshot-display";
 
 // The lab feeds RaceGraphic synthetic racers/metrics and drives the cues by hand
 // (glow/flash/streak intensity overrides), so position and brightness are
@@ -141,8 +142,13 @@ function glowLabReducer(state: GlowLabState, patch: GlowLabPatch): GlowLabState 
   return { ...state, ...patch };
 }
 
-function makeRacerSummary(id: string, displayName: string): RacerSummary {
+function makeRacerSummary(
+  id: string,
+  displayName: string,
+  lane: RaceParticipant["lane"] = "left"
+): ProjectorParticipantEntry {
   return {
+    lane,
     racer: {
       id,
       displayName,
@@ -710,8 +716,11 @@ export function GlowLabPage() {
   }, []);
 
   const racers = headToHead
-    ? [makeRacerSummary(RACER_A_ID, racerA.name), makeRacerSummary(RACER_B_ID, racerB.name)]
-    : [makeRacerSummary(RACER_A_ID, racerA.name)];
+    ? [
+        makeRacerSummary(RACER_A_ID, racerA.name, "left"),
+        makeRacerSummary(RACER_B_ID, racerB.name, "right")
+      ]
+    : [makeRacerSummary(RACER_A_ID, racerA.name, "left")];
   const metrics = headToHead
     ? [
         makeMetric(RACER_A_ID, "left", racerA.positionPct),

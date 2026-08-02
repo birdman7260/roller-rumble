@@ -8,9 +8,15 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- Racers can now get on whichever bike they like. The race tray spells out who the app thinks is on each bike ("Left bike: Ava • Right bike: Bo"), and a new "Swap Bikes" button — or just pressing **S** from anywhere in the admin window — puts them the other way round. For a solo run the button reads "Move To Right Bike" (or left) and moves the lone rider across. Swap as many times as you like right up until you start the countdown; after that, use "Reset To Staged" first.
+
 ### Changed
 
+- A solo run is now recorded on the bike the racer actually rode instead of a lane that named no bike, so a solo racer on the right-hand bike is finally picked up by the race box. Their run still shows as a single centered card on the projector, exactly as before.
+
 ### Fixed
+
+- The race box now listens to the correct bike when no lane map has been set up, instead of assuming the first rider is always on the first sensor port.
 
 ## 0.1.22 - 2026-07-16
 

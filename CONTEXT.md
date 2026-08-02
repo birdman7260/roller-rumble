@@ -114,6 +114,9 @@ _Avoid_: meta bar, stats header
 **readout**: The live stats cluster shown on a `lane card` (RPM today). Belongs to one lane.
 _Avoid_: stats box, metrics panel
 
+**solo presentation**: The single-centered-`lane card` geometry a race gets when one rider raced. Derived from the participant count, never from a lane id — a solo racer is staged on a real `left`/`right` lane like anyone else, because `lane` names the roller their ticks come off. Races staged before the `lane swap` existed carry a third lane value, `solo`, which names no bike.
+_Avoid_: solo lane (that names the retired lane id, not the layout)
+
 **monogram**: The lane-colored disc showing a racer's initial, rendered on the `lane card` in place of an avatar when the racer has none.
 _Avoid_: initial avatar, placeholder
 
@@ -191,8 +194,11 @@ _Avoid_: pulse, count, rotation (when the hardware unit is meant)
 **rollout**: The real-world distance a bike travels per one roller revolution — the calibration constant that converts ticks into meters. Hardware-specific; measured, not assumed.
 _Avoid_: wheel circumference, roller diameter
 
-**lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack.
+**lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack. When none is configured the app assumes the conventional wiring (port 0 is the left bike, port 1 the right) rather than mapping ports to racers in lineup order, so a `lane swap` reroutes the ticks with it.
 _Avoid_: sensor mapping, channel assignment
+
+**lane swap**: The host's correction to which physical bike each racer in a staged race is on — one keystroke (`S`) or a button in the race tray. Head-to-head exchanges the two racers; solo moves the lone rider to the other bike. Nobody is assigned a bike, riders mount whichever they like, and rotation ticks alone can never say who is who, so this is how the app learns who is where. Allowed while the race is `scheduled` or `staging` and refused once the countdown starts — past that the box may be armed against the old `lane map` and an active race has ticks banked per lane, so the host resets the race to staged first. Available in every `event kind`, not just a `walk-up event`. See ADR 0019.
+_Avoid_: lane flip (that is `raceDisplayLaneColorsFlipped`, a display setting), bike assignment, rebind
 
 **box countdown**: The fixed, **silent** interval the OpenSprints box runs after the `g` (GO) command before it starts streaming ticks — roughly four seconds on the `basic_msg` firmware, emitting no countdown steps. Not configurable and not observable mid-way, so the app treats it as a tuned constant rather than something it can mirror.
 _Avoid_: hardware countdown, box timer

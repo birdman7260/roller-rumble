@@ -11,11 +11,13 @@ import {
 import type {
   RaceGlowMode,
   RaceMetricsSnapshot,
+  RaceParticipant,
   RacerSummary,
   RaceState,
   ThemeDefinition
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
+import type { ProjectorParticipantEntry } from "../lib/snapshot-display";
 import { getMonogram } from "../lib/monogram";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
@@ -29,7 +31,7 @@ import {
 
 interface RaceGraphicProps {
   theme: ThemeDefinition;
-  racers: RacerSummary[];
+  racers: ProjectorParticipantEntry[];
   metrics: RaceMetricsSnapshot[];
   targetDistanceMeters: number;
   laneColorsFlipped: boolean;
@@ -253,18 +255,24 @@ function getVerticalMarkerPosition(percentageValue: string, spriteHeightRem: num
   return `clamp(0rem, calc(${percentageValue} - ${spriteHeightRem / 2}rem), calc(100% - ${spriteHeightRem}rem))`;
 }
 
-function getLaneColor(index: number, laneColorsFlipped: boolean): RaceLaneColor {
+/**
+ * A lane's identity colour follows the bike the racer is on, not their slot in the lineup. For a
+ * head-to-head race the two are the same thing, since the lineup is always ordered left-then-right;
+ * for a solo racer — always slot zero — the lane is the only thing that can move, so this is what
+ * makes a `lane swap` visible on the projector.
+ */
+function getLaneColor(lane: RaceParticipant["lane"], laneColorsFlipped: boolean): RaceLaneColor {
   const topLaneColor: RaceLaneColor = laneColorsFlipped ? "purple" : "orange";
   const secondaryLaneColor: RaceLaneColor = laneColorsFlipped ? "orange" : "purple";
-  return index === 0 ? topLaneColor : secondaryLaneColor;
+  return lane === "right" ? secondaryLaneColor : topLaneColor;
 }
 
 function getLaneClassName(
   baseClassName: string,
-  index: number,
+  lane: RaceParticipant["lane"],
   laneColorsFlipped: boolean
 ): string {
-  return `${baseClassName} race-lane race-lane--${getLaneColor(index, laneColorsFlipped)}`;
+  return `${baseClassName} race-lane race-lane--${getLaneColor(lane, laneColorsFlipped)}`;
 }
 
 /** Merge the per-lane cue intensities into a marker's inline style as CSS variables. */
@@ -486,14 +494,14 @@ function HorizontalTrackRace({
   metaHeader: ReactNode;
   metrics: RaceMetricsSnapshot[];
   progressTransition: Transition;
-  racers: RacerSummary[];
+  racers: ProjectorParticipantEntry[];
   targetDistanceMeters: number;
   theme: ThemeDefinition;
 }) {
   return (
     <div ref={graphicRootRef} className="race-graphic race-graphic--horizontal">
       {metaHeader}
-      {racers.map((entry, index) => {
+      {racers.map((entry) => {
         const metric = resolveMetric(metrics, entry.racer.id);
         const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
         const percentageValue = `${percentage.toFixed(2)}%`;
@@ -506,7 +514,7 @@ function HorizontalTrackRace({
         return (
           <div
             key={entry.racer.id}
-            className={getLaneClassName("track-lane", index, laneColorsFlipped)}
+            className={getLaneClassName("track-lane", entry.lane, laneColorsFlipped)}
           >
             <div className="track-lane__card race-lane__card">
               <LaneIdentity racer={entry.racer} />
@@ -614,7 +622,7 @@ export function RaceGraphic({
     return (
       <div className={`race-graphic race-graphic--vertical race-graphic--${raceGraphic.variant}`}>
         {metaHeader}
-        {racers.map((entry, index) => {
+        {racers.map((entry) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
@@ -627,7 +635,7 @@ export function RaceGraphic({
           return (
             <div
               key={entry.racer.id}
-              className={getLaneClassName("climb-lane", index, laneColorsFlipped)}
+              className={getLaneClassName("climb-lane", entry.lane, laneColorsFlipped)}
             >
               <div className="climb-lane__track">
                 <m.div
@@ -674,7 +682,7 @@ export function RaceGraphic({
     return (
       <div ref={graphicRootRef} className="race-graphic race-graphic--ledger">
         {metaHeader}
-        {racers.map((entry, index) => {
+        {racers.map((entry) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
@@ -688,7 +696,7 @@ export function RaceGraphic({
           return (
             <div
               key={entry.racer.id}
-              className={getLaneClassName("ledger-lane", index, laneColorsFlipped)}
+              className={getLaneClassName("ledger-lane", entry.lane, laneColorsFlipped)}
             >
               <div className="ledger-lane__card race-lane__card">
                 <LaneIdentity racer={entry.racer} />
@@ -735,7 +743,7 @@ export function RaceGraphic({
     return (
       <div ref={graphicRootRef} className="race-graphic race-graphic--wagon">
         {metaHeader}
-        {racers.map((entry, index) => {
+        {racers.map((entry) => {
           const metric = resolveMetric(metrics, entry.racer.id);
           const percentage = progress(metric?.distanceMeters ?? 0, targetDistanceMeters);
           const percentageValue = `${percentage.toFixed(2)}%`;
@@ -748,7 +756,7 @@ export function RaceGraphic({
           return (
             <div
               key={entry.racer.id}
-              className={getLaneClassName("wagon-lane", index, laneColorsFlipped)}
+              className={getLaneClassName("wagon-lane", entry.lane, laneColorsFlipped)}
             >
               <div className="wagon-lane__card race-lane__card">
                 <LaneIdentity racer={entry.racer} />

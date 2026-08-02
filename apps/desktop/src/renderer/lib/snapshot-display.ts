@@ -1,9 +1,19 @@
 import type {
   AppSnapshot,
   QueueEntry,
+  RaceParticipant,
   RaceRecord,
   RacerSummary
 } from "@roller-rumble/shared/types";
+
+/**
+ * A racer on the projector, carrying the bike they are on. The lane travels with the entry rather
+ * than being inferred from lineup position so a `lane swap` moves the rider's lane colour with them
+ * — which is the only way a solo swap is visible at all, since a lone rider is always slot zero.
+ */
+export interface ProjectorParticipantEntry extends RacerSummary {
+  lane: RaceParticipant["lane"];
+}
 
 export function resolveRacerName(
   snapshot: AppSnapshot,
@@ -50,12 +60,15 @@ export function isLeavableByRacer(entry: QueueEntry, selectedRacerId: string): b
 export function buildParticipantEntries(
   snapshot: AppSnapshot,
   race: RaceRecord | null = snapshot.raceProjection.race
-): RacerSummary[] {
+): ProjectorParticipantEntry[] {
   if (!race) {
     return [];
   }
 
   return race.participants
-    .map((participant) => snapshot.racers.find((entry) => entry.racer.id === participant.racerId))
-    .filter((entry): entry is RacerSummary => Boolean(entry));
+    .map((participant) => {
+      const entry = snapshot.racers.find((candidate) => candidate.racer.id === participant.racerId);
+      return entry ? { ...entry, lane: participant.lane } : null;
+    })
+    .filter((entry): entry is ProjectorParticipantEntry => entry != null);
 }
