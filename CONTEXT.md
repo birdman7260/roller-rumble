@@ -128,10 +128,16 @@ _Avoid_: session, meet
 **event kind**: The discriminator on an `Event` naming which shape of session it is — `standard` or `walk-up`. Chosen when the event is created and immutable afterward, so an event's `event capability` set never shifts under the data already filed beneath it; changing shape means starting a new event. Orthogonal to competition format, which is `mode`.
 _Avoid_: mode (that is competition format), event type, booth mode
 
-**walk-up event**: An `Event` whose `event kind` is `walk-up` — the stripped-down shape for a public stall, where riders arrive on the spot with no phone and no `Queue`, the host composes each race directly, riders pick whichever bike they like, and the projector shows a top-racers board between races.
+**walk-up event**: An `Event` whose `event kind` is `walk-up` — the stripped-down shape for a public stall, where riders arrive on the spot with no phone and no `Queue`, the host composes each race directly on the `walk-up desk`, riders pick whichever bike they like, and the projector shows a top-racers board between races.
 _Avoid_: booth event, booth mode (both collide with the `photo booth`), pop-up event
 
-**event capability**: One entry in the closed set of behaviors an `event kind` grants or withholds — whether the event has a racer page, a `Queue`, tournaments, payments, host-composed races or lead capture, and what the projector shows while idle. Derived from the kind rather than stored per event, and the thing every `surface` asks about: surfaces branch on capabilities, never on the kind's id.
+**walk-up desk**: The admin surface where the host composes each race at a `walk-up event` — the two bikes as `bike seat`s side by side, and one GO control beneath them. Granted by the `hostComposesRaces` `event capability`. With no `Queue` to add anyone to, seating a rider _is_ staging the race, which is what collapses the Racers-tab-then-Race-Desk round trip a queued event needs into one surface. Where it sits relative to the other admin tabs is not settled by the desk itself. See ADR 0020.
+_Avoid_: Race Desk (that is the queued-event tab), walk-up tab, booth desk
+
+**bike seat**: One of the two slots on the `walk-up desk`. Each names a real bike (`left`/`right`), not a position in a lineup, so the host seats a rider on the roller they actually got on and the seating _is_ the binding — which demotes the `lane swap` from a step in every race to a repair. A race is solo when one seat is left empty; solo is never declared.
+_Avoid_: lane card (that is the projector's plaque), lane slot, bike card
+
+**event capability**: One entry in the closed set of behaviors an `event kind` grants or withholds — whether the event has a racer page, a `Queue`, tournaments, payments, host-composed races (`hostComposesRaces`, which grants the `walk-up desk`) or lead capture, and what the projector shows while idle. Derived from the kind rather than stored per event, and the thing every `surface` asks about: surfaces branch on capabilities, never on the kind's id.
 _Avoid_: event flag, event setting, feature flag
 
 **Signup prompt**: The projector card that recruits racers into the queue — an eyebrow, a heading, a body line, and the join QR code. Its eyebrow/heading/body each fall back to built-in default copy, and the operator may override any of them per event (blank clears the override back to the default). The body override is the event `description`, which the racer page also shows; the eyebrow and heading appear on the projector only.
