@@ -90,8 +90,8 @@ Requirements:
   - `cancelled`
     `Implemented`
 - The system must recover from shutdowns by restoring unfinished races as `interrupted`. `Implemented`
-- Admin race-distance changes must affect future or not-yet-active races, but must not change an
-  already active race. `Implemented`
+- Admin race-distance changes must affect future races and a race in `scheduled` or `staging`, but
+  must not change a race in `countdown`, `active` or `interrupted`. `Partial`
 
 Current delivery notes:
 
