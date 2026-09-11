@@ -18,6 +18,10 @@ single ASCII letters; many variants want a trailing `\n`. The device is
 **self-identifying** — send `v` and it returns its firmware string, which tells you
 exactly which variant below you're talking to.
 
+> **See also** `docs/opensprints-pre-go-motion.md` — firmware-source research on what the box reports
+> before GO. It found **five** sketches rather than the three below, and it supersedes this file where
+> the two disagree.
+
 ## Variant A — SilverSprint `ss_basic` (newest, most likely)
 
 Lines are `\r\n`-terminated, `KEY:value` format.
