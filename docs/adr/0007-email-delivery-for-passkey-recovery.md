@@ -1,5 +1,7 @@
 # Email delivery is added to support self-serve passkey recovery
 
+**Status:** superseded by [ADR 0024](0024-racer-identity-is-the-device-held-racer-id.md) — racers no longer use passkeys; a racer's only identity is the id minted at registration, held on their phone.
+
 Roller Rumble is a **local-first** app: one host machine runs the full stack and racers join over a LAN or a Cloudflare tunnel, so the app has deliberately avoided depending on outbound internet for its core loop. A returning racer, however, can be locked out when their `passkey` isn't usable on the current device (new phone, iPhone→Android switch, lost/replaced phone, different browser), and the only recovery today is `host-assist` — find the host, interrupt them, have them attach a passkey by hand. We decided to **build outbound email delivery** so a locked-out racer can request an `email one-time code`, prove ownership of their registered address, and self-attach a passkey to their real `racer account` — making `email one-time code` the primary `passkey recovery` path, with `race under your name` and `host-assist` as fallbacks.
 
 ## Considered Options

@@ -1,5 +1,7 @@
 # Host-assist attach binds a racer's phone to an account via an admin-only single-use QR
 
+**Status:** superseded by [ADR 0024](0024-racer-identity-is-the-device-held-racer-id.md) — racers no longer use passkeys; a racer's only identity is the id minted at registration, held on their phone.
+
 A `passkey` ceremony must run on the racer's own phone, so a host cannot attach a passkey to a `racer account` entirely from the admin surface — the host must first get the racer's phone holding a session for that account, after which the existing register/verify flow attaches the passkey. We decided the host binds the phone with a **single-use, short-TTL QR** (`attach QR`) generated from the admin Racers tab: it encodes the public racer URL plus a one-time claim token for a chosen account; the racer scans it, the server mints a normal racer session cookie for that account (first-scan-wins), and the phone is signed in and prompted — optionally — to add a passkey. This is the same flow as `passkey recovery` path C (a returning racer on a new device) and the offline fallback when `email one-time code` cannot send.
 
 ## Considered Options

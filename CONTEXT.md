@@ -4,45 +4,30 @@ A local-first Electron app for running live stationary-bike race events. One hos
 
 ## Language
 
-### Racer identity and sign-in
+### Racer identity and registration
 
-**racer account**: The persisted `Racer` row (id, display name, avatar) plus its `identity` rows. Carries race history/results, queue occurrences, push subscriptions, booth captures, and payment records. Distinct from an `accountless racer`, who has only an `anonymous` identity. Account takeover at a live event is a low-stakes threat (host is physically present; no stored card to spend) — the harm to avoid is PII exposure (email/phone), not fraud.
-_Avoid_: user, profile (when the persisted racer identity is meant)
+**racer account**: The persisted `Racer`, identified only by the racer id generated when it was registered. It carries the `display name`, avatar, `contact details`, race history and results, queue occurrences, push subscriptions, booth captures, and payment records. Account takeover at a live event is low-stakes, because the host is physically present and there is no stored card to spend. The harm to avoid is exposing `contact details`, not fraud.
+_Avoid_: user, profile, accountless racer (every racer now registers the same way)
 
-**identity**: A row in the `identities` table binding one `(type, value)` — `email`, `phone`, or `anonymous` — to exactly one `racer account`. Globally unique per `(type, value)`. A racer account is found by matching an identity, not by a column on the racer row; one account can hold several identities.
-_Avoid_: login, credential (a `passkey` is a credential; an identity is not)
+**display name**: The fun, self-chosen name a racer goes by in public: on the projector, `lane card`s, standings, and other racers' phones. It is chosen on its own `registration wizard` step, separate from the racer's real name, and it is not unique.
+_Avoid_: nickname, handle, racer name
 
-**passkey**: The device-bound credential (Face ID / Touch ID / fingerprint / device PIN, via WebAuthn) that authenticates a `racer account`. Does not sync across ecosystems (iPhone↔Android) unless backed up to a password manager, so a returning racer on a new device may have no usable passkey.
-_Avoid_: credential, WebAuthn credential (in racer-facing copy)
+**contact details**: A racer's real name, phone, and email. They are required on the `registration wizard` and optional at the admin desk. They are operator-only: never in the `racer payload`, and a racer sees only their own. They are not unique, so two racers may share an email, and they are never used to find or match a `racer account`.
+_Avoid_: identity, login, account email
 
-**host-assist**: The recovery path where a physically-present host binds a racer's phone to an existing `racer account`, after which the phone signs in and can add a `passkey`. Mechanism: the host generates a single-use, short-TTL `attach QR` in the admin Racers tab; the racer scans it to receive a session for that account. The human backstop that lets self-serve recovery stay low-friction, and the offline fallback when `email one-time code` can't send.
-_Avoid_: admin recovery, manual attach
+**device login**: The proof, held in a phone's browser local storage, that this phone is a given `racer account`. It is a signed token naming the racer id. It is the only way a phone is ever signed in, and it never expires. There is no way to sign back in, so if the browser is cleared or the racer switches phones, they register again as a new racer. Signing out discards it irreversibly, so the racer page puts sign-out behind a strong warning.
+_Avoid_: session (in racer-facing copy), passkey, sign-in, credential
 
-**attach QR**: A single-use, short-TTL QR the host generates in the admin Racers tab that encodes a one-time claim token for a chosen `racer account`. Scanning it mints a racer session on the scanning phone (first-scan-wins). Renders only in the admin window — never on the public projector, since it grants account access.
-_Avoid_: pairing code, login QR
+**registration**: Creating a brand-new `racer account`, either on a racer's phone through the `registration wizard` or by the host at the admin desk. It always creates a new racer with a new id. It ignores any `device login` already on the phone and never looks up an existing racer by `contact details`, so no registration can overwrite another racer.
+_Avoid_: sign-up, claim account, account recovery
 
-**accountless racer**: A racer who signs in with a display name only — no email, no passkey. Enabled by an optional host setting. Their results are not linked to a `racer account` unless later reconciled.
-_Avoid_: guest, anonymous (pick one canonical term — `accountless`)
+**registration wizard**: The racer page's step-by-step `registration`, with a progress bar showing the current step. The steps are `contact details`, then `display name`, then photo, then payment (shown only when the event requires payment). It finishes on the race page. The `racer account` is created when the `display name` step is submitted, so the photo and payment steps add to an account that already exists.
+_Avoid_: onboarding, sign-up flow
 
-**registration**: Creating a brand-new `racer account` from the sign-in screen (an unknown email leads into passkey enrollment). Always mints a new `Racer` row and a fresh session, and deliberately ignores any session already present on the device — a phone still holding someone else's token or cookie must never have that account overwritten. Distinct from `claim account`, which attaches to an existing `accountless racer` in place.
-_Avoid_: sign-up; register (as a synonym for `claim account`)
+**racer reconciliation**: Folding together the duplicate `racer account`s left when a racer re-registers after losing their `device login`. It is done with a `racer merge`. Not yet built.
+_Avoid_: account linking, account recovery
 
-**claim account**: The path where an `accountless racer` attaches an `email` `identity` and a `passkey` to their existing `Racer` row, keeping the same racer id and all history (results, queue occurrences). Session-bound: it writes onto the currently signed-in accountless racer, and is refused server-side if that racer already has an email. Racer-facing copy is "Secure This Account." Distinct from `registration` (which creates a new row) and from the host-driven `attach QR`/`host-assist` (which bind a phone to an already-registered account).
-_Avoid_: upgrade, secure account (pick one canonical term — `claim account`); attach (that is the host `attach QR`)
-
-**passkey recovery**: The set of paths offered when a returning racer's email is known but has no usable `passkey` on this device (new phone, switched ecosystem, lost device, different browser). v1 offers three: `email one-time code` (primary), `race under your name` (fast fallback), and `host-assist` (backstop when email can't send).
-_Avoid_: account recovery, sign-in help
-
-**email one-time code**: A short numeric code emailed to a racer's registered address to prove ownership, after which they attach a new `passkey` on the current device. Requires outbound internet, so it degrades to `host-assist` at LAN-only venues. Chosen over a magic link so the racer stays in the same page/session.
-_Avoid_: magic link, OTP (in racer-facing copy), verification email
-
-**race under your name**: The `passkey recovery` path where a locked-out racer proceeds as an `accountless racer` for the current event to race immediately, deferring account restoration. Produces a duplicate racer that `racer reconciliation` can later fold into the real `racer account`.
-_Avoid_: guest mode, skip sign-in
-
-**racer reconciliation**: The desk workflow that resolves a `race under your name` duplicate: the host runs a `racer merge` (absorbing the `accountless racer` into the real `racer account`) and, separately, issues an `attach QR` so the racer's phone signs into the survivor and adds a `passkey`. Realized by two independent admin tools, not one wizard.
-_Avoid_: account linking (that's one part of it)
-
-**racer merge**: The general admin operation that folds one `racer account` (the _absorbed_) into another (the _survivor_), reparenting every racer-referencing row — including non-FK/JSON references (`queue_entries.racerIdsJson`, `races.winnerRacerId`/participants/metrics, `bracket_nodes`, `group_matches`, tournament seeds) — then deleting the absorbed row. Host explicitly picks the survivor and its display name/avatar; identities, passkeys, payments, and push subscriptions all union (globally-unique keys, no loss). Hard-refuses when the two share a tournament/bracket or race or when a race is live (would corrupt standings); auto-resolves the two unique-index collisions (`event_racers` keeps `paid`; `notification_deliveries` keeps the read/most-progressed row). Destructive and not logically reversible — guarded by a confirm summary, an audit row, and a timestamped SQLite file snapshot taken immediately before.
+**racer merge**: The general admin operation that folds one `racer account` (the _absorbed_) into another (the _survivor_), moving everything that references the absorbed racer onto the survivor and then deleting the absorbed account. The host picks the survivor's `display name` and avatar; the survivor keeps its own `contact details`. It refuses when the two share a tournament or race, or while a race is live, and it cannot be undone in the app. Not yet built; see ADR 0008.
 _Avoid_: dedupe, link (alone)
 
 ### Race lifecycle
@@ -198,7 +183,7 @@ _Avoid_: snapshot deps, runtime bag
 **surface**: A snapshot streaming destination—`admin`, `projector`, or `racer`. `admin` and `projector` receive the full snapshot; `racer` receives a public-safe projection.
 _Avoid_: client type, channel
 
-**racer payload**: The public-safe projection of an `AppSnapshot` for racer phones—live metrics, result presentation, themes, ticker messages, and operator-only tunnel/OS2L/photo-booth/Stripe detail are stripped. One payload serves all racers (no per-racer identity).
+**racer payload**: The public-safe projection of an `AppSnapshot` for racer phones—live metrics, result presentation, themes, ticker messages, and operator-only tunnel/OS2L/photo-booth/Stripe detail and every racer's `contact details` are stripped. One payload serves all racers (no per-racer identity).
 _Avoid_: filtered snapshot, mobile snapshot
 
 ### Hardware sensing
@@ -235,7 +220,7 @@ _Avoid_: dotenv file, config file
 **managed setting**: A configuration value an operator edits through an in-app Settings field; the app persists it into the runtime env file on their behalf and re-applies it without a hand-edited file. The managed set is the small list of operator-facing keys (tunnel mode/token/name, Stripe keys and CA cert, LAN host, public racer URL, web push keys).
 _Avoid_: env field, config field
 
-**advanced setting**: An env var the app reads but never writes, changed only by hand-editing the runtime env file (e.g. cloudflared path, ports, data dir, passkey RP id, debug flags). Validated on load, but never surfaced as an in-app field.
+**advanced setting**: An env var the app reads but never writes, changed only by hand-editing the runtime env file (e.g. cloudflared path, ports, data dir, debug flags). Validated on load, but never surfaced as an in-app field.
 _Avoid_: raw env, power-user setting
 
 **subsystem health**: The ready/degraded/failed readiness state of one configurable subsystem—tunnel, Stripe, web push, network, OS2L, photo booth—aggregated on the Settings status surface so an operator can answer "is anything broken?" at a glance. Reports only the subsystems the `event kind` actually keeps: one the kind withholds is omitted entirely rather than reported degraded, since "off by design" and "broken" read identically once a row goes amber. See ADR 0021.

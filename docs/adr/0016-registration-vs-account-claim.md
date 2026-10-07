@@ -1,5 +1,7 @@
 # Registration always mints a new racer; claiming is a separate accountless-only path
 
+**Status:** superseded by [ADR 0024](0024-racer-identity-is-the-device-held-racer-id.md) — racers no longer use passkeys; a racer's only identity is the id minted at registration, held on their phone.
+
 A shared or stale-session phone that tapped "Register" was silently overwriting whoever was already signed in: `registration` and the accountless "Secure This Account" upgrade shared one code path that threaded the current session's racer id into the new registration and wrote the new display name/email/phone (and the new `passkey`) onto that existing `racer account` (`AuthService.finishPasskeyRegistration`'s `challenge.racerId` branch). We split the two intents. **Registration** (`/auth/passkeys/register/*`) never reads the session and always creates a new `Racer` row plus a fresh session. **Claim account** (`/auth/passkeys/claim/*`) is a separate, session-bound endpoint that attaches an `email` `identity` and a `passkey` to the current `accountless racer` in place, keeping that racer's id and history — and is refused server-side when the session racer already has an email.
 
 ## Considered Options

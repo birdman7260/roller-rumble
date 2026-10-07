@@ -1,0 +1,10 @@
+{
+  "go.alternateTools": {
+    "go": "/Users/BIRDMX5/.local/share/mise/shims/go",
+    "gopls": "/Users/BIRDMX5/.local/share/mise/shims/gopls"
+  },
+  "debug.javascript.defaultRuntimeExecutable": {
+    "pwa-node": "/Users/BIRDMX5/.local/share/mise/shims/node"
+  },
+  "pkl.cli.path": "/Users/BIRDMX5/.local/share/mise/shims/pkl"
+}

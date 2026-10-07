@@ -41,7 +41,6 @@ export default tseslint.config(
       "coverage/**",
       ".vite/**",
       ".claude/**",
-      ".agents/**",
       "apps/desktop/src/renderer/routeTree.gen.ts"
     ]
   },
