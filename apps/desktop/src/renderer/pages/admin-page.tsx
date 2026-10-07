@@ -24,7 +24,7 @@ import {
   supportsBracketSizing,
   supportsCenterConvergingBracketLayout
 } from "../lib/admin-competition";
-import { registerRacer, signUpQueue, updateSettings } from "../lib/api";
+import { signUpQueue, updateSettings } from "../lib/api";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
 import { fireAndForget } from "../lib/ui-actions";
 
@@ -34,9 +34,6 @@ interface AdminPageState {
   adminQueueRacerId: string;
   adminQueueRequestedType: "auto-match" | "solo";
   raceDistanceInput: string;
-  racerEmail: string;
-  racerName: string;
-  racerPhone: string;
   search: string;
   tournamentBracketLayout: TournamentBracketLayoutMode;
   tournamentBracketSize: TournamentBracketSize;
@@ -51,9 +48,6 @@ const initialAdminPageState: AdminPageState = {
   adminQueueRacerId: "",
   adminQueueRequestedType: "auto-match",
   raceDistanceInput: "",
-  racerEmail: "",
-  racerName: "",
-  racerPhone: "",
   search: "",
   tournamentBracketLayout: "auto",
   tournamentBracketSize: 8,
@@ -81,9 +75,6 @@ export function AdminPage() {
     adminQueueRacerId,
     adminQueueRequestedType,
     raceDistanceInput,
-    racerEmail,
-    racerName,
-    racerPhone,
     search,
     tournamentBracketLayout,
     tournamentBracketSize,
@@ -110,15 +101,6 @@ export function AdminPage() {
   };
   const setSearch: Dispatch<SetStateAction<string>> = (action) => {
     setState({ search: resolveStateAction(action, search) });
-  };
-  const setRacerName: Dispatch<SetStateAction<string>> = (action) => {
-    setState({ racerName: resolveStateAction(action, racerName) });
-  };
-  const setRacerEmail: Dispatch<SetStateAction<string>> = (action) => {
-    setState({ racerEmail: resolveStateAction(action, racerEmail) });
-  };
-  const setRacerPhone: Dispatch<SetStateAction<string>> = (action) => {
-    setState({ racerPhone: resolveStateAction(action, racerPhone) });
   };
   const setTournamentName: Dispatch<SetStateAction<string>> = (action) => {
     setState({ tournamentName: resolveStateAction(action, tournamentName) });
@@ -147,7 +129,9 @@ export function AdminPage() {
   const normalizedRacerSearch = search.trim().toLowerCase();
   const filteredRacers = snapshot
     ? snapshot.racers.filter((entry) =>
-        entry.racer.displayName.toLowerCase().includes(normalizedRacerSearch)
+        [entry.racer.displayName, entry.racer.realName, entry.racer.email, entry.racer.phone].some(
+          (value) => value?.toLowerCase().includes(normalizedRacerSearch)
+        )
       )
     : [];
 
@@ -196,17 +180,6 @@ export function AdminPage() {
     raceDistanceInput === "" ? String(settings.targetDistanceMeters) : raceDistanceInput;
   const settingsThemeLabel =
     snapshot.themes.find((theme) => theme.id === settings.themeId)?.label ?? settings.themeId;
-
-  async function handleQuickAddRacer(): Promise<void> {
-    await registerRacer({
-      displayName: racerName,
-      email: racerEmail || undefined,
-      phone: racerPhone || undefined
-    });
-    setRacerName("");
-    setRacerEmail("");
-    setRacerPhone("");
-  }
 
   async function handleAdminQueueSignup(): Promise<void> {
     if (!adminQueueRacerId) {
@@ -278,15 +251,6 @@ export function AdminPage() {
           filteredRacers={filteredRacers}
           search={search}
           setSearch={setSearch}
-          racerName={racerName}
-          setRacerName={setRacerName}
-          racerEmail={racerEmail}
-          setRacerEmail={setRacerEmail}
-          racerPhone={racerPhone}
-          setRacerPhone={setRacerPhone}
-          onQuickAddRacer={() => {
-            fireAndForget(handleQuickAddRacer(), "quick add racer");
-          }}
           paymentRequiredForQueue={snapshot.activeEvent.paymentRequiredForQueue}
         />
       );

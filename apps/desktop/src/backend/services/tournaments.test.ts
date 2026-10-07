@@ -30,7 +30,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r2",
@@ -38,7 +40,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r3",
@@ -46,7 +50,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r4",
@@ -54,7 +60,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r5",
@@ -62,7 +70,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r6",
@@ -70,7 +80,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r7",
@@ -78,7 +90,9 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
   {
     id: "r8",
@@ -86,9 +100,20 @@ const racers: Racer[] = [
     avatarUrl: null,
     createdAt: "x",
     updatedAt: "x",
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   },
-  { id: "r9", displayName: "Indy", avatarUrl: null, createdAt: "x", updatedAt: "x", identities: [] }
+  {
+    id: "r9",
+    displayName: "Indy",
+    avatarUrl: null,
+    createdAt: "x",
+    updatedAt: "x",
+    realName: null,
+    email: null,
+    phone: null
+  }
 ];
 
 const results: RaceResult[] = [

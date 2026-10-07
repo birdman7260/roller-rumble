@@ -30,11 +30,41 @@ const tournamentBracketLayoutSchema = z.custom<TournamentBracketLayoutMode>(
   }
 );
 
+// Contact details are checked by format only (ADR-0024): they are never unique and never used
+// to look a racer up. The phone keeps whatever punctuation the racer typed.
+const PHONE_PUNCTUATION_PATTERN = /[\s().+-]/g;
+const PHONE_DIGITS_PATTERN = /^\d{7,15}$/;
+
+const displayNameSchema = z.string().trim().min(1).max(80);
+const realNameSchema = z.string().trim().min(1).max(80);
+const contactEmailSchema = z.string().trim().email();
+const contactPhoneSchema = z
+  .string()
+  .trim()
+  .max(32)
+  .refine((value) => PHONE_DIGITS_PATTERN.test(value.replace(PHONE_PUNCTUATION_PATTERN, "")), {
+    message: "Enter a phone number with 7 to 15 digits."
+  });
+
+// The admin desk leaves optional fields blank; a blank field means "not given".
+const optionalContactField = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess(
+    (value) => (typeof value === "string" && value.trim().length === 0 ? undefined : value),
+    schema.optional()
+  );
+
+export const racerRegistrationSchema = z.object({
+  realName: realNameSchema,
+  email: contactEmailSchema,
+  phone: contactPhoneSchema,
+  displayName: displayNameSchema
+});
+
 export const createRacerSchema = z.object({
-  displayName: z.string().trim().min(1).max(80),
-  email: z.string().trim().email().optional(),
-  phone: z.string().trim().min(7).max(32).optional(),
-  accountlessId: z.string().trim().min(4).max(80).optional()
+  displayName: displayNameSchema,
+  realName: optionalContactField(realNameSchema),
+  email: optionalContactField(contactEmailSchema),
+  phone: optionalContactField(contactPhoneSchema)
 });
 
 export const createEventSchema = z.object({

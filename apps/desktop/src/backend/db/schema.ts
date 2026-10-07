@@ -26,6 +26,9 @@ export const racers = sqliteTable("racers", {
   id: text("id").primaryKey(),
   displayName: text("display_name").notNull(),
   avatarUrl: text("avatar_url"),
+  realName: text("real_name"),
+  email: text("email"),
+  phone: text("phone"),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
 });

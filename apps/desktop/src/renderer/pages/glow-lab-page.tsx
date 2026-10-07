@@ -155,7 +155,9 @@ function makeRacerSummary(
       avatarUrl: null,
       createdAt: LAB_TIMESTAMP,
       updatedAt: LAB_TIMESTAMP,
-      identities: []
+      realName: null,
+      email: null,
+      phone: null
     },
     stats: {
       races: 0,

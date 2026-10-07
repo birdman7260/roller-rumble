@@ -67,11 +67,18 @@ export interface Identity {
 
 export interface Racer {
   id: string;
+  /** The public fun name shown on the projector and racer phones. */
   displayName: string;
   avatarUrl?: string | null;
+  /**
+   * `contact details` (ADR-0024): operator-only, never unique, never used for lookup. They are
+   * nulled out of the racer payload; a racer sees their own only via `/api/auth/session`.
+   */
+  realName: string | null;
+  email: string | null;
+  phone: string | null;
   createdAt: string;
   updatedAt: string;
-  identities: Identity[];
 }
 
 export interface EventRacerPayment {
@@ -707,9 +714,16 @@ export interface AppSnapshot {
 
 export interface CreateRacerInput {
   displayName: string;
+  realName?: string;
   email?: string;
   phone?: string;
-  accountlessId?: string;
+}
+
+export interface RacerRegistrationInput {
+  realName: string;
+  email: string;
+  phone: string;
+  displayName: string;
 }
 
 export interface QueueSignupInput {

@@ -16,6 +16,7 @@ import type {
   AdminSettings,
   AppSetting,
   BracketNode,
+  CreateRacerInput,
   EventPaymentStatus,
   EventRacerPayment,
   EventRecord,
@@ -67,7 +68,6 @@ import * as schema from "./schema";
 
 type OrmDatabase = BetterSQLite3Database<typeof schema>;
 type EventRow = typeof events.$inferSelect;
-type IdentityRow = typeof identities.$inferSelect;
 type PasskeyCredentialRow = typeof passkeyCredentials.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
 type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
@@ -82,7 +82,6 @@ type TournamentStageRow = typeof tournamentStages.$inferSelect;
 type BracketNodeRow = typeof bracketNodes.$inferSelect;
 type GroupMatchRow = typeof groupMatches.$inferSelect;
 type BoothCaptureRow = typeof boothCaptures.$inferSelect;
-type RacerIdentity = Racer["identities"][number];
 
 export interface StoredPasskeyCredential {
   id: string;
@@ -275,16 +274,6 @@ function mapNotification(row: NotificationRow): StoredNotificationRecord {
   };
 }
 
-function mapIdentity(row: IdentityRow): RacerIdentity {
-  return {
-    id: row.id,
-    racerId: row.racerId,
-    type: row.type,
-    value: row.value,
-    createdAt: row.createdAt
-  };
-}
-
 function mapPasskeyCredential(row: PasskeyCredentialRow): StoredPasskeyCredential {
   return {
     id: row.id,
@@ -315,17 +304,16 @@ function mapEventRacerPayment(
   };
 }
 
-function mapRacer(
-  row: Pick<RacerRow, "id" | "displayName" | "avatarUrl" | "createdAt" | "updatedAt">,
-  racerIdentities: RacerIdentity[]
-): Racer {
+function mapRacer(row: RacerRow): Racer {
   return {
     id: row.id,
     displayName: row.displayName,
     avatarUrl: row.avatarUrl,
+    realName: row.realName,
+    email: row.email,
+    phone: row.phone,
     createdAt: row.createdAt,
-    updatedAt: row.updatedAt,
-    identities: racerIdentities
+    updatedAt: row.updatedAt
   };
 }
 
@@ -770,76 +758,25 @@ export class AppDatabase {
     return this.getActiveEvent()!;
   }
 
-  private listIdentities(racerId: string): RacerIdentity[] {
-    return this.orm
-      .select()
-      .from(identities)
-      .where(eq(identities.racerId, racerId))
-      .orderBy(asc(identities.createdAt))
-      .all()
-      .map(mapIdentity);
-  }
-
-  findRacerByIdentity(type: "email" | "phone" | "anonymous", value: string): Racer | null {
+  /**
+   * Passkey sign-in and accountless resume still key off the `identities` table until passkeys
+   * and accountless mode are removed. Contact details no longer live there (ADR-0024).
+   */
+  findRacerByIdentity(type: "email" | "anonymous", value: string): Racer | null {
     const row = this.orm
-      .select({
-        id: racers.id,
-        displayName: racers.displayName,
-        avatarUrl: racers.avatarUrl,
-        createdAt: racers.createdAt,
-        updatedAt: racers.updatedAt
-      })
-      .from(racers)
-      .innerJoin(identities, eq(identities.racerId, racers.id))
+      .select({ racerId: identities.racerId })
+      .from(identities)
       .where(and(eq(identities.type, type), eq(identities.value, value)))
       .get();
 
-    return row ? mapRacer(row, this.listIdentities(row.id)) : null;
-  }
-
-  createOrUpdateRacer(input: {
-    displayName: string;
-    email?: string;
-    phone?: string;
-    accountlessId?: string;
-  }): Racer {
-    const existing =
-      (input.email ? this.findRacerByIdentity("email", input.email) : null) ??
-      (input.phone ? this.findRacerByIdentity("phone", input.phone) : null) ??
-      (input.accountlessId ? this.findRacerByIdentity("anonymous", input.accountlessId) : null);
-
-    const timestamp = nowIso();
-    if (existing) {
-      this.orm
-        .update(racers)
-        .set({
-          displayName: input.displayName,
-          updatedAt: timestamp
-        })
-        .where(eq(racers.id, existing.id))
-        .run();
-
-      this.attachIdentity(existing.id, "email", input.email);
-      this.attachIdentity(existing.id, "phone", input.phone);
-      // The DB identity value stays `anonymous` for migration compatibility, but the product
-      // language and API now call this an accountless racer identity.
-      this.attachIdentity(existing.id, "anonymous", input.accountlessId);
-      return this.getRacer(existing.id)!;
-    }
-
-    const racer = this.createRacer(input);
-    this.attachIdentity(racer.id, "anonymous", input.accountlessId);
-    return this.getRacer(racer.id)!;
+    return row ? this.getRacer(row.racerId) : null;
   }
 
   /**
-   * Insert a brand-new racer, never merging into an existing one. Registration
-   * uses this (ADR-0016) so a shared identity — email OR phone — can never pull
-   * the new account onto someone else's row the way `createOrUpdateRacer` does.
-   * A colliding email/phone simply isn't attached (the unique identity index
-   * leaves it with its current owner) rather than rewriting that racer.
+   * Insert a brand-new racer. Every racer-creation path is insert-only (ADR-0024): nothing
+   * looks a racer up by contact details, so a repeated email or phone always yields a new racer.
    */
-  createRacer(input: { displayName: string; email?: string; phone?: string }): Racer {
+  createRacer(input: CreateRacerInput): Racer {
     const racerId = nanoid();
     const timestamp = nowIso();
     this.orm
@@ -848,13 +785,14 @@ export class AppDatabase {
         id: racerId,
         displayName: input.displayName,
         avatarUrl: null,
+        realName: input.realName ?? null,
+        email: input.email ?? null,
+        phone: input.phone ?? null,
         createdAt: timestamp,
         updatedAt: timestamp
       })
       .run();
 
-    this.attachIdentity(racerId, "email", input.email);
-    this.attachIdentity(racerId, "phone", input.phone);
     return this.getRacer(racerId)!;
   }
 
@@ -862,7 +800,7 @@ export class AppDatabase {
     racerId: string,
     input: {
       displayName: string;
-      email?: string;
+      email: string;
       phone?: string;
     }
   ): Racer | null {
@@ -870,20 +808,17 @@ export class AppDatabase {
       .update(racers)
       .set({
         displayName: input.displayName,
+        email: input.email,
+        phone: input.phone ?? null,
         updatedAt: nowIso()
       })
       .where(eq(racers.id, racerId))
       .run();
     this.attachIdentity(racerId, "email", input.email);
-    this.attachIdentity(racerId, "phone", input.phone);
     return this.getRacer(racerId);
   }
 
-  private attachIdentity(
-    racerId: string,
-    type: "email" | "phone" | "anonymous",
-    value?: string
-  ): void {
+  private attachIdentity(racerId: string, type: "email" | "anonymous", value?: string): void {
     if (!value) {
       return;
     }
@@ -901,11 +836,7 @@ export class AppDatabase {
       .run();
   }
 
-  attachRacerIdentity(
-    racerId: string,
-    type: "email" | "phone" | "anonymous",
-    value: string
-  ): Racer | null {
+  attachRacerIdentity(racerId: string, type: "email" | "anonymous", value: string): Racer | null {
     this.attachIdentity(racerId, type, value);
     return this.getRacer(racerId);
   }
@@ -972,7 +903,7 @@ export class AppDatabase {
 
   getRacer(racerId: string): Racer | null {
     const row = this.orm.select().from(racers).where(eq(racers.id, racerId)).get();
-    return row ? mapRacer(row, this.listIdentities(racerId)) : null;
+    return row ? mapRacer(row) : null;
   }
 
   updateRacerAvatar(racerId: string, avatarUrl: string): Racer | null {
@@ -1528,43 +1459,37 @@ export class AppDatabase {
   }
 
   listRacers(search?: string): Racer[] {
-    const baseSelection = {
-      id: racers.id,
-      displayName: racers.displayName,
-      avatarUrl: racers.avatarUrl,
-      createdAt: racers.createdAt,
-      updatedAt: racers.updatedAt
-    };
+    if (!search) {
+      return this.orm.select().from(racers).orderBy(asc(racers.displayName)).all().map(mapRacer);
+    }
 
-    const rows = search
-      ? this.orm
-          .selectDistinct(baseSelection)
-          .from(racers)
-          .leftJoin(identities, eq(identities.racerId, racers.id))
-          .where(or(like(racers.displayName, `%${search}%`), like(identities.value, `%${search}%`)))
-          .orderBy(asc(racers.displayName))
-          .all()
-      : this.orm.select(baseSelection).from(racers).orderBy(asc(racers.displayName)).all();
-
-    return rows.map((row) => mapRacer(row, this.listIdentities(row.id)));
+    const pattern = `%${search}%`;
+    return this.orm
+      .select()
+      .from(racers)
+      .where(
+        or(
+          like(racers.displayName, pattern),
+          like(racers.realName, pattern),
+          like(racers.email, pattern),
+          like(racers.phone, pattern)
+        )
+      )
+      .orderBy(asc(racers.displayName))
+      .all()
+      .map(mapRacer);
   }
 
   listEventRacers(eventId: string): Racer[] {
     const rows = this.orm
-      .select({
-        id: racers.id,
-        displayName: racers.displayName,
-        avatarUrl: racers.avatarUrl,
-        createdAt: racers.createdAt,
-        updatedAt: racers.updatedAt
-      })
+      .select({ racer: racers })
       .from(racers)
       .innerJoin(eventRacers, eq(eventRacers.racerId, racers.id))
       .where(eq(eventRacers.eventId, eventId))
       .orderBy(asc(racers.displayName))
       .all();
 
-    return rows.map((row) => mapRacer(row, this.listIdentities(row.id)));
+    return rows.map((row) => mapRacer(row.racer));
   }
 
   listResults(eventId?: string): RaceResult[] {

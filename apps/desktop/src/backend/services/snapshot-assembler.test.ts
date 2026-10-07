@@ -187,6 +187,30 @@ describe("SnapshotAssembler.forSurface", () => {
     expect(assembler.forSurface(full, "projector")).toEqual(full);
   });
 
+  it("strips every racer's contact details from the racer payload", () => {
+    const full = assembler.assemble(makeContext());
+    const racer = assembler.forSurface(full, "racer");
+
+    expect(racer.racers).toHaveLength(full.racers.length);
+    for (const entry of racer.racers) {
+      expect(entry.racer).toMatchObject({ realName: null, email: null, phone: null });
+    }
+  });
+
+  it("keeps contact details in the admin snapshot", () => {
+    const full = assembler.assemble(makeContext());
+    const admin = assembler.forSurface(full, "admin");
+
+    expect(admin.racers.map((entry) => entry.racer.email)).toEqual([
+      "ada@example.com",
+      "grace@example.com"
+    ]);
+    expect(admin.racers[0].racer).toMatchObject({
+      realName: "Ada Lovelace",
+      phone: "555-010-0100"
+    });
+  });
+
   it("strips operator-only state and live metrics for racers", () => {
     const full = assembler.assemble(makeContext());
     const racer = assembler.forSurface(full, "racer");

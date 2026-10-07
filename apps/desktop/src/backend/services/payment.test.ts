@@ -44,9 +44,9 @@ function makeRacer(id: string, displayName: string, email?: string): Racer {
     avatarUrl: null,
     createdAt: timestamp,
     updatedAt: timestamp,
-    identities: email
-      ? [{ id: `${id}-email`, racerId: id, type: "email", value: email, createdAt: timestamp }]
-      : []
+    realName: null,
+    email: email ?? null,
+    phone: null
   };
 }
 

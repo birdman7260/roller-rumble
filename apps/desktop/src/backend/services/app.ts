@@ -21,6 +21,7 @@ import type {
   AdminTournamentRacerRemovalInput,
   AdminTournamentRacerRemovalResponse,
   ChallengeReplacementOption,
+  CreateRacerInput,
   NotificationConfig,
   PhotoBoothAdminStatus,
   PhotoBoothSession,
@@ -31,6 +32,7 @@ import type {
   RaceResultPresentation,
   Racer,
   RacerAuthSuccessResponse,
+  RacerRegistrationInput,
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   RacerNotification,
@@ -1652,10 +1654,13 @@ export class RollerRumbleApp extends EventEmitter {
       throw new AppHttpError("Enter a display name to continue.", 400, "display_name_required");
     }
 
-    const racer = this.registerRacerRecord({
-      displayName,
-      accountlessId: input.accountlessId
-    });
+    let racer = this.db.findRacerByIdentity("anonymous", input.accountlessId);
+    if (!racer) {
+      racer = this.db.createRacer({ displayName });
+      this.db.attachRacerIdentity(racer.id, "anonymous", input.accountlessId);
+    }
+    this.db.ensureEventRegistration(this.db.getActiveEvent()!.id, racer.id);
+    this.emitSnapshot();
     return {
       racer,
       snapshot: this.getSnapshot()
@@ -1688,31 +1693,24 @@ export class RollerRumbleApp extends EventEmitter {
     return this.getSnapshot();
   }
 
-  registerRacer(input: {
-    displayName: string;
-    email?: string;
-    phone?: string;
-    accountlessId?: string;
-  }): AppSnapshot {
-    this.registerRacerRecord(input);
-    return this.getSnapshot();
+  /**
+   * The `registration wizard`'s submit: always a new racer (ADR-0024). The response carries the
+   * racer payload, since it goes back to a racer phone.
+   */
+  registerRacer(input: RacerRegistrationInput): RacerAuthSuccessResponse {
+    const racer = this.auth.registerRacer(input);
+    this.emitSnapshot();
+    return {
+      racer,
+      snapshot: this.snapshotForSurface(this.getSnapshot(), "racer")
+    };
   }
 
-  registerRacerRecord(input: {
-    displayName: string;
-    email?: string;
-    phone?: string;
-    accountlessId?: string;
-  }): Racer {
-    if (input.accountlessId && !this.db.getAdminSettings().allowAccountlessRacerSignup) {
-      throw new AppHttpError(
-        "Accountless registration is currently disabled. Please sign in with an email.",
-        403,
-        "accountless_disabled"
-      );
-    }
+  /** Admin quick-add. Insert-only like every racer-creation path, so a repeated email or phone
+   * still creates a new racer (ADR-0024). */
+  registerRacerRecord(input: CreateRacerInput): Racer {
     const activeEvent = this.db.getActiveEvent()!;
-    const racer = this.db.createOrUpdateRacer(input);
+    const racer = this.db.createRacer(input);
     this.db.ensureEventRegistration(activeEvent.id, racer.id);
     this.emitSnapshot();
     return racer;

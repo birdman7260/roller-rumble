@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { verifyAuthenticationResponse, verifyRegistrationResponse } from "@simplewebauthn/server";
-import type { EventRecord, Racer } from "@roller-rumble/shared/types";
+import type { CreateRacerInput, EventRecord, Racer } from "@roller-rumble/shared/types";
 import { AuthService, type AuthStore, type PasskeyRequestContext } from "./auth";
 
 vi.mock("@simplewebauthn/server", () => ({
@@ -61,21 +61,20 @@ function makeRacer(id: string, displayName: string, email?: string): Racer {
     id,
     displayName,
     avatarUrl: null,
+    realName: null,
+    email: email ?? null,
+    phone: null,
     createdAt: timestamp,
-    updatedAt: timestamp,
-    identities: email
-      ? [
-          {
-            id: `${id}-email`,
-            racerId: id,
-            type: "email",
-            value: email,
-            createdAt: timestamp
-          }
-        ]
-      : []
+    updatedAt: timestamp
   };
 }
+
+const registration = {
+  realName: "Ada Lovelace",
+  email: "ada@example.com",
+  phone: "555-010-0100",
+  displayName: "Countess Crank"
+};
 
 function makeStore(): AuthStore & {
   racers: Map<string, Racer>;
@@ -101,16 +100,16 @@ function makeStore(): AuthStore & {
     racers,
     credentials,
     activeEvent,
+    // Passkey email lookups mirror the racer's email until passkeys are removed.
     findRacerByIdentity: vi.fn((type: string, value: string) => {
       for (const racer of racers.values()) {
-        if (
-          racer.identities.some((identity) => identity.type === type && identity.value === value)
-        ) {
+        if (type === "email" && racer.email === value) {
           return racer;
         }
       }
       return null;
     }),
+    attachRacerIdentity: vi.fn(),
     listPasskeyCredentialsForRacer: vi.fn((racerId: string) =>
       [...credentials.values()].filter((credential) => credential.racerId === racerId)
     ),
@@ -136,8 +135,12 @@ function makeStore(): AuthStore & {
         return credential;
       }
     ),
-    createRacer: vi.fn((input: { displayName: string; email?: string }) => {
-      const racer = makeRacer(`racer-${racers.size + 1}`, input.displayName, input.email);
+    createRacer: vi.fn((input: CreateRacerInput) => {
+      const racer: Racer = {
+        ...makeRacer(`racer-${racers.size + 1}`, input.displayName, input.email),
+        realName: input.realName ?? null,
+        phone: input.phone ?? null
+      };
       racers.set(racer.id, racer);
       return racer;
     }),
@@ -202,11 +205,8 @@ describe("AuthService", () => {
     const racer = await auth.finishPasskeyRegistration(challengeId, { id: "credential-1" });
 
     expect(racer.displayName).toBe("Bird Fast");
-    expect(racer.identities).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ type: "email", value: "bird@example.com" })
-      ])
-    );
+    expect(racer.email).toBe("bird@example.com");
+    expect(store.attachRacerIdentity).toHaveBeenCalledWith(racer.id, "email", "bird@example.com");
     expect(store.credentials.size).toBe(1);
     expect(verifyRegistrationResponse).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -254,9 +254,7 @@ describe("AuthService", () => {
     // Same racer id and history — no new row was created.
     expect(racer.id).toBe("racer-1");
     expect(store.racers.size).toBe(1);
-    expect(racer.identities).toEqual(
-      expect.arrayContaining([expect.objectContaining({ type: "email", value: "ace@example.com" })])
-    );
+    expect(racer.email).toBe("ace@example.com");
     expect(store.credentials.size).toBe(1);
   });
 
@@ -338,6 +336,69 @@ describe("AuthService", () => {
     expect(verifyAuthenticationResponse).toHaveBeenCalledWith(
       expect.objectContaining({ expectedChallenge: "auth-challenge" })
     );
+  });
+
+  it("registers a new racer with contact details and enters them in the active event", () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+
+    const racer = auth.registerRacer(registration);
+
+    expect(racer).toMatchObject(registration);
+    expect(store.ensureEventRegistration).toHaveBeenCalledWith(store.activeEvent.id, racer.id);
+  });
+
+  it("gives two registrations with the same email two racers, two ids, and two device logins", () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+
+    const first = auth.registerRacer(registration);
+    const second = auth.registerRacer({ ...registration, displayName: "Sibling Spinner" });
+
+    expect(second.id).not.toBe(first.id);
+    expect(store.racers.size).toBe(2);
+    expect(store.racers.get(first.id)?.displayName).toBe("Countess Crank");
+    expect(auth.createRacerSessionToken(first.id)).not.toBe(
+      auth.createRacerSessionToken(second.id)
+    );
+  });
+
+  it("leaves the racer whose device login the phone holds untouched when registering", () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    const existing = auth.registerRacer(registration);
+    const heldDeviceLogin = auth.createRacerSessionToken(existing.id);
+
+    const racer = auth.registerRacer({
+      realName: "Grace Hopper",
+      email: "grace@example.com",
+      phone: "555-010-0200",
+      displayName: "Admiral Pedals"
+    });
+
+    expect(racer.id).not.toBe(existing.id);
+    expect(store.racers.get(existing.id)).toEqual(existing);
+    expect(auth.getRacerFromSessionToken(heldDeviceLogin)?.id).toBe(existing.id);
+  });
+
+  it("issues device logins that never expire", () => {
+    vi.useFakeTimers();
+    try {
+      const store = makeStore();
+      const auth = new AuthService(store);
+      const racer = auth.registerRacer(registration);
+      const token = auth.createRacerSessionToken(racer.id);
+
+      const [payload] = token.split(".");
+      expect(JSON.parse(Buffer.from(payload, "base64url").toString("utf8"))).toEqual({
+        racerId: racer.id
+      });
+
+      vi.advanceTimersByTime(1000 * 60 * 60 * 24 * 365 * 5);
+      expect(auth.getRacerFromSessionToken(token)?.id).toBe(racer.id);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("round-trips signed racer session tokens", () => {

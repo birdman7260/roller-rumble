@@ -125,8 +125,8 @@ export class SnapshotAssembler {
 
   /**
    * Project a full snapshot for a streaming surface. `admin` and `projector` receive the
-   * full shape today; `racer` receives a public-safe payload with operator-only state and
-   * live metrics stripped.
+   * full shape today; `racer` receives a public-safe payload with operator-only state, racers'
+   * contact details, and live metrics stripped.
    */
   forSurface(snapshot: AppSnapshot, surface: SnapshotStreamSurface): AppSnapshot {
     if (surface !== "racer") {
@@ -146,6 +146,11 @@ export class SnapshotAssembler {
         ...snapshot.settings,
         raceDisplayTickerMessages: []
       },
+      // `contact details` are operator-only (ADR-0024); no racer phone gets anyone's.
+      racers: snapshot.racers.map((entry) => ({
+        ...entry,
+        racer: { ...entry.racer, realName: null, email: null, phone: null }
+      })),
       raceProjection: {
         ...snapshot.raceProjection,
         race,

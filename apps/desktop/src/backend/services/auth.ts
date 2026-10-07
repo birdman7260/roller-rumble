@@ -16,17 +16,17 @@ import type {
   PasskeyRegistrationStartInput,
   PasskeyRegistrationStartResponse,
   PasskeySignInStartResponse,
-  Racer
+  Racer,
+  RacerRegistrationInput
 } from "@roller-rumble/shared/types";
 import type { AppDatabase, StoredPasskeyCredential } from "../db/Database";
 import { AppHttpError } from "./http-error";
 
 const PASSKEY_CHALLENGE_TTL_MS = 5 * 60 * 1000;
-const RACER_SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 30;
 const RACER_SESSION_SECRET_SETTING_KEY = "racerSessionSecret";
 
 /**
- * Narrow database port for racer passkey/session auth. Expressed as a
+ * Narrow database port for racer registration, device logins, and passkey auth. Expressed as a
  * `Pick<AppDatabase, …>` so it tracks the real signatures at compile time and
  * documents exactly which tables this leaf service touches.
  */
@@ -38,6 +38,7 @@ export type AuthStore = Pick<
   | "getActiveEvent"
   | "ensureEventRegistration"
   | "findRacerByIdentity"
+  | "attachRacerIdentity"
   | "listPasskeyCredentialsForRacer"
   | "getPasskeyCredentialByCredentialId"
   | "updatePasskeyCredentialUse"
@@ -126,11 +127,12 @@ export class AuthService {
     return secret;
   }
 
+  /**
+   * Mint the `device login`: a signature over the racer id. It never expires (ADR-0024), since
+   * an expired login would lock the racer out with no way back in.
+   */
   createRacerSessionToken(racerId: string): string {
-    const payload = encodeBase64UrlJson({
-      racerId,
-      expiresAt: Date.now() + RACER_SESSION_TTL_MS
-    });
+    const payload = encodeBase64UrlJson({ racerId });
     const signature = crypto
       .createHmac("sha256", this.getRacerSessionSecret())
       .update(payload)
@@ -159,9 +161,8 @@ export class AuthService {
     try {
       const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as {
         racerId?: string;
-        expiresAt?: number;
       };
-      if (!decoded.racerId || !decoded.expiresAt || decoded.expiresAt < Date.now()) {
+      if (!decoded.racerId) {
         return null;
       }
       return this.db.getRacer(decoded.racerId);
@@ -174,6 +175,20 @@ export class AuthService {
     const racer = this.getRacerFromSessionToken(token);
     const activeEvent = this.db.getActiveEvent();
     if (racer && activeEvent) {
+      this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    }
+    return racer;
+  }
+
+  /**
+   * `registration` always inserts a brand-new `racer account` and enters it in the active event.
+   * It takes no device login: whatever the phone already holds is never read, so a phone signed
+   * in as someone else can't have that account overwritten (ADR-0024).
+   */
+  registerRacer(input: RacerRegistrationInput): Racer {
+    const racer = this.db.createRacer(input);
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent) {
       this.db.ensureEventRegistration(activeEvent.id, racer.id);
     }
     return racer;
@@ -343,6 +358,8 @@ export class AuthService {
       email: challenge.email,
       phone: challenge.phone
     });
+    // Passkey sign-in still finds racers through the identities table.
+    this.db.attachRacerIdentity(racer.id, "email", challenge.email);
 
     this.finalizePasskeyEnrollment(racer, enrollment);
     return racer;
@@ -439,7 +456,7 @@ export class AuthService {
   }
 
   private assertClaimable(racer: Racer): void {
-    if (racer.identities.some((identity) => identity.type === "email")) {
+    if (racer.email) {
       throw new AppHttpError(
         "This account is already secured with an email.",
         409,

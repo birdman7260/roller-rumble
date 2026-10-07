@@ -23,7 +23,9 @@ function makeRacer(id: string): Racer {
     avatarUrl: null,
     createdAt: timestamp,
     updatedAt: timestamp,
-    identities: []
+    realName: null,
+    email: null,
+    phone: null
   };
 }
 

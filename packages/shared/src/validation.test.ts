@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   accountlessRacerSessionSchema,
   adminNotificationSchema,
+  createRacerSchema,
   projectorWindowResizeSchema,
+  racerRegistrationSchema,
   settingUpdateSchema,
   updateEventSchema
 } from "./validation";
@@ -23,6 +25,89 @@ describe("accountless racer session validation", () => {
         accountlessId: "local-racer-device-id"
       }).success
     ).toBe(true);
+  });
+});
+
+const validRegistration = {
+  realName: "Ada Lovelace",
+  email: "ada@example.com",
+  phone: "(555) 010-0100",
+  displayName: "Countess Crank"
+};
+
+describe("racer registration validation", () => {
+  it("accepts complete contact details and a display name", () => {
+    expect(racerRegistrationSchema.safeParse(validRegistration).success).toBe(true);
+  });
+
+  it.each(["realName", "email", "phone", "displayName"] as const)("requires %s", (field) => {
+    const { [field]: _omitted, ...rest } = validRegistration;
+    expect(racerRegistrationSchema.safeParse(rest).success).toBe(false);
+  });
+
+  it("trims the real name and rejects one longer than 80 characters", () => {
+    expect(
+      racerRegistrationSchema.parse({ ...validRegistration, realName: "  Ada  " }).realName
+    ).toBe("Ada");
+    expect(
+      racerRegistrationSchema.safeParse({ ...validRegistration, realName: "x".repeat(81) }).success
+    ).toBe(false);
+    expect(
+      racerRegistrationSchema.safeParse({ ...validRegistration, realName: "   " }).success
+    ).toBe(false);
+  });
+
+  it("rejects a malformed email", () => {
+    expect(
+      racerRegistrationSchema.safeParse({ ...validRegistration, email: "not-an-email" }).success
+    ).toBe(false);
+  });
+
+  it("stores the phone as entered when it has 7 to 15 digits after punctuation", () => {
+    expect(racerRegistrationSchema.parse(validRegistration).phone).toBe("(555) 010-0100");
+    expect(
+      racerRegistrationSchema.safeParse({ ...validRegistration, phone: "+44 20 7946 0958" }).success
+    ).toBe(true);
+  });
+
+  it.each(["555-010", "1234567890123456", "555-CALL-NOW", "555 0100 ext"])(
+    "rejects the phone %s",
+    (phone) => {
+      expect(racerRegistrationSchema.safeParse({ ...validRegistration, phone }).success).toBe(
+        false
+      );
+    }
+  );
+});
+
+describe("admin quick-add racer validation", () => {
+  it("accepts only a display name", () => {
+    expect(createRacerSchema.safeParse({ displayName: "Speedy" }).success).toBe(true);
+  });
+
+  it("requires a display name", () => {
+    expect(createRacerSchema.safeParse({ realName: "Ada Lovelace" }).success).toBe(false);
+  });
+
+  it("validates optional contact details when given", () => {
+    expect(
+      createRacerSchema.safeParse({
+        displayName: "Speedy",
+        realName: "Ada Lovelace",
+        email: "ada@example.com",
+        phone: "555-010-0100"
+      }).success
+    ).toBe(true);
+    expect(createRacerSchema.safeParse({ displayName: "Speedy", email: "nope" }).success).toBe(
+      false
+    );
+    expect(createRacerSchema.safeParse({ displayName: "Speedy", phone: "12" }).success).toBe(false);
+  });
+
+  it("treats blank optional contact details as absent", () => {
+    expect(
+      createRacerSchema.parse({ displayName: "Speedy", realName: " ", email: "", phone: "" })
+    ).toEqual({ displayName: "Speedy" });
   });
 });
 

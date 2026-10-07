@@ -42,9 +42,11 @@
         "id": "racer-1",
         "displayName": "Ada",
         "avatarUrl": null,
+        "realName": "Ada Lovelace",
+        "email": "ada@example.com",
+        "phone": "555-010-0100",
         "createdAt": "2026-01-01T00:00:00.000Z",
-        "updatedAt": "2026-01-01T00:00:00.000Z",
-        "identities": []
+        "updatedAt": "2026-01-01T00:00:00.000Z"
       },
       "stats": {
         "races": 1,
@@ -71,9 +73,11 @@
         "id": "racer-2",
         "displayName": "Grace",
         "avatarUrl": null,
+        "realName": "Grace Hopper",
+        "email": "grace@example.com",
+        "phone": "555-010-0200",
         "createdAt": "2026-01-01T00:00:00.000Z",
-        "updatedAt": "2026-01-01T00:00:00.000Z",
-        "identities": []
+        "updatedAt": "2026-01-01T00:00:00.000Z"
       },
       "stats": {
         "races": 1,

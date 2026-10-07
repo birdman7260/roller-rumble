@@ -25,7 +25,9 @@ const racer: Racer = {
   avatarUrl: null,
   createdAt: "now",
   updatedAt: "now",
-  identities: []
+  realName: null,
+  email: null,
+  phone: null
 };
 
 describe("Stripe payment helpers", () => {

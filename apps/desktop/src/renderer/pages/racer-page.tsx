@@ -334,6 +334,9 @@ interface RacerPageState {
   selectedOpponent: string;
   selectedRacerDetailId: string | null;
   selectedRacerId: string;
+  // Contact details are stripped from the racer payload, so whether the signed-in racer has an
+  // email comes from their own auth session.
+  signedInRacerHasEmail: boolean;
   tournamentOptOutBusy: boolean;
   tournamentOptOutConfirmOpen: boolean;
   tournamentOptOutMessage: string | null;
@@ -368,6 +371,7 @@ function createInitialRacerPageState(initialTab: string | undefined): RacerPageS
     selectedOpponent: "",
     selectedRacerDetailId: null,
     selectedRacerId: localStorage.getItem("roller-rumble.racerId") ?? "",
+    signedInRacerHasEmail: false,
     tournamentOptOutBusy: false,
     tournamentOptOutConfirmOpen: false,
     tournamentOptOutMessage: null,
@@ -519,6 +523,7 @@ function useRacerPageViewModel({
     selectedOpponent,
     selectedRacerDetailId,
     selectedRacerId,
+    signedInRacerHasEmail,
     tournamentOptOutBusy,
     tournamentOptOutConfirmOpen,
     tournamentOptOutMessage,
@@ -620,9 +625,6 @@ function useRacerPageViewModel({
   const setSelectedRacerDetailId: Dispatch<SetStateAction<string | null>> = (action) => {
     patchState("selectedRacerDetailId", action);
   };
-  const setSelectedRacerId: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("selectedRacerId", action);
-  };
   const paymentReturnState = new URLSearchParams(window.location.search).get("payment");
   const paymentReturnId = new URLSearchParams(window.location.search).get("payment_id");
   const launchedNotificationId = new URLSearchParams(window.location.search).get("notificationId");
@@ -672,11 +674,14 @@ function useRacerPageViewModel({
       if (result.racer) {
         rememberRacerSessionToken(result.sessionToken);
         localStorage.setItem("roller-rumble.racerId", result.racer.id);
-        setState({ selectedRacerId: result.racer.id });
+        setState({
+          selectedRacerId: result.racer.id,
+          signedInRacerHasEmail: Boolean(result.racer.email)
+        });
       } else {
         forgetRacerSessionToken();
         localStorage.removeItem("roller-rumble.racerId");
-        setState({ selectedRacerId: "" });
+        setState({ selectedRacerId: "", signedInRacerHasEmail: false });
       }
     }
     fireAndForget(hydrateSession(), "hydrate racer session");
@@ -824,7 +829,7 @@ function useRacerPageViewModel({
   ]);
 
   function rememberSignedInRacer(result: {
-    racer: { id: string; displayName: string };
+    racer: { id: string; displayName: string; email: string | null };
     snapshot?: AppSnapshot;
     sessionToken?: string | null;
   }): void {
@@ -833,7 +838,10 @@ function useRacerPageViewModel({
       queryClient.setQueryData(snapshotQueryKey, result.snapshot);
     }
     localStorage.setItem("roller-rumble.racerId", result.racer.id);
-    setSelectedRacerId(result.racer.id);
+    setState({
+      selectedRacerId: result.racer.id,
+      signedInRacerHasEmail: Boolean(result.racer.email)
+    });
     setActiveTab("race");
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
@@ -961,7 +969,7 @@ function useRacerPageViewModel({
     // Rotate the device's accountless identity so registering again creates a new
     // racer instead of renaming the one that just signed out.
     rotateAccountlessId();
-    setSelectedRacerId("");
+    setState({ selectedRacerId: "", signedInRacerHasEmail: false });
     setAvatarUploadMessage(null);
     setNotificationPromptVisible(false);
     setNotificationMessage(null);
@@ -1268,9 +1276,7 @@ function useRacerPageViewModel({
     .toSorted((left, right) => left.position - right.position)
     .at(0);
   const selectedRacerAvatarUrl = resolveBackendAssetUrl(selectedRacer?.racer.avatarUrl);
-  const selectedRacerHasEmail = Boolean(
-    selectedRacer?.racer.identities.some((identity) => identity.type === "email")
-  );
+  const selectedRacerHasEmail = Boolean(selectedRacer) && signedInRacerHasEmail;
   const canBrowsePublicRacerInfo =
     Boolean(selectedRacer) || snapshot.settings.showPublicRacerInfoWithoutLogin;
   const canContinueAccountless = snapshot.settings.allowAccountlessRacerSignup;

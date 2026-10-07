@@ -26,14 +26,18 @@ export const FIXED_NOW_ISO = new Date(FIXED_NOW_MS).toISOString();
 const ACTIVE_EVENT_ID = "event-1";
 const OTHER_EVENT_ID = "event-0";
 
-function makeRacer(id: string, displayName: string): Racer {
+function makeRacer(
+  id: string,
+  displayName: string,
+  contact: Pick<Racer, "realName" | "email" | "phone">
+): Racer {
   return {
     id,
     displayName,
     avatarUrl: null,
+    ...contact,
     createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    identities: []
+    updatedAt: "2026-01-01T00:00:00.000Z"
   };
 }
 
@@ -53,7 +57,18 @@ function makeResult(patch: Partial<RaceResult> & Pick<RaceResult, "id" | "racerI
   };
 }
 
-const RACERS: Racer[] = [makeRacer("racer-1", "Ada"), makeRacer("racer-2", "Grace")];
+const RACERS: Racer[] = [
+  makeRacer("racer-1", "Ada", {
+    realName: "Ada Lovelace",
+    email: "ada@example.com",
+    phone: "555-010-0100"
+  }),
+  makeRacer("racer-2", "Grace", {
+    realName: "Grace Hopper",
+    email: "grace@example.com",
+    phone: "555-010-0200"
+  })
+];
 
 // Mix of active-event and other-event results so includeAllRaceData filtering is exercised.
 const ALL_RESULTS: RaceResult[] = [

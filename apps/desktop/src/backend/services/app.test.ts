@@ -2,12 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
   AdminSettings,
   AppSnapshot,
+  CreateRacerInput,
   QueueEntry,
   QueueOccurrence,
   RaceRecord,
+  Racer,
   RacerNotificationType
 } from "@roller-rumble/shared/types";
 import { COUNTDOWN_DURATION_MS } from "@roller-rumble/shared/constants";
+import { createRacerSchema } from "@roller-rumble/shared/validation";
 import type { SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { RollerRumbleApp } from "./app";
 
@@ -1645,5 +1648,68 @@ describe("app service lane swap", () => {
     expect(getSwapLanesInvoker().call(target)).toBe(snapshot);
     expect(updateRace).not.toHaveBeenCalled();
     expect(emitSnapshot).not.toHaveBeenCalled();
+  });
+});
+
+describe("app service admin quick-add", () => {
+  function makeQuickAddTarget() {
+    const racers = new Map<string, Racer>();
+    const ensureEventRegistration = vi.fn();
+    const emitSnapshot = vi.fn();
+    // A store with no way to look a racer up by contact details: quick-add must only insert.
+    const db = {
+      getActiveEvent: () => ({ id: "event-1" }),
+      createRacer: vi.fn((input: CreateRacerInput) => {
+        const racer: Racer = {
+          id: `racer-${racers.size + 1}`,
+          displayName: input.displayName,
+          avatarUrl: null,
+          realName: input.realName ?? null,
+          email: input.email ?? null,
+          phone: input.phone ?? null,
+          createdAt: "2026-10-07T00:00:00.000Z",
+          updatedAt: "2026-10-07T00:00:00.000Z"
+        };
+        racers.set(racer.id, racer);
+        return racer;
+      }),
+      ensureEventRegistration
+    };
+    const quickAdd = (body: unknown): Racer =>
+      RollerRumbleApp.prototype.registerRacerRecord.call(
+        { db, emitSnapshot } as unknown as RollerRumbleApp,
+        createRacerSchema.parse(body)
+      );
+    return { racers, ensureEventRegistration, emitSnapshot, quickAdd };
+  }
+
+  it("creates a new racer even when the email repeats someone else's", () => {
+    const { racers, quickAdd } = makeQuickAddTarget();
+
+    const first = quickAdd({ displayName: "Speedy", email: "family@example.com" });
+    const second = quickAdd({
+      displayName: "Speedier",
+      realName: "Sam Sibling",
+      email: "family@example.com"
+    });
+
+    expect(second.id).not.toBe(first.id);
+    expect(racers.size).toBe(2);
+    expect(racers.get(first.id)?.displayName).toBe("Speedy");
+  });
+
+  it("adds a racer with only a display name and enters them in the active event", () => {
+    const { ensureEventRegistration, emitSnapshot, quickAdd } = makeQuickAddTarget();
+
+    const racer = quickAdd({ displayName: "Speedy", realName: "", email: "", phone: "" });
+
+    expect(racer).toMatchObject({
+      displayName: "Speedy",
+      realName: null,
+      email: null,
+      phone: null
+    });
+    expect(ensureEventRegistration).toHaveBeenCalledWith("event-1", racer.id);
+    expect(emitSnapshot).toHaveBeenCalled();
   });
 });

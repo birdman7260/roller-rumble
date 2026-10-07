@@ -13,10 +13,13 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Changed
 
 - A solo run is now recorded on the bike the racer actually rode instead of a lane that named no bike, so a solo racer on the right-hand bike is finally picked up by the race box. Their run still shows as a single centered card on the projector, exactly as before.
+- The admin desk's add-racer form now has separate Display name and Real name fields; only the display name is required. The Registered Racers list shows each racer's real name, phone, and email, and the racer search matches them too.
 
 ### Fixed
 
 - The race box now listens to the correct bike when no lane map has been set up, instead of assuming the first rider is always on the first sensor port.
+- Adding a racer at the admin desk always creates a new racer, even if the email or phone matches someone else.
+- The live updates sent to racer phones no longer include other racers' real names, phone numbers, or email addresses.
 
 ## 0.1.22 - 2026-07-16
 

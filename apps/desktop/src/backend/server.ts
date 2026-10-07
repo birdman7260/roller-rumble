@@ -27,6 +27,7 @@ import {
   projectorWindowResizeSchema,
   queueSignupSchema,
   racerQueueSignupSchema,
+  racerRegistrationSchema,
   removeRacerSchema,
   resolvePhotoBoothSessionSchema,
   settingUpdateSchema,
@@ -550,9 +551,19 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     const sessionToken = getSessionToken(req);
     res.json({
       racer: service.getRacerAuthSession(sessionToken),
-      snapshot: service.getSnapshot(),
+      snapshot: service.snapshotForSurface(service.getSnapshot(), "racer"),
       sessionToken
     });
+  });
+
+  app.post(`${API_PREFIX}/auth/register`, (req, res) => {
+    const input = racerRegistrationSchema.parse(req.body);
+    // Registration never reads the device login the phone holds: it always mints a new racer
+    // (ADR-0024). The cookie is rewritten so a stale one can't keep authenticating as the old racer.
+    const result = service.registerRacer(input);
+    const sessionToken = service.createRacerSessionToken(result.racer.id);
+    setRacerSessionCookie(req, res, sessionToken);
+    res.json({ ...result, sessionToken });
   });
 
   app.post(`${API_PREFIX}/auth/sign-out`, (req, res) => {

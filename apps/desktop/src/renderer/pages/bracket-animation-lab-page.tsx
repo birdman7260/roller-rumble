@@ -102,7 +102,9 @@ function makeRacerSummary(id: string, displayName: string): AppSnapshot["racers"
     createdAt: labCreatedAt,
     displayName,
     id,
-    identities: [],
+    realName: null,
+    email: null,
+    phone: null,
     updatedAt: labCreatedAt
   };
 
