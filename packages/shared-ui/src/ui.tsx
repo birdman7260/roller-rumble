@@ -114,6 +114,53 @@ export function StatPill({
   );
 }
 
+export interface StepProgressStep {
+  id: string;
+  label: string;
+}
+
+/**
+ * A multi-step flow's progress bar: every step's label in order, the current one marked with
+ * `aria-current="step"`, and a "Step X of N" line for screen readers.
+ */
+export function StepProgress({
+  steps,
+  currentStepId,
+  className
+}: {
+  steps: readonly StepProgressStep[];
+  currentStepId: string;
+  className?: string;
+}) {
+  const currentIndex = steps.findIndex((step) => step.id === currentStepId);
+
+  return (
+    <div className={cx("step-progress", className)}>
+      <p className="visually-hidden">
+        Step {currentIndex + 1} of {steps.length}
+      </p>
+      <ol className="step-progress__list">
+        {steps.map((step, index) => (
+          <li
+            key={step.id}
+            className={cx(
+              "step-progress__step",
+              index < currentIndex && "step-progress__step--done",
+              index === currentIndex && "step-progress__step--current"
+            )}
+            aria-current={index === currentIndex ? "step" : undefined}
+          >
+            <span className="step-progress__marker" aria-hidden="true">
+              {index + 1}
+            </span>
+            <span className="step-progress__label">{step.label}</span>
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}
+
 export function EmptyState({ title, body }: { title: string; body: string }) {
   return (
     <div className="empty-state">

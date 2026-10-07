@@ -12,16 +12,23 @@ import {
   fetchSnapshot
 } from "./api";
 
-export const snapshotQueryKey = ["snapshot"];
+/**
+ * Each surface caches its own snapshot projection: racer phones get a payload without
+ * operator-only `contact details` (ADR-0024), so it must never share a cache entry with admin.
+ */
+export function snapshotQueryKey(surface: SnapshotStreamSurface) {
+  return ["snapshot", surface] as const;
+}
 export const metaQueryKey = ["meta"];
 export const runtimeEnvQueryKey = ["runtime-env"];
 export const photoBoothStatusQueryKey = ["photo-booth-status"];
 export const notificationConfigQueryKey = ["notification-config"];
 export const racerNotificationsQueryKey = ["racer-notifications"];
-const snapshotQueryOptions = queryOptions({
-  queryKey: snapshotQueryKey,
-  queryFn: fetchSnapshot
-});
+const snapshotQueryOptions = (surface: SnapshotStreamSurface) =>
+  queryOptions({
+    queryKey: snapshotQueryKey(surface),
+    queryFn: () => fetchSnapshot(surface)
+  });
 const metaQueryOptions = queryOptions({
   queryKey: metaQueryKey,
   queryFn: fetchMeta
@@ -54,8 +61,8 @@ export const queryClient = new QueryClient({
   }
 });
 
-export function useSnapshotQuery() {
-  return useQuery(snapshotQueryOptions);
+export function useSnapshotQuery(surface: SnapshotStreamSurface) {
+  return useQuery(snapshotQueryOptions(surface));
 }
 
 export function useMetaQuery() {
@@ -112,7 +119,7 @@ const MAX_RECONNECT_DELAY_MS = 15000;
  * Returns `true` while the socket is open so surfaces can show a stale/offline
  * indicator when live updates have stopped.
  */
-export function useSnapshotStream(surface?: SnapshotStreamSurface): boolean {
+export function useSnapshotStream(surface: SnapshotStreamSurface): boolean {
   const client = useQueryClient();
   const [connected, setConnected] = useState(false);
 
@@ -143,7 +150,7 @@ export function useSnapshotStream(surface?: SnapshotStreamSurface): boolean {
         setConnected(true);
         // We may have missed broadcasts while disconnected, so pull the current
         // snapshot immediately rather than waiting for the next server push.
-        void client.invalidateQueries({ queryKey: snapshotQueryKey });
+        void client.invalidateQueries({ queryKey: snapshotQueryKey(surface) });
       };
       socket.onerror = (event) => {
         // eslint-disable-next-line no-console
@@ -168,7 +175,7 @@ export function useSnapshotStream(surface?: SnapshotStreamSurface): boolean {
           return;
         }
         if (message.type === "snapshot") {
-          const previousSnapshot = client.getQueryData<AppSnapshot>(snapshotQueryKey);
+          const previousSnapshot = client.getQueryData<AppSnapshot>(snapshotQueryKey(surface));
           const tunnelChanged =
             previousSnapshot?.tunnel.publicUrl !== message.payload.tunnel.publicUrl ||
             previousSnapshot?.tunnel.status !== message.payload.tunnel.status;
@@ -177,7 +184,7 @@ export function useSnapshotStream(surface?: SnapshotStreamSurface): boolean {
             message.payload
           );
 
-          client.setQueryData(snapshotQueryKey, message.payload);
+          client.setQueryData(snapshotQueryKey(surface), message.payload);
           if (tunnelChanged) {
             void client.invalidateQueries({ queryKey: metaQueryKey });
           }

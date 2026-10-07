@@ -1,29 +1,26 @@
 import { AnimatePresence, LayoutGroup, m, useReducedMotion } from "framer-motion";
 import type { MotionProps } from "framer-motion";
-import { useEffect, useEffectEvent, useReducer, useRef, useState } from "react";
-import type { ChangeEvent, Dispatch, RefObject, SetStateAction } from "react";
+import { useEffect, useEffectEvent, useReducer, useRef } from "react";
+import type { ChangeEvent, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { startAuthentication, startRegistration } from "@simplewebauthn/browser";
 import type {
   AppSnapshot,
   BracketNode,
   NotificationConfig,
+  RacerAuthSuccessResponse,
   RacerNotification,
   RoundRobinMatch,
   TournamentBundle,
   WebPushSubscriptionInput
 } from "@roller-rumble/shared/types";
+import { ConfirmModal } from "@roller-rumble/shared-ui";
 import { ToastProvider, useToast } from "@roller-rumble/shared-ui/toast";
 import type { BracketPresentationRequest } from "../components/elimination-bracket-view";
 import {
   ApiError,
   cancelRacerCheckoutPayment,
-  createAccountlessRacerSession,
   fetchRacerAuthSession,
   fetchNotificationConfig,
-  finishAccountClaim,
-  finishPasskeyRegistration,
-  finishPasskeySignIn,
   forgetRacerSessionToken,
   leaveRacerQueue,
   leaveRacerQueueEntry,
@@ -33,9 +30,6 @@ import {
   saveRacerPushSubscription,
   signOutRacer,
   signUpRacerQueue,
-  startAccountClaim,
-  startPasskeyRegistration,
-  startPasskeySignIn,
   uploadAvatar
 } from "../lib/api";
 import { resolveBackendAssetUrl } from "../lib/assets";
@@ -48,7 +42,6 @@ import {
   useRacerNotificationsQuery,
   useSnapshotQuery
 } from "../lib/query";
-import type { AuthFormProps } from "./racer-sections/auth";
 import { MeTab } from "./racer-sections/me";
 import {
   ChallengeReplacementModal,
@@ -58,6 +51,8 @@ import {
 import { QueueTab } from "./racer-sections/queue";
 import { RaceDashboard } from "./racer-sections/race";
 import { RacersTab } from "./racer-sections/racers";
+import { RegistrationWizard } from "./racer-sections/registration-wizard/registration-wizard";
+import { clearRegistrationDraft } from "./racer-sections/registration-wizard/registration-draft";
 import type {
   ChallengeReplacementRequest,
   QueueIssueModal,
@@ -69,8 +64,7 @@ import { TournamentOptOutConfirmModal } from "./racer-sections/tournament-opt-ou
 import { QueueLeaveConfirmModal } from "./racer-sections/queue-leave-confirm-modal";
 import type { QueueLeaveRequest } from "./racer-sections/queue-leave-confirm-modal";
 
-type RegistrationOptionsJSON = Parameters<typeof startRegistration>[0]["optionsJSON"];
-type AuthenticationOptionsJSON = Parameters<typeof startAuthentication>[0]["optionsJSON"];
+const racerSnapshotQueryKey = snapshotQueryKey("racer");
 const notificationQueuePromptStorageKey = "roller-rumble.notifications.queuePromptedAt";
 export type RacerTabId = "race" | "queue" | "tournament" | "racers" | "me";
 
@@ -112,18 +106,6 @@ async function closeTrayNotification(notification: RacerNotification): Promise<v
   } catch {
     // Best-effort: a missing/blocked SW just means the tray entry lingers.
   }
-}
-
-function getPasskeyUnavailableMessage(): string | null {
-  if (!("PublicKeyCredential" in window)) {
-    return "This browser does not support passkeys.";
-  }
-
-  if (!window.isSecureContext) {
-    return "Passkeys require HTTPS or localhost. Use the Cloudflare tunnel link from the projector/admin QR for phone registration.";
-  }
-
-  return null;
 }
 
 function urlBase64ToArrayBuffer(value: string): ArrayBuffer {
@@ -309,24 +291,17 @@ interface RacerPageProps {
 }
 
 interface RacerPageState {
-  accountlessDisplayName: string;
   activeTab: RacerTabId;
-  authBusy: boolean;
-  authMessage: string | null;
-  authMode: "email" | "register" | "host-assist";
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
   bracketPresentationRequest: BracketPresentationRequest | null;
   challengeReplacementRequest: ChallengeReplacementRequest | null;
   deviceNotificationsEnabled: boolean;
-  displayName: string;
-  email: string;
   expandedBracketTournamentId: string | null;
   modalActionMessage: string | null;
   modalNotifications: RacerNotification[];
   notificationMessage: string | null;
   notificationPromptVisible: boolean;
-  phone: string;
   queueIssueModal: QueueIssueModal | null;
   queueLeaveBusy: boolean;
   queueLeaveRequest: QueueLeaveRequest | null;
@@ -334,36 +309,26 @@ interface RacerPageState {
   selectedOpponent: string;
   selectedRacerDetailId: string | null;
   selectedRacerId: string;
-  // Contact details are stripped from the racer payload, so whether the signed-in racer has an
-  // email comes from their own auth session.
-  signedInRacerHasEmail: boolean;
+  signOutBusy: boolean;
+  signOutConfirmOpen: boolean;
   tournamentOptOutBusy: boolean;
   tournamentOptOutConfirmOpen: boolean;
   tournamentOptOutMessage: string | null;
-  upgradeDisplayName: string;
-  upgradeEmail: string;
 }
 
 function createInitialRacerPageState(initialTab: string | undefined): RacerPageState {
   return {
-    accountlessDisplayName: "",
     activeTab: normalizeRacerTab(initialTab),
-    authBusy: false,
-    authMessage: null,
-    authMode: "email",
     avatarUploadBusy: false,
     avatarUploadMessage: null,
     bracketPresentationRequest: null,
     challengeReplacementRequest: null,
     deviceNotificationsEnabled: false,
-    displayName: "",
-    email: "",
     expandedBracketTournamentId: null,
     modalActionMessage: null,
     modalNotifications: [],
     notificationMessage: null,
     notificationPromptVisible: false,
-    phone: "",
     queueIssueModal: null,
     queueLeaveBusy: false,
     queueLeaveRequest: null,
@@ -371,12 +336,11 @@ function createInitialRacerPageState(initialTab: string | undefined): RacerPageS
     selectedOpponent: "",
     selectedRacerDetailId: null,
     selectedRacerId: localStorage.getItem("roller-rumble.racerId") ?? "",
-    signedInRacerHasEmail: false,
+    signOutBusy: false,
+    signOutConfirmOpen: false,
     tournamentOptOutBusy: false,
     tournamentOptOutConfirmOpen: false,
-    tournamentOptOutMessage: null,
-    upgradeDisplayName: "",
-    upgradeEmail: ""
+    tournamentOptOutMessage: null
   };
 }
 
@@ -395,7 +359,6 @@ interface RacerPageViewFlags {
   deviceNotificationsEnabled: boolean;
   notificationConfigured: boolean;
   selectedRacerCanOptOutOfVisibleTournament: boolean;
-  selectedRacerHasEmail: boolean;
   selectedRacerInCurrentRace: boolean;
   selectedRacerIsInActiveTournament: boolean;
   shouldShowNotificationPrompt: boolean;
@@ -409,9 +372,6 @@ interface RacerPageViewProps {
   activeModalNotification: RacerNotification | null;
   activeTabs: { id: RacerTabId; label: string }[];
   activeTournament: TournamentBundle | undefined;
-  authBusy: boolean;
-  authFormProps: AuthFormProps;
-  authMessage: string | null;
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
   bracketPresentationRequest: BracketPresentationRequest | null;
@@ -429,17 +389,16 @@ interface RacerPageViewProps {
   handleAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   handleChallengeRacer: (opponentRacerId: string) => void;
   handleEnableNotifications: () => Promise<void>;
-  handleAccountClaim: (input: {
-    displayName: string;
-    email: string;
-    phone?: string;
-  }) => Promise<void>;
   handleQueueSignup: (input: {
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
     replaceQueueEntryId?: string;
   }) => Promise<void>;
-  handleSignOut: () => Promise<void>;
+  cancelSignOut: () => void;
+  confirmSignOut: () => Promise<void>;
+  requestSignOut: () => void;
+  signOutBusy: boolean;
+  signOutConfirmOpen: boolean;
   handleTabChange: (tabId: RacerTabId) => void;
   handleTournamentOptOut: () => Promise<void>;
   layoutTransition: MotionProps["transition"];
@@ -457,6 +416,7 @@ interface RacerPageViewProps {
   racerContentRef: RefObject<HTMLDivElement | null>;
   racerNotifications: RacerNotification[];
   reduceMotion: boolean;
+  registration: ReactNode;
   requestLeaveQueue: () => void;
   requestLeaveQueueEntry: (entry: AppSnapshot["queue"][number]) => void;
   requestTournamentOptOut: () => Promise<void>;
@@ -471,8 +431,6 @@ interface RacerPageViewProps {
   setQueueIssueModal: Dispatch<SetStateAction<QueueIssueModal | null>>;
   setSelectedOpponent: Dispatch<SetStateAction<string>>;
   setSelectedRacerDetailId: Dispatch<SetStateAction<string | null>>;
-  setUpgradeDisplayName: Dispatch<SetStateAction<string>>;
-  setUpgradeEmail: Dispatch<SetStateAction<string>>;
   supportingCardMotion: MotionProps;
   tournamentOptOutConfirmOpen: boolean;
   tournamentOptOutMessage: string | null;
@@ -480,8 +438,6 @@ interface RacerPageViewProps {
   tournaments: TournamentBundle[];
   unreadNotificationCount: number;
   upcoming: AppSnapshot["queue"];
-  upgradeDisplayName: string;
-  upgradeEmail: string;
   visibleActiveTab: RacerTabId;
   visibleSelectedRacerDetailId: string | null;
   visibleTournament: TournamentBundle | null;
@@ -491,31 +447,24 @@ function useRacerPageViewModel({
   focusEventId,
   initialTab
 }: RacerPageProps): RacerPageViewProps | null {
-  const snapshotQuery = useSnapshotQuery();
+  const snapshotQuery = useSnapshotQuery("racer");
   const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
   const notificationConfigQuery = useNotificationConfigQuery();
   const { showToast } = useToast();
   const [state, setState] = useReducer(racerPageReducer, initialTab, createInitialRacerPageState);
   const {
-    accountlessDisplayName,
     activeTab,
-    authBusy,
-    authMessage,
-    authMode,
     avatarUploadBusy,
     avatarUploadMessage,
     bracketPresentationRequest,
     challengeReplacementRequest,
     deviceNotificationsEnabled,
-    displayName,
-    email,
     expandedBracketTournamentId,
     modalActionMessage,
     modalNotifications,
     notificationMessage,
     notificationPromptVisible,
-    phone,
     queueIssueModal,
     queueLeaveBusy,
     queueLeaveRequest,
@@ -523,12 +472,11 @@ function useRacerPageViewModel({
     selectedOpponent,
     selectedRacerDetailId,
     selectedRacerId,
-    signedInRacerHasEmail,
+    signOutBusy,
+    signOutConfirmOpen,
     tournamentOptOutBusy,
     tournamentOptOutConfirmOpen,
-    tournamentOptOutMessage,
-    upgradeDisplayName,
-    upgradeEmail
+    tournamentOptOutMessage
   } = state;
   function patchState<Key extends keyof RacerPageState>(
     key: Key,
@@ -536,27 +484,6 @@ function useRacerPageViewModel({
   ): void {
     setState({ [key]: resolveStateAction(action, state[key]) });
   }
-  const setDisplayName: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("displayName", action);
-  };
-  const setAccountlessDisplayName: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("accountlessDisplayName", action);
-  };
-  const setEmail: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("email", action);
-  };
-  const setPhone: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("phone", action);
-  };
-  const setAuthMode: Dispatch<SetStateAction<RacerPageState["authMode"]>> = (action) => {
-    patchState("authMode", action);
-  };
-  const setAuthBusy: Dispatch<SetStateAction<boolean>> = (action) => {
-    patchState("authBusy", action);
-  };
-  const setAuthMessage: Dispatch<SetStateAction<string | null>> = (action) => {
-    patchState("authMessage", action);
-  };
   const setQueueMessage: Dispatch<SetStateAction<string | null>> = (action) => {
     patchState("queueMessage", action);
   };
@@ -599,12 +526,6 @@ function useRacerPageViewModel({
   const setAvatarUploadBusy: Dispatch<SetStateAction<boolean>> = (action) => {
     patchState("avatarUploadBusy", action);
   };
-  const setUpgradeEmail: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("upgradeEmail", action);
-  };
-  const setUpgradeDisplayName: Dispatch<SetStateAction<string>> = (action) => {
-    patchState("upgradeDisplayName", action);
-  };
   const prefersReducedMotion = useReducedMotion();
   const reduceMotion = prefersReducedMotion === true;
   const setSelectedOpponent: Dispatch<SetStateAction<string>> = (action) => {
@@ -628,26 +549,6 @@ function useRacerPageViewModel({
   const paymentReturnState = new URLSearchParams(window.location.search).get("payment");
   const paymentReturnId = new URLSearchParams(window.location.search).get("payment_id");
   const launchedNotificationId = new URLSearchParams(window.location.search).get("notificationId");
-  const [accountlessId, setAccountlessId] = useState(() => {
-    const existing =
-      localStorage.getItem("roller-rumble.accountlessId") ??
-      localStorage.getItem("roller-rumble.anonymousId");
-    if (existing) {
-      localStorage.setItem("roller-rumble.accountlessId", existing);
-      return existing;
-    }
-
-    const created = crypto.randomUUID();
-    localStorage.setItem("roller-rumble.accountlessId", created);
-    return created;
-  });
-
-  function rotateAccountlessId(): void {
-    const created = crypto.randomUUID();
-    localStorage.setItem("roller-rumble.accountlessId", created);
-    localStorage.removeItem("roller-rumble.anonymousId");
-    setAccountlessId(created);
-  }
   const racerNotificationsQuery = useRacerNotificationsQuery(Boolean(selectedRacerId));
 
   const refreshDeviceNotificationState = useEffectEvent(async (): Promise<void> => {
@@ -670,18 +571,15 @@ function useRacerPageViewModel({
       if (cancelled) {
         return;
       }
-      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+      queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
       if (result.racer) {
         rememberRacerSessionToken(result.sessionToken);
         localStorage.setItem("roller-rumble.racerId", result.racer.id);
-        setState({
-          selectedRacerId: result.racer.id,
-          signedInRacerHasEmail: Boolean(result.racer.email)
-        });
+        setState({ selectedRacerId: result.racer.id });
       } else {
         forgetRacerSessionToken();
         localStorage.removeItem("roller-rumble.racerId");
-        setState({ selectedRacerId: "", signedInRacerHasEmail: false });
+        setState({ selectedRacerId: "" });
       }
     }
     fireAndForget(hydrateSession(), "hydrate racer session");
@@ -828,152 +726,55 @@ function useRacerPageViewModel({
     racerNotificationsQuery.data
   ]);
 
-  function rememberSignedInRacer(result: {
-    racer: { id: string; displayName: string; email: string | null };
-    snapshot?: AppSnapshot;
-    sessionToken?: string | null;
-  }): void {
+  // Finishing the registration wizard lands the racer on the race page with their device login.
+  function rememberRegisteredRacer(result: RacerAuthSuccessResponse): void {
     rememberRacerSessionToken(result.sessionToken);
-    if (result.snapshot) {
-      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
-    }
+    queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
     localStorage.setItem("roller-rumble.racerId", result.racer.id);
-    setState({
-      selectedRacerId: result.racer.id,
-      signedInRacerHasEmail: Boolean(result.racer.email)
-    });
+    setState({ selectedRacerId: result.racer.id });
     setActiveTab("race");
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
     window.history.replaceState(window.history.state, "", url);
-    setAuthMessage(null);
     setQueueMessage(null);
     setAvatarUploadMessage(null);
   }
 
-  async function handleEmailSignIn(): Promise<void> {
-    setAuthBusy(true);
-    setAuthMessage(null);
+  function requestSignOut(): void {
+    setState({ signOutConfirmOpen: true });
+  }
+
+  function cancelSignOut(): void {
+    setState({ signOutConfirmOpen: false });
+  }
+
+  // A device login can't be recovered (ADR-0024), so signing out forgets this racer on the phone
+  // for good and returns to the start of the registration wizard.
+  async function confirmSignOut(): Promise<void> {
+    setState({ signOutBusy: true });
     try {
-      const result = await startPasskeySignIn(email);
-      if (result.status === "register_required") {
-        setAuthMode("register");
-        setDisplayName("");
-        return;
-      }
-      if (result.status === "host_assist") {
-        setAuthMode("host-assist");
-        setAuthMessage(result.message);
-        return;
-      }
-
-      const credential = await startAuthentication({
-        optionsJSON: result.options as AuthenticationOptionsJSON
-      });
-      const signedIn = await finishPasskeySignIn({
-        challengeId: result.challengeId,
-        response: credential
-      });
-      rememberSignedInRacer(signedIn);
-      // The device is a known account now — retire its accountless identity so a
-      // later "Continue accountless" can't resurrect a prior racer (ADR-0016).
-      rotateAccountlessId();
+      const result = await signOutRacer();
+      queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
     } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : "Could not sign in.");
-    } finally {
-      setAuthBusy(false);
+      showToast({
+        message: error instanceof Error ? error.message : "Could not sign out. Try again.",
+        variant: "error"
+      });
+      setState({ signOutBusy: false, signOutConfirmOpen: false });
+      return;
     }
-  }
-
-  async function handlePasskeyRegistration(input: {
-    email: string;
-    displayName: string;
-    phone?: string;
-  }): Promise<void> {
-    setAuthBusy(true);
-    setAuthMessage(null);
-    try {
-      const result = await startPasskeyRegistration(input);
-      if (result.status === "host_assist") {
-        setAuthMode("host-assist");
-        setAuthMessage(result.message);
-        return;
-      }
-
-      const credential = await startRegistration({
-        optionsJSON: result.options as RegistrationOptionsJSON
-      });
-      const registered = await finishPasskeyRegistration({
-        challengeId: result.challengeId,
-        response: credential
-      });
-      rememberSignedInRacer(registered);
-      // A brand-new account owns the device now — retire the accountless
-      // identity so it can't later resurrect a prior racer (ADR-0016).
-      rotateAccountlessId();
-      setAuthMode("email");
-    } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : "Could not register passkey.");
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  // Claiming attaches an email + passkey to the current accountless racer,
-  // keeping its id and history — so it does NOT rotate the accountless identity
-  // the way registration and sign-in do (ADR-0016).
-  async function handleAccountClaim(input: {
-    email: string;
-    displayName: string;
-    phone?: string;
-  }): Promise<void> {
-    setAuthBusy(true);
-    setAuthMessage(null);
-    try {
-      const result = await startAccountClaim(input);
-      if (result.status === "host_assist") {
-        setAuthMode("host-assist");
-        setAuthMessage(result.message);
-        return;
-      }
-
-      const credential = await startRegistration({
-        optionsJSON: result.options as RegistrationOptionsJSON
-      });
-      const claimed = await finishAccountClaim({
-        challengeId: result.challengeId,
-        response: credential
-      });
-      rememberSignedInRacer(claimed);
-      setUpgradeEmail("");
-      setUpgradeDisplayName("");
-    } catch (error) {
-      setAuthMessage(error instanceof Error ? error.message : "Could not secure this account.");
-    } finally {
-      setAuthBusy(false);
-    }
-  }
-
-  async function handleContinueAccountless(): Promise<void> {
-    const result = await createAccountlessRacerSession({
-      displayName: accountlessDisplayName.trim(),
-      accountlessId
-    });
-    rememberSignedInRacer(result);
-  }
-
-  async function handleSignOut(): Promise<void> {
-    await signOutRacer();
     forgetRacerSessionToken();
     localStorage.removeItem("roller-rumble.racerId");
-    // Rotate the device's accountless identity so registering again creates a new
-    // racer instead of renaming the one that just signed out.
-    rotateAccountlessId();
-    setState({ selectedRacerId: "", signedInRacerHasEmail: false });
-    setAvatarUploadMessage(null);
-    setNotificationPromptVisible(false);
-    setNotificationMessage(null);
-    setTournamentOptOutMessage(null);
+    clearRegistrationDraft();
+    setState({
+      avatarUploadMessage: null,
+      notificationMessage: null,
+      notificationPromptVisible: false,
+      selectedRacerId: "",
+      signOutBusy: false,
+      signOutConfirmOpen: false,
+      tournamentOptOutMessage: null
+    });
   }
 
   async function saveGrantedNotificationSubscription(
@@ -1116,11 +917,11 @@ function useRacerPageViewModel({
           opponentRacerId: result.opponentRacerId,
           replaceableMatches: result.replaceableMatches
         });
-        queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+        queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
         setQueueMessage(null);
         return;
       }
-      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+      queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
       setQueueMessage(null);
       setNotificationPromptVisible(true);
       showQueueSignupToast(input);
@@ -1160,7 +961,7 @@ function useRacerPageViewModel({
     setAvatarUploadMessage(null);
     try {
       const nextSnapshot = await uploadAvatar(selectedRacerId, file);
-      queryClient.setQueryData(snapshotQueryKey, nextSnapshot);
+      queryClient.setQueryData(racerSnapshotQueryKey, nextSnapshot);
       input.value = "";
       setAvatarUploadMessage("Avatar updated.");
     } catch (error) {
@@ -1215,7 +1016,7 @@ function useRacerPageViewModel({
         request.mode === "all"
           ? await leaveRacerQueue()
           : await leaveRacerQueueEntry(request.entryId ?? "");
-      queryClient.setQueryData(snapshotQueryKey, nextSnapshot);
+      queryClient.setQueryData(racerSnapshotQueryKey, nextSnapshot);
       showToast({
         message: request.mode === "all" ? "You've left the queue." : "You've left that race."
       });
@@ -1249,7 +1050,7 @@ function useRacerPageViewModel({
     setModalActionMessage(null);
     try {
       const result = await optOutOfCurrentTournament();
-      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+      queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
       setTournamentOptOutMessage(result.message);
       setModalActionMessage(result.message);
     } catch (error) {
@@ -1276,10 +1077,8 @@ function useRacerPageViewModel({
     .toSorted((left, right) => left.position - right.position)
     .at(0);
   const selectedRacerAvatarUrl = resolveBackendAssetUrl(selectedRacer?.racer.avatarUrl);
-  const selectedRacerHasEmail = Boolean(selectedRacer) && signedInRacerHasEmail;
   const canBrowsePublicRacerInfo =
     Boolean(selectedRacer) || snapshot.settings.showPublicRacerInfoWithoutLogin;
-  const canContinueAccountless = snapshot.settings.allowAccountlessRacerSignup;
   const upcoming = focusEventId
     ? snapshot.queue.filter((entry) => entry.eventId === focusEventId)
     : snapshot.queue;
@@ -1344,7 +1143,6 @@ function useRacerPageViewModel({
     (notificationPromptVisible ||
       paymentReturnState === "success" ||
       selectedRacerQueueEntries.length > 0);
-  const passkeyUnavailableMessage = getPasskeyUnavailableMessage();
   const currentRace = snapshot.raceProjection.race;
   const currentRaceNames = currentRace
     ? currentRace.participants
@@ -1408,38 +1206,20 @@ function useRacerPageViewModel({
     fireAndForget(handleQueueSignup({ opponentRacerId }), "challenge racer");
   }
 
-  const authFormProps: AuthFormProps = {
-    accountlessDisplayName,
-    authBusy,
-    authMessage,
-    authMode,
-    canContinueAccountless,
-    displayName,
-    email,
-    onContinueAccountless: handleContinueAccountless,
-    onEmailSignIn: handleEmailSignIn,
-    onPasskeyRegistration: handlePasskeyRegistration,
-    passkeyUnavailableMessage,
-    phone,
-    setAccountlessDisplayName,
-    setAuthMessage,
-    setAuthMode,
-    setDisplayName,
-    setEmail,
-    setPhone
-  };
+  const registration = (
+    <RegistrationWizard event={snapshot.activeEvent} onRegistered={rememberRegisteredRacer} />
+  );
 
   return {
     activeModalNotification,
     activeTabs,
     activeTournament,
-    authBusy,
-    authFormProps,
-    authMessage,
     avatarUploadBusy,
     avatarUploadMessage,
     bracketPresentationRequest,
+    cancelSignOut,
     challengeReplacementRequest,
+    confirmSignOut,
     currentRace,
     currentRaceNames,
     dismissNotificationModal,
@@ -1453,7 +1233,6 @@ function useRacerPageViewModel({
       deviceNotificationsEnabled,
       notificationConfigured: Boolean(notificationConfigQuery.data?.configured),
       selectedRacerCanOptOutOfVisibleTournament,
-      selectedRacerHasEmail,
       selectedRacerInCurrentRace,
       selectedRacerIsInActiveTournament,
       shouldShowNotificationPrompt,
@@ -1468,9 +1247,7 @@ function useRacerPageViewModel({
     handleAvatarUpload,
     handleChallengeRacer,
     handleEnableNotifications,
-    handleAccountClaim,
     handleQueueSignup,
-    handleSignOut,
     handleTabChange,
     handleTournamentOptOut,
     layoutTransition,
@@ -1492,8 +1269,10 @@ function useRacerPageViewModel({
     racerContentRef,
     racerNotifications,
     reduceMotion,
+    registration,
     requestLeaveQueue,
     requestLeaveQueueEntry,
+    requestSignOut,
     requestTournamentOptOut,
     selectedOpponent,
     selectedRacer,
@@ -1506,8 +1285,8 @@ function useRacerPageViewModel({
     setQueueIssueModal,
     setSelectedOpponent,
     setSelectedRacerDetailId,
-    setUpgradeDisplayName,
-    setUpgradeEmail,
+    signOutBusy,
+    signOutConfirmOpen,
     supportingCardMotion,
     tournamentOptOutConfirmOpen,
     tournamentOptOutMessage,
@@ -1515,8 +1294,6 @@ function useRacerPageViewModel({
     tournaments,
     unreadNotificationCount,
     upcoming,
-    upgradeDisplayName,
-    upgradeEmail,
     visibleActiveTab,
     visibleSelectedRacerDetailId,
     visibleTournament
@@ -1547,16 +1324,15 @@ function RacerPageView({
   activeModalNotification,
   activeTabs,
   activeTournament,
-  authBusy,
-  authFormProps,
-  authMessage,
   avatarUploadBusy,
   avatarUploadMessage,
   bracketPresentationRequest,
   cancelQueueLeave,
+  cancelSignOut,
   cancelTournamentOptOut,
   challengeReplacementRequest,
   confirmQueueLeave,
+  confirmSignOut,
   currentRace,
   currentRaceNames,
   dismissNotificationModal,
@@ -1567,9 +1343,7 @@ function RacerPageView({
   handleAvatarUpload,
   handleChallengeRacer,
   handleEnableNotifications,
-  handleAccountClaim,
   handleQueueSignup,
-  handleSignOut,
   handleTabChange,
   handleTournamentOptOut,
   layoutTransition,
@@ -1587,8 +1361,10 @@ function RacerPageView({
   racerContentRef,
   racerNotifications,
   reduceMotion,
+  registration,
   requestLeaveQueue,
   requestLeaveQueueEntry,
+  requestSignOut,
   requestTournamentOptOut,
   selectedOpponent,
   selectedRacer,
@@ -1601,8 +1377,8 @@ function RacerPageView({
   setQueueIssueModal,
   setSelectedOpponent,
   setSelectedRacerDetailId,
-  setUpgradeDisplayName,
-  setUpgradeEmail,
+  signOutBusy,
+  signOutConfirmOpen,
   supportingCardMotion,
   tournamentOptOutConfirmOpen,
   tournamentOptOutMessage,
@@ -1610,8 +1386,6 @@ function RacerPageView({
   tournaments,
   unreadNotificationCount,
   upcoming,
-  upgradeDisplayName,
-  upgradeEmail,
   visibleActiveTab,
   visibleSelectedRacerDetailId,
   visibleTournament
@@ -1623,7 +1397,6 @@ function RacerPageView({
     deviceNotificationsEnabled,
     notificationConfigured,
     selectedRacerCanOptOutOfVisibleTournament,
-    selectedRacerHasEmail,
     selectedRacerInCurrentRace,
     selectedRacerIsInActiveTournament,
     shouldShowNotificationPrompt,
@@ -1665,7 +1438,6 @@ function RacerPageView({
               >
                 <RaceDashboard
                   activeTournament={activeTournament ?? null}
-                  authFormProps={authFormProps}
                   canBrowsePublicRacerInfo={canBrowsePublicRacerInfo}
                   currentRace={currentRace ?? null}
                   currentRaceNames={currentRaceNames}
@@ -1677,6 +1449,7 @@ function RacerPageView({
                   paymentReturnState={paymentReturnState}
                   queueMessage={queueMessage}
                   queuePreviewEntries={raceQueuePreviewEntries}
+                  registration={registration}
                   selectedOpponent={selectedOpponent}
                   selectedRacer={selectedRacer}
                   selectedRacerCanOptOutOfVisibleTournament={
@@ -1700,9 +1473,6 @@ function RacerPageView({
 
             {!bracketExpanded && visibleActiveTab === "me" ? (
               <MeTab
-                authBusy={authBusy}
-                authFormProps={authFormProps}
-                authMessage={authMessage}
                 avatarUploadBusy={avatarUploadBusy}
                 avatarUploadMessage={avatarUploadMessage}
                 deviceNotificationsEnabled={deviceNotificationsEnabled}
@@ -1713,22 +1483,17 @@ function RacerPageView({
                 onAvatarUpload={handleAvatarUpload}
                 onEnableNotifications={handleEnableNotifications}
                 onMarkNotificationRead={onMarkNotificationRead}
-                onAccountClaim={handleAccountClaim}
-                onSignOut={handleSignOut}
+                onSignOut={requestSignOut}
                 photoBoothEnabled={liveSnapshot.photoBooth.enabled}
                 racerNotifications={racerNotifications}
+                registration={registration}
                 selectedRacer={selectedRacer}
                 selectedRacerAvatarUrl={selectedRacerAvatarUrl}
-                selectedRacerHasEmail={selectedRacerHasEmail}
-                setUpgradeDisplayName={setUpgradeDisplayName}
-                setUpgradeEmail={setUpgradeEmail}
                 shouldShowNotificationPrompt={shouldShowNotificationPrompt}
                 showNotificationDebugList={showNotificationDebugList}
                 supportingCardMotion={supportingCardMotion}
                 unreadNotificationCount={unreadNotificationCount}
                 upcoming={upcoming}
-                upgradeDisplayName={upgradeDisplayName}
-                upgradeEmail={upgradeEmail}
                 visibleTournament={visibleTournament}
               />
             ) : null}
@@ -1836,6 +1601,19 @@ function RacerPageView({
         busy={queueLeaveBusy}
         onCancel={cancelQueueLeave}
         onConfirm={confirmQueueLeave}
+      />
+      <ConfirmModal
+        open={signOutConfirmOpen}
+        busy={signOutBusy}
+        eyebrow="Sign Out"
+        title="This racer will be gone from this phone"
+        body="There is no password or email sign-in, so once you sign out you can't get this racer back on this phone. Your races, queue spots, and photo stay behind. To race again you'll register as a brand new racer."
+        cancelLabel="Stay signed in"
+        confirmLabel={signOutBusy ? "Signing out..." : "Sign out for good"}
+        onCancel={cancelSignOut}
+        onConfirm={() => {
+          fireAndForget(confirmSignOut(), "sign out racer");
+        }}
       />
     </LayoutGroup>
   );

@@ -639,7 +639,7 @@ function RacePageView({ model }: { model: RacePageViewModel }) {
 }
 
 function useRacePageViewModel(): RacePageViewModel | null {
-  const snapshotQuery = useSnapshotQuery();
+  const snapshotQuery = useSnapshotQuery("projector");
   const metaQuery = useMetaQuery();
   const snapshot = snapshotQuery.data ?? null;
   const meta = metaQuery.data ?? null;

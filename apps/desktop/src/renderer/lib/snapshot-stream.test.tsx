@@ -101,7 +101,7 @@ describe("useSnapshotStream reconnect", () => {
     act(() => latestSocket().emitOpen());
     expect(result.current).toBe(true);
     // Reopening pulls the current snapshot so a frozen page catches up immediately.
-    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: snapshotQueryKey });
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: snapshotQueryKey("racer") });
   });
 
   it("stops reconnecting once unmounted", () => {

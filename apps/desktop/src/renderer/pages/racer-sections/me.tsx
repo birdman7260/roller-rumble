@@ -5,14 +5,12 @@ import type {
   RacerSummary,
   TournamentBundle
 } from "@roller-rumble/shared/types";
-import { Button, Panel, TextInput } from "@roller-rumble/shared-ui";
+import { Button, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { useEffect, useState } from "react";
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 import { createRacerPhotoBoothToken } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
-import { AuthForm } from "./auth";
-import type { AuthFormProps } from "./auth";
 import { ExpandedRacerStats } from "./stats";
 import type { SectionMotionProps } from "./shared";
 
@@ -109,9 +107,6 @@ function PhotoBoothCard() {
 }
 
 export function MeTab({
-  authBusy,
-  authFormProps,
-  authMessage,
   avatarUploadBusy,
   avatarUploadMessage,
   deviceNotificationsEnabled,
@@ -121,28 +116,20 @@ export function MeTab({
   onAvatarUpload,
   onEnableNotifications,
   onMarkNotificationRead,
-  onAccountClaim,
   onSignOut,
   photoBoothEnabled,
   racerNotifications,
+  registration,
   selectedRacer,
   selectedRacerAvatarUrl,
-  selectedRacerHasEmail,
   shouldShowNotificationPrompt,
   showNotificationDebugList,
   unreadNotificationCount,
   upcoming,
-  upgradeDisplayName,
-  upgradeEmail,
   visibleTournament,
-  setUpgradeDisplayName,
-  setUpgradeEmail,
   layoutTransition,
   supportingCardMotion
 }: SectionMotionProps & {
-  authBusy: boolean;
-  authFormProps: AuthFormProps;
-  authMessage: string | null;
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
   deviceNotificationsEnabled: boolean;
@@ -152,22 +139,18 @@ export function MeTab({
   onAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
   onEnableNotifications: () => Promise<void>;
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
-  onAccountClaim: (input: { displayName: string; email: string }) => Promise<void>;
-  onSignOut: () => Promise<void>;
+  onSignOut: () => void;
   photoBoothEnabled: boolean;
   racerNotifications: RacerNotification[];
+  /** The registration wizard, shown while this phone has no racer signed in. */
+  registration: ReactNode;
   selectedRacer?: RacerSummary | null;
   selectedRacerAvatarUrl: string | null;
-  selectedRacerHasEmail: boolean;
   shouldShowNotificationPrompt: boolean;
   showNotificationDebugList: boolean;
   unreadNotificationCount: number;
   upcoming: QueueEntry[];
-  upgradeDisplayName: string;
-  upgradeEmail: string;
   visibleTournament: TournamentBundle | null;
-  setUpgradeDisplayName: (value: string) => void;
-  setUpgradeEmail: (value: string) => void;
 }) {
   return (
     <m.div
@@ -227,12 +210,7 @@ export function MeTab({
               <p>{avatarUploadBusy ? "Uploading avatar…" : avatarUploadMessage}</p>
             ) : null}
             <div className="button-row">
-              <Button
-                variant="ghost"
-                onClick={() => {
-                  fireAndForget(onSignOut(), "sign out racer");
-                }}
-              >
+              <Button variant="ghost" onClick={onSignOut}>
                 Sign out
               </Button>
             </div>
@@ -331,54 +309,9 @@ export function MeTab({
                 ) : null}
               </>
             ) : null}
-            {!selectedRacerHasEmail ? (
-              <div className="stack-sm">
-                <div className="racer-section-heading">
-                  <strong>Secure This Account</strong>
-                  <p>Add an email and passkey so this racer profile can come with you.</p>
-                </div>
-                <label htmlFor="racer-upgrade-email">
-                  Email
-                  <TextInput
-                    id="racer-upgrade-email"
-                    value={upgradeEmail}
-                    onChange={(event) => {
-                      setUpgradeEmail(event.target.value);
-                    }}
-                    placeholder="email@example.com"
-                  />
-                </label>
-                <label htmlFor="racer-upgrade-display-name">
-                  Display name
-                  <TextInput
-                    id="racer-upgrade-display-name"
-                    value={upgradeDisplayName}
-                    onChange={(event) => {
-                      setUpgradeDisplayName(event.target.value);
-                    }}
-                    placeholder={selectedRacer.racer.displayName}
-                  />
-                </label>
-                <Button
-                  disabled={!upgradeEmail || authBusy}
-                  onClick={() => {
-                    fireAndForget(
-                      onAccountClaim({
-                        email: upgradeEmail,
-                        displayName: upgradeDisplayName.trim() || selectedRacer.racer.displayName
-                      }),
-                      "claim racer account"
-                    );
-                  }}
-                >
-                  Create Passkey
-                </Button>
-                {authMessage ? <p className="form-error">{authMessage}</p> : null}
-              </div>
-            ) : null}
           </div>
         ) : (
-          <AuthForm {...authFormProps} />
+          registration
         )}
       </Panel>
       {photoBoothEnabled && selectedRacer && !selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}

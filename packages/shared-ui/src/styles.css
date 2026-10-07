@@ -499,3 +499,102 @@ textarea,
     animation-name: toast-leave-fade;
   }
 }
+
+/* Hidden on screen, still read by screen readers. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Step progress — a multi-step flow's progress bar. Each step is a numbered marker joined to the
+   previous one by a rail; finished and current steps fill with the accent colour. */
+.step-progress__list {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.step-progress__step {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--theme-text-muted);
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+.step-progress__step + .step-progress__step::before {
+  content: "";
+  position: absolute;
+  top: 0.95rem;
+  right: calc(50% + 1.1rem);
+  left: calc(-50% + 1.1rem);
+  height: 2px;
+  border-radius: 999px;
+  background: var(--theme-accent-soft);
+}
+
+.step-progress__marker {
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 2px solid var(--theme-accent-soft);
+  border-radius: 999px;
+  background: var(--theme-surface);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.step-progress__label {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+.step-progress__step--done,
+.step-progress__step--current {
+  color: var(--theme-text);
+}
+
+.step-progress__step--done + .step-progress__step::before {
+  background: var(--theme-accent);
+}
+
+.step-progress__step--done .step-progress__marker {
+  border-color: var(--theme-accent);
+  background: var(--theme-accent);
+  color: var(--theme-surface);
+}
+
+.step-progress__step--current .step-progress__marker {
+  border-color: var(--theme-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--theme-accent) 24%, transparent);
+}
+
+.step-progress__step--current .step-progress__label {
+  font-weight: 700;
+}
+
+:root[data-theme-ui="pixel"] .step-progress__marker {
+  border-radius: 0.35rem;
+}
+
+:root[data-theme-ui="pixel"] .step-progress__step + .step-progress__step::before {
+  border-radius: 0;
+}
+
+:root[data-theme-ui="pixel"] .step-progress__step--current .step-progress__marker {
+  box-shadow: 2px 2px 0 rgba(111, 165, 179, 0.35);
+}

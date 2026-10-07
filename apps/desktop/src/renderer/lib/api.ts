@@ -22,6 +22,7 @@ import type {
   RacerNotification,
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
+  RacerRegistrationInput,
   Racer,
   StripeConnectionTestResult,
   StartTournamentInput,
@@ -127,8 +128,8 @@ async function parseJson<T>(response: Response): Promise<T> {
   return payload as T;
 }
 
-export async function fetchSnapshot(): Promise<AppSnapshot> {
-  return parseJson(await fetch(buildUrl("/api/snapshot")));
+export async function fetchSnapshot(surface: SnapshotStreamSurface): Promise<AppSnapshot> {
+  return parseJson(await fetch(buildUrl(`/api/snapshot?surface=${surface}`)));
 }
 
 export async function fetchMeta(): Promise<{
@@ -248,6 +249,21 @@ export async function signOutRacer(): Promise<RacerAuthSessionResponse> {
   );
 }
 
+// Registration deliberately omits the device login: it always mints a new racer (ADR-0024), so a
+// login the phone already holds can never be renamed or overwritten.
+export async function registerRacer(
+  input: RacerRegistrationInput
+): Promise<RacerAuthSuccessResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/auth/register"), {
+      method: "POST",
+      headers: buildJsonHeaders(),
+      credentials: "include",
+      body: JSON.stringify(input)
+    })
+  );
+}
+
 export async function startPasskeySignIn(email: string): Promise<PasskeySignInStartResponse> {
   return parseJson(
     await fetch(buildUrl("/api/auth/passkeys/sign-in/options"), {
@@ -342,7 +358,8 @@ export async function createAccountlessRacerSession(
   );
 }
 
-export async function registerRacer(
+/** The admin desk's add-racer form: always inserts a new racer (ADR-0024). */
+export async function addRacerAtDesk(
   input: CreateRacerInput
 ): Promise<{ racer: Racer; snapshot: AppSnapshot }> {
   return parseJson(
@@ -766,12 +783,13 @@ export async function removeRacerFromQueueEntry(
   );
 }
 
+// Only the racer page uploads avatars, so it asks for the racer snapshot back.
 export async function uploadAvatar(racerId: string, file: File): Promise<AppSnapshot> {
   const form = new FormData();
   form.append("avatar", file);
 
   return parseJson(
-    await fetch(buildUrl(`/api/racers/${racerId}/avatar`), {
+    await fetch(buildUrl(`/api/racers/${racerId}/avatar?surface=racer`), {
       method: "POST",
       body: form
     })
@@ -780,7 +798,7 @@ export async function uploadAvatar(racerId: string, file: File): Promise<AppSnap
 
 export type SnapshotStreamSurface = "admin" | "projector" | "racer";
 
-export function createWebSocketUrl(surface?: SnapshotStreamSurface): string {
+export function createWebSocketUrl(surface: SnapshotStreamSurface): string {
   return createWebSocketUrlFromApiBase(apiBase, surface);
 }
 

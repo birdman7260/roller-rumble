@@ -1,7 +1,7 @@
 import { useReducer } from "react";
 import { createRacerSchema } from "@roller-rumble/shared/validation";
 import { Button, Panel, TextInput } from "@roller-rumble/shared-ui";
-import { registerRacer } from "../../lib/api";
+import { addRacerAtDesk } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
 
 interface QuickAddRacerState {
@@ -59,7 +59,7 @@ export function QuickAddRacerPanel() {
 
     update({ saving: true, message: null });
     try {
-      const { racer } = await registerRacer(parsed.data);
+      const { racer } = await addRacerAtDesk(parsed.data);
       update({ ...emptyQuickAddRacerState, message: `Added ${racer.displayName}.` });
     } catch (error) {
       update({

@@ -160,7 +160,7 @@ function resolveTargetRacerIds(
 }
 
 export function NotificationLabPage() {
-  const snapshotQuery = useSnapshotQuery();
+  const snapshotQuery = useSnapshotQuery("admin");
   const notificationConfigQuery = useNotificationConfigQuery();
   const queryClient = useQueryClient();
   const snapshot = snapshotQuery.data;
@@ -222,7 +222,7 @@ export function NotificationLabPage() {
         type: notificationType,
         url: url.trim() || "/racer"
       });
-      queryClient.setQueryData(snapshotQueryKey, result.snapshot);
+      queryClient.setQueryData(snapshotQueryKey("admin"), result.snapshot);
       setState({
         sendStatus: `Sent ${notificationTypeLabels[notificationType]} to ${result.targetCount} racer${
           result.targetCount === 1 ? "" : "s"

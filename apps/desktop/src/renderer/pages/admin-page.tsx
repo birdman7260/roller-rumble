@@ -65,7 +65,7 @@ function resolveStateAction<T>(action: SetStateAction<T>, currentValue: T): T {
 }
 
 export function AdminPage() {
-  const snapshotQuery = useSnapshotQuery();
+  const snapshotQuery = useSnapshotQuery("admin");
   const metaQuery = useMetaQuery();
   const snapshot = snapshotQuery.data;
   const [state, setState] = useReducer(adminPageReducer, initialAdminPageState);

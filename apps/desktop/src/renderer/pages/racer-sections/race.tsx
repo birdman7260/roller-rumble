@@ -6,6 +6,7 @@ import type {
   TournamentBundle
 } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
+import type { ReactNode } from "react";
 import {
   describeQueueEntry,
   isLeavableByRacer,
@@ -14,8 +15,6 @@ import {
 import { resolveBackendAssetUrl } from "../../lib/assets";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
-import { AuthForm } from "./auth";
-import type { AuthFormProps } from "./auth";
 import { QueueActions, QueuePreviewPanel } from "./queue";
 import { InlineTabLink } from "./inline-tab-link";
 import type { RacerQueueSignupInput, TournamentRaceCard } from "./shared";
@@ -158,11 +157,10 @@ export function RaceDashboard({
   tournamentOptOutMessage,
   tournamentRaceCards,
   upcoming,
-  visibleTournament,
-  authFormProps
+  registration,
+  visibleTournament
 }: {
   activeTournament: TournamentBundle | null;
-  authFormProps: AuthFormProps;
   canBrowsePublicRacerInfo: boolean;
   currentRace: RaceRecord | null;
   currentRaceNames: string | null;
@@ -174,6 +172,8 @@ export function RaceDashboard({
   paymentReturnState: string | null;
   queueMessage: string | null;
   queuePreviewEntries: QueueEntry[];
+  /** The registration wizard, shown while this phone has no racer signed in. */
+  registration: ReactNode;
   selectedOpponent: string;
   selectedRacer?: RacerSummary | null;
   selectedRacerCanOptOutOfVisibleTournament: boolean;
@@ -239,9 +239,7 @@ export function RaceDashboard({
     if (!canBrowsePublicRacerInfo) {
       return (
         <div className="racer-card-stack">
-          <Panel title="Register">
-            <AuthForm {...authFormProps} />
-          </Panel>
+          <Panel title="Register">{registration}</Panel>
         </div>
       );
     }
@@ -254,7 +252,7 @@ export function RaceDashboard({
             <div className="racer-signin-cta">
               <strong>Ready to ride?</strong>
               <Button variant="accent" onClick={() => onTabChange("me")}>
-                Sign in or register
+                Register
               </Button>
             </div>
           </Panel>
@@ -283,7 +281,7 @@ export function RaceDashboard({
             <div className="racer-signin-cta">
               <strong>Ready to ride?</strong>
               <Button variant="accent" onClick={() => onTabChange("me")}>
-                Sign in or register
+                Register
               </Button>
             </div>
           </div>

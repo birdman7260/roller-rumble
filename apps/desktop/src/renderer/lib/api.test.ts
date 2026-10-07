@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createWebSocketUrlFromApiBase,
   forgetRacerSessionToken,
+  registerRacer,
   rememberRacerSessionToken,
   resolveApiBase
 } from "./api";
@@ -53,5 +54,41 @@ describe("api routing", () => {
     forgetRacerSessionToken();
 
     expect(localStorage.getItem("roller-rumble.racerSessionToken")).toBeNull();
+  });
+});
+
+describe("registerRacer", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  it("registers without sending the device login the phone already holds", async () => {
+    rememberRacerSessionToken("someone-elses-device-login");
+    const fetchMock = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ racer: { id: "racer-2" }, sessionToken: "new" }), {
+          status: 200
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await registerRacer({
+      realName: "Ada Lovelace",
+      email: "ada@example.com",
+      phone: "555-010-0100",
+      displayName: "Speedy"
+    });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toMatch(/\/api\/auth\/register$/);
+    expect(init.method).toBe("POST");
+    expect(new Headers(init.headers).has("Authorization")).toBe(false);
+    expect(JSON.parse(init.body as string)).toEqual({
+      realName: "Ada Lovelace",
+      email: "ada@example.com",
+      phone: "555-010-0100",
+      displayName: "Speedy"
+    });
   });
 });

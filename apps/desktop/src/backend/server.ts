@@ -423,8 +423,19 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     });
   });
 
-  app.get(`${API_PREFIX}/snapshot`, (_req, res) => {
-    res.json(service.getSnapshot());
+  // Racer phones receive the racer projection on every route that hands them a snapshot, so
+  // operator-only `contact details` never reach a phone (ADR-0024).
+  function racerSnapshot(snapshot: AppSnapshot): AppSnapshot {
+    return service.snapshotForSurface(snapshot, "racer");
+  }
+
+  function snapshotForRequestSurface(req: express.Request, snapshot: AppSnapshot): AppSnapshot {
+    const surface = typeof req.query.surface === "string" ? req.query.surface : null;
+    return service.snapshotForSurface(snapshot, normalizeSnapshotStreamSurface(surface));
+  }
+
+  app.get(`${API_PREFIX}/snapshot`, (req, res) => {
+    res.json(snapshotForRequestSurface(req, service.getSnapshot()));
   });
 
   app.get(`${API_PREFIX}/notifications/config`, (_req, res) => {
@@ -551,7 +562,7 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     const sessionToken = getSessionToken(req);
     res.json({
       racer: service.getRacerAuthSession(sessionToken),
-      snapshot: service.snapshotForSurface(service.getSnapshot(), "racer"),
+      snapshot: racerSnapshot(service.getSnapshot()),
       sessionToken
     });
   });
@@ -570,7 +581,7 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     clearRacerSessionCookie(req, res);
     res.json({
       racer: null,
-      snapshot: service.getSnapshot()
+      snapshot: racerSnapshot(service.getSnapshot())
     });
   });
 
@@ -736,7 +747,12 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
       return;
     }
 
-    res.json(service.setRacerAvatar(String(req.params.racerId), `/uploads/${req.file.filename}`));
+    res.json(
+      snapshotForRequestSurface(
+        req,
+        service.setRacerAvatar(String(req.params.racerId), `/uploads/${req.file.filename}`)
+      )
+    );
   });
 
   app.post(`${API_PREFIX}/events`, (req, res) => {
@@ -758,7 +774,8 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     try {
       const racer = requireRacerSession(req, service);
       const input = racerQueueSignupSchema.parse(req.body);
-      res.json(await service.signUpQueueForRacer(racer.id, input));
+      const result = await service.signUpQueueForRacer(racer.id, input);
+      res.json({ ...result, snapshot: racerSnapshot(result.snapshot) });
     } catch (error) {
       next(error);
     }
@@ -789,7 +806,8 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
 
   app.post(`${API_PREFIX}/racer/tournaments/current/opt-out`, (req, res) => {
     const racer = requireRacerSession(req, service);
-    res.json(service.optOutOfActiveTournament(racer.id));
+    const result = service.optOutOfActiveTournament(racer.id);
+    res.json({ ...result, snapshot: racerSnapshot(result.snapshot) });
   });
 
   // Racer self-service leave. The racer id always comes from the authenticated
@@ -797,17 +815,17 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   // unlike the host's admin `DELETE /queue/...` routes.
   app.delete(`${API_PREFIX}/racer/queue`, (req, res) => {
     const racer = requireRacerSession(req, service);
-    res.json(service.leaveQueueForSessionRacer(racer.id));
+    res.json(racerSnapshot(service.leaveQueueForSessionRacer(racer.id)));
   });
 
   app.delete(`${API_PREFIX}/racer/queue/:entryId`, (req, res) => {
     const racer = requireRacerSession(req, service);
-    res.json(service.leaveQueueEntryForSessionRacer(req.params.entryId, racer.id));
+    res.json(racerSnapshot(service.leaveQueueEntryForSessionRacer(req.params.entryId, racer.id)));
   });
 
   app.post(`${API_PREFIX}/racer/payments/:paymentId/cancel`, (req, res) => {
     const racer = requireRacerSession(req, service);
-    res.json(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId));
+    res.json(racerSnapshot(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId)));
   });
 
   app.post(`${API_PREFIX}/admin/queue`, (req, res) => {
