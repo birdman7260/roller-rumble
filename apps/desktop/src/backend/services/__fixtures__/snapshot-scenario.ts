@@ -186,7 +186,6 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     os2lEnabled: true,
     autoStageNextRace: false,
     includeAllRaceData,
-    allowAccountlessRacerSignup: true,
     showPublicRacerInfoWithoutLogin: true,
     showRacerNotificationDebugList: false,
     raceDisplayLaneColorsFlipped: false,

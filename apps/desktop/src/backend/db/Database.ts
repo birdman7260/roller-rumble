@@ -48,10 +48,8 @@ import {
   eventRacers,
   events,
   groupMatches,
-  identities,
   notificationDeliveries,
   notifications,
-  passkeyCredentials,
   payments,
   processedWebhookEvents,
   pushSubscriptions,
@@ -68,7 +66,6 @@ import * as schema from "./schema";
 
 type OrmDatabase = BetterSQLite3Database<typeof schema>;
 type EventRow = typeof events.$inferSelect;
-type PasskeyCredentialRow = typeof passkeyCredentials.$inferSelect;
 type PaymentRow = typeof payments.$inferSelect;
 type PushSubscriptionRow = typeof pushSubscriptions.$inferSelect;
 type NotificationRow = typeof notifications.$inferSelect;
@@ -82,19 +79,6 @@ type TournamentStageRow = typeof tournamentStages.$inferSelect;
 type BracketNodeRow = typeof bracketNodes.$inferSelect;
 type GroupMatchRow = typeof groupMatches.$inferSelect;
 type BoothCaptureRow = typeof boothCaptures.$inferSelect;
-
-export interface StoredPasskeyCredential {
-  id: string;
-  racerId: string;
-  credentialId: string;
-  publicKey: string;
-  counter: number;
-  transports: string[];
-  deviceType: string;
-  backedUp: boolean;
-  createdAt: string;
-  lastUsedAt?: string | null;
-}
 
 export interface StoredPaymentRecord {
   id: string;
@@ -181,7 +165,6 @@ function getDefaultAdminSettings(): AdminSettings {
     os2lEnabled: false,
     autoStageNextRace: false,
     includeAllRaceData: false,
-    allowAccountlessRacerSignup: false,
     showPublicRacerInfoWithoutLogin: false,
     showRacerNotificationDebugList: false,
     raceDisplayLaneColorsFlipped: false,
@@ -272,21 +255,6 @@ function mapNotification(row: NotificationRow): StoredNotificationRecord {
     supersededAt: row.supersededAt,
     createdBy: row.createdBy,
     createdAt: row.createdAt
-  };
-}
-
-function mapPasskeyCredential(row: PasskeyCredentialRow): StoredPasskeyCredential {
-  return {
-    id: row.id,
-    racerId: row.racerId,
-    credentialId: row.credentialId,
-    publicKey: row.publicKey,
-    counter: row.counter,
-    transports: row.transportsJson,
-    deviceType: row.deviceType,
-    backedUp: row.backedUp,
-    createdAt: row.createdAt,
-    lastUsedAt: row.lastUsedAt
   };
 }
 
@@ -636,15 +604,13 @@ export class AppDatabase {
 
   getAdminSettings(): AdminSettings {
     const defaultValue = getDefaultAdminSettings();
-    const persistedSettings = this.getSetting<
-      Partial<AdminSettings> & { allowAnonymousRacerSignup?: boolean }
-    >("adminSettings", defaultValue).value;
-    const legacyAccountlessToggle = persistedSettings.allowAnonymousRacerSignup;
+    const persistedSettings = this.getSetting<Partial<AdminSettings>>(
+      "adminSettings",
+      defaultValue
+    ).value;
     return {
       ...defaultValue,
-      ...persistedSettings,
-      allowAccountlessRacerSignup:
-        persistedSettings.allowAccountlessRacerSignup ?? legacyAccountlessToggle ?? false
+      ...persistedSettings
     };
   }
 
@@ -760,20 +726,6 @@ export class AppDatabase {
   }
 
   /**
-   * Passkey sign-in and accountless resume still key off the `identities` table until passkeys
-   * and accountless mode are removed. Contact details no longer live there (ADR-0024).
-   */
-  findRacerByIdentity(type: "email" | "anonymous", value: string): Racer | null {
-    const row = this.orm
-      .select({ racerId: identities.racerId })
-      .from(identities)
-      .where(and(eq(identities.type, type), eq(identities.value, value)))
-      .get();
-
-    return row ? this.getRacer(row.racerId) : null;
-  }
-
-  /**
    * Insert a brand-new racer. Every racer-creation path is insert-only (ADR-0024): nothing
    * looks a racer up by contact details, so a repeated email or phone always yields a new racer.
    */
@@ -795,111 +747,6 @@ export class AppDatabase {
       .run();
 
     return this.getRacer(racerId)!;
-  }
-
-  updateRacerRegistration(
-    racerId: string,
-    input: {
-      displayName: string;
-      email: string;
-      phone?: string;
-    }
-  ): Racer | null {
-    this.orm
-      .update(racers)
-      .set({
-        displayName: input.displayName,
-        email: input.email,
-        phone: input.phone ?? null,
-        updatedAt: nowIso()
-      })
-      .where(eq(racers.id, racerId))
-      .run();
-    this.attachIdentity(racerId, "email", input.email);
-    return this.getRacer(racerId);
-  }
-
-  private attachIdentity(racerId: string, type: "email" | "anonymous", value?: string): void {
-    if (!value) {
-      return;
-    }
-
-    this.orm
-      .insert(identities)
-      .values({
-        id: nanoid(),
-        racerId,
-        type,
-        value,
-        createdAt: nowIso()
-      })
-      .onConflictDoNothing()
-      .run();
-  }
-
-  attachRacerIdentity(racerId: string, type: "email" | "anonymous", value: string): Racer | null {
-    this.attachIdentity(racerId, type, value);
-    return this.getRacer(racerId);
-  }
-
-  listPasskeyCredentialsForRacer(racerId: string): StoredPasskeyCredential[] {
-    return this.orm
-      .select()
-      .from(passkeyCredentials)
-      .where(eq(passkeyCredentials.racerId, racerId))
-      .orderBy(asc(passkeyCredentials.createdAt))
-      .all()
-      .map(mapPasskeyCredential);
-  }
-
-  getPasskeyCredentialByCredentialId(credentialId: string): StoredPasskeyCredential | null {
-    const row = this.orm
-      .select()
-      .from(passkeyCredentials)
-      .where(eq(passkeyCredentials.credentialId, credentialId))
-      .get();
-
-    return row ? mapPasskeyCredential(row) : null;
-  }
-
-  createPasskeyCredential(input: {
-    racerId: string;
-    credentialId: string;
-    publicKey: string;
-    counter: number;
-    transports: string[];
-    deviceType: string;
-    backedUp: boolean;
-  }): StoredPasskeyCredential {
-    const createdAt = nowIso();
-    this.orm
-      .insert(passkeyCredentials)
-      .values({
-        id: nanoid(),
-        racerId: input.racerId,
-        credentialId: input.credentialId,
-        publicKey: input.publicKey,
-        counter: input.counter,
-        transportsJson: input.transports,
-        deviceType: input.deviceType,
-        backedUp: input.backedUp,
-        createdAt,
-        lastUsedAt: null
-      })
-      .run();
-
-    return this.getPasskeyCredentialByCredentialId(input.credentialId)!;
-  }
-
-  updatePasskeyCredentialUse(credentialId: string, counter: number): void {
-    this.orm
-      .update(passkeyCredentials)
-      .set({
-        counter,
-        lastUsedAt: nowIso()
-      })
-      .where(eq(passkeyCredentials.credentialId, credentialId))
-      .run();
   }
 
   getRacer(racerId: string): Racer | null {

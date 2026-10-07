@@ -13,17 +13,13 @@ import type { WebSocket } from "ws";
 import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "@roller-rumble/shared/constants";
 import type { AppSnapshot } from "@roller-rumble/shared/types";
 import {
-  accountlessRacerSessionSchema,
   adminTournamentByeFillSchema,
   adminNotificationSchema,
   createEventSchema,
   createPhotoBoothTokenSchema,
   createRacerSchema,
   notificationIdSchema,
-  passkeyChallengeSchema,
-  passkeyEmailSchema,
   managedSettingSaveSchema,
-  passkeyRegistrationStartSchema,
   projectorWindowResizeSchema,
   queueSignupSchema,
   racerQueueSignupSchema,
@@ -43,6 +39,7 @@ import {
   updatePhotoBoothStatusSchema,
   webPushSubscriptionSchema
 } from "@roller-rumble/shared/validation";
+import { readDeviceLogin } from "./device-login";
 import { ensureRuntimeEnvFile, getRuntimeEnvFileInfo, writeWebPushEnvValues } from "./env";
 import { AppHttpError, RollerRumbleApp } from "./services/app";
 import type { SnapshotStreamSurface } from "./services/snapshot-assembler";
@@ -90,7 +87,6 @@ function serializeSnapshotMessage(snapshot: AppSnapshot): string {
   });
 }
 
-const RACER_SESSION_COOKIE = "roller_rumble_racer_session";
 const RACER_SNAPSHOT_STREAM_INTERVAL_MS = 1000;
 // Ping every client on this cadence; a client that misses a full interval
 // without a pong is treated as dead and terminated. This both prunes stale
@@ -111,72 +107,8 @@ export interface BackendServer {
   stop(): Promise<void>;
 }
 
-function parseCookies(header: string | undefined): Record<string, string> {
-  if (!header) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    header.split(";").flatMap((chunk) => {
-      const [name, ...valueParts] = chunk.trim().split("=");
-      if (!name || valueParts.length === 0) {
-        return [];
-      }
-      return [[name, decodeURIComponent(valueParts.join("="))]];
-    })
-  );
-}
-
-function getSessionToken(req: express.Request): string | null {
-  const cookieToken = parseCookies(req.get("cookie"))[RACER_SESSION_COOKIE];
-  if (cookieToken) {
-    return cookieToken;
-  }
-
-  const authorization = req.get("authorization");
-  if (authorization?.toLowerCase().startsWith("bearer ")) {
-    return authorization.slice("bearer ".length).trim();
-  }
-
-  return null;
-}
-
-function getRequestOrigin(req: express.Request): string {
-  const origin = req.get("origin");
-  if (origin) {
-    return new URL(origin).origin;
-  }
-
-  const forwardedProto = req.get("x-forwarded-proto")?.split(",")[0]?.trim();
-  const forwardedHost = req.get("x-forwarded-host")?.split(",")[0]?.trim();
-  const proto = forwardedProto ?? req.protocol;
-  const host = forwardedHost ?? req.get("host") ?? `127.0.0.1:${DEFAULT_SERVER_PORT}`;
-  return `${proto}://${host}`;
-}
-
-function setRacerSessionCookie(req: express.Request, res: express.Response, token: string): void {
-  const origin = getRequestOrigin(req);
-  res.cookie(RACER_SESSION_COOKIE, token, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: origin.startsWith("https://"),
-    path: "/",
-    maxAge: 1000 * 60 * 60 * 24 * 30
-  });
-}
-
-function clearRacerSessionCookie(req: express.Request, res: express.Response): void {
-  const origin = getRequestOrigin(req);
-  res.clearCookie(RACER_SESSION_COOKIE, {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: origin.startsWith("https://"),
-    path: "/"
-  });
-}
-
 function requireRacerSession(req: express.Request, service: RollerRumbleApp) {
-  const racer = service.getRacerAuthSession(getSessionToken(req));
+  const racer = service.getRacerAuthSession(readDeviceLogin(req));
   if (!racer) {
     throw new AppHttpError("Please sign in before continuing.", 401, "auth_required");
   }
@@ -388,7 +320,7 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     }
   });
 
-  app.use(cors({ origin: true, credentials: true }));
+  app.use(cors({ origin: true }));
   app.post(
     `${API_PREFIX}/webhooks/stripe`,
     express.raw({ type: "application/json", limit: "2mb" }),
@@ -559,107 +491,30 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   });
 
   app.get(`${API_PREFIX}/auth/session`, (req, res) => {
-    const sessionToken = getSessionToken(req);
+    const deviceLogin = readDeviceLogin(req);
     res.json({
-      racer: service.getRacerAuthSession(sessionToken),
+      racer: service.getRacerAuthSession(deviceLogin),
       snapshot: racerSnapshot(service.getSnapshot()),
-      sessionToken
+      sessionToken: deviceLogin
     });
   });
 
   app.post(`${API_PREFIX}/auth/register`, (req, res) => {
     const input = racerRegistrationSchema.parse(req.body);
     // Registration never reads the device login the phone holds: it always mints a new racer
-    // (ADR-0024). The cookie is rewritten so a stale one can't keep authenticating as the old racer.
+    // (ADR-0024).
     const result = service.registerRacer(input);
     const sessionToken = service.createRacerSessionToken(result.racer.id);
-    setRacerSessionCookie(req, res, sessionToken);
     res.json({ ...result, sessionToken });
   });
 
-  app.post(`${API_PREFIX}/auth/sign-out`, (req, res) => {
-    clearRacerSessionCookie(req, res);
+  // The device login lives only in the phone's local storage, so signing out is the phone
+  // forgetting it; the server has nothing to clear.
+  app.post(`${API_PREFIX}/auth/sign-out`, (_req, res) => {
     res.json({
       racer: null,
       snapshot: racerSnapshot(service.getSnapshot())
     });
-  });
-
-  app.post(`${API_PREFIX}/auth/passkeys/sign-in/options`, async (req, res, next) => {
-    try {
-      const input = passkeyEmailSchema.parse(req.body);
-      const context = service.getPasskeyRequestContext(getRequestOrigin(req));
-      res.json(await service.startPasskeySignIn(input.email, context));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post(`${API_PREFIX}/auth/passkeys/sign-in/verify`, async (req, res, next) => {
-    try {
-      const input = passkeyChallengeSchema.parse(req.body);
-      const result = await service.finishPasskeySignIn(input.challengeId, input.response);
-      const sessionToken = service.createRacerSessionToken(result.racer.id);
-      setRacerSessionCookie(req, res, sessionToken);
-      res.json({ ...result, sessionToken });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post(`${API_PREFIX}/auth/passkeys/register/options`, async (req, res, next) => {
-    try {
-      const input = passkeyRegistrationStartSchema.parse(req.body);
-      const context = service.getPasskeyRequestContext(getRequestOrigin(req));
-      // Registration never reads the session: it always mints a new racer
-      // account (ADR-0016), so a stale token/cookie can't be overwritten.
-      res.json(await service.startPasskeyRegistration(input, context));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post(`${API_PREFIX}/auth/passkeys/register/verify`, async (req, res, next) => {
-    try {
-      const input = passkeyChallengeSchema.parse(req.body);
-      const result = await service.finishPasskeyRegistration(input.challengeId, input.response);
-      const sessionToken = service.createRacerSessionToken(result.racer.id);
-      setRacerSessionCookie(req, res, sessionToken);
-      res.json({ ...result, sessionToken });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post(`${API_PREFIX}/auth/passkeys/claim/options`, async (req, res, next) => {
-    try {
-      const input = passkeyRegistrationStartSchema.parse(req.body);
-      const context = service.getPasskeyRequestContext(getRequestOrigin(req));
-      const sessionRacer = requireRacerSession(req, service);
-      res.json(await service.startAccountClaim(input, context, sessionRacer.id));
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post(`${API_PREFIX}/auth/passkeys/claim/verify`, async (req, res, next) => {
-    try {
-      const input = passkeyChallengeSchema.parse(req.body);
-      const result = await service.finishAccountClaim(input.challengeId, input.response);
-      const sessionToken = service.createRacerSessionToken(result.racer.id);
-      setRacerSessionCookie(req, res, sessionToken);
-      res.json({ ...result, sessionToken });
-    } catch (error) {
-      next(error);
-    }
-  });
-
-  app.post(`${API_PREFIX}/auth/accountless`, (req, res) => {
-    const input = accountlessRacerSessionSchema.parse(req.body);
-    const result = service.createAccountlessRacerSession(input);
-    const sessionToken = service.createRacerSessionToken(result.racer.id);
-    setRacerSessionCookie(req, res, sessionToken);
-    res.json({ ...result, sessionToken });
   });
 
   app.get(`${API_PREFIX}/booth/status`, async (_req, res) => {

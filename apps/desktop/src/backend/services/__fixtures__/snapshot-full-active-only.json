@@ -7,7 +7,6 @@
     "os2lEnabled": true,
     "autoStageNextRace": false,
     "includeAllRaceData": false,
-    "allowAccountlessRacerSignup": true,
     "showPublicRacerInfoWithoutLogin": true,
     "showRacerNotificationDebugList": false,
     "raceDisplayLaneColorsFlipped": false,

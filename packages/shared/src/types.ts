@@ -2,9 +2,7 @@ import type { SubsystemId } from "./managed-settings";
 import type {
   APP_MODES,
   EVENT_PAYMENT_STATUSES,
-  IDENTITY_TYPES,
   PAYMENT_RECORD_STATUSES,
-  PASSKEY_AUTH_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
   QUEUE_ENTRY_LOCK_TYPES,
   QUEUE_ENTRY_STATUSES,
@@ -26,10 +24,8 @@ import type {
   TOURNAMENT_STATUSES
 } from "./constants";
 
-export type IdentityType = (typeof IDENTITY_TYPES)[number];
 export type EventPaymentStatus = (typeof EVENT_PAYMENT_STATUSES)[number];
 export type PaymentRecordStatus = (typeof PAYMENT_RECORD_STATUSES)[number];
-export type PasskeyAuthStatus = (typeof PASSKEY_AUTH_STATUSES)[number];
 export type AppMode = (typeof APP_MODES)[number];
 export type QueueEntryType = (typeof QUEUE_ENTRY_TYPES)[number];
 export type QueueEntryRequestedType = (typeof QUEUE_ENTRY_REQUESTED_TYPES)[number];
@@ -55,14 +51,6 @@ export interface ProjectorWindowResizeResult {
   preset: ProjectorWindowSizePreset;
   width: number;
   height: number;
-}
-
-export interface Identity {
-  id: string;
-  racerId: string;
-  type: IdentityType;
-  value: string;
-  createdAt: string;
 }
 
 export interface Racer {
@@ -613,7 +601,6 @@ export interface AdminSettings {
   os2lEnabled: boolean;
   autoStageNextRace: boolean;
   includeAllRaceData: boolean;
-  allowAccountlessRacerSignup: boolean;
   showPublicRacerInfoWithoutLogin: boolean;
   showRacerNotificationDebugList: boolean;
   raceDisplayLaneColorsFlipped: boolean;
@@ -770,56 +757,6 @@ export interface RacerEntryCheckoutResponse {
   paymentId: string;
   checkoutUrl: string;
 }
-
-export interface PasskeyEmailInput {
-  email: string;
-}
-
-export interface PasskeyRegistrationStartInput {
-  email: string;
-  displayName: string;
-  phone?: string;
-}
-
-export interface PasskeyChallengeInput {
-  challengeId: string;
-  response: unknown;
-}
-
-export interface AccountlessRacerSessionInput {
-  displayName: string;
-  accountlessId: string;
-}
-
-export type PasskeySignInStartResponse =
-  | {
-      status: "passkey";
-      email: string;
-      challengeId: string;
-      options: unknown;
-    }
-  | {
-      status: "register_required";
-      email: string;
-    }
-  | {
-      status: "host_assist";
-      email: string;
-      message: string;
-    };
-
-export type PasskeyRegistrationStartResponse =
-  | {
-      status: "passkey";
-      email: string;
-      challengeId: string;
-      options: unknown;
-    }
-  | {
-      status: "host_assist";
-      email: string;
-      message: string;
-    };
 
 export interface RacerAuthSessionResponse {
   racer: Racer | null;

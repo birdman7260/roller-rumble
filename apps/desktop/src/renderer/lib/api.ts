@@ -1,5 +1,4 @@
 import type {
-  AccountlessRacerSessionInput,
   AdminTournamentByeFillInput,
   AdminTournamentByeFillResponse,
   AdminTournamentRacerRemovalInput,
@@ -10,10 +9,6 @@ import type {
   PhotoBoothTokenResponse,
   CreateRacerInput,
   NotificationConfig,
-  PasskeyChallengeInput,
-  PasskeyRegistrationStartInput,
-  PasskeyRegistrationStartResponse,
-  PasskeySignInStartResponse,
   ProjectorWindowResizeResult,
   ProjectorWindowSizePreset,
   QueueSignupInput,
@@ -225,7 +220,6 @@ export async function createRacerPhotoBoothToken(): Promise<PhotoBoothTokenRespo
   return parseJson(
     await fetch(buildUrl("/api/racer/booth/tokens"), {
       method: "POST",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -234,7 +228,6 @@ export async function createRacerPhotoBoothToken(): Promise<PhotoBoothTokenRespo
 export async function fetchRacerAuthSession(): Promise<RacerAuthSessionResponse> {
   return parseJson(
     await fetch(buildUrl("/api/auth/session"), {
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -244,7 +237,6 @@ export async function signOutRacer(): Promise<RacerAuthSessionResponse> {
   return parseJson(
     await fetch(buildUrl("/api/auth/sign-out"), {
       method: "POST",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -259,101 +251,6 @@ export async function registerRacer(
     await fetch(buildUrl("/api/auth/register"), {
       method: "POST",
       headers: buildJsonHeaders(),
-      credentials: "include",
-      body: JSON.stringify(input)
-    })
-  );
-}
-
-export async function startPasskeySignIn(email: string): Promise<PasskeySignInStartResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/passkeys/sign-in/options"), {
-      method: "POST",
-      headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
-      body: JSON.stringify({ email })
-    })
-  );
-}
-
-export async function finishPasskeySignIn(
-  input: PasskeyChallengeInput
-): Promise<RacerAuthSuccessResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/passkeys/sign-in/verify"), {
-      method: "POST",
-      headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
-      body: JSON.stringify(input)
-    })
-  );
-}
-
-// Registration deliberately omits the session Authorization header: the server
-// never reads it for account creation (ADR-0016). `credentials: "include"` stays
-// so the response's new session cookie is stored on the device.
-export async function startPasskeyRegistration(
-  input: PasskeyRegistrationStartInput
-): Promise<PasskeyRegistrationStartResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/passkeys/register/options"), {
-      method: "POST",
-      headers: buildJsonHeaders(),
-      credentials: "include",
-      body: JSON.stringify(input)
-    })
-  );
-}
-
-export async function finishPasskeyRegistration(
-  input: PasskeyChallengeInput
-): Promise<RacerAuthSuccessResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/passkeys/register/verify"), {
-      method: "POST",
-      headers: buildJsonHeaders(),
-      credentials: "include",
-      body: JSON.stringify(input)
-    })
-  );
-}
-
-// Account claim is session-bound: it attaches an email + passkey to the current
-// accountless racer, so it sends the session headers registration omits.
-export async function startAccountClaim(
-  input: PasskeyRegistrationStartInput
-): Promise<PasskeyRegistrationStartResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/passkeys/claim/options"), {
-      method: "POST",
-      headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
-      body: JSON.stringify(input)
-    })
-  );
-}
-
-export async function finishAccountClaim(
-  input: PasskeyChallengeInput
-): Promise<RacerAuthSuccessResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/passkeys/claim/verify"), {
-      method: "POST",
-      headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
-      body: JSON.stringify(input)
-    })
-  );
-}
-
-export async function createAccountlessRacerSession(
-  input: AccountlessRacerSessionInput
-): Promise<RacerAuthSuccessResponse> {
-  return parseJson(
-    await fetch(buildUrl("/api/auth/accountless"), {
-      method: "POST",
-      headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
       body: JSON.stringify(input)
     })
   );
@@ -418,7 +315,6 @@ export async function signUpRacerQueue(
     await fetch(buildUrl("/api/queue"), {
       method: "POST",
       headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
       body: JSON.stringify(input)
     })
   );
@@ -449,7 +345,6 @@ export async function startRacerEntryCheckout(): Promise<RacerEntryCheckoutRespo
   return parseJson(
     await fetch(buildUrl("/api/racer/payments/checkout"), {
       method: "POST",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -459,7 +354,6 @@ export async function cancelRacerCheckoutPayment(paymentId: string): Promise<App
   return parseJson(
     await fetch(buildUrl(`/api/racer/payments/${paymentId}/cancel`), {
       method: "POST",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -472,7 +366,6 @@ export async function saveRacerPushSubscription(
     await fetch(buildUrl("/api/racer/notifications/subscriptions"), {
       method: "POST",
       headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
       body: JSON.stringify(subscription)
     })
   );
@@ -485,7 +378,6 @@ export async function deleteRacerPushSubscription(
     await fetch(buildUrl("/api/racer/notifications/subscriptions"), {
       method: "DELETE",
       headers: buildJsonHeaders(getRacerSessionHeaders()),
-      credentials: "include",
       body: JSON.stringify(subscription)
     })
   );
@@ -494,7 +386,6 @@ export async function deleteRacerPushSubscription(
 export async function fetchRacerNotifications(): Promise<RacerNotification[]> {
   return parseJson(
     await fetch(buildUrl("/api/racer/notifications"), {
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -506,7 +397,6 @@ export async function markRacerNotificationRead(
   return parseJson(
     await fetch(buildUrl(`/api/racer/notifications/${notificationId}/read`), {
       method: "POST",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -516,7 +406,6 @@ export async function optOutOfCurrentTournament(): Promise<TournamentOptOutRespo
   return parseJson(
     await fetch(buildUrl("/api/racer/tournaments/current/opt-out"), {
       method: "POST",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -526,7 +415,6 @@ export async function leaveRacerQueue(): Promise<AppSnapshot> {
   return parseJson(
     await fetch(buildUrl("/api/racer/queue"), {
       method: "DELETE",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );
@@ -536,7 +424,6 @@ export async function leaveRacerQueueEntry(entryId: string): Promise<AppSnapshot
   return parseJson(
     await fetch(buildUrl(`/api/racer/queue/${encodeURIComponent(entryId)}`), {
       method: "DELETE",
-      credentials: "include",
       headers: getRacerSessionHeaders()
     })
   );

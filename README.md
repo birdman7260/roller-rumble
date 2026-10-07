@@ -722,9 +722,9 @@ right-clicking the app and choosing `Open`. Removing those warnings requires pai
 notarization setup.
 
 Release builds do not need event runtime secrets in GitHub Actions. Do not put Stripe keys, Web Push
-private keys, Cloudflare Tunnel tokens, passkey RP settings, or photo booth pairing secrets into the
-release workflow. The packaged app reads those `ROLLER_RUMBLE_*` values at runtime from the host
-machine's environment or local dotenv files.
+private keys, Cloudflare Tunnel tokens, or photo booth pairing secrets into the release workflow.
+The packaged app reads those `ROLLER_RUMBLE_*` values at runtime from the host machine's environment
+or local dotenv files.
 
 Build-time environment used by the release workflow:
 

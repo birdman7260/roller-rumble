@@ -33,20 +33,6 @@ export const racers = sqliteTable("racers", {
   updatedAt: text("updated_at").notNull()
 });
 
-export const identities = sqliteTable(
-  "identities",
-  {
-    id: text("id").primaryKey(),
-    racerId: text("racer_id")
-      .notNull()
-      .references(() => racers.id, { onDelete: "cascade" }),
-    type: text("type").$type<"email" | "phone" | "anonymous">().notNull(),
-    value: text("value").notNull(),
-    createdAt: text("created_at").notNull()
-  },
-  (table) => [uniqueIndex("identities_type_value_unique").on(table.type, table.value)]
-);
-
 export const events = sqliteTable("events", {
   id: text("id").primaryKey(),
   name: text("name").notNull(),
@@ -85,21 +71,6 @@ export const eventRacers = sqliteTable(
   },
   (table) => [uniqueIndex("event_racers_event_racer_unique").on(table.eventId, table.racerId)]
 );
-
-export const passkeyCredentials = sqliteTable("passkey_credentials", {
-  id: text("id").primaryKey(),
-  racerId: text("racer_id")
-    .notNull()
-    .references(() => racers.id, { onDelete: "cascade" }),
-  credentialId: text("credential_id").notNull().unique(),
-  publicKey: text("public_key").notNull(),
-  counter: integer("counter").notNull(),
-  transportsJson: text("transports_json", { mode: "json" }).$type<string[]>().notNull(),
-  deviceType: text("device_type").notNull(),
-  backedUp: integer("backed_up", { mode: "boolean" }).notNull().default(false),
-  createdAt: text("created_at").notNull(),
-  lastUsedAt: text("last_used_at")
-});
 
 export const payments = sqliteTable(
   "payments",

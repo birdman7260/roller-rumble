@@ -18,6 +18,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The admin desk's add-racer form now has separate Display name and Real name fields; only the display name is required. The Registered Racers list shows each racer's real name, phone, and email, and the racer search matches them too.
 - Racers now join through a short step-by-step registration with a progress bar: your details, then a racer name. Passkeys and email sign-in are gone. Whatever a racer has typed is kept on their phone, so a reload picks up where they left off.
 - Signing out on a racer phone now asks first and warns that the racer can't be recovered on that phone; signing out returns the phone to the start of registration.
+- Removed the "Allow accountless racer signup" setting; every racer registers through the registration wizard.
 
 ### Fixed
 

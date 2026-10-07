@@ -19,7 +19,7 @@ paths. Future sign-in or recovery is explicitly out of scope.
 | S2 Contact details, register endpoint, admin desk   | ✅ Done     | S1         |
 | S3 Wizard shell + contact-details and display-name  | ✅ Done     | S2         |
 | S4 Photo + payment steps                            | ✅ Done     | S3         |
-| S5 Remove passkeys, accountless, cookie, identities | Not started | S3         |
+| S5 Remove passkeys, accountless, cookie, identities | ✅ Done     | S3         |
 | S6 User guide + README sweep                        | Not started | S4, S5     |
 
 S4 and S5 are independent once S3 lands. Every code slice must pass the full quality gate
@@ -217,7 +217,7 @@ so it has no CHANGELOG entry.
   - Added: "When an event charges an entry fee, registration ends with the payment step,
     or tells racers to pay at the desk when online payment isn't set up."
 
-### S5 — Remove passkeys, accountless, the cookie, and identities (backend + cleanup)
+### S5 — Remove passkeys, accountless, the cookie, and identities (backend + cleanup) ✅
 
 - **`AuthService`:** delete all passkey and claim methods and the challenge map. What
   remains is device-login issue/verify plus `registerRacer`. Rename it if that reads better,
@@ -244,6 +244,15 @@ so it has no CHANGELOG entry.
   authenticates.
 - **CHANGELOG:** Changed: "Removed the 'Allow accountless racers' setting; every racer
   registers through the registration wizard."
+- **As built:**
+  - `AuthService` kept its name; it now holds only device-login issue/verify and
+    `registerRacer`.
+  - Reading the device login moved to `backend/device-login.ts` (`readDeviceLogin`, bearer
+    only), which is where the cookie-alone test lives.
+  - The renderer's racer clients dropped `credentials: "include"` and the server's CORS
+    dropped `credentials: true`, since nothing uses cookies any more.
+  - `ROLLER_RUMBLE_PASSKEY_RP_ID` was only read in `auth.ts`; it was never in `env.ts` or
+    `.env`. The setting toggle lived in `components/admin/settings-tab.tsx`.
 
 ### S6 — User guide + README sweep
 

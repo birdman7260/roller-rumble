@@ -16,7 +16,6 @@ import type {
   AdminSettings,
   AdminNotificationInput,
   AppSnapshot,
-  AccountlessRacerSessionInput,
   AdminTournamentByeFillResponse,
   AdminTournamentRacerRemovalInput,
   AdminTournamentRacerRemovalResponse,
@@ -39,9 +38,6 @@ import type {
   RacerNotification,
   RacerNotificationType,
   StripeConnectionTestResult,
-  PasskeyRegistrationStartInput,
-  PasskeyRegistrationStartResponse,
-  PasskeySignInStartResponse,
   RoundRobinMatch,
   TournamentByeFillOptionsResponse,
   TournamentRacerRemovalOptionsResponse,
@@ -121,7 +117,7 @@ import {
 import { getManagedSetting, SECRET_ENV_KEYS } from "@roller-rumble/shared/managed-settings";
 import { assembleDiagnosticsBundle, type DiagnosticsBundle } from "./diagnostics-bundle";
 import { runTunnelHealthChecks } from "./tunnel-health-checks";
-import { AuthService, type PasskeyRequestContext } from "./auth";
+import { AuthService } from "./auth";
 import { PaymentService } from "./payment";
 import { NotificationService } from "./notifications-service";
 
@@ -1566,10 +1562,6 @@ export class RollerRumbleApp extends EventEmitter {
     return this.getSnapshot();
   }
 
-  getPasskeyRequestContext(origin: string): PasskeyRequestContext {
-    return this.auth.getPasskeyRequestContext(origin);
-  }
-
   createRacerSessionToken(racerId: string): string {
     return this.auth.createRacerSessionToken(racerId);
   }
@@ -1580,92 +1572,6 @@ export class RollerRumbleApp extends EventEmitter {
 
   getRacerAuthSession(token?: string | null): Racer | null {
     return this.auth.getRacerAuthSession(token);
-  }
-
-  startPasskeySignIn(
-    emailInput: string,
-    context: PasskeyRequestContext
-  ): Promise<PasskeySignInStartResponse> {
-    return this.auth.startPasskeySignIn(emailInput, context);
-  }
-
-  async finishPasskeySignIn(
-    challengeId: string,
-    response: unknown
-  ): Promise<RacerAuthSuccessResponse> {
-    const racer = await this.auth.finishPasskeySignIn(challengeId, response);
-    this.emitSnapshot();
-    return {
-      racer,
-      snapshot: this.getSnapshot()
-    };
-  }
-
-  startPasskeyRegistration(
-    input: PasskeyRegistrationStartInput,
-    context: PasskeyRequestContext
-  ): Promise<PasskeyRegistrationStartResponse> {
-    return this.auth.startPasskeyRegistration(input, context);
-  }
-
-  async finishPasskeyRegistration(
-    challengeId: string,
-    response: unknown
-  ): Promise<RacerAuthSuccessResponse> {
-    const racer = await this.auth.finishPasskeyRegistration(challengeId, response);
-    this.emitSnapshot();
-    return {
-      racer,
-      snapshot: this.getSnapshot()
-    };
-  }
-
-  startAccountClaim(
-    input: PasskeyRegistrationStartInput,
-    context: PasskeyRequestContext,
-    sessionRacerId: string
-  ): Promise<PasskeyRegistrationStartResponse> {
-    return this.auth.startAccountClaim(input, context, sessionRacerId);
-  }
-
-  async finishAccountClaim(
-    challengeId: string,
-    response: unknown
-  ): Promise<RacerAuthSuccessResponse> {
-    const racer = await this.auth.finishAccountClaim(challengeId, response);
-    this.emitSnapshot();
-    return {
-      racer,
-      snapshot: this.getSnapshot()
-    };
-  }
-
-  createAccountlessRacerSession(input: AccountlessRacerSessionInput): RacerAuthSuccessResponse {
-    const settings = this.db.getAdminSettings();
-    if (!settings.allowAccountlessRacerSignup) {
-      throw new AppHttpError(
-        "Accountless registration is currently disabled. Please sign in with an email.",
-        403,
-        "accountless_disabled"
-      );
-    }
-
-    const displayName = input.displayName.trim();
-    if (!displayName) {
-      throw new AppHttpError("Enter a display name to continue.", 400, "display_name_required");
-    }
-
-    let racer = this.db.findRacerByIdentity("anonymous", input.accountlessId);
-    if (!racer) {
-      racer = this.db.createRacer({ displayName });
-      this.db.attachRacerIdentity(racer.id, "anonymous", input.accountlessId);
-    }
-    this.db.ensureEventRegistration(this.db.getActiveEvent()!.id, racer.id);
-    this.emitSnapshot();
-    return {
-      racer,
-      snapshot: this.getSnapshot()
-    };
   }
 
   createEvent(name: string): AppSnapshot {

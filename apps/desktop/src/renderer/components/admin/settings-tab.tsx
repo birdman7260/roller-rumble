@@ -178,16 +178,6 @@ function GeneralSettingsPanel({ snapshot }: { snapshot: AppSnapshot }) {
         <label className="toggle">
           <input
             type="checkbox"
-            checked={snapshot.settings.allowAccountlessRacerSignup}
-            onChange={(event) => {
-              fireAndForget(updateSettings({ allowAccountlessRacerSignup: event.target.checked }));
-            }}
-          />
-          Allow accountless racer signup
-        </label>
-        <label className="toggle">
-          <input
-            type="checkbox"
             checked={snapshot.settings.showPublicRacerInfoWithoutLogin}
             onChange={(event) => {
               fireAndForget(

@@ -78,7 +78,6 @@ export const RACE_STATES = [
 ] as const;
 
 export const APP_MODES = SUPPORTED_TOURNAMENT_PRESETS;
-export const IDENTITY_TYPES = ["email", "phone", "anonymous"] as const;
 export const QUEUE_ENTRY_TYPES = ["solo", "match"] as const;
 export const QUEUE_ENTRY_REQUESTED_TYPES = ["solo", "match", "auto-match"] as const;
 export const QUEUE_ENTRY_LOCK_TYPES = ["flex", "challenge", "admin"] as const;
@@ -99,7 +98,6 @@ export const PAYMENT_RECORD_STATUSES = [
   "failed",
   "queue_failed"
 ] as const;
-export const PASSKEY_AUTH_STATUSES = ["passkey", "register_required", "host_assist"] as const;
 export const RACER_NOTIFICATION_TYPES = [
   "admin_message",
   "queue_get_ready",
