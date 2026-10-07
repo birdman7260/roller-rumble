@@ -1,6 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_QUEUE_CLOSED_MESSAGE } from "@roller-rumble/shared/constants";
-import type { EventRecord, Racer, RacerQueueSignupResponse } from "@roller-rumble/shared/types";
+import type {
+  EventRecord,
+  Racer,
+  RacerEntryCheckoutResponse,
+  RacerQueueSignupResponse
+} from "@roller-rumble/shared/types";
 import { AppHttpError } from "./http-error";
 import { PaymentService, type PaymentStore } from "./payment";
 import { RollerRumbleApp } from "./app";
@@ -179,7 +184,15 @@ type StripeWebhookHandler = (
   signature?: string
 ) => { received: true };
 
+type StartEntryCheckout = (
+  this: OrchestrationTarget,
+  racerId: string
+) => Promise<RacerEntryCheckoutResponse>;
+
 const signUpQueueForRacer = getPrototypeMethod("signUpQueueForRacer") as QueueAsRacer;
+const startEntryCheckoutForRacer = getPrototypeMethod(
+  "startEntryCheckoutForRacer"
+) as StartEntryCheckout;
 const handleStripeWebhook = getPrototypeMethod("handleStripeWebhook") as StripeWebhookHandler;
 
 describe("PaymentService", () => {
@@ -229,9 +242,7 @@ describe("PaymentService", () => {
     });
 
     const payment = newPayment(store);
-    await expect(
-      payment.createCheckoutForQueue(racer, { requestedType: "solo" })
-    ).rejects.toMatchObject({
+    await expect(payment.createCheckout(racer, { requestedType: "solo" })).rejects.toMatchObject({
       statusCode: 502,
       code: "stripe_connection_failed",
       message: expect.stringContaining("could not reach Stripe") as unknown
@@ -419,6 +430,80 @@ describe("RollerRumbleApp payment orchestration", () => {
       "evt_1",
       "checkout.session.completed"
     );
+  });
+
+  it("opens an entry-fee checkout that carries no queue spot, even with the queue closed", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.activeEvent.paymentRequiredForQueue = true;
+    store.activeEvent.paymentAmountCents = 1000;
+    store.db.getAdminSettings.mockReturnValue({
+      queueOpen: false,
+      allowSoloQueue: true,
+      queueClosedMessage: ""
+    });
+    store.racers.set("racer-1", makeRacer("racer-1", "Wizard Racer"));
+
+    await expect(startEntryCheckoutForRacer.call(target, "racer-1")).resolves.toEqual({
+      paymentId: "payment-1",
+      checkoutUrl: "https://checkout.stripe.test/session"
+    });
+    expect(store.db.ensureEventRegistration).toHaveBeenCalledWith("event-1", "racer-1");
+    expect(store.db.createPaymentRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ racerId: "racer-1", queueIntent: null })
+    );
+  });
+
+  it("refuses an entry-fee checkout when the event charges no fee", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.racers.set("racer-1", makeRacer("racer-1", "Wizard Racer"));
+
+    await expect(startEntryCheckoutForRacer.call(target, "racer-1")).rejects.toMatchObject({
+      code: "payment_not_required"
+    });
+    expect(store.db.createPaymentRecord).not.toHaveBeenCalled();
+  });
+
+  it("refuses an entry-fee checkout for a racer who already paid or was waived", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.activeEvent.paymentRequiredForQueue = true;
+    store.activeEvent.paymentAmountCents = 1000;
+    store.racers.set("racer-1", makeRacer("racer-1", "Wizard Racer"));
+    store.payments.set("racer-1", { status: "waived" });
+
+    await expect(startEntryCheckoutForRacer.call(target, "racer-1")).rejects.toMatchObject({
+      code: "already_paid"
+    });
+    expect(store.db.createPaymentRecord).not.toHaveBeenCalled();
+  });
+
+  it("marks an entry-fee checkout paid from the webhook without queueing the racer", () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    store.activeEvent.paymentRequiredForQueue = true;
+    store.activeEvent.paymentAmountCents = 1000;
+    store.racers.set("racer-1", makeRacer("racer-1", "Wizard Racer"));
+    const paymentId = "payment-1";
+    store.db.createPaymentRecord({
+      eventId: "event-1",
+      racerId: "racer-1",
+      amountCents: 1000,
+      currency: "usd",
+      queueIntent: null
+    });
+    stripeMock.webhooks.constructEvent = vi.fn(() => ({
+      id: "evt_entry",
+      type: "checkout.session.completed",
+      data: { object: { id: "cs_test_entry", metadata: { paymentId }, payment_intent: "pi_2" } }
+    }));
+
+    handleStripeWebhook.call(target, Buffer.from("{}"), "signature");
+
+    expect(store.payments.get("racer-1")).toEqual({ status: "paid" });
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({ status: "paid" });
+    expect(target.signUpQueue).not.toHaveBeenCalled();
   });
 
   it("ignores duplicate Stripe webhook deliveries", () => {

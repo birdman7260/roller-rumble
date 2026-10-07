@@ -117,7 +117,8 @@ textarea {
     inset 0 0 0 999px rgba(0, 0, 0, 0.08);
 }
 
-.button:disabled {
+.button:disabled,
+.file-button--disabled {
   cursor: not-allowed;
   opacity: 0.6;
 }
@@ -132,6 +133,7 @@ textarea {
 }
 
 .button:focus-visible,
+.file-button:has(input:focus-visible),
 .text-input:focus-visible,
 .search-select__input:focus-visible,
 input:focus-visible,

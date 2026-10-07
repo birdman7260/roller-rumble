@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRegistrationSteps,
+  completedRegistrationSteps,
   resolveResumeStep,
   validateContactDetails
 } from "./registration-steps";
@@ -90,5 +91,40 @@ describe("resolveResumeStep", () => {
         completedStepIds: ["photo"]
       })
     ).toBeNull();
+  });
+});
+
+describe("completedRegistrationSteps", () => {
+  const freshRacer = {
+    hasPhoto: false,
+    paymentStatus: "unpaid" as const,
+    onlinePaymentAvailable: true,
+    payAtDeskAcknowledged: false
+  };
+
+  it("leaves the photo step open until the racer has a photo on the server", () => {
+    expect(completedRegistrationSteps(freshRacer)).not.toContain("photo");
+    expect(completedRegistrationSteps({ ...freshRacer, hasPhoto: true })).toContain("photo");
+  });
+
+  it("completes online payment only once the racer's entry fee is paid or waived", () => {
+    expect(completedRegistrationSteps(freshRacer)).not.toContain("payment");
+    expect(
+      completedRegistrationSteps({ ...freshRacer, payAtDeskAcknowledged: true })
+    ).not.toContain("payment");
+    expect(completedRegistrationSteps({ ...freshRacer, paymentStatus: "paid" })).toContain(
+      "payment"
+    );
+    expect(completedRegistrationSteps({ ...freshRacer, paymentStatus: "waived" })).toContain(
+      "payment"
+    );
+  });
+
+  it("lets the racer move on once they acknowledge paying at the desk", () => {
+    const noStripe = { ...freshRacer, onlinePaymentAvailable: false };
+    expect(completedRegistrationSteps(noStripe)).not.toContain("payment");
+    expect(completedRegistrationSteps({ ...noStripe, payAtDeskAcknowledged: true })).toContain(
+      "payment"
+    );
   });
 });

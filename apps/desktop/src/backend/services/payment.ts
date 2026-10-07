@@ -243,13 +243,15 @@ export class PaymentService {
   }
 
   /**
-   * Creates a Stripe Checkout session for a racer's queue signup and records the
-   * pending payment. Returns the payment id and hosted checkout URL; the caller
-   * assembles the queue-signup response and snapshot.
+   * Creates a Stripe Checkout session for the active event's entry fee and records
+   * the pending payment. `queueIntent` is the queue spot to claim once Stripe
+   * confirms payment, or `null` when the racer is paying the fee on its own from
+   * the registration wizard. Returns the payment id and hosted checkout URL; the
+   * caller assembles any response and snapshot.
    */
-  async createCheckoutForQueue(
+  async createCheckout(
     racer: Racer,
-    input: RacerQueueSignupInput
+    queueIntent: RacerQueueSignupInput | null
   ): Promise<{ paymentId: string; checkoutUrl: string }> {
     const activeEvent = this.db.getActiveEvent()!;
     const config = this.getStripeConfig();
@@ -277,7 +279,7 @@ export class PaymentService {
       racerId: racer.id,
       amountCents,
       currency,
-      queueIntent: input
+      queueIntent
     });
     let session: Stripe.Checkout.Session;
     try {
@@ -289,7 +291,7 @@ export class PaymentService {
           amountCents,
           currency,
           publicRacerUrl: config.publicRacerUrl,
-          queueIntent: input
+          queueIntent
         })
       );
     } catch (error) {

@@ -9,6 +9,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Added
 
 - Racers can now get on whichever bike they like. The race tray spells out who the app thinks is on each bike ("Left bike: Ava • Right bike: Bo"), and a new "Swap Bikes" button — or just pressing **S** from anywhere in the admin window — puts them the other way round. For a solo run the button reads "Move To Right Bike" (or left) and moves the lone rider across. Swap as many times as you like right up until you start the countdown; after that, use "Reset To Staged" first.
+- Registration includes a photo step: pick a photo or take a selfie, see it, and retake it if you like. When the event has a photo booth, the step offers its QR too, and a booth photo completes the step as soon as it arrives.
+- When an event charges an entry fee, registration ends with the payment step, or tells racers to pay at the desk when online payment isn't set up. Paying here only pays the fee: it doesn't put the racer in the queue, so it works even while the queue is closed.
 
 ### Changed
 

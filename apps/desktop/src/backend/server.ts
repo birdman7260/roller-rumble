@@ -823,6 +823,15 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(racerSnapshot(service.leaveQueueEntryForSessionRacer(req.params.entryId, racer.id)));
   });
 
+  app.post(`${API_PREFIX}/racer/payments/checkout`, async (req, res, next) => {
+    try {
+      const racer = requireRacerSession(req, service);
+      res.json(await service.startEntryCheckoutForRacer(racer.id));
+    } catch (error) {
+      next(error);
+    }
+  });
+
   app.post(`${API_PREFIX}/racer/payments/:paymentId/cancel`, (req, res) => {
     const racer = requireRacerSession(req, service);
     res.json(racerSnapshot(service.cancelRacerCheckoutPayment(racer.id, req.params.paymentId)));

@@ -53,6 +53,8 @@ import { RaceDashboard } from "./racer-sections/race";
 import { RacersTab } from "./racer-sections/racers";
 import { RegistrationWizard } from "./racer-sections/registration-wizard/registration-wizard";
 import { clearRegistrationDraft } from "./racer-sections/registration-wizard/registration-draft";
+import { forgetPayAtDeskAcknowledged } from "./racer-sections/registration-wizard/pay-at-desk";
+import { useRegisteredRacerSteps } from "./racer-sections/registration-wizard/use-registered-racer-steps";
 import type {
   ChallengeReplacementRequest,
   QueueIssueModal,
@@ -546,6 +548,12 @@ function useRacerPageViewModel({
   const setSelectedRacerDetailId: Dispatch<SetStateAction<string | null>> = (action) => {
     patchState("selectedRacerDetailId", action);
   };
+  const registeredRacer = snapshot?.racers.find((entry) => entry.racer.id === selectedRacerId);
+  const registeredRacerSteps = useRegisteredRacerSteps({
+    event: snapshot?.activeEvent,
+    racer: registeredRacer,
+    onlinePaymentAvailable: Boolean(snapshot?.paymentProvider.stripe.configured)
+  });
   const paymentReturnState = new URLSearchParams(window.location.search).get("payment");
   const paymentReturnId = new URLSearchParams(window.location.search).get("payment_id");
   const launchedNotificationId = new URLSearchParams(window.location.search).get("notificationId");
@@ -726,9 +734,11 @@ function useRacerPageViewModel({
     racerNotificationsQuery.data
   ]);
 
-  // Finishing the registration wizard lands the racer on the race page with their device login.
+  // Registering stores the device login and moves the wizard on to the photo step, held there so
+  // the racer sees their photo before continuing. Finishing the wizard lands on the race page.
   function rememberRegisteredRacer(result: RacerAuthSuccessResponse): void {
     rememberRacerSessionToken(result.sessionToken);
+    registeredRacerSteps.holdPhotoStep(result.racer.id);
     queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
     localStorage.setItem("roller-rumble.racerId", result.racer.id);
     setState({ selectedRacerId: result.racer.id });
@@ -766,6 +776,7 @@ function useRacerPageViewModel({
     forgetRacerSessionToken();
     localStorage.removeItem("roller-rumble.racerId");
     clearRegistrationDraft();
+    forgetPayAtDeskAcknowledged(selectedRacerId);
     setState({
       avatarUploadMessage: null,
       notificationMessage: null,
@@ -1069,16 +1080,19 @@ function useRacerPageViewModel({
   }
 
   const liveSnapshot = snapshot;
-  const selectedRacer = liveSnapshot.racers.find((entry) => entry.racer.id === selectedRacerId);
+  // A racer still in the registration wizard sees only the wizard, as if not yet signed in.
+  const registrationInProgress = registeredRacerSteps.currentStepId !== null;
+  const selectedRacer = registrationInProgress ? undefined : registeredRacer;
   const selectedRacerQueueEntries = snapshot.queue.filter((entry) =>
     entry.racerIds.includes(selectedRacerId)
   );
   const selectedRacerNextQueueEntry = selectedRacerQueueEntries
     .toSorted((left, right) => left.position - right.position)
     .at(0);
-  const selectedRacerAvatarUrl = resolveBackendAssetUrl(selectedRacer?.racer.avatarUrl);
+  const selectedRacerAvatarUrl = resolveBackendAssetUrl(registeredRacer?.racer.avatarUrl);
   const canBrowsePublicRacerInfo =
-    Boolean(selectedRacer) || snapshot.settings.showPublicRacerInfoWithoutLogin;
+    !registrationInProgress &&
+    (Boolean(selectedRacer) || snapshot.settings.showPublicRacerInfoWithoutLogin);
   const upcoming = focusEventId
     ? snapshot.queue.filter((entry) => entry.eventId === focusEventId)
     : snapshot.queue;
@@ -1207,7 +1221,26 @@ function useRacerPageViewModel({
   }
 
   const registration = (
-    <RegistrationWizard event={snapshot.activeEvent} onRegistered={rememberRegisteredRacer} />
+    <RegistrationWizard
+      event={snapshot.activeEvent}
+      onRegistered={rememberRegisteredRacer}
+      signedIn={
+        registeredRacer && registrationInProgress
+          ? {
+              racer: registeredRacer,
+              steps: registeredRacerSteps,
+              avatarUrl: selectedRacerAvatarUrl,
+              avatarUploadBusy,
+              avatarUploadMessage,
+              onAvatarUpload: handleAvatarUpload,
+              onSignOut: requestSignOut,
+              onlinePaymentAvailable: snapshot.paymentProvider.stripe.configured,
+              paymentReturnState,
+              photoBoothEnabled: snapshot.photoBooth.enabled
+            }
+          : undefined
+      }
+    />
   );
 
   return {

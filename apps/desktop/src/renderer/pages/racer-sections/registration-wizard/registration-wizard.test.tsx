@@ -7,7 +7,7 @@ vi.mock("../../../lib/api", () => ({
   registerRacer: vi.fn()
 }));
 
-const freeEvent = { paymentRequiredForQueue: false };
+const freeEvent = { paymentRequiredForQueue: false, paymentCurrency: "usd" };
 
 function type(label: string, value: string): void {
   fireEvent.change(screen.getByLabelText(label), { target: { value } });

@@ -765,6 +765,12 @@ export type RacerQueueSignupResponse =
       snapshot: AppSnapshot;
     };
 
+/** A Stripe Checkout for the event's entry fee alone, started from the registration wizard. */
+export interface RacerEntryCheckoutResponse {
+  paymentId: string;
+  checkoutUrl: string;
+}
+
 export interface PasskeyEmailInput {
   email: string;
 }

@@ -109,14 +109,14 @@ export function buildStripeCheckoutSessionParams(input: {
   amountCents: number;
   currency: string;
   publicRacerUrl: string;
-  queueIntent: RacerQueueSignupInput;
+  queueIntent: RacerQueueSignupInput | null;
 }): Stripe.Checkout.SessionCreateParams {
   const racerUrl = input.publicRacerUrl.replace(/\/$/, "");
   const metadata = {
     paymentId: input.paymentId,
     eventId: input.event.id,
     racerId: input.racer.id,
-    queueIntent: JSON.stringify(input.queueIntent)
+    ...(input.queueIntent ? { queueIntent: JSON.stringify(input.queueIntent) } : {})
   };
 
   return {

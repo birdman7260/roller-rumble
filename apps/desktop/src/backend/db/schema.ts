@@ -118,6 +118,7 @@ export const payments = sqliteTable(
     stripeCheckoutSessionId: text("stripe_checkout_session_id"),
     stripePaymentIntentId: text("stripe_payment_intent_id"),
     checkoutUrl: text("checkout_url"),
+    purpose: text("purpose").$type<"queue" | "entry">().notNull().default("queue"),
     queueIntentJson: text("queue_intent_json", { mode: "json" })
       .$type<{ opponentRacerId?: string; requestedType?: "solo" | "auto-match" }>()
       .notNull(),

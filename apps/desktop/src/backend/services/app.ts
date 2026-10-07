@@ -33,6 +33,7 @@ import type {
   Racer,
   RacerAuthSuccessResponse,
   RacerRegistrationInput,
+  RacerEntryCheckoutResponse,
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   RacerNotification,
@@ -2002,7 +2003,7 @@ export class RollerRumbleApp extends EventEmitter {
     if (activeEvent.paymentRequiredForQueue) {
       const payment = this.db.getEventRacerPayment(activeEvent.id, racerId);
       if (!["paid", "waived"].includes(payment.status)) {
-        const checkout = await this.payment.createCheckoutForQueue(racer, input);
+        const checkout = await this.payment.createCheckout(racer, input);
         return {
           status: "checkout_required",
           paymentId: checkout.paymentId,
@@ -2038,36 +2039,65 @@ export class RollerRumbleApp extends EventEmitter {
     }
   }
 
-  private queuePaidStripePayment(payment: StoredPaymentRecord): void {
+  /**
+   * Starts a Stripe Checkout for the active event's entry fee alone (the
+   * registration wizard's payment step). Unlike queue signup it never claims a
+   * queue spot, so it works while the queue is closed.
+   */
+  async startEntryCheckoutForRacer(racerId: string): Promise<RacerEntryCheckoutResponse> {
+    const activeEvent = this.db.getActiveEvent()!;
+    if (!activeEvent.paymentRequiredForQueue) {
+      throw new AppHttpError("This event has no entry fee.", 400, "payment_not_required");
+    }
+
+    this.db.ensureEventRegistration(activeEvent.id, racerId);
+    const racer = this.db.getRacer(racerId);
+    if (!racer) {
+      throw new AppHttpError("Racer not found.", 404, "racer_not_found");
+    }
+
+    const payment = this.db.getEventRacerPayment(activeEvent.id, racerId);
+    if (["paid", "waived"].includes(payment.status)) {
+      throw new AppHttpError("Your entry fee is already paid.", 409, "already_paid");
+    }
+
+    return this.payment.createCheckout(racer, null);
+  }
+
+  private queuePaidStripePayment(
+    payment: StoredPaymentRecord,
+    queueIntent: RacerQueueSignupInput
+  ): void {
     const activeEvent = this.db.getActiveEvent();
     if (activeEvent?.id !== payment.eventId) {
       throw new Error("The paid event is no longer active.");
     }
 
-    if (activeEvent.paymentRequiredForQueue && payment.queueIntent.opponentRacerId) {
+    if (activeEvent.paymentRequiredForQueue && queueIntent.opponentRacerId) {
       this.payment.assertPaidForEvent(
         activeEvent.id,
-        payment.queueIntent.opponentRacerId,
+        queueIntent.opponentRacerId,
         "That racer needs to see the host to pay before they can be added to a challenge."
       );
     }
 
     this.signUpQueue({
       racerId: payment.racerId,
-      opponentRacerId: payment.queueIntent.opponentRacerId,
-      requestedType: payment.queueIntent.requestedType,
-      replaceQueueEntryId: payment.queueIntent.replaceQueueEntryId
+      opponentRacerId: queueIntent.opponentRacerId,
+      requestedType: queueIntent.requestedType,
+      replaceQueueEntryId: queueIntent.replaceQueueEntryId
     });
   }
 
   private completeStripeCheckoutSession(session: Stripe.Checkout.Session): void {
     const payment = this.payment.applyCheckoutCompleted(session);
-    if (!payment) {
+    // An entry fee paid from the registration wizard has no queue spot to claim.
+    if (!payment?.queueIntent) {
       return;
     }
 
     try {
-      this.queuePaidStripePayment(payment);
+      this.queuePaidStripePayment(payment, payment.queueIntent);
     } catch (error) {
       this.payment.markCheckoutQueueFailed(payment.id, error);
     }

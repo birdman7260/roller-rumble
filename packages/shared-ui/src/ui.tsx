@@ -93,6 +93,37 @@ export function Button({
   );
 }
 
+/**
+ * A file picker that looks like a `Button`. The native input stays in the label (visually
+ * hidden but focusable), so the label text is its accessible name and keyboard focus still works.
+ */
+export function FileButton({
+  variant = "default",
+  className,
+  children,
+  disabled,
+  ...inputProps
+}: Omit<InputHTMLAttributes<HTMLInputElement>, "type"> & {
+  variant?: "default" | "accent" | "ghost";
+  children: ReactNode;
+}) {
+  return (
+    <label
+      className={cx(
+        "button",
+        "file-button",
+        variant === "accent" && "button--accent",
+        variant === "ghost" && "button--ghost",
+        disabled && "file-button--disabled",
+        className
+      )}
+    >
+      {children}
+      <input {...inputProps} type="file" disabled={disabled} className="visually-hidden" />
+    </label>
+  );
+}
+
 export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInputElement>) {
   return <input {...props} className={cx("text-input", className)} />;
 }

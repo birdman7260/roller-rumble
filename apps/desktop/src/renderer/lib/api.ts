@@ -20,6 +20,7 @@ import type {
   RacerAuthSessionResponse,
   RacerAuthSuccessResponse,
   RacerNotification,
+  RacerEntryCheckoutResponse,
   RacerQueueSignupInput,
   RacerQueueSignupResponse,
   RacerRegistrationInput,
@@ -439,6 +440,17 @@ export async function testStripeConnection(): Promise<StripeConnectionTestResult
   return parseJson(
     await fetch(buildUrl("/api/stripe/test-connection"), {
       method: "POST"
+    })
+  );
+}
+
+/** Starts Stripe Checkout for the event's entry fee alone (the registration wizard's last step). */
+export async function startRacerEntryCheckout(): Promise<RacerEntryCheckoutResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/payments/checkout"), {
+      method: "POST",
+      credentials: "include",
+      headers: getRacerSessionHeaders()
     })
   );
 }

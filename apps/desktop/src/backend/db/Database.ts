@@ -107,7 +107,8 @@ export interface StoredPaymentRecord {
   stripeCheckoutSessionId?: string | null;
   stripePaymentIntentId?: string | null;
   checkoutUrl?: string | null;
-  queueIntent: RacerQueueSignupInput;
+  /** The queue spot to claim once paid, or `null` for an entry fee paid on its own. */
+  queueIntent: RacerQueueSignupInput | null;
   failureCode?: string | null;
   failureMessage?: string | null;
   completedAt?: string | null;
@@ -230,7 +231,7 @@ function mapPayment(row: PaymentRow): StoredPaymentRecord {
     stripeCheckoutSessionId: row.stripeCheckoutSessionId,
     stripePaymentIntentId: row.stripePaymentIntentId,
     checkoutUrl: row.checkoutUrl,
-    queueIntent: row.queueIntentJson,
+    queueIntent: row.purpose === "entry" ? null : row.queueIntentJson,
     failureCode: row.failureCode,
     failureMessage: row.failureMessage,
     completedAt: row.completedAt,
@@ -1016,7 +1017,7 @@ export class AppDatabase {
     racerId: string;
     amountCents: number;
     currency: string;
-    queueIntent: RacerQueueSignupInput;
+    queueIntent: RacerQueueSignupInput | null;
   }): StoredPaymentRecord {
     const timestamp = nowIso();
     const id = nanoid();
@@ -1033,7 +1034,8 @@ export class AppDatabase {
         stripeCheckoutSessionId: null,
         stripePaymentIntentId: null,
         checkoutUrl: null,
-        queueIntentJson: input.queueIntent,
+        purpose: input.queueIntent ? "queue" : "entry",
+        queueIntentJson: input.queueIntent ?? {},
         failureCode: null,
         failureMessage: null,
         completedAt: null,
