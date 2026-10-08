@@ -27,6 +27,22 @@ export function resolveRacerName(
   return snapshot.racers.find((entry) => entry.racer.id === racerId)?.racer.displayName ?? fallback;
 }
 
+/** The longest `display name` the projector's idle cards show before cutting it short. */
+export const PROJECTOR_NAME_MAX_LENGTH = 20;
+
+/**
+ * A `display name` cut to `maxLength` characters with an ellipsis, so one long name can't crowd a
+ * row. Counts characters as people see them, so an emoji is one, not two.
+ */
+export function truncateRacerName(name: string, maxLength = PROJECTOR_NAME_MAX_LENGTH): string {
+  const characters = Array.from(name);
+  if (characters.length <= maxLength) {
+    return name;
+  }
+
+  return `${characters.slice(0, maxLength).join("").trimEnd()}…`;
+}
+
 /** The racers' names as "A vs B"; a tournament slot the bracket hasn't filled reads as TBD. */
 export function formatRacerNames(snapshot: AppSnapshot, racerIds: (string | null)[]): string {
   return racerIds.map((racerId) => resolveRacerName(snapshot, racerId, "TBD")).join(" vs ");

@@ -1795,22 +1795,12 @@ p {
   text-transform: uppercase;
 }
 
-/* The space under the title; its height decides how big the rows can be. */
+/* The space under the title. Rows that don't fit it are hidden but stay laid out to be measured. */
 .race-page__idle-body {
+  position: relative;
   min-height: 0;
-  container-type: size;
-}
-
-/*
- * Every line is sized in em, so one font size scales the whole list. A row is 1.9em tall (a 1.2
- * line plus 0.35em padding top and bottom) with 0.3em between rows, so 2.2em per line always
- * covers it: the font shrinks until `--idle-lines` lines fit the body, and never past the cap.
- */
-.race-page__idle-lines {
-  display: grid;
-  align-content: start;
-  gap: 0.3em;
-  font-size: min(clamp(1.15rem, 2vw, 2.1rem), calc(100cqh / (2.2 * max(var(--idle-lines, 6), 1))));
+  overflow: hidden;
+  font-size: clamp(1.1rem, min(2vw, 3.6vh), 2.1rem);
   line-height: 1.2;
 }
 
@@ -1822,14 +1812,20 @@ p {
   list-style: none;
 }
 
+/* A row grows a line when its names need one; the detail stays on the first line. */
 .race-page__idle-row {
   display: grid;
   grid-template-columns: 2.4ch minmax(0, 1fr) auto;
-  align-items: baseline;
+  align-items: first baseline;
   gap: 0.6em;
   padding: 0.35em 0.5em;
   border-radius: 0.8rem;
   background: color-mix(in srgb, var(--theme-surface-alt) 62%, transparent);
+}
+
+.race-page__idle-row[data-clipped],
+.race-page__idle-footnote[data-clipped] {
+  visibility: hidden;
 }
 
 .race-page__idle-rank {
@@ -1841,13 +1837,12 @@ p {
 
 .race-page__idle-name {
   min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
   font-weight: 850;
 }
 
 .race-page__idle-detail {
+  white-space: nowrap;
   color: var(--theme-text-muted);
   font-size: 0.78em;
   font-weight: 750;
@@ -1861,6 +1856,8 @@ p {
 }
 
 .race-page__idle-footnote {
+  position: absolute;
+  left: 0;
   margin: 0;
   padding-inline: 0.5em;
   color: var(--theme-text-muted);

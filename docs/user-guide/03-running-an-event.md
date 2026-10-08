@@ -215,8 +215,8 @@ You control how it looks from **Settings → Projector Display**:
     use Surge, since there's no opponent to compare against.)
 - **Ticker messages** — scrolling messages along the display. Type one message per line, set the
   **Ticker speed**, then **Save Ticker Messages** (or **Clear Messages** to remove them).
-- **Top racers shown between races** — how many rows the top racers board lists (3 to 10, 5 by
-  default). Fewer rows means bigger text, which helps on a dim projector or a big room.
+- **Top racers shown between races** — the most rows the top racers board lists (3 to 10, 5 by
+  default). If they don't all fit the screen, the board shows as many as fit.
 
 Between races (outside a tourney), the projector works out what to show on its own:
 
@@ -228,6 +228,10 @@ Between races (outside a tourney), the projector works out what to show on its o
   sign-up card with the QR takes the queue's place.
 - **Races are queued but nobody has finished one yet** — the queue, with the smaller sign-up card
   beside it.
+
+Racer names longer than 20 characters are cut short with "…". A race whose names don't fit on one
+line wraps onto a second, so each card shows as many rows as fit the screen: a few long names can
+mean fewer rows, and the queue's "+N more races" line counts the ones left out.
 
 The board only counts this event's races at the current race distance, and only riders who made it
 to the finish line. If you change the race distance, the board shows the best times at the new

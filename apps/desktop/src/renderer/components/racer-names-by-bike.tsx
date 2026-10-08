@@ -1,7 +1,7 @@
 import { Fragment, type ReactNode } from "react";
 import type { AppSnapshot } from "@roller-rumble/shared/types";
 import type { BikeColor } from "../lib/bike-colors";
-import { resolveRacerName } from "../lib/snapshot-display";
+import { resolveRacerName, truncateRacerName } from "../lib/snapshot-display";
 
 /** Text in the colour of the bike it belongs to; left plain while no bike is known. */
 export function BikeName({ color, children }: { color: BikeColor | null; children: ReactNode }) {
@@ -14,11 +14,14 @@ export function BikeName({ color, children }: { color: BikeColor | null; childre
  */
 export function RacerNamesByBike({
   colors,
+  maxNameLength,
   racerIds,
   snapshot
 }: {
   /** One per slot of `racerIds`, from the `bike-colors` helpers. */
   colors: (BikeColor | null)[];
+  /** Cuts each name past this many characters short with an ellipsis; names show in full without it. */
+  maxNameLength?: number;
   racerIds: readonly (string | null)[];
   snapshot: AppSnapshot;
 }) {
@@ -28,7 +31,9 @@ export function RacerNamesByBike({
         <Fragment key={racerId ?? `slot:${String(index)}`}>
           {index > 0 ? " vs " : null}
           <BikeName color={colors[index] ?? null}>
-            {resolveRacerName(snapshot, racerId, "TBD")}
+            {maxNameLength == null
+              ? resolveRacerName(snapshot, racerId, "TBD")
+              : truncateRacerName(resolveRacerName(snapshot, racerId, "TBD"), maxNameLength)}
           </BikeName>
         </Fragment>
       ))}

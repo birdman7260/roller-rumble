@@ -12,7 +12,8 @@ const racerNames: Record<string, string> = {
   ana: "Ana",
   ben: "Ben",
   cy: "Cy",
-  dee: "Dee"
+  dee: "Dee",
+  tyg: "Tygarreiz boiiiiiiiiiiiiii"
 };
 
 const racers = Object.entries(racerNames).map(([id, displayName]) => ({
@@ -141,6 +142,25 @@ describe("ProjectorIdleStage", () => {
     expect(screen.getByRole("list", { name: "Race queue" })).toBeInTheDocument();
     expect(screen.getByAltText("QR code for racer page")).toBeInTheDocument();
     expect(screen.queryByRole("list", { name: "Top racers" })).not.toBeInTheDocument();
+  });
+
+  it("cuts each name past twenty characters short on both cards", () => {
+    render(
+      <ProjectorIdleStage
+        view="queue-and-top-racers"
+        snapshot={makeSnapshot({
+          queue: [queueEntry(1, ["tyg", "ana"])],
+          topRacers: [{ racerId: "tyg", raceId: "race-1", finishTimeMs: 27_000 }]
+        })}
+      />
+    );
+
+    expect(screen.getByRole("list", { name: "Race queue" })).toHaveTextContent(
+      "Tygarreiz boiiiiiiii… vs Ana"
+    );
+    expect(screen.getByRole("list", { name: "Top racers" })).toHaveTextContent(
+      "Tygarreiz boiiiiiiii…"
+    );
   });
 
   it("cuts a long queue short and says how many more races are waiting", () => {
