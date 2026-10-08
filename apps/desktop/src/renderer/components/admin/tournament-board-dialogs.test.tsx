@@ -6,15 +6,24 @@ import { TournamentBracketBoard } from "./tournament-board";
 
 // React Flow can't lay out in jsdom; the board only needs the bracket to report a selected match.
 vi.mock("../elimination-bracket-view", () => ({
-  EliminationBracketView: ({ onMatchSelect }: { onMatchSelect?: (nodeId: string) => void }) => (
-    <button
-      type="button"
-      onClick={() => {
-        onMatchSelect?.("final");
-      }}
-    >
-      Select final
-    </button>
+  EliminationBracketView: ({
+    onMatchSelect,
+    pinnedNodeId
+  }: {
+    onMatchSelect?: (nodeId: string) => void;
+    pinnedNodeId?: string | null;
+  }) => (
+    <>
+      <button
+        type="button"
+        onClick={() => {
+          onMatchSelect?.("final");
+        }}
+      >
+        Select final
+      </button>
+      {pinnedNodeId ? <p>Pin shown on {pinnedNodeId}</p> : null}
+    </>
   )
 }));
 
@@ -66,7 +75,23 @@ const bundle: TournamentBundle = {
   seeds: []
 };
 
-const snapshot = { racers: [] } as unknown as AppSnapshot;
+const snapshot = { racers: [], tournamentQueue: [] } as unknown as AppSnapshot;
+
+const snapshotWithFinalPinned = {
+  racers: [],
+  tournamentQueue: [
+    {
+      matchId: "final",
+      matchKind: "bracket",
+      tournamentId: "tournament-1",
+      position: 1,
+      roundLabel: "Round 1",
+      racerIds: ["racer-1", "racer-2"],
+      status: "ready",
+      pinnedUpNext: true
+    }
+  ]
+} as unknown as AppSnapshot;
 
 function renderBoard(onStageMatch = vi.fn()) {
   render(
@@ -150,5 +175,35 @@ describe("TournamentBracketBoard match dialogs", () => {
     expect(await screen.findByRole("button", { name: "Make BYE" })).toBeInTheDocument();
     expect(showModal.mock.contexts.at(-1)).toBe(dialog);
     expect(fetchTournamentRacerRemovalOptions).toHaveBeenCalledWith("tournament-1", "racer-1");
+  });
+
+  it("shows the admin which match is pinned up next", () => {
+    render(
+      <TournamentBracketBoard
+        snapshot={snapshotWithFinalPinned}
+        bundle={bundle}
+        canStageMatches
+        expanded={false}
+        onExpandedChange={vi.fn()}
+        onPinUpNext={vi.fn()}
+        onStageMatch={vi.fn()}
+      />
+    );
+
+    expect(screen.getByText("Pin shown on final")).toBeInTheDocument();
+  });
+
+  it("keeps the pin off a bracket that can't pin, like the racer page's", () => {
+    render(
+      <TournamentBracketBoard
+        snapshot={snapshotWithFinalPinned}
+        bundle={bundle}
+        canStageMatches={false}
+        expanded={false}
+        onExpandedChange={vi.fn()}
+      />
+    );
+
+    expect(screen.queryByText(/Pin shown/)).not.toBeInTheDocument();
   });
 });

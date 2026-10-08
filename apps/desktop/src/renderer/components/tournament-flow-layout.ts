@@ -28,6 +28,8 @@ export interface BracketFlowNodeData extends Record<string, unknown> {
   canSelect: boolean;
   highlighted: boolean;
   onSelectMatch?: (nodeId: string) => void;
+  /** The host pinned this match to race next; only the admin bracket passes a pin. */
+  pinned: boolean;
   participants: [BracketFlowParticipant, BracketFlowParticipant];
   roundLabel: string | null;
   side: BracketFlowSide;
@@ -56,6 +58,7 @@ export interface BracketAdvancementEdgeAnimation {
 interface BuildBracketFlowOptions {
   animatedAdvancementEdge?: BracketAdvancementEdgeAnimation | null;
   highlightedNodeId?: string | null;
+  pinnedNodeId?: string | null;
 }
 
 const NODE_WIDTH = 296;
@@ -375,6 +378,7 @@ export function buildBracketFlow(
         canSelect: interactive,
         highlighted: effectiveHighlightedNodeId === node.id,
         onSelectMatch: undefined,
+        pinned: options.pinnedNodeId === node.id,
         participants: [
           getParticipant(snapshot, bundle, node, node.racerAId),
           getParticipant(snapshot, bundle, node, node.racerBId)

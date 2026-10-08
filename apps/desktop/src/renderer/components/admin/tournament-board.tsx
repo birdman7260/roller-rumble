@@ -468,6 +468,10 @@ export function TournamentBracketBoard({
   );
   const canFillMenuNode = menuNode ? canFillByeNode(bundle, menuNode) : false;
   const menuPinnableEntry = onPinUpNext ? findPinnableQueueEntry(snapshot, menuNode?.id) : null;
+  // Only a board that can pin shows the pin, which keeps it on the admin bracket alone.
+  const pinnedNodeId = onPinUpNext
+    ? (snapshot.tournamentQueue.find((entry) => entry.pinnedUpNext)?.matchId ?? null)
+    : null;
   const replacementCandidateOptions =
     removalOptions?.candidates.map((candidate) => ({
       value: candidate.racerId,
@@ -620,6 +624,7 @@ export function TournamentBracketBoard({
         expandMode="container"
         expanded={expanded}
         onExpandedChange={onExpandedChange}
+        pinnedNodeId={pinnedNodeId}
         presentationRequest={presentationRequest}
         showViewportControls={showViewportControls}
         onMatchSelect={(nodeId) => {

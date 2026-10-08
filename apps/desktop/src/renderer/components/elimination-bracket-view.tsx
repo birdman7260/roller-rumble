@@ -161,6 +161,7 @@ function BracketCanvas({
   highlightedNodeId,
   onMatchSelect,
   onToggleExpanded,
+  pinnedNodeId,
   presentationRequest,
   showViewportControls,
   winnerAdvance
@@ -173,6 +174,7 @@ function BracketCanvas({
   highlightedNodeId?: string | null;
   onMatchSelect?: (nodeId: string) => void;
   onToggleExpanded: () => void;
+  pinnedNodeId?: string | null;
   presentationRequest?: BracketPresentationRequest | null;
   showViewportControls: boolean;
   winnerAdvance?: BracketWinnerAdvance | null;
@@ -193,7 +195,8 @@ function BracketCanvas({
       : null;
   const flow = buildBracketFlow(snapshot, bundle, interactive, {
     animatedAdvancementEdge,
-    highlightedNodeId
+    highlightedNodeId,
+    pinnedNodeId
   });
   const nodes = withMatchSelectCallbacks(flow.nodes, onMatchSelect);
   const updateNodeInternals = useUpdateNodeInternals();
@@ -323,6 +326,7 @@ export function EliminationBracketView({
   highlightedNodeId,
   onExpandedChange,
   onMatchSelect,
+  pinnedNodeId,
   presentationRequest,
   showViewportControls = true,
   winnerAdvance
@@ -335,6 +339,8 @@ export function EliminationBracketView({
   highlightedNodeId?: string | null;
   onExpandedChange?: (expanded: boolean) => void;
   onMatchSelect?: (nodeId: string) => void;
+  /** The match pinned to race next, marked with a pin; the admin board is the only one to pass it. */
+  pinnedNodeId?: string | null;
   presentationRequest?: BracketPresentationRequest | null;
   showViewportControls?: boolean;
   winnerAdvance?: BracketWinnerAdvance | null;
@@ -383,6 +389,7 @@ export function EliminationBracketView({
         expanded={expanded}
         highlightedNodeId={highlightedNodeId}
         onMatchSelect={onMatchSelect}
+        pinnedNodeId={pinnedNodeId}
         presentationRequest={presentationRequest}
         showViewportControls={showViewportControls}
         winnerAdvance={winnerAdvance}

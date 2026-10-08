@@ -3708,6 +3708,30 @@ button.tournament-match-node:active {
   gap: 0.55rem;
 }
 
+/* The admin's up-next pin sits on the card's top-right corner, clear of the status pill inside. */
+.tournament-match-node--pinned {
+  position: relative;
+}
+
+.tournament-match-node__pin {
+  position: absolute;
+  top: -0.7rem;
+  right: -0.7rem;
+  display: grid;
+  place-items: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 999px;
+  background: var(--theme-accent);
+  color: var(--theme-surface);
+  box-shadow: 0 0.3rem 0.7rem rgba(0, 0, 0, 0.25);
+}
+
+.tournament-match-node__pin-icon {
+  width: 0.9rem;
+  height: 0.9rem;
+}
+
 .tournament-match-node__meta {
   align-items: start;
 }
@@ -3823,6 +3847,10 @@ button.tournament-match-node:active {
 :root[data-theme-ui="pixel"] .tournament-flow,
 :root[data-theme-ui="pixel"] .tournament-match-node {
   border-radius: 0.35rem;
+}
+
+:root[data-theme-ui="pixel"] .tournament-match-node__pin {
+  border-radius: 0.2rem;
 }
 
 :root[data-theme-ui="pixel"] .tournament-flow-shell--expanded {

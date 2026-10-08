@@ -3,6 +3,25 @@ import type { NodeProps } from "@xyflow/react";
 import { resolveBackendAssetUrl } from "../lib/assets";
 import type { BracketFlowNode } from "./tournament-flow-layout";
 
+/** A push pin, drawn inline like the app's other small icons. */
+function PinIcon() {
+  return (
+    <svg
+      className="tournament-match-node__pin-icon"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2.2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M12 17v5" />
+      <path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z" />
+    </svg>
+  );
+}
+
 export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNode>) {
   const clickable = data.canSelect && typeof data.onSelectMatch === "function";
   const Root = clickable ? "button" : "div";
@@ -12,7 +31,7 @@ export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNod
       {...(clickable ? { type: "button" as const } : {})}
       className={`tournament-match-node tournament-match-node--${data.state}${
         data.highlighted ? " tournament-match-node--highlighted" : ""
-      }${selected ? " tournament-match-node--selected" : ""}${
+      }${data.pinned ? " tournament-match-node--pinned" : ""}${selected ? " tournament-match-node--selected" : ""}${
         clickable ? " tournament-match-node--interactive" : ""
       } nodrag nopan`}
       onClick={
@@ -47,6 +66,13 @@ export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNod
         type="source"
         position={Position.Right}
       />
+
+      {data.pinned ? (
+        <span className="tournament-match-node__pin">
+          <PinIcon />
+          <span className="visually-hidden">Pinned up next</span>
+        </span>
+      ) : null}
 
       <div className="tournament-match-node__meta">
         {data.roundLabel ? <p className="eyebrow">{data.roundLabel}</p> : null}

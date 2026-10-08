@@ -104,7 +104,9 @@ until it ends:
   after each result, and the first one as soon as you start the tournament.
 - **To change the order**, click a match on the bracket board and choose **Stage Next**. That match
   jumps to the front of the queue and goes on as soon as the bikes are free. You can do this while
-  another race is staged or running. Choose **Clear Up Next** on the same match to undo it. Only a
+  another race is staged or running. On the admin bracket, the pinned match shows a pin icon in its
+  top-right corner (racer phones and the projector don't show it). Choose **Clear Up Next** on the
+  same match to undo it. Only a
   match whose two racers are both known can be moved up.
 - **To race a match right now**, click it and choose **Stage Match**, as before. This works only
   while no race is staged.
