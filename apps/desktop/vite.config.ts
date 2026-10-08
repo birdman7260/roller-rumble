@@ -20,7 +20,11 @@ export default defineConfig({
       routesDirectory: "./src/renderer/routes",
       generatedRouteTree: "./src/renderer/routeTree.gen.ts"
     }),
-    react()
+    react({
+      babel: {
+        plugins: ["babel-plugin-react-compiler"]
+      }
+    })
   ],
   resolve: {
     alias: {

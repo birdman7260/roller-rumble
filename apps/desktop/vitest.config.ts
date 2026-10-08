@@ -3,7 +3,13 @@ import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react({
+      babel: {
+        plugins: ["babel-plugin-react-compiler"]
+      }
+    })
+  ],
   resolve: {
     alias: {
       "@renderer": fileURLToPath(new URL("./src/renderer", import.meta.url)),

@@ -17,3 +17,6 @@
   - show the QR if there isn't
 - modal for tourney should be on the whole screen not locked inside the tourney container
 - align the user photo in both the me tab and registration
+- hide challenge button on the racers tab if you can't queue
+- make the racer select input popover be a popover actually
+- the page layout needs to be better: the controls cover the screen now
