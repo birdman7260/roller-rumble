@@ -1,4 +1,4 @@
-/** Hype lines that stand in for the time estimate a few spots back from the front. */
+/** Hype lines the next race card leads with a few spots back from the front. */
 const HYPE_LINES: Record<number, string> = {
   3: "Get the mind right",
   4: "Start stretching"
@@ -14,17 +14,14 @@ function capitalize(text: string): string {
 }
 
 /**
- * A playful time-until label for a queued race with `racesAhead` races in front of it, estimated
- * from the admin's minutes-per-race setting.
+ * The estimated time until a queued race with `racesAhead` races in front of it, from the admin's
+ * minutes-per-race setting.
  */
 export function getQueuePositionLabel(racesAhead: number, minutesPerRace: number): string {
-  if (racesAhead === 0) {
-    return "NOW!";
-  }
-  return HYPE_LINES[racesAhead] ?? capitalize(formatEstimate(racesAhead, minutesPerRace));
+  return racesAhead === 0 ? "NOW!" : capitalize(formatEstimate(racesAhead, minutesPerRace));
 }
 
-/** Like {@link getQueuePositionLabel}, but a hype line also carries the estimate in parentheses. */
+/** Like {@link getQueuePositionLabel}, but a few spots back it leads with a hype line. */
 export function getNextRaceTimingLabel(racesAhead: number, minutesPerRace: number): string {
   const hypeLine = HYPE_LINES[racesAhead];
   return hypeLine

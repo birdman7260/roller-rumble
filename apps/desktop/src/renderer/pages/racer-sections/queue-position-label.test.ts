@@ -12,19 +12,16 @@ describe("getQueuePositionLabel", () => {
     expect(getQueuePositionLabel(1, 1)).toBe("In 1 minute");
   });
 
-  it("swaps in a hype line for the races a few spots out", () => {
-    expect(getQueuePositionLabel(3, 2)).toBe("Get the mind right");
-    expect(getQueuePositionLabel(4, 2)).toBe("Start stretching");
-  });
-
-  it("keeps estimating past the hype lines", () => {
+  it("estimates every race further back, with no hype lines", () => {
+    expect(getQueuePositionLabel(3, 2)).toBe("In 6 minutes");
+    expect(getQueuePositionLabel(4, 2)).toBe("In 8 minutes");
     expect(getQueuePositionLabel(5, 2)).toBe("In 10 minutes");
     expect(getQueuePositionLabel(12, 3)).toBe("In 36 minutes");
   });
 });
 
 describe("getNextRaceTimingLabel", () => {
-  it("matches the queue label when that label is already the estimate", () => {
+  it("matches the queue label away from the hype lines", () => {
     expect(getNextRaceTimingLabel(0, 2)).toBe("NOW!");
     expect(getNextRaceTimingLabel(2, 2)).toBe("In 4 minutes");
     expect(getNextRaceTimingLabel(7, 2)).toBe("In 14 minutes");

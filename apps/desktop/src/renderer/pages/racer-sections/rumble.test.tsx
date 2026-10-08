@@ -112,8 +112,8 @@ describe("RumbleTab", () => {
       "NOW!",
       "In 3 minutes",
       "In 6 minutes",
-      "Get the mind right",
-      "Start stretching",
+      "In 9 minutes",
+      "In 12 minutes",
       "In 15 minutes",
       "In 18 minutes",
       "In 21 minutes"
