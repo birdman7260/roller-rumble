@@ -178,7 +178,8 @@ function getDefaultAdminSettings(): AdminSettings {
     serverPort: DEFAULT_SERVER_PORT,
     queueOpen: true,
     allowSoloQueue: false,
-    queueClosedMessage: ""
+    queueClosedMessage: "",
+    queueMinutesPerRace: 2
   };
 }
 

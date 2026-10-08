@@ -617,6 +617,8 @@ export interface AdminSettings {
   allowSoloQueue: boolean;
   /** Operator message shown to racers while the queue is closed. Blank falls back to the default. */
   queueClosedMessage: string;
+  /** Minutes each queued race takes, used to estimate when racers further back will ride. */
+  queueMinutesPerRace: number;
 }
 
 export interface StripeSetupStatus {

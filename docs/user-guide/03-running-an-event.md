@@ -259,6 +259,7 @@ Found under **Settings → Settings**:
 | **Auto-stage the next queued open time trial race** | Loads the next race automatically after each finish.            |
 | **Show race info before racer sign-in**             | Whether phones can see the queue before registering.            |
 | **Max active queue entries per racer**              | How many times one racer can be waiting in the queue at once.   |
+| **Minutes per race for queue time estimates**       | How long one race takes, used for the racer page's wait times.  |
 | **Enable VirtualDJ cue start**                      | Lets a DJ trigger the countdown from music software (advanced). |
 
 ---

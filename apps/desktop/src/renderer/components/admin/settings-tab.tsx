@@ -204,6 +204,23 @@ function GeneralSettingsPanel({ snapshot }: { snapshot: AppSnapshot }) {
             }}
           />
         </label>
+        <label>
+          Minutes per race for queue time estimates
+          <input
+            type="number"
+            min={1}
+            max={30}
+            step={1}
+            value={snapshot.settings.queueMinutesPerRace}
+            onChange={(event) => {
+              fireAndForget(
+                updateSettings({
+                  queueMinutesPerRace: Number(event.target.value)
+                })
+              );
+            }}
+          />
+        </label>
       </div>
     </Panel>
   );

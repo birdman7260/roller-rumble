@@ -21,7 +21,7 @@ const racers = Object.entries(racerNames).map(([id, displayName]) => ({
 
 const liveSnapshot = {
   racers,
-  settings: { queueOpen: true, queueClosedMessage: "" }
+  settings: { queueOpen: true, queueClosedMessage: "", queueMinutesPerRace: 3 }
 } as unknown as AppSnapshot;
 
 function queueEntry(position: number, racerIds: string[]): QueueEntry {
@@ -91,7 +91,33 @@ describe("RumbleTab", () => {
     const card = screen.getByRole("region", { name: "Your next race" });
     expect(within(card).getByText("vs Eli")).toBeInTheDocument();
     expect(within(card).getByText(/#3/)).toBeInTheDocument();
-    expect(within(card).getByText(/In 4 minutes/)).toBeInTheDocument();
+    expect(within(card).getByText(/In 6 minutes/)).toBeInTheDocument();
+  });
+
+  it("adds the time estimate to a hype line on the next race card", () => {
+    renderRumble({
+      upcoming: [...eightRaces.slice(0, 2), ...eightRaces.slice(3, 5), eightRaces[2]]
+    });
+
+    const card = screen.getByRole("region", { name: "Your next race" });
+    expect(within(card).getByText(/Start stretching \(in 12 minutes\)/)).toBeInTheDocument();
+  });
+
+  it("estimates each queued race's start from the minutes per race", () => {
+    renderRumble({ upcoming: eightRaces });
+    fireEvent.click(screen.getByRole("button", { name: "Show more" }));
+
+    const etas = queueRows().map((row) => row.querySelector(".racer-queue-row__eta")?.textContent);
+    expect(etas).toEqual([
+      "NOW!",
+      "In 3 minutes",
+      "In 6 minutes",
+      "Get the mind right",
+      "Start stretching",
+      "In 15 minutes",
+      "In 18 minutes",
+      "In 21 minutes"
+    ]);
   });
 
   it("leaves the next race card out when the racer isn't in the queue", () => {

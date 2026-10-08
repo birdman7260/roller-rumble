@@ -154,8 +154,9 @@ The **Rumble** tab is the racer page's home. While a racer is in line, a **Your 
 at the top with their opponent, their spot in line, and roughly how soon they're up. **Leave the
 queue entirely** on that card drops all of their races at once.
 
-Below it, the **Race Queue** shows the lineup with positions, so racers can see how long the wait
-is. The first six races show up front; **Show more** reveals the rest. The racer's own races are
+Below it, the **Race Queue** shows the lineup with positions and roughly when each race starts,
+estimated from the **Minutes per race for queue time estimates** setting (2 minutes by default).
+The first six races show up front; **Show more** reveals the rest. The racer's own races are
 highlighted, and each has a **Leave** button.
 
 ### "Pick a challenge to replace"

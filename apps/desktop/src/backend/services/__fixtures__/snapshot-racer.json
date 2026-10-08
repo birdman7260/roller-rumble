@@ -19,7 +19,8 @@
     "serverPort": 3187,
     "queueOpen": true,
     "allowSoloQueue": true,
-    "queueClosedMessage": ""
+    "queueClosedMessage": "",
+    "queueMinutesPerRace": 2
   },
   "activeEvent": {
     "id": "event-1",

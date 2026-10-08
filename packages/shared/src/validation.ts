@@ -180,7 +180,8 @@ export const settingUpdateSchema = z.object({
   targetDistanceMeters: z.number().finite().positive().max(100000).optional(),
   queueOpen: z.boolean().optional(),
   allowSoloQueue: z.boolean().optional(),
-  queueClosedMessage: z.string().trim().max(200).optional()
+  queueClosedMessage: z.string().trim().max(200).optional(),
+  queueMinutesPerRace: z.number().int().min(1).max(30).optional()
 });
 
 export const removeRacerSchema = z.object({

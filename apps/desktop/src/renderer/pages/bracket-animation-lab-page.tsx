@@ -379,7 +379,8 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     themeId: theme.id,
     queueOpen: true,
     allowSoloQueue: false,
-    queueClosedMessage: ""
+    queueClosedMessage: "",
+    queueMinutesPerRace: 2
   };
 
   return {

@@ -14,7 +14,7 @@ import {
 import { resolveBackendAssetUrl } from "../../lib/assets";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
-import { getQueuePositionLabel } from "./queue-position-label";
+import { getNextRaceTimingLabel } from "./queue-position-label";
 import { RumbleQueuePanel } from "./rumble-queue";
 import { InlineTabLink } from "./inline-tab-link";
 import type { TournamentRaceCard } from "./shared";
@@ -160,7 +160,7 @@ function NextRaceCard({
   const opponentNames = nextEntry.racerIds.flatMap((racerId) =>
     racerId === selectedRacerId ? [] : [resolveRacerName(liveSnapshot, racerId)]
   );
-  const timing = getQueuePositionLabel(racesAhead) || `${String(racesAhead)} races ahead`;
+  const timing = getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace);
 
   return (
     <Panel title="Your Next Race" aria-label="Your next race">

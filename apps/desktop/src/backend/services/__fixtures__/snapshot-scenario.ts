@@ -198,7 +198,8 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     serverPort: 3187,
     queueOpen: true,
     allowSoloQueue: true,
-    queueClosedMessage: ""
+    queueClosedMessage: "",
+    queueMinutesPerRace: 2
   };
 }
 
