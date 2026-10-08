@@ -8,14 +8,12 @@ import { getQueuePositionLabel } from "./queue-position-label";
 const QUEUE_PREVIEW_LIMIT = 6;
 
 function QueueRow({
-  canLeave,
   entry,
   index,
   liveSnapshot,
   onRequestLeaveEntry,
   selectedRacerId
 }: {
-  canLeave: boolean;
   entry: QueueEntry;
   index: number;
   liveSnapshot: AppSnapshot;
@@ -30,7 +28,7 @@ function QueueRow({
         {formatRacerNames(liveSnapshot, entry.racerIds)}
       </strong>
       <span>{getQueuePositionLabel(index)}</span>
-      {canLeave && isLeavableByRacer(entry, selectedRacerId) ? (
+      {isLeavableByRacer(entry, selectedRacerId) ? (
         <Button
           variant="ghost"
           onClick={() => {
@@ -46,22 +44,19 @@ function QueueRow({
 
 /**
  * The open race queue on the Rumble tab: the first few races, with Show more to reveal the rest.
- * Races the signed-in racer is in are highlighted and carry a Leave button.
+ * Races the signed-in racer is in are highlighted and carry a Leave button, which stays available
+ * under a closed queue (issue #28).
  */
 export function RumbleQueuePanel({
-  canLeave,
   liveSnapshot,
   onRequestLeaveEntry,
   selectedRacerId,
-  tournamentMode,
   upcoming
 }: {
-  /** Leaving is frozen during a tournament but stays available under a closed queue (issue #28). */
-  canLeave: boolean;
   liveSnapshot: AppSnapshot;
   onRequestLeaveEntry: (entry: QueueEntry) => void;
+  /** Empty while no racer is signed in, so no row is highlighted or leavable. */
   selectedRacerId: string;
-  tournamentMode: boolean;
   upcoming: QueueEntry[];
 }) {
   const [expanded, setExpanded] = useState(false);
@@ -71,25 +66,16 @@ export function RumbleQueuePanel({
   return (
     <Panel title="Race Queue">
       <div className="racer-race-preview stack-sm">
-        {tournamentMode ? (
-          <EmptyState title="Open queue paused" body="Tourney in progress" />
-        ) : null}
         {upcoming.length === 0 ? (
-          tournamentMode ? null : (
-            <EmptyState
-              title="No upcoming races"
-              body="The queue is open. Be the first racer to jump in."
-            />
-          )
+          <EmptyState
+            title="No upcoming races"
+            body="The queue is open. Be the first racer to jump in."
+          />
         ) : (
-          <ol
-            aria-label="Race queue"
-            className={`list racer-queue-list${tournamentMode ? " racer-queue-list--paused" : ""}`}
-          >
+          <ol aria-label="Race queue" className="list racer-queue-list">
             {visibleEntries.map((entry, index) => (
               <QueueRow
                 key={entry.id}
-                canLeave={canLeave}
                 entry={entry}
                 index={index}
                 liveSnapshot={liveSnapshot}

@@ -1,7 +1,6 @@
 import type {
   AppSnapshot,
   QueueEntry,
-  RaceRecord,
   RacerSummary,
   TournamentBundle
 } from "@roller-rumble/shared/types";
@@ -136,44 +135,23 @@ export function TournamentRacePreview({
 }
 
 /**
- * The signed-in racer's next race: on the bikes now, or their first spot in the queue. Renders
- * nothing while the racer has no race coming up.
+ * The signed-in racer's first spot in the queue. Renders nothing while they aren't in it.
  */
 function NextRaceCard({
-  currentRace,
-  currentRaceNames,
   liveSnapshot,
   onRequestLeaveQueue,
   selectedRacerId,
-  selectedRacerInCurrentRace,
   upcoming
 }: {
-  currentRace: RaceRecord | null;
-  currentRaceNames: string | null;
   liveSnapshot: AppSnapshot;
   onRequestLeaveQueue: () => void;
   selectedRacerId: string;
-  selectedRacerInCurrentRace: boolean;
   upcoming: QueueEntry[];
 }) {
   const racesAhead = upcoming.findIndex((entry) => entry.racerIds.includes(selectedRacerId));
   const nextEntry = racesAhead === -1 ? null : upcoming[racesAhead];
   // Leaving stays available under a closed queue, unlike joining (issue #28).
   const hasQueuedSpot = upcoming.some((entry) => isLeavableByRacer(entry, selectedRacerId));
-
-  if (selectedRacerInCurrentRace && currentRace) {
-    return (
-      <Panel title="Your Next Race" aria-label="Your next race">
-        <div className="racer-state-card racer-state-card--urgent">
-          <span>You're up</span>
-          <strong>Go to the bikes</strong>
-          <p>
-            {currentRaceNames} · {currentRace.state}
-          </p>
-        </div>
-      </Panel>
-    );
-  }
 
   if (!nextEntry) {
     return null;
@@ -317,12 +295,11 @@ function PaymentReturnNotice({
 
 /**
  * The racer page's home tab: the racer's next race (while they have one) above the open race
- * queue. During a tournament it leads with the current matches and shows the queue as paused.
+ * queue. During a tournament the open queue is paused, so it shows the current matches instead.
  */
 export function RumbleTab({
   activeTournament,
   canBrowsePublicRacerInfo,
-  currentRace,
   currentRaceNames,
   liveSnapshot,
   onRequestLeaveEntry,
@@ -334,7 +311,6 @@ export function RumbleTab({
   selectedRacer,
   selectedRacerCanOptOutOfVisibleTournament,
   selectedRacerId,
-  selectedRacerInCurrentRace,
   selectedRacerIsInActiveTournament,
   tournamentMode,
   tournamentOptOutBusy,
@@ -345,7 +321,6 @@ export function RumbleTab({
 }: {
   activeTournament: TournamentBundle | null;
   canBrowsePublicRacerInfo: boolean;
-  currentRace: RaceRecord | null;
   currentRaceNames: string | null;
   liveSnapshot: AppSnapshot;
   onRequestLeaveEntry: (entry: QueueEntry) => void;
@@ -359,7 +334,6 @@ export function RumbleTab({
   selectedRacer?: RacerSummary | null;
   selectedRacerCanOptOutOfVisibleTournament: boolean;
   selectedRacerId: string;
-  selectedRacerInCurrentRace: boolean;
   selectedRacerIsInActiveTournament: boolean;
   tournamentMode: boolean;
   tournamentOptOutBusy: boolean;
@@ -371,17 +345,6 @@ export function RumbleTab({
   if (!selectedRacer && !canBrowsePublicRacerInfo) {
     return <div className="racer-card-stack">{registration}</div>;
   }
-
-  const queuePanel = (
-    <RumbleQueuePanel
-      canLeave={Boolean(selectedRacer) && !tournamentMode}
-      liveSnapshot={liveSnapshot}
-      onRequestLeaveEntry={onRequestLeaveEntry}
-      selectedRacerId={selectedRacer ? selectedRacerId : ""}
-      tournamentMode={tournamentMode}
-      upcoming={upcoming}
-    />
-  );
 
   if (tournamentMode) {
     return (
@@ -408,10 +371,18 @@ export function RumbleTab({
             <RegisterCta onTabChange={onTabChange} />
           </Panel>
         )}
-        {queuePanel}
       </div>
     );
   }
+
+  const queuePanel = (
+    <RumbleQueuePanel
+      liveSnapshot={liveSnapshot}
+      onRequestLeaveEntry={onRequestLeaveEntry}
+      selectedRacerId={selectedRacer ? selectedRacerId : ""}
+      upcoming={upcoming}
+    />
+  );
 
   if (!selectedRacer) {
     return (
@@ -431,12 +402,9 @@ export function RumbleTab({
     <div className="racer-card-stack">
       <PaymentReturnNotice paymentReturnState={paymentReturnState} selectedRacer={selectedRacer} />
       <NextRaceCard
-        currentRace={currentRace}
-        currentRaceNames={currentRaceNames}
         liveSnapshot={liveSnapshot}
         onRequestLeaveQueue={onRequestLeaveQueue}
         selectedRacerId={selectedRacerId}
-        selectedRacerInCurrentRace={selectedRacerInCurrentRace}
         upcoming={upcoming}
       />
       {queuePanel}

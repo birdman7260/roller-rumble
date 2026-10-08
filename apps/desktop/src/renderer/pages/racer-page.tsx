@@ -365,7 +365,6 @@ interface RacerPageViewFlags {
   deviceNotificationsEnabled: boolean;
   notificationConfigured: boolean;
   selectedRacerCanOptOutOfVisibleTournament: boolean;
-  selectedRacerInCurrentRace: boolean;
   selectedRacerIsInActiveTournament: boolean;
   shouldShowNotificationPrompt: boolean;
   showNotificationDebugList: boolean;
@@ -386,7 +385,6 @@ interface RacerPageViewProps {
   challengeReplacementRequest: ChallengeReplacementRequest | null;
   closeChallengeModal: () => void;
   confirmQueueLeave: () => Promise<void>;
-  currentRace: AppSnapshot["raceProjection"]["race"] | null;
   currentRaceNames: string | null;
   dismissNotificationModal: (notification: RacerNotification) => Promise<void>;
   eventStatusLabel: string;
@@ -1162,10 +1160,6 @@ function useRacerPageViewModel({
         .map((participant) => resolveRacerName(snapshot, participant.racerId))
         .join(" vs ")
     : null;
-  const selectedRacerInCurrentRace = Boolean(
-    selectedRacerId &&
-    currentRace?.participants.some((participant) => participant.racerId === selectedRacerId)
-  );
   const tournamentMode = Boolean(activeTournament);
   const selectedRacerIsInActiveTournament = Boolean(
     activeTournament &&
@@ -1273,7 +1267,6 @@ function useRacerPageViewModel({
     challengeReplacementRequest,
     closeChallengeModal,
     confirmSignOut,
-    currentRace,
     currentRaceNames,
     dismissNotificationModal,
     eventStatusLabel,
@@ -1286,7 +1279,6 @@ function useRacerPageViewModel({
       deviceNotificationsEnabled,
       notificationConfigured: Boolean(notificationConfigQuery.data?.configured),
       selectedRacerCanOptOutOfVisibleTournament,
-      selectedRacerInCurrentRace,
       selectedRacerIsInActiveTournament,
       shouldShowNotificationPrompt,
       showNotificationDebugList: snapshot.settings.showRacerNotificationDebugList,
@@ -1488,7 +1480,6 @@ function RacerPageView(props: RacerPageViewProps) {
     avatarUploadBusy,
     avatarUploadMessage,
     bracketPresentationRequest,
-    currentRace,
     currentRaceNames,
     eventStatusLabel,
     expandedBracketTournament,
@@ -1539,7 +1530,6 @@ function RacerPageView(props: RacerPageViewProps) {
     deviceNotificationsEnabled,
     notificationConfigured,
     selectedRacerCanOptOutOfVisibleTournament,
-    selectedRacerInCurrentRace,
     selectedRacerIsInActiveTournament,
     shouldShowNotificationPrompt,
     showNotificationDebugList,
@@ -1580,7 +1570,6 @@ function RacerPageView(props: RacerPageViewProps) {
                 <RumbleTab
                   activeTournament={activeTournament ?? null}
                   canBrowsePublicRacerInfo={canBrowsePublicRacerInfo}
-                  currentRace={currentRace ?? null}
                   currentRaceNames={currentRaceNames}
                   liveSnapshot={liveSnapshot}
                   onRequestLeaveEntry={requestLeaveQueueEntry}
@@ -1594,7 +1583,6 @@ function RacerPageView(props: RacerPageViewProps) {
                     selectedRacerCanOptOutOfVisibleTournament
                   }
                   selectedRacerId={selectedRacerId}
-                  selectedRacerInCurrentRace={selectedRacerInCurrentRace}
                   selectedRacerIsInActiveTournament={selectedRacerIsInActiveTournament}
                   tournamentMode={tournamentMode}
                   tournamentOptOutBusy={tournamentOptOutBusy}

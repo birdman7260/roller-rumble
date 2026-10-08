@@ -80,9 +80,8 @@ until it ends:
 
 ### 1. The open queue is paused
 
-- Racers **can't add themselves** to the open queue from their phones. Their Rumble tab shows an
-  **Open queue paused** notice above the queue. The existing lineup stays _visible_ for reference,
-  but no one can join it.
+- Racers **can't add themselves** to the open queue from their phones. Their Rumble tab shows the
+  current tournament matches instead of the queue.
 - On the admin side, the **Active Tournament** card reminds you: _"Open time trial is paused while
   this tournament is active."_
 

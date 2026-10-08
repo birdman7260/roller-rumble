@@ -501,11 +501,6 @@ a {
   font-size: 1.2rem;
 }
 
-.racer-state-card--urgent {
-  border-color: var(--theme-warning);
-  background: color-mix(in srgb, var(--theme-warning) 15%, var(--theme-surface-raised));
-}
-
 .racer-signin-cta {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
@@ -536,22 +531,15 @@ a {
 }
 
 .racer-queue-row--mine {
-  margin-inline: -0.6rem;
-  padding-inline: 0.6rem;
+  margin-inline: -0.75rem;
+  padding-inline: 0.75rem;
   border-radius: 0.6rem;
-  background: color-mix(in srgb, var(--theme-accent) 14%, var(--theme-surface-raised));
-  outline: 1px solid color-mix(in srgb, var(--theme-accent) 70%, transparent);
-  outline-offset: -1px;
+  background: color-mix(in srgb, var(--theme-accent) 38%, var(--theme-surface));
 }
 
 .racer-queue-row--mine,
 .racer-queue-row--mine + .list-row {
   border-top-color: transparent;
-}
-
-.racer-queue-list--paused {
-  opacity: 0.46;
-  filter: grayscale(1);
 }
 
 .racer-tournament-match-grid {

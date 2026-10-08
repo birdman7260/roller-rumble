@@ -151,9 +151,8 @@ While you've closed the queue, the button row shows your **queue closed message*
 tournament the row disappears entirely.
 
 The **Rumble** tab is the racer page's home. While a racer is in line, a **Your Next Race** card sits
-at the top with their opponent, their spot in line, and roughly how soon they're up; when their race
-is on the bikes it switches to **You're up — Go to the bikes**. **Leave the queue entirely** on that
-card drops all of their races at once.
+at the top with their opponent, their spot in line, and roughly how soon they're up. **Leave the
+queue entirely** on that card drops all of their races at once.
 
 Below it, the **Race Queue** shows the lineup with positions, so racers can see how long the wait
 is. The first six races show up front; **Show more** reveals the rest. The racer's own races are
@@ -176,8 +175,8 @@ it** to dismiss it and can join again once one of their races runs.
 ## When a tournament is running
 
 While a tournament is active, the open queue is **paused**. The racer's Rumble tab shows the current
-tournament matches and an **Open queue paused** notice above the queue — the lineup is still visible for reference, but racers can't add
-themselves until the tournament ends. During a tournament, matchups are set by the bracket (see the
+tournament matches in place of the queue, and racers can't add themselves until the tournament
+ends. During a tournament, matchups are set by the bracket (see the
 Tournaments page), not by racers joining.
 
 ---

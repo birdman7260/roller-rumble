@@ -45,7 +45,6 @@ function renderRumble(overrides: Partial<Parameters<typeof RumbleTab>[0]> = {}) 
   const props: Parameters<typeof RumbleTab>[0] = {
     activeTournament: null,
     canBrowsePublicRacerInfo: true,
-    currentRace: null,
     currentRaceNames: null,
     liveSnapshot,
     onRequestLeaveEntry: vi.fn(),
@@ -57,7 +56,6 @@ function renderRumble(overrides: Partial<Parameters<typeof RumbleTab>[0]> = {}) 
     selectedRacer: racers[0],
     selectedRacerCanOptOutOfVisibleTournament: false,
     selectedRacerId: "me",
-    selectedRacerInCurrentRace: false,
     selectedRacerIsInActiveTournament: false,
     tournamentMode: false,
     tournamentOptOutBusy: false,
@@ -103,17 +101,6 @@ describe("RumbleTab", () => {
     expect(queueRows()).toHaveLength(1);
   });
 
-  it("tells the racer to head to the bikes when they are in the current race", () => {
-    renderRumble({
-      currentRace: { state: "staging" } as Parameters<typeof RumbleTab>[0]["currentRace"],
-      currentRaceNames: "Mo vs Ana",
-      selectedRacerInCurrentRace: true
-    });
-
-    const card = screen.getByRole("region", { name: "Your next race" });
-    expect(within(card).getByText("Go to the bikes")).toBeInTheDocument();
-  });
-
   it("lists the first six races and reveals the rest with Show more", () => {
     renderRumble({ upcoming: eightRaces });
 
@@ -152,11 +139,10 @@ describe("RumbleTab", () => {
     expect(onRequestLeaveEntry).toHaveBeenCalledWith(eightRaces[2]);
   });
 
-  it("shows the queue as paused, without leave controls, during a tournament", () => {
+  it("leaves the queue and the next race card out during a tournament", () => {
     renderRumble({ tournamentMode: true, upcoming: eightRaces.slice(0, 3) });
 
-    expect(screen.getByText("Open queue paused")).toBeInTheDocument();
+    expect(screen.queryByRole("list", { name: "Race queue" })).not.toBeInTheDocument();
     expect(screen.queryByRole("region", { name: "Your next race" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
   });
 });

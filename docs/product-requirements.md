@@ -546,14 +546,12 @@ Requirements:
   queue is closed and disappears during tournament mode. `Implemented`
 - The racer page's first tab, **Rumble**, replaces the separate Race and Queue tabs. For a
   signed-in racer with a race coming up, it must lead with a "Your Next Race" card (opponent,
-  position, time-until label, and Leave the queue entirely), or "You're up" while they are in the
-  current race; the card is hidden when they have no race coming up. `Implemented`
+  position, time-until label, and Leave the queue entirely); the card is hidden when they are not
+  in the queue. `Implemented`
 - Below that, the Rumble tab must show the race queue: the first six races, with a Show more /
-  Show less toggle when there are more. Rows the signed-in racer is in must be highlighted and
-  carry a Leave button. `Implemented`
-- While tournament mode is active, the Rumble tab must show an "Open queue paused" notice above the
-  queue and grey out the open queue list to make clear that open queueing is paused. `Implemented`
-- In tournament mode, the Rumble tab must hide the next-race card, show current-stage tournament
+  Show less toggle when there are more. Rows the signed-in racer is in must be highlighted with a
+  filled row background and carry a Leave button. `Implemented`
+- In tournament mode, the Rumble tab must hide the next-race card and the open queue, show current-stage tournament
   match cards styled like bracket nodes, including completed matches and BYEs from the currently
   actionable round, and link to the Tournament tab. Tournament opt-out controls for seeded racers
   should appear at the top of the Rumble tab. `Implemented`
