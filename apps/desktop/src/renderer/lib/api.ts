@@ -256,6 +256,19 @@ export async function registerRacer(
   );
 }
 
+/** The signed-in racer correcting their contact details and racer name from the wizard. */
+export async function updateRacerDetails(
+  input: RacerRegistrationInput
+): Promise<RacerAuthSuccessResponse> {
+  return parseJson(
+    await fetch(buildUrl("/api/racer/details"), {
+      method: "PUT",
+      headers: buildJsonHeaders(getRacerSessionHeaders()),
+      body: JSON.stringify(input)
+    })
+  );
+}
+
 /** The admin desk's add-racer form: always inserts a new racer (ADR-0024). */
 export async function addRacerAtDesk(
   input: CreateRacerInput

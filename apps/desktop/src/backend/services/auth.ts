@@ -17,6 +17,7 @@ export type AuthStore = Pick<
   | "getActiveEvent"
   | "ensureEventRegistration"
   | "createRacer"
+  | "updateRacerDetails"
 >;
 
 function encodeBase64UrlJson(value: unknown): string {
@@ -116,6 +117,18 @@ export class AuthService {
     const activeEvent = this.db.getActiveEvent();
     if (activeEvent) {
       this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    }
+    return racer;
+  }
+
+  /**
+   * The wizard's Back buttons let a registered racer correct what they typed. The racer id comes
+   * from their own device login, so a phone can only ever change its own racer.
+   */
+  updateRacerDetails(racerId: string, input: RacerRegistrationInput): Racer {
+    const racer = this.db.updateRacerDetails(racerId, input);
+    if (!racer) {
+      throw new Error(`Racer ${racerId} not found.`);
     }
     return racer;
   }

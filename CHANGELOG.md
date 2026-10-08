@@ -23,6 +23,10 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Racer stats are simpler: the event record is now shown as "Wins-Losses", and the career record and "Roller Rumble Events Attended" stats are gone. On the Racers tab, a racer's queue spots only appear when they're actually in the queue.
 - The Me tab's race card now shows your racer name at the top, your full name under it, and your photo centered below. Queue details have moved off the Me tab, since the Race and Queue tabs already show them.
 - The operator handbook now walks through the registration wizard and the sign-out warning, explains that a racer with a lost or new phone registers again, and notes that racers no longer need the tunnel just to register (notifications and online payments still do).
+- The registration progress bar now sits above the registration card, and each step's Back button sits at the bottom left with Continue at the bottom right.
+- The photo and payment steps now have a Back button. Going back from the photo step lets a racer fix their racer name and contact details; tapping Continue on the racer name step saves the changes.
+- The photo step now uses the same round photo as the Me tab. With no photo yet, the circle shows the racer's initial, an "Add photo" hint, and a camera badge; tapping anywhere on it takes a picture or picks one, and the pencil changes it afterwards. The Me tab shows the same circle for racers without a photo, replacing the separate upload field.
+- Uploading a photo no longer shows an "Avatar updated." message; the new photo appearing is the confirmation.
 
 ### Fixed
 

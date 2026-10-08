@@ -758,6 +758,11 @@ function useRacerPageViewModel({
     setAvatarUploadMessage(null);
   }
 
+  function rememberUpdatedRacerDetails(result: RacerAuthSuccessResponse): void {
+    queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
+    setState({ selectedRacerRealName: result.racer.realName });
+  }
+
   function requestSignOut(): void {
     setState({ signOutConfirmOpen: true });
   }
@@ -982,8 +987,8 @@ function useRacerPageViewModel({
     try {
       const nextSnapshot = await uploadAvatar(selectedRacerId, file);
       queryClient.setQueryData(racerSnapshotQueryKey, nextSnapshot);
+      // The new photo itself is the confirmation, so success shows no message.
       input.value = "";
-      setAvatarUploadMessage("Avatar updated.");
     } catch (error) {
       setAvatarUploadMessage(error instanceof Error ? error.message : "Could not upload avatar.");
     } finally {
@@ -1238,6 +1243,7 @@ function useRacerPageViewModel({
           ? {
               racer: registeredRacer,
               steps: registeredRacerSteps,
+              onDetailsUpdated: rememberUpdatedRacerDetails,
               avatarUrl: selectedRacerAvatarUrl,
               avatarUploadBusy,
               avatarUploadMessage,

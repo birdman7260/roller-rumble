@@ -70,7 +70,7 @@ describe("RegistrationWizard", () => {
     expect(screen.getByRole("button", { name: "Continue" })).toBeEnabled();
   });
 
-  it("registers with the details and racer name together, then forgets the draft", async () => {
+  it("registers with the details and racer name together", async () => {
     const result = {
       racer: { id: "racer-1", displayName: "Turbo Tortoise" },
       snapshot: {},
@@ -78,7 +78,7 @@ describe("RegistrationWizard", () => {
     };
     vi.mocked(registerRacer).mockResolvedValue(result as never);
     const onRegistered = vi.fn();
-    const view = render(<RegistrationWizard event={freeEvent} onRegistered={onRegistered} />);
+    render(<RegistrationWizard event={freeEvent} onRegistered={onRegistered} />);
     fillContactDetails();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     type("Racer name", "Turbo Tortoise");
@@ -93,9 +93,6 @@ describe("RegistrationWizard", () => {
       phone: "(555) 010-0100",
       displayName: "Turbo Tortoise"
     });
-    view.unmount();
-    render(<RegistrationWizard event={freeEvent} onRegistered={vi.fn()} />);
-    expect(screen.getByLabelText("Your name")).toHaveValue("");
   });
 
   it("keeps the racer on the racer name step when registration fails", async () => {

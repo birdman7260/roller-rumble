@@ -1613,6 +1613,16 @@ export class RollerRumbleApp extends EventEmitter {
     };
   }
 
+  /** A registered racer correcting their own `contact details` and racer name from the wizard. */
+  updateRacerDetails(racerId: string, input: RacerRegistrationInput): RacerAuthSuccessResponse {
+    const racer = this.auth.updateRacerDetails(racerId, input);
+    this.emitSnapshot();
+    return {
+      racer,
+      snapshot: this.snapshotForSurface(this.getSnapshot(), "racer")
+    };
+  }
+
   /** Admin quick-add. Insert-only like every racer-creation path, so a repeated email or phone
    * still creates a new racer (ADR-0024). */
   registerRacerRecord(input: CreateRacerInput): Racer {

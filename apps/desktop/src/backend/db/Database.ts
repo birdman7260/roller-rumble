@@ -32,6 +32,7 @@ import type {
   RaceRecord,
   RaceResult,
   Racer,
+  RacerRegistrationInput,
   RoundRobinMatch,
   TournamentBundle,
   TournamentParticipantSeed,
@@ -752,6 +753,22 @@ export class AppDatabase {
   getRacer(racerId: string): Racer | null {
     const row = this.orm.select().from(racers).where(eq(racers.id, racerId)).get();
     return row ? mapRacer(row) : null;
+  }
+
+  updateRacerDetails(racerId: string, input: RacerRegistrationInput): Racer | null {
+    this.orm
+      .update(racers)
+      .set({
+        displayName: input.displayName,
+        realName: input.realName,
+        email: input.email,
+        phone: input.phone,
+        updatedAt: nowIso()
+      })
+      .where(eq(racers.id, racerId))
+      .run();
+
+    return this.getRacer(racerId);
   }
 
   updateRacerAvatar(racerId: string, avatarUrl: string): Racer | null {

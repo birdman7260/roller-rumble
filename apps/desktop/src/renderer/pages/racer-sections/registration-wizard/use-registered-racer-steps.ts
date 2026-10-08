@@ -18,7 +18,19 @@ export interface RegisteredRacerSteps {
   holdPhotoStep: (racerId: string) => void;
   continueFromPhoto: () => void;
   acknowledgePayAtDesk: () => void;
+  /**
+   * Go back to an earlier step. The racer name and details steps stay up until
+   * `finishRevisit`; going back to the photo step holds it like `holdPhotoStep`.
+   */
+  revisitStep: (stepId: RevisitableStepId) => void;
+  finishRevisit: () => void;
 }
+
+/** Steps a registered racer can go back to with the wizard's Back buttons. */
+export type RevisitableStepId = Extract<
+  RegistrationStepId,
+  "contact-details" | "display-name" | "photo"
+>;
 
 /**
  * Where a signed-in racer is in the `registration wizard`. Steps are complete from server
@@ -35,6 +47,10 @@ export function useRegisteredRacerSteps({
   onlinePaymentAvailable: boolean;
 }): RegisteredRacerSteps {
   const [photoHeldForRacerId, setPhotoHeldForRacerId] = useState<string | null>(null);
+  const [revisit, setRevisit] = useState<{
+    racerId: string;
+    stepId: Exclude<RevisitableStepId, "photo">;
+  } | null>(null);
   const [payAtDeskAcknowledgedRacerId, setPayAtDeskAcknowledgedRacerId] = useState<string | null>(
     null
   );
@@ -43,6 +59,9 @@ export function useRegisteredRacerSteps({
   function resolveCurrentStep(): RegistrationStepId | null {
     if (!event || !racer || !racerId) {
       return null;
+    }
+    if (revisit?.racerId === racerId) {
+      return revisit.stepId;
     }
     if (photoHeldForRacerId === racerId) {
       return "photo";
@@ -71,6 +90,19 @@ export function useRegisteredRacerSteps({
         savePayAtDeskAcknowledged(racerId);
         setPayAtDeskAcknowledgedRacerId(racerId);
       }
+    },
+    revisitStep: (stepId) => {
+      if (!racerId) {
+        return;
+      }
+      if (stepId === "photo") {
+        setPhotoHeldForRacerId(racerId);
+      } else {
+        setRevisit({ racerId, stepId });
+      }
+    },
+    finishRevisit: () => {
+      setRevisit(null);
     }
   };
 }

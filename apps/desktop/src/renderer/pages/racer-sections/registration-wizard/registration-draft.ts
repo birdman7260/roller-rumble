@@ -1,8 +1,9 @@
 import type { RacerRegistrationInput } from "@roller-rumble/shared/types";
 
 /**
- * What a racer has typed into the `registration wizard` before their racer exists (ADR-0024 D4).
- * It lives only on this phone, so an abandoned wizard never puts anything on the projector.
+ * What a racer has typed into the `registration wizard` (ADR-0024 D4). It lives only on this
+ * phone, so an abandoned wizard never puts anything on the projector. It is kept after the racer
+ * is created so Back can show the details for correcting, and cleared when the phone signs out.
  */
 export interface RegistrationDraft extends RacerRegistrationInput {
   contactDetailsConfirmed: boolean;

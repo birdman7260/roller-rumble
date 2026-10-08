@@ -555,8 +555,8 @@ Requirements:
   duplicate race/win summary text, and present the racer's avatar at a larger profile size.
   `Implemented`
 - When a racer already has an avatar, replacement upload must be available from a small pencil icon
-  control on the avatar image. The standalone `Upload avatar` control should only appear for racers
-  who do not yet have an avatar. `Implemented`
+  control on the avatar image. A racer without an avatar sees an empty circle with an `Add photo`
+  button inside it instead. `Implemented`
 - The racer photo booth QR must live in its own `Me` tab card. Racers without an avatar should see
   that card directly below `Your Race Card`; racers who already have an avatar should see it at the
   bottom of the tab. `Implemented`

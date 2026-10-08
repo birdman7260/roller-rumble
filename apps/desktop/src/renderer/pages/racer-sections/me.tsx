@@ -7,6 +7,7 @@ import { Button, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import type { ChangeEvent, ReactNode } from "react";
 import { fireAndForget } from "../../lib/ui-actions";
+import { AvatarPicker } from "./avatar-picker";
 import { PhotoBoothQr } from "./photo-booth-qr";
 import { ExpandedRacerStats } from "./stats";
 import type { SectionMotionProps } from "./shared";
@@ -73,54 +74,24 @@ export function MeTab({
       {...supportingCardMotion}
       className="racer-page-grid__card racer-page-grid__card--supporting stack-md"
     >
-      <Panel title={selectedRacer ? "Your Race Card" : "Register"}>
-        {selectedRacer ? (
+      {selectedRacer ? (
+        <Panel title="Your Race Card">
           <div className="stack-md">
             <div className="racer-race-card">
               <div className="racer-race-card__names">
                 <strong>{selectedRacer.racer.displayName}</strong>
                 {selectedRacerRealName ? <span>{selectedRacerRealName}</span> : null}
               </div>
-              {selectedRacerAvatarUrl ? (
-                <div className="racer-avatar-frame">
-                  <img
-                    className="racer-avatar racer-avatar--large"
-                    src={selectedRacerAvatarUrl}
-                    alt={selectedRacer.racer.displayName}
-                  />
-                  {avatarUploadBusy ? (
-                    <output className="racer-avatar-uploading" aria-live="polite">
-                      <span className="racer-avatar-uploading__spinner" aria-hidden="true" />
-                      <span className="racer-avatar-uploading__label">Uploading…</span>
-                    </output>
-                  ) : null}
-                  <label
-                    className={`racer-avatar-edit-button${avatarUploadBusy ? " is-disabled" : ""}`}
-                    aria-label="Upload new avatar"
-                    title="Upload new avatar"
-                  >
-                    <svg aria-hidden="true" viewBox="0 0 24 24" focusable="false">
-                      <path d="M4 20h4l11-11-4-4L4 16v4z" />
-                      <path d="M14 6l4 4" />
-                    </svg>
-                    <input
-                      className="racer-avatar-edit-button__input"
-                      type="file"
-                      accept="image/*"
-                      disabled={avatarUploadBusy}
-                      onChange={(event) => {
-                        fireAndForget(onAvatarUpload(event), "upload racer avatar");
-                      }}
-                    />
-                  </label>
-                </div>
-              ) : (
-                <span className="racer-avatar racer-avatar--large">
-                  {selectedRacer.racer.displayName[0]}
-                </span>
-              )}
+              <AvatarPicker
+                avatarUrl={selectedRacerAvatarUrl}
+                displayName={selectedRacer.racer.displayName}
+                busy={avatarUploadBusy}
+                onUpload={(event) => {
+                  fireAndForget(onAvatarUpload(event), "upload racer avatar");
+                }}
+              />
             </div>
-            {selectedRacerAvatarUrl && (avatarUploadBusy || avatarUploadMessage) ? (
+            {avatarUploadBusy || avatarUploadMessage ? (
               <p>{avatarUploadBusy ? "Uploading avatar…" : avatarUploadMessage}</p>
             ) : null}
             <div className="button-row">
@@ -202,32 +173,11 @@ export function MeTab({
                 ) : null}
               </div>
             ) : null}
-            {!selectedRacerAvatarUrl ? (
-              <>
-                <label htmlFor="racer-avatar-upload">
-                  {avatarUploadBusy ? "Uploading avatar…" : "Upload avatar"}
-                  <input
-                    id="racer-avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    disabled={avatarUploadBusy}
-                    onChange={(event) => {
-                      fireAndForget(onAvatarUpload(event), "upload racer avatar");
-                    }}
-                  />
-                </label>
-                {avatarUploadBusy ? (
-                  <output aria-live="polite">Uploading avatar…</output>
-                ) : avatarUploadMessage ? (
-                  <p>{avatarUploadMessage}</p>
-                ) : null}
-              </>
-            ) : null}
           </div>
-        ) : (
-          registration
-        )}
-      </Panel>
+        </Panel>
+      ) : (
+        registration
+      )}
       {photoBoothEnabled && selectedRacer && !selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}
       {selectedRacer ? (
         <Panel title="Your Stats">

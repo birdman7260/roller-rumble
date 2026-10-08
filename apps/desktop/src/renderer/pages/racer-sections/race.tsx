@@ -241,11 +241,7 @@ export function RaceDashboard({
 
   if (!selectedRacer) {
     if (!canBrowsePublicRacerInfo) {
-      return (
-        <div className="racer-card-stack">
-          <Panel title="Register">{registration}</Panel>
-        </div>
-      );
+      return <div className="racer-card-stack">{registration}</div>;
     }
 
     if (tournamentMode) {

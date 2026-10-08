@@ -5,27 +5,27 @@ import type {
   RacerAuthSuccessResponse,
   RacerSummary
 } from "@roller-rumble/shared/types";
-import { Button, StepProgress } from "@roller-rumble/shared-ui";
-import { registerRacer } from "../../../lib/api";
+import { Button, Panel, StepProgress } from "@roller-rumble/shared-ui";
+import { registerRacer, updateRacerDetails } from "../../../lib/api";
 import { fireAndForget } from "../../../lib/ui-actions";
 import { ContactDetailsStep } from "./contact-details-step";
 import { DisplayNameStep } from "./display-name-step";
 import { PaymentStep } from "./payment-step";
 import { PhotoStep } from "./photo-step";
-import {
-  clearRegistrationDraft,
-  emptyRegistrationDraft,
-  loadRegistrationDraft,
-  saveRegistrationDraft
-} from "./registration-draft";
+import { loadRegistrationDraft, saveRegistrationDraft } from "./registration-draft";
 import type { RegistrationDraft } from "./registration-draft";
 import { buildRegistrationSteps, resolveResumeStep } from "./registration-steps";
 import type { RegisteredRacerSteps } from "./use-registered-racer-steps";
 
-/** What the wizard needs once this phone holds a device login: the photo and payment steps. */
+/**
+ * What the wizard needs once this phone holds a device login: the photo and payment steps, and
+ * Back to the racer name and details steps to correct them.
+ */
 export interface SignedInRegistration {
   racer: RacerSummary;
   steps: RegisteredRacerSteps;
+  /** The racer saved corrected details and racer name from a revisited step. */
+  onDetailsUpdated: (result: RacerAuthSuccessResponse) => void;
   avatarUrl: string | null;
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
@@ -40,7 +40,9 @@ export interface SignedInRegistration {
 /**
  * The `registration wizard`. Before the racer exists it keeps what they type as a per-device
  * draft and creates the racer when the racer name is submitted (ADR-0024); once `signedIn`, it
- * runs the photo and payment steps. Either way it resumes at the first unfinished step.
+ * runs the photo and payment steps, and Back from the photo step revisits the racer name and
+ * details, saving any corrections to the racer. Either way it resumes at the first unfinished
+ * step.
  */
 export function RegistrationWizard({
   event,
@@ -69,21 +71,26 @@ export function RegistrationWizard({
     saveRegistrationDraft(next);
   }
 
-  async function register(): Promise<void> {
+  // The draft outlives registration so Back can show what the racer typed; signing out clears it.
+  async function submitDetails(): Promise<void> {
     setBusy(true);
     setErrorMessage(null);
+    const details = {
+      realName: draft.realName,
+      email: draft.email,
+      phone: draft.phone,
+      displayName: draft.displayName
+    };
     try {
-      const result = await registerRacer({
-        realName: draft.realName,
-        email: draft.email,
-        phone: draft.phone,
-        displayName: draft.displayName
-      });
-      clearRegistrationDraft();
-      setDraft(emptyRegistrationDraft);
-      onRegistered(result);
+      if (signedIn) {
+        signedIn.onDetailsUpdated(await updateRacerDetails(details));
+        signedIn.steps.finishRevisit();
+      } else {
+        onRegistered(await registerRacer(details));
+      }
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Could not sign you up.");
+      const fallback = signedIn ? "Could not save your changes." : "Could not sign you up.";
+      setErrorMessage(error instanceof Error ? error.message : fallback);
     } finally {
       setBusy(false);
     }
@@ -92,54 +99,74 @@ export function RegistrationWizard({
   return (
     <div className="registration-wizard stack-md">
       {currentStepId ? <StepProgress steps={steps} currentStepId={currentStepId} /> : null}
-      {currentStepId === "contact-details" ? (
-        <ContactDetailsStep
-          details={draft}
-          onChange={updateDraft}
-          onContinue={() => {
-            updateDraft({ contactDetailsConfirmed: true });
-          }}
-        />
-      ) : null}
-      {currentStepId === "display-name" ? (
-        <DisplayNameStep
-          displayName={draft.displayName}
-          busy={busy}
-          errorMessage={errorMessage}
-          onChange={(displayName) => {
-            updateDraft({ displayName });
-          }}
-          onBack={() => {
-            setErrorMessage(null);
-            updateDraft({ contactDetailsConfirmed: false });
-          }}
-          onSubmit={() => {
-            fireAndForget(register(), "register racer");
-          }}
-        />
-      ) : null}
-      {signedIn && currentStepId === "photo" ? (
-        <PhotoStep
-          avatarUrl={signedIn.avatarUrl}
-          displayName={signedIn.racer.racer.displayName}
-          busy={signedIn.avatarUploadBusy}
-          message={signedIn.avatarUploadMessage}
-          photoBoothEnabled={signedIn.photoBoothEnabled}
-          onUpload={(uploadEvent) => {
-            signedIn.steps.holdPhotoStep(signedIn.racer.racer.id);
-            fireAndForget(signedIn.onAvatarUpload(uploadEvent), "upload racer photo");
-          }}
-          onContinue={signedIn.steps.continueFromPhoto}
-        />
-      ) : null}
-      {signedIn && currentStepId === "payment" ? (
-        <PaymentStep
-          event={event}
-          onlinePaymentAvailable={signedIn.onlinePaymentAvailable}
-          paymentReturnState={signedIn.paymentReturnState}
-          onAcknowledgePayAtDesk={signedIn.steps.acknowledgePayAtDesk}
-        />
-      ) : null}
+      <Panel title="Register">
+        {currentStepId === "contact-details" ? (
+          <ContactDetailsStep
+            details={draft}
+            onChange={updateDraft}
+            onContinue={() => {
+              if (signedIn) {
+                signedIn.steps.revisitStep("display-name");
+              } else {
+                updateDraft({ contactDetailsConfirmed: true });
+              }
+            }}
+          />
+        ) : null}
+        {currentStepId === "display-name" ? (
+          <DisplayNameStep
+            displayName={draft.displayName}
+            busy={busy}
+            busyLabel={signedIn ? "Saving..." : "Signing you up..."}
+            errorMessage={errorMessage}
+            onChange={(displayName) => {
+              updateDraft({ displayName });
+            }}
+            onBack={() => {
+              setErrorMessage(null);
+              if (signedIn) {
+                signedIn.steps.revisitStep("contact-details");
+              } else {
+                updateDraft({ contactDetailsConfirmed: false });
+              }
+            }}
+            onSubmit={() => {
+              fireAndForget(submitDetails(), signedIn ? "save racer details" : "register racer");
+            }}
+          />
+        ) : null}
+        {signedIn && currentStepId === "photo" ? (
+          <PhotoStep
+            avatarUrl={signedIn.avatarUrl}
+            displayName={signedIn.racer.racer.displayName}
+            busy={signedIn.avatarUploadBusy}
+            message={signedIn.avatarUploadMessage}
+            photoBoothEnabled={signedIn.photoBoothEnabled}
+            onUpload={(uploadEvent) => {
+              signedIn.steps.holdPhotoStep(signedIn.racer.racer.id);
+              fireAndForget(signedIn.onAvatarUpload(uploadEvent), "upload racer photo");
+            }}
+            onBack={() => {
+              // The racer record holds the name the projector shows, so Back starts from it.
+              setErrorMessage(null);
+              updateDraft({ displayName: signedIn.racer.racer.displayName });
+              signedIn.steps.revisitStep("display-name");
+            }}
+            onContinue={signedIn.steps.continueFromPhoto}
+          />
+        ) : null}
+        {signedIn && currentStepId === "payment" ? (
+          <PaymentStep
+            event={event}
+            onlinePaymentAvailable={signedIn.onlinePaymentAvailable}
+            paymentReturnState={signedIn.paymentReturnState}
+            onAcknowledgePayAtDesk={signedIn.steps.acknowledgePayAtDesk}
+            onBack={() => {
+              signedIn.steps.revisitStep("photo");
+            }}
+          />
+        ) : null}
+      </Panel>
       {signedIn ? (
         <div className="button-row">
           <Button variant="ghost" onClick={signedIn.onSignOut}>

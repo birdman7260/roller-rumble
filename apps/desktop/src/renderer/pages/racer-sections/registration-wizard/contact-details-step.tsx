@@ -93,7 +93,7 @@ export function ContactDetailsStep({
           </Fragment>
         );
       })}
-      <div className="button-row">
+      <div className="registration-step-actions">
         <Button type="submit" variant="accent" disabled={!canContinue}>
           Continue
         </Button>

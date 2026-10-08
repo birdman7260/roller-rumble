@@ -71,13 +71,15 @@ they've finished.
 2. **Pick your racer name** — the fun name the crowd sees on the projector (Turbo Tortoise, Captain
    Cadence…). Tapping **Continue** here creates the racer. Nothing appears on the big screen until
    this step, so someone who gives up halfway never shows up by their real name.
-3. **Your photo** — required. They tap **Take a selfie** or **Choose a photo**, see a preview, and
-   can retake it. If you run the photo booth, its QR shows here too, and a booth photo counts as soon
-   as it arrives.
+3. **Your photo** — required. They tap the empty circle (it says **Add photo**) to take a picture or
+   pick one, see a preview, and can change it with the little pencil. If you run the photo booth,
+   its QR shows here too, and a booth photo counts as soon as it arrives. **Back** from here returns
+   to the racer name and details, so a racer can fix a typo; tapping **Continue** on the racer name
+   step saves the change.
 4. **Payment** — _only when the event charges an entry fee._ With Stripe set up, they tap the **Pay** button and
    finish on Stripe's checkout page, then come straight back. Without Stripe, the step says **Pay at
    the desk**; they tap **Got it** and you mark them paid from the admin window (see the _Payments_
-   page).
+   page). **Back** returns to the photo step.
 
 When the last step is done, the racer lands on the race page, ready to queue.
 

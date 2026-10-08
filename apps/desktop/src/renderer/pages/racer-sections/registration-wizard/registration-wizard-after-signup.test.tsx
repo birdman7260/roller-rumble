@@ -1,13 +1,15 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { EventPaymentStatus, EventRecord, RacerSummary } from "@roller-rumble/shared/types";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { startRacerEntryCheckout } from "../../../lib/api";
+import { startRacerEntryCheckout, updateRacerDetails } from "../../../lib/api";
+import { saveRegistrationDraft } from "./registration-draft";
 import { RegistrationWizard } from "./registration-wizard";
 import { useRegisteredRacerSteps } from "./use-registered-racer-steps";
 
 vi.mock("../../../lib/api", () => ({
   registerRacer: vi.fn(),
   startRacerEntryCheckout: vi.fn(),
+  updateRacerDetails: vi.fn(),
   createRacerPhotoBoothToken: vi.fn(() => new Promise(() => undefined))
 }));
 
@@ -50,6 +52,7 @@ interface HarnessProps {
   photoBoothEnabled?: boolean;
   onAvatarUpload?: () => Promise<void>;
   onSignOut?: () => void;
+  onDetailsUpdated?: () => void;
 }
 
 // Mirrors the racer page: the wizard stays up until the signed-in racer has no step left.
@@ -60,7 +63,8 @@ function SignedInRacerPage({
   paymentReturnState = null,
   photoBoothEnabled = false,
   onAvatarUpload = vi.fn(async () => undefined),
-  onSignOut = vi.fn()
+  onSignOut = vi.fn(),
+  onDetailsUpdated = vi.fn()
 }: HarnessProps) {
   const steps = useRegisteredRacerSteps({ event, racer, onlinePaymentAvailable });
   if (steps.currentStepId === null) {
@@ -83,6 +87,7 @@ function SignedInRacerPage({
         signedIn={{
           racer,
           steps,
+          onDetailsUpdated,
           avatarUrl: racer.racer.avatarUrl ?? null,
           avatarUploadBusy: false,
           avatarUploadMessage: null,
@@ -100,6 +105,7 @@ function SignedInRacerPage({
 describe("RegistrationWizard after the racer is created", () => {
   beforeEach(() => {
     vi.mocked(startRacerEntryCheckout).mockReset();
+    vi.mocked(updateRacerDetails).mockReset();
   });
 
   afterEach(() => {
@@ -112,14 +118,13 @@ describe("RegistrationWizard after the racer is created", () => {
 
     expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    expect(screen.getByLabelText("Take a selfie")).toHaveAttribute("capture", "user");
-    expect(screen.getByLabelText("Choose a photo")).not.toHaveAttribute("capture");
+    expect(screen.getByLabelText("Add photo")).toHaveAttribute("accept", "image/*");
   });
 
-  it("shows the new photo with a retake option before moving on", async () => {
+  it("shows the new photo with a change option before moving on", async () => {
     const onAvatarUpload = vi.fn(async () => undefined);
     const view = render(<SignedInRacerPage racer={makeRacer()} onAvatarUpload={onAvatarUpload} />);
-    fireEvent.change(screen.getByLabelText("Take a selfie"), {
+    fireEvent.change(screen.getByLabelText("Add photo"), {
       target: { files: [new File(["selfie"], "selfie.jpg", { type: "image/jpeg" })] }
     });
     await waitFor(() => {
@@ -132,7 +137,8 @@ describe("RegistrationWizard after the racer is created", () => {
       "src",
       "/avatars/racer-1.jpg"
     );
-    expect(screen.getByLabelText("Retake selfie")).toBeInTheDocument();
+    expect(screen.getByLabelText("Change photo")).toBeInTheDocument();
+    expect(screen.queryByLabelText("Add photo")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByText("Race page")).toBeInTheDocument();
   });
@@ -151,6 +157,72 @@ describe("RegistrationWizard after the racer is created", () => {
     fireEvent.click(screen.getByRole("button", { name: "Sign out and start over" }));
 
     expect(onSignOut).toHaveBeenCalled();
+  });
+
+  it("goes back from the photo step to correct the racer name and details", async () => {
+    saveRegistrationDraft({
+      realName: "Ada Lovelace",
+      email: "ada@example.com",
+      phone: "555-010-0100",
+      displayName: "Typo Tortoise",
+      contactDetailsConfirmed: true
+    });
+    const result = { racer: { realName: "Ada King" }, snapshot: {} };
+    vi.mocked(updateRacerDetails).mockResolvedValue(result as never);
+    const onDetailsUpdated = vi.fn();
+    render(<SignedInRacerPage racer={makeRacer()} onDetailsUpdated={onDetailsUpdated} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
+    expect(screen.getByLabelText("Racer name")).toHaveValue("Turbo Tortoise");
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    expect(screen.getByLabelText("Your name")).toHaveValue("Ada Lovelace");
+    fireEvent.change(screen.getByLabelText("Your name"), { target: { value: "Ada King" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.change(screen.getByLabelText("Racer name"), {
+      target: { value: "Countess Cadence" }
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    await waitFor(() => {
+      expect(onDetailsUpdated).toHaveBeenCalledWith(result);
+    });
+    expect(updateRacerDetails).toHaveBeenCalledWith({
+      realName: "Ada King",
+      email: "ada@example.com",
+      phone: "555-010-0100",
+      displayName: "Countess Cadence"
+    });
+    expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
+  });
+
+  it("keeps the racer on the racer name step when saving a correction fails", async () => {
+    vi.mocked(updateRacerDetails).mockRejectedValue(new Error("Racer name is too long."));
+    render(<SignedInRacerPage racer={makeRacer()} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Racer name is too long.");
+    expect(screen.getByText("Step 2 of 3")).toBeInTheDocument();
+  });
+
+  it("goes back from the payment step to the photo step", () => {
+    render(
+      <SignedInRacerPage
+        racer={makeRacer({ avatarUrl: "/avatars/racer-1.jpg" })}
+        event={paidEvent}
+      />
+    );
+
+    expect(screen.getByText("Pay at the desk")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+
+    expect(screen.getByText("Step 3 of 4")).toBeInTheDocument();
+    expect(screen.getByLabelText("Change photo")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    expect(screen.getByText("Pay at the desk")).toBeInTheDocument();
   });
 
   it("offers the photo booth when the event has one", () => {

@@ -21,12 +21,14 @@ export function PaymentStep({
   event,
   onlinePaymentAvailable,
   paymentReturnState,
-  onAcknowledgePayAtDesk
+  onAcknowledgePayAtDesk,
+  onBack
 }: {
   event: PaymentEvent;
   onlinePaymentAvailable: boolean;
   paymentReturnState: string | null;
   onAcknowledgePayAtDesk: () => void;
+  onBack: () => void;
 }) {
   const fee = entryFeeLabel(event);
   if (!onlinePaymentAvailable) {
@@ -39,7 +41,10 @@ export function PaymentStep({
             and they'll mark you paid.
           </p>
         </div>
-        <div className="button-row">
+        <div className="registration-step-actions">
+          <Button variant="ghost" onClick={onBack}>
+            Back
+          </Button>
           <Button variant="accent" onClick={onAcknowledgePayAtDesk}>
             Got it
           </Button>
@@ -48,15 +53,17 @@ export function PaymentStep({
     );
   }
 
-  return <OnlinePaymentStep fee={fee} paymentReturnState={paymentReturnState} />;
+  return <OnlinePaymentStep fee={fee} paymentReturnState={paymentReturnState} onBack={onBack} />;
 }
 
 function OnlinePaymentStep({
   fee,
-  paymentReturnState
+  paymentReturnState,
+  onBack
 }: {
   fee: string | null;
   paymentReturnState: string | null;
+  onBack: () => void;
 }) {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -104,7 +111,10 @@ function OnlinePaymentStep({
           {errorMessage}
         </p>
       ) : null}
-      <div className="button-row">
+      <div className="registration-step-actions">
+        <Button variant="ghost" disabled={busy} onClick={onBack}>
+          Back
+        </Button>
         <Button
           variant="accent"
           disabled={busy}

@@ -8,6 +8,7 @@ import { racerRegistrationSchema } from "@roller-rumble/shared/validation";
 export function DisplayNameStep({
   displayName,
   busy,
+  busyLabel,
   errorMessage,
   onChange,
   onBack,
@@ -15,6 +16,8 @@ export function DisplayNameStep({
 }: {
   displayName: string;
   busy: boolean;
+  /** What Continue says while the racer name is being submitted. */
+  busyLabel: string;
   errorMessage: string | null;
   onChange: (displayName: string) => void;
   onBack: () => void;
@@ -58,12 +61,12 @@ export function DisplayNameStep({
           {errorMessage}
         </p>
       ) : null}
-      <div className="button-row">
+      <div className="registration-step-actions">
         <Button variant="ghost" disabled={busy} onClick={onBack}>
           Back
         </Button>
         <Button type="submit" variant="accent" disabled={!canSubmit}>
-          {busy ? "Signing you up..." : "Continue"}
+          {busy ? busyLabel : "Continue"}
         </Button>
       </div>
     </form>

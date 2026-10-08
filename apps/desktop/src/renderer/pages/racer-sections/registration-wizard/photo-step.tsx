@@ -1,5 +1,6 @@
 import type { ChangeEvent } from "react";
-import { Button, FileButton } from "@roller-rumble/shared-ui";
+import { Button } from "@roller-rumble/shared-ui";
+import { AvatarPicker } from "../avatar-picker";
 import { PhotoBoothQr } from "../photo-booth-qr";
 
 /**
@@ -13,6 +14,7 @@ export function PhotoStep({
   message,
   photoBoothEnabled,
   onUpload,
+  onBack,
   onContinue
 }: {
   avatarUrl: string | null;
@@ -21,6 +23,7 @@ export function PhotoStep({
   message: string | null;
   photoBoothEnabled: boolean;
   onUpload: (event: ChangeEvent<HTMLInputElement>) => void;
+  onBack: () => void;
   onContinue: () => void;
 }) {
   return (
@@ -31,30 +34,20 @@ export function PhotoStep({
           Your photo rides next to your racer name on the big screen. Snap a selfie or pick one.
         </p>
       </div>
-      {avatarUrl ? (
-        <img className="racer-avatar racer-avatar--large" src={avatarUrl} alt={displayName} />
-      ) : null}
-      <div className="button-row">
-        <FileButton
-          accept="image/*"
-          capture="user"
-          variant={avatarUrl ? "ghost" : "accent"}
-          disabled={busy}
-          onChange={onUpload}
-        >
-          {avatarUrl ? "Retake selfie" : "Take a selfie"}
-        </FileButton>
-        <FileButton accept="image/*" variant="ghost" disabled={busy} onChange={onUpload}>
-          {avatarUrl ? "Choose another photo" : "Choose a photo"}
-        </FileButton>
+      <div className="registration-photo-step__avatar">
+        <AvatarPicker
+          avatarUrl={avatarUrl}
+          displayName={displayName}
+          busy={busy}
+          onUpload={onUpload}
+        />
       </div>
-      {busy ? (
-        <output aria-live="polite">Uploading your photo…</output>
-      ) : message ? (
-        <p>{message}</p>
-      ) : null}
+      {message && !busy ? <p>{message}</p> : null}
       {photoBoothEnabled ? <PhotoBoothQr /> : null}
-      <div className="button-row">
+      <div className="registration-step-actions">
+        <Button variant="ghost" disabled={busy} onClick={onBack}>
+          Back
+        </Button>
         <Button variant="accent" disabled={!avatarUrl || busy} onClick={onContinue}>
           Continue
         </Button>

@@ -1,5 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CreateRacerInput, EventRecord, Racer } from "@roller-rumble/shared/types";
+import type {
+  CreateRacerInput,
+  EventRecord,
+  Racer,
+  RacerRegistrationInput
+} from "@roller-rumble/shared/types";
 import { AuthService, type AuthStore } from "./auth";
 
 const timestamp = "2026-05-29T00:00:00.000Z";
@@ -52,6 +57,15 @@ function makeStore(): AuthStore & {
         phone: input.phone ?? null
       };
       racers.set(racer.id, racer);
+      return racer;
+    }),
+    updateRacerDetails: vi.fn((racerId: string, input: RacerRegistrationInput) => {
+      const existing = racers.get(racerId);
+      if (!existing) {
+        return null;
+      }
+      const racer: Racer = { ...existing, ...input };
+      racers.set(racerId, racer);
       return racer;
     }),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
@@ -115,6 +129,24 @@ describe("AuthService", () => {
     expect(racer.id).not.toBe(existing.id);
     expect(store.racers.get(existing.id)).toEqual(existing);
     expect(auth.getRacerFromSessionToken(heldDeviceLogin)?.id).toBe(existing.id);
+  });
+
+  it("lets a registered racer correct their details without touching anyone else", () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    const racer = auth.registerRacer(registration);
+    const other = auth.registerRacer({ ...registration, displayName: "Sibling Spinner" });
+    const corrected = {
+      realName: "Ada King",
+      email: "ada.king@example.com",
+      phone: "555-010-0199",
+      displayName: "Countess Cadence"
+    };
+
+    const updated = auth.updateRacerDetails(racer.id, corrected);
+
+    expect(updated).toMatchObject({ id: racer.id, ...corrected });
+    expect(store.racers.get(other.id)).toEqual(other);
   });
 
   it("issues device logins that never expire", () => {

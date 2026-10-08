@@ -508,6 +508,13 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json({ ...result, sessionToken });
   });
 
+  // The racer id comes from the device login, never the request, so a phone edits only its racer.
+  app.put(`${API_PREFIX}/racer/details`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    const input = racerRegistrationSchema.parse(req.body);
+    res.json(service.updateRacerDetails(racer.id, input));
+  });
+
   // The device login lives only in the phone's local storage, so signing out is the phone
   // forgetting it; the server has nothing to clear.
   app.post(`${API_PREFIX}/auth/sign-out`, (_req, res) => {

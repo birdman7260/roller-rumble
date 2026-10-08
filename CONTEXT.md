@@ -21,7 +21,7 @@ _Avoid_: session (in racer-facing copy), passkey, sign-in, credential
 **registration**: Creating a brand-new `racer account`, either on a racer's phone through the `registration wizard` or by the host at the admin desk. It always creates a new racer with a new id. It ignores any `device login` already on the phone and never looks up an existing racer by `contact details`, so no registration can overwrite another racer.
 _Avoid_: sign-up, claim account, account recovery
 
-**registration wizard**: The racer page's step-by-step `registration`, with a progress bar showing the current step. The steps are `contact details`, then `display name`, then photo, then payment (shown only when the event requires payment). It finishes on the race page. The `racer account` is created when the `display name` step is submitted, so the photo and payment steps add to an account that already exists.
+**registration wizard**: The racer page's step-by-step `registration`, with a progress bar showing the current step. The steps are `contact details`, then `display name`, then photo, then payment (shown only when the event requires payment). It finishes on the race page. The `racer account` is created when the `display name` step is submitted, so the photo and payment steps add to an account that already exists. Going back from the photo step revisits the `contact details` and `display name` steps, which then correct that same account instead of creating another.
 _Avoid_: onboarding, sign-up flow
 
 **racer reconciliation**: Folding together the duplicate `racer account`s left when a racer re-registers after losing their `device login`. It is done with a `racer merge`. Not yet built.
