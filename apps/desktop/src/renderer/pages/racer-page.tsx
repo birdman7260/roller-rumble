@@ -76,7 +76,7 @@ export type RacerTabId = "rumble" | "tournament" | "racers" | "me";
 
 const racerTabs: { id: RacerTabId; label: string }[] = [
   { id: "rumble", label: "Rumble" },
-  { id: "tournament", label: "Tournament" },
+  { id: "tournament", label: "Tourney" },
   { id: "racers", label: "Racers" },
   { id: "me", label: "Me" }
 ];
@@ -280,7 +280,7 @@ function getCurrentTournamentRaceCards(
   return groupMatches.map((match: RoundRobinMatch) => ({
     id: match.id,
     kind: "group",
-    label: match.scoreLabel ?? "Tournament match",
+    label: match.scoreLabel ?? "Tourney match",
     racerAId: match.racerAId,
     racerBId: match.racerBId,
     roundLabel: "Current Stage",
@@ -1065,8 +1065,7 @@ function useRacerPageViewModel({
       setTournamentOptOutMessage(result.message);
       setModalActionMessage(result.message);
     } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Could not opt out of the tournament.";
+      const message = error instanceof Error ? error.message : "Could not opt out of the tourney.";
       setTournamentOptOutMessage(message);
       setModalActionMessage(message);
     } finally {
@@ -1188,7 +1187,7 @@ function useRacerPageViewModel({
         : currentRace?.state === "staging"
           ? "Staging"
           : activeTournament
-            ? "Tournament active"
+            ? "Tourney active"
             : upcoming.length > 0
               ? "Queue open"
               : "Open event";

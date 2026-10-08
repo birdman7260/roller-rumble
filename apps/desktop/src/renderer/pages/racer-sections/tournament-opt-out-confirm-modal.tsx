@@ -31,7 +31,7 @@ export function TournamentOptOutConfirmModal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
           >
-            <span className="racer-notification-modal__eyebrow">Leave Tournament</span>
+            <span className="racer-notification-modal__eyebrow">Leave Tourney</span>
             <h2 id="racer-opt-out-confirm-modal-title">Are you sure?</h2>
             <p>If you opt out of this tournament you can&rsquo;t be added back in.</p>
             <div className="racer-notification-modal__actions">

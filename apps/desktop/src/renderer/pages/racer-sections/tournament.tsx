@@ -134,7 +134,7 @@ export function TournamentTab({
         title={
           bracketExpanded && expandedBracketTournament
             ? expandedBracketTournament.tournament.name
-            : "Tournament View"
+            : "Tourney View"
         }
         actions={panelAction}
         className={`racer-page-grid__panel${
@@ -143,7 +143,7 @@ export function TournamentTab({
       >
         {tournaments.length === 0 ? (
           <EmptyState
-            title="No tournament active"
+            title="No tourney active"
             body="When the hosts create a bracket, it will appear here with standings and matchups."
           />
         ) : bracketExpanded && expandedBracketTournament ? (

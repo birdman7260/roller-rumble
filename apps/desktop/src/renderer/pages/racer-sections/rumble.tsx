@@ -124,11 +124,11 @@ export function TournamentRacePreview({
           </div>
         ) : (
           <EmptyState
-            title="No active tournament matches"
-            body="The bracket will show the next stage as soon as the host advances the tournament."
+            title="No active tourney matches"
+            body="The bracket will show the next stage as soon as the host advances the tourney."
           />
         )}
-        <InlineTabLink tabId="tournament" label="View tournament" onTabChange={onTabChange} />
+        <InlineTabLink tabId="tournament" label="View tourney" onTabChange={onTabChange} />
       </div>
     </Panel>
   );
@@ -248,11 +248,11 @@ function TournamentSpotPanel({
   visibleTournament: TournamentBundle;
 }) {
   return (
-    <Panel title="Tournament Spot">
+    <Panel title="Tourney Spot">
       <div className="stack-sm">
         <div className="racer-section-heading">
           <strong>{visibleTournament.tournament.name}</strong>
-          <p>You are seeded in this tournament.</p>
+          <p>You are seeded in this tourney.</p>
         </div>
         <Button
           variant="ghost"

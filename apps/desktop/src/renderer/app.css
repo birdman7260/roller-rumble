@@ -362,7 +362,9 @@ a {
 
 .racer-bottom-tabs {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(0, 1fr));
+  /* Each tab takes an equal share of the row, however many tabs are showing. */
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
   gap: 0.35rem;
   padding: 0.35rem;
   border: 1px solid var(--theme-border);
@@ -4438,7 +4440,6 @@ button.tournament-match-node:active {
   }
 
   .racer-bottom-tabs {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
     border-radius: 0.8rem;
     box-shadow: 0 0.7rem 1.4rem rgba(0, 0, 0, 0.18);
   }

@@ -243,7 +243,7 @@ the racer page with that notification selected so the matching in-app modal appe
     draws after the source matchup is marked advanced and before the bracket commits the winner
     into the next slot
 - `/racer`
-  - mobile-first bottom tabs for `Rumble`, `Tournament`, `Racers`, and `Me`
+  - mobile-first bottom tabs for `Rumble`, `Tourney`, `Racers`, and `Me`
   - a registration wizard with a progress bar: contact details, display name, a required photo
     (selfie or upload, or the photo booth), and an entry-fee payment step when the event charges one
   - sign-out behind a confirmation warning that the racer can't be recovered on this phone

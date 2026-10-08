@@ -30,6 +30,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Uploading a photo no longer shows an "Avatar updated." message; the new photo appearing is the confirmation.
 - On the racer page, joining the queue is now one tap away from every tab: a row of **Queue up**, **Solo**, and **Challenge** buttons sits just above the tabs, replacing the queue controls cards on the Race and Queue tabs. **Challenge** opens a window where you type an opponent's name and pick them. The row shows the queue-closed message while the queue is closed and disappears during a tournament. The page always scrolls far enough that its last card clears the row and the tabs, whether the row is showing or not, and pop-up messages appear just above them. Queue problems such as an unpaid entry fee now pop up as a short message, and the "Payment confirmed" note after checkout appears at the top of the Rumble tab.
 - The racer page's Race and Queue tabs are now one tab, **Rumble**. While you're in line, a **Your Next Race** card at the top shows who you're racing, your spot in line, and about how soon you're up. Below it, the race queue shows the next six races, with **Show more** to see the rest, and your races are highlighted. During a tournament the tab shows the tournament matches instead of the queue.
+- The racer page's **Tournament** tab is now **Tourney**. Other racer-facing tournament wording, such as panel titles and notifications, now says "tourney" too.
+- The racer page's bottom tabs now share the row equally, so the four tabs line up evenly on phones instead of leaving a gap on the right.
 
 ### Fixed
 

@@ -56,7 +56,7 @@ export function ExpandedRacerStats({
 
       {visibleTournament ? (
         <div className="racer-detail-section">
-          <h3>Tournament</h3>
+          <h3>Tourney</h3>
           {tournamentSeed ? (
             <p>
               Seed #{tournamentSeed.seed} in {visibleTournament.tournament.name} ·{" "}

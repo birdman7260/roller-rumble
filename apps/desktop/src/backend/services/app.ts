@@ -551,14 +551,14 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     // Tournament race: supersede each participant's tournament check-in
-    // notification so an unactioned "you made the tournament!" doesn't linger.
+    // notification so an unactioned "you made the tourney!" doesn't linger.
     if (completedRace.tournamentId) {
       for (const participant of completedRace.participants) {
         const racerName = this.db.getRacer(participant.racerId)?.displayName ?? "Racer";
         this.notifications.createNotificationAndDispatch({
           eventId: completedRace.eventId,
           type: "tournament_update",
-          title: "Tournament race done!",
+          title: "Tourney race done!",
           body: `${racerName}, nice work out there — check the bracket for what's next.`,
           url: "/racer",
           triggerKey: `tournament-race-done:${completedRace.id}:${participant.racerId}`,
@@ -579,8 +579,8 @@ export class RollerRumbleApp extends EventEmitter {
       this.notifications.createNotificationAndDispatch({
         eventId: bundle.tournament.eventId,
         type: "tournament_started",
-        title: "Tournament started",
-        body: `${racerName}, you made the tournament!`,
+        title: "Tourney started",
+        body: `${racerName}, you made the tourney!`,
         url: "/racer",
         triggerKey: `tournament-started:${bundle.tournament.id}:${racerId}`,
         channelKey: this.tournamentChannelKey(bundle.tournament.id, racerId),
@@ -609,8 +609,8 @@ export class RollerRumbleApp extends EventEmitter {
       this.notifications.createNotificationAndDispatch({
         eventId: bundle.tournament.eventId,
         type: "tournament_update",
-        title: "Tournament complete",
-        body: `${racerName}, the tournament has ended — thanks for racing!`,
+        title: "Tourney complete",
+        body: `${racerName}, the tourney has ended — thanks for racing!`,
         url: "/racer",
         triggerKey: `tournament-ended:${bundle.tournament.id}:${racerId}`,
         channelKey: this.tournamentChannelKey(bundle.tournament.id, racerId),
@@ -624,8 +624,8 @@ export class RollerRumbleApp extends EventEmitter {
     this.notifications.createNotificationAndDispatch({
       eventId: bundle.tournament.eventId,
       type: "tournament_update",
-      title: "Removed from tournament",
-      body: `${racerName}, you've been taken out of the tournament.`,
+      title: "Removed from tourney",
+      body: `${racerName}, you've been taken out of the tourney.`,
       url: "/racer",
       triggerKey: `tournament-withdrawn:${bundle.tournament.id}:${racerId}`,
       channelKey: this.tournamentChannelKey(bundle.tournament.id, racerId),

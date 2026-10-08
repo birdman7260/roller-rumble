@@ -108,7 +108,7 @@ export function MeTab({
                       ? `${unreadNotificationCount} unread update${
                           unreadNotificationCount === 1 ? "" : "s"
                         }.`
-                      : "Get phone alerts when your race or tournament is coming up."}
+                      : "Get phone alerts when your race or tourney is coming up."}
                   </p>
                 </div>
                 {shouldShowNotificationPrompt ? (

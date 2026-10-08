@@ -10,9 +10,9 @@ function getNotificationModalLabel(notification: RacerNotification): string {
     case "queue_you_are_up":
       return "You're Up!";
     case "tournament_started":
-      return "Tournament Check-In";
+      return "Tourney Check-In";
     case "tournament_update":
-      return "Tournament Update";
+      return "Tourney Update";
     case "queue_hang_tight":
       return "Queue Update";
     case "queue_status_update":
