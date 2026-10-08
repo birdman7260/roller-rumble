@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import type {
   ButtonHTMLAttributes,
   HTMLAttributes,
@@ -6,6 +6,7 @@ import type {
   PropsWithChildren,
   ReactNode
 } from "react";
+import { floatMenuAgainst } from "./floating-menu";
 
 // Keep these primitives dependency-light so both the Electron renderer and the isolated booth kiosk
 // package can import them without dragging either runtime into the other.
@@ -206,6 +207,11 @@ export interface SearchableSelectOption {
   label: string;
 }
 
+/**
+ * A text field that filters `options` as the user types and offers the matches in a menu. The menu
+ * floats over everything — including modal dialogs and scrolling panels — instead of pushing the
+ * content below it down.
+ */
 export function SearchableSelect({
   id,
   value,
@@ -214,7 +220,6 @@ export function SearchableSelect({
   placeholder,
   disabled = false,
   noResultsText = "No matching options",
-  menuPlacement = "overlay",
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy
 }: {
@@ -225,12 +230,12 @@ export function SearchableSelect({
   placeholder: string;
   disabled?: boolean;
   noResultsText?: string;
-  /** `inline` puts the results in the page flow, pushing what follows down instead of covering it. */
-  menuPlacement?: "overlay" | "inline";
   "aria-label"?: string;
   "aria-labelledby"?: string;
 }) {
   const rootRef = useRef<HTMLDivElement | null>(null);
+  const inputRef = useRef<HTMLInputElement | null>(null);
+  const menuRef = useRef<HTMLDivElement | null>(null);
   const selectedOption = options.find((option) => option.value === value) ?? null;
   const [draftText, setDraftText] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
@@ -254,6 +259,20 @@ export function SearchableSelect({
     };
   }, []);
 
+  const menuShown = open && !disabled;
+
+  // Layout effect so the menu is placed before the first paint rather than flashing at the
+  // popover's default centred position.
+  useLayoutEffect(() => {
+    const input = inputRef.current;
+    const menu = menuRef.current;
+    if (!menuShown || !input || !menu) {
+      return;
+    }
+
+    return floatMenuAgainst(input, menu);
+  }, [menuShown]);
+
   const normalizedQuery = query.trim().toLowerCase();
   const filteredOptions = normalizedQuery
     ? options.filter((option) => option.label.toLowerCase().includes(normalizedQuery))
@@ -266,15 +285,9 @@ export function SearchableSelect({
   }
 
   return (
-    <div
-      ref={rootRef}
-      className={cx(
-        "search-select",
-        menuPlacement === "inline" && "search-select--inline-menu",
-        disabled && "search-select--disabled"
-      )}
-    >
+    <div ref={rootRef} className={cx("search-select", disabled && "search-select--disabled")}>
       <input
+        ref={inputRef}
         id={id}
         value={query}
         disabled={disabled}
@@ -298,7 +311,11 @@ export function SearchableSelect({
         }}
         onKeyDown={(event) => {
           if (event.key === "Escape") {
-            setOpen(false);
+            if (menuShown) {
+              // Close just the menu, not a dialog the field sits in.
+              event.preventDefault();
+              setOpen(false);
+            }
             return;
           }
 
@@ -310,8 +327,8 @@ export function SearchableSelect({
           selectOption(filteredOptions[0]);
         }}
       />
-      {open && !disabled ? (
-        <div className="search-select__menu">
+      {menuShown ? (
+        <div ref={menuRef} popover="manual" className="search-select__menu">
           {filteredOptions.length > 0 ? (
             filteredOptions.map((option) => (
               <button

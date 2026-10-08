@@ -36,7 +36,7 @@
     "release:minor": "node scripts/release.mjs minor",
     "release:patch": "node scripts/release.mjs patch",
     "start": "pnpm --filter @roller-rumble/desktop start",
-    "test": "pnpm --filter @roller-rumble/shared test && pnpm --filter @roller-rumble/desktop test && node scripts/run-photo-booth-check.mjs test",
+    "test": "pnpm --filter @roller-rumble/shared test && pnpm --filter @roller-rumble/shared-ui test && pnpm --filter @roller-rumble/desktop test && node scripts/run-photo-booth-check.mjs test",
     "test:watch": "pnpm --filter @roller-rumble/desktop test:watch",
     "typecheck": "pnpm --filter @roller-rumble/shared typecheck && pnpm --filter @roller-rumble/shared-ui typecheck && pnpm --filter @roller-rumble/desktop typecheck && node scripts/run-photo-booth-check.mjs typecheck"
   },

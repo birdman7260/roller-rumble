@@ -31,6 +31,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- The opponent list in the racer's Challenge window now pops up over the window instead of pushing the Cancel and Challenge buttons down. That list and the admin desk's type-to-search racer pickers now open upward when there isn't room below the field, and stay attached to the field as the page scrolls or the phone keyboard opens. Pressing Escape while the list is open closes just the list, not the whole Challenge window.
 - The race box now listens to the correct bike when no lane map has been set up, instead of assuming the first rider is always on the first sensor port.
 - Adding a racer at the admin desk always creates a new racer, even if the email or phone matches someone else.
 - Racer phones no longer receive other racers' contact details (real names, phone numbers, or email addresses), whether from live updates, page loads, or after joining or leaving the queue.

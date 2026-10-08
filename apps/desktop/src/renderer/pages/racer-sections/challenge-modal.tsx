@@ -56,7 +56,6 @@ function ChallengeModalContent({
           )}
           onValueChange={setOpponentRacerId}
           noResultsText="No racers match that search"
-          menuPlacement="inline"
         />
       </div>
     </Modal>
