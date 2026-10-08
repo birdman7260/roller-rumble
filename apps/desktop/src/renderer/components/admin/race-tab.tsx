@@ -35,7 +35,7 @@ export function RaceTab({
   settingsTargetDistanceMeters: number;
   currentRace: RaceRecord | null;
   displayedRaceDistanceInput: string;
-  setRaceDistanceInput: Dispatch<SetStateAction<string>>;
+  setRaceDistanceInput: Dispatch<SetStateAction<string | null>>;
   onSaveRaceDistance: () => void;
   adminQueueRacerId: string;
   setAdminQueueRacerId: Dispatch<SetStateAction<string>>;

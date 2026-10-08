@@ -33,7 +33,7 @@ interface AdminPageState {
   adminQueueOpponentId: string;
   adminQueueRacerId: string;
   adminQueueRequestedType: "auto-match" | "solo";
-  raceDistanceInput: string;
+  raceDistanceInput: string | null;
   search: string;
   tournamentBracketLayout: TournamentBracketLayoutMode;
   tournamentBracketSize: TournamentBracketSize;
@@ -47,7 +47,7 @@ const initialAdminPageState: AdminPageState = {
   adminQueueOpponentId: "",
   adminQueueRacerId: "",
   adminQueueRequestedType: "auto-match",
-  raceDistanceInput: "",
+  raceDistanceInput: null,
   search: "",
   tournamentBracketLayout: "auto",
   tournamentBracketSize: 8,
@@ -96,7 +96,7 @@ export function AdminPage() {
       adminQueueRequestedType: resolveStateAction(action, adminQueueRequestedType)
     });
   };
-  const setRaceDistanceInput: Dispatch<SetStateAction<string>> = (action) => {
+  const setRaceDistanceInput: Dispatch<SetStateAction<string | null>> = (action) => {
     setState({ raceDistanceInput: resolveStateAction(action, raceDistanceInput) });
   };
   const setSearch: Dispatch<SetStateAction<string>> = (action) => {
@@ -176,8 +176,7 @@ export function AdminPage() {
     currentRace && ["staging", "countdown", "active", "interrupted"].includes(currentRace.state)
   );
   const activeTabConfig = adminTabs.find((tab) => tab.id === activeTab) ?? adminTabs[0];
-  const displayedRaceDistanceInput =
-    raceDistanceInput === "" ? String(settings.targetDistanceMeters) : raceDistanceInput;
+  const displayedRaceDistanceInput = raceDistanceInput ?? String(settings.targetDistanceMeters);
   const settingsThemeLabel =
     snapshot.themes.find((theme) => theme.id === settings.themeId)?.label ?? settings.themeId;
 
@@ -199,14 +198,14 @@ export function AdminPage() {
   async function handleRaceDistanceSave(): Promise<void> {
     const parsed = Number(displayedRaceDistanceInput);
     if (!Number.isFinite(parsed) || parsed <= 0) {
-      setRaceDistanceInput("");
+      setRaceDistanceInput(null);
       return;
     }
 
     await updateSettings({
       targetDistanceMeters: Math.round(parsed)
     });
-    setRaceDistanceInput("");
+    setRaceDistanceInput(null);
   }
 
   let activeTabContent: ReactElement;

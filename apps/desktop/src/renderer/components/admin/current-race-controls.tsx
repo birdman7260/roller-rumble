@@ -1,8 +1,8 @@
 import { Fragment } from "react";
 import type { AppSnapshot, RaceRecord } from "@roller-rumble/shared/types";
-import { bikeColorForLane, racerBikeColors } from "../../lib/bike-colors";
+import { bikeColorForLane } from "../../lib/bike-colors";
 import { resolveRacerName } from "../../lib/snapshot-display";
-import { RacerNamesByBike, BikeName } from "../racer-names-by-bike";
+import { BikeName } from "../racer-names-by-bike";
 import { canSwapRaceLanes } from "@roller-rumble/shared/race-lanes";
 import { describeBike, describeLaneSwap, LANE_SWAP_SHORTCUT_KEY } from "../../lib/lane-swap";
 import { Button } from "@roller-rumble/shared-ui";
@@ -163,7 +163,6 @@ export function CurrentRaceSummary({
   currentRace: RaceRecord;
 }) {
   const laneColorsFlipped = snapshot.settings.raceDisplayLaneColorsFlipped;
-  const racerIds = currentRace.participants.map((participant) => participant.racerId);
 
   return (
     <div className="stack-sm">
@@ -171,14 +170,6 @@ export function CurrentRaceSummary({
         {currentRace.state.toUpperCase()} •{" "}
         {currentRace.format === "solo" ? "Solo" : "Head-to-head"}
       </strong>
-      {/* Each name in its bike's colour, read off the race's lanes so a lane swap recolours it. */}
-      <span>
-        <RacerNamesByBike
-          colors={racerBikeColors(racerIds, currentRace, laneColorsFlipped)}
-          racerIds={racerIds}
-          snapshot={snapshot}
-        />
-      </span>
       {/* The lineup the app believes, spelled out per bike: a lane swap is only checkable if the
           operator can compare it against the riders actually sitting in front of them. */}
       <span className="admin-race-tray__detail">

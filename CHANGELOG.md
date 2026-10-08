@@ -28,6 +28,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Tournament bracket cards no longer show match codes like "W1.1" or "Winners 1"; losers-bracket, grand final, and reset matches are still labelled.
 - Racer stats are simpler: the event record is now shown as "Wins-Losses", and the career record and "Roller Rumble Events Attended" stats are gone. On the Racers tab, a racer's queue spots only appear when they're actually in the queue.
 - The Me tab's race card now shows your racer name at the top, your full name under it, and your photo centered below. Queue details have moved off the Me tab, since the Rumble tab already shows them.
+- The admin race tray's current-race panel no longer repeats the "A vs B" line of racer names under the race status. The bike-by-bike lineup right below it already shows who is on each bike, so the panel is a little shorter.
 - The operator handbook now walks through the registration wizard and the sign-out warning, explains that a racer with a lost or new phone registers again, and notes that racers no longer need the tunnel just to register (notifications and online payments still do).
 - The registration progress bar now sits above the registration card, and each step's Back button sits at the bottom left with Continue at the bottom right.
 - The photo and payment steps now have a Back button. Going back from the photo step lets a racer fix their racer name and contact details; tapping Continue on the racer name step saves the changes.
@@ -44,6 +45,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The opponent list in the racer's Challenge window now pops up over the window instead of pushing the Cancel and Challenge buttons down. That list and the admin desk's type-to-search racer pickers now open upward when there isn't room below the field, and stay attached to the field as the page scrolls or the phone keyboard opens. Pressing Escape while the list is open closes just the list, not the whole Challenge window.
 - The race box now listens to the correct bike when no lane map has been set up, instead of assuming the first rider is always on the first sensor port.
 - Adding a racer at the admin desk always creates a new racer, even if the email or phone matches someone else.
+- The admin race distance box can now be cleared with Backspace, so you can type a new distance (e.g. 4 in place of 5) without the old number snapping back.
 - Racer phones no longer receive other racers' contact details (real names, phone numbers, or email addresses), whether from live updates, page loads, or after joining or leaving the queue.
 
 ## 0.1.22 - 2026-07-16
