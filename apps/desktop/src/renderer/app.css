@@ -322,7 +322,8 @@ a {
 
 .racer-event-bar span,
 .racer-public-summary span,
-.racer-state-card span,
+/* Only the card's own label: the bike-coloured names inside its headline are spans too. */
+.racer-state-card > span,
 .racer-payment-summary span {
   color: var(--theme-text-muted);
   font-size: 0.78rem;
