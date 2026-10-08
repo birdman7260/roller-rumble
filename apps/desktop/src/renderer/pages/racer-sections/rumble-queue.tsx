@@ -1,11 +1,27 @@
-import type { AppSnapshot, QueueEntry } from "@roller-rumble/shared/types";
+import type { AppSnapshot, QueueEntry, TournamentQueueEntry } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { formatRacerNames, isLeavableByRacer } from "../../lib/snapshot-display";
 import { getQueuePositionLabel } from "./queue-position-label";
 
-/** How many races the queue shows before the racer taps Show more. */
+/** How many races a queue shows before the racer taps Show more. */
 const QUEUE_PREVIEW_LIMIT = 6;
+
+function QueueRowTitle({
+  isMine,
+  names,
+  position
+}: {
+  isMine: boolean;
+  names: string;
+  position: number;
+}) {
+  return (
+    <strong>
+      {isMine ? <span className="visually-hidden">Your race</span> : null}#{position} {names}
+    </strong>
+  );
+}
 
 function QueueRow({
   entry,
@@ -24,10 +40,11 @@ function QueueRow({
   return (
     <li className={`racer-queue-row${isMine ? " racer-queue-row--mine" : ""}`}>
       <div className="racer-queue-row__body">
-        <strong>
-          {isMine ? <span className="visually-hidden">Your race</span> : null}#{entry.position}{" "}
-          {formatRacerNames(liveSnapshot, entry.racerIds)}
-        </strong>
+        <QueueRowTitle
+          isMine={isMine}
+          names={formatRacerNames(liveSnapshot, entry.racerIds)}
+          position={entry.position}
+        />
         <span className="racer-queue-row__eta">
           {getQueuePositionLabel(index, liveSnapshot.settings.queueMinutesPerRace)}
         </span>
@@ -43,6 +60,65 @@ function QueueRow({
         ) : null}
       </div>
     </li>
+  );
+}
+
+function TournamentQueueRow({
+  entry,
+  index,
+  liveSnapshot,
+  selectedRacerId
+}: {
+  entry: TournamentQueueEntry;
+  index: number;
+  liveSnapshot: AppSnapshot;
+  selectedRacerId: string;
+}) {
+  const isMine = Boolean(selectedRacerId) && entry.racerIds.includes(selectedRacerId);
+  return (
+    <li className={`racer-queue-row${isMine ? " racer-queue-row--mine" : ""}`}>
+      <div className="racer-queue-row__body">
+        <div className="racer-queue-row__match">
+          <QueueRowTitle
+            isMine={isMine}
+            names={formatRacerNames(liveSnapshot, entry.racerIds)}
+            position={entry.position}
+          />
+          {entry.roundLabel ? (
+            <span className="racer-queue-row__round">{entry.roundLabel}</span>
+          ) : null}
+        </div>
+        <span className="racer-queue-row__eta">
+          {getQueuePositionLabel(index, liveSnapshot.settings.queueMinutesPerRace)}
+        </span>
+      </div>
+    </li>
+  );
+}
+
+/** A queue's rows, cut to the first few with Show more to reveal the rest. */
+function ExpandableQueueList({ label, rows }: { label: string; rows: ReactNode[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasMore = rows.length > QUEUE_PREVIEW_LIMIT;
+
+  return (
+    <>
+      <ol aria-label={label} className="racer-queue-list">
+        {expanded ? rows : rows.slice(0, QUEUE_PREVIEW_LIMIT)}
+      </ol>
+      {hasMore ? (
+        <button
+          type="button"
+          className="racer-inline-link"
+          aria-expanded={expanded}
+          onClick={() => {
+            setExpanded((value) => !value);
+          }}
+        >
+          {expanded ? "Show less" : "Show more"}
+        </button>
+      ) : null}
+    </>
   );
 }
 
@@ -63,10 +139,6 @@ export function RumbleQueuePanel({
   selectedRacerId: string;
   upcoming: QueueEntry[];
 }) {
-  const [expanded, setExpanded] = useState(false);
-  const hasMore = upcoming.length > QUEUE_PREVIEW_LIMIT;
-  const visibleEntries = expanded ? upcoming : upcoming.slice(0, QUEUE_PREVIEW_LIMIT);
-
   return (
     <Panel title="Race Queue">
       <div className="racer-race-preview stack-sm">
@@ -76,8 +148,9 @@ export function RumbleQueuePanel({
             body="The queue is open. Be the first racer to jump in."
           />
         ) : (
-          <ol aria-label="Race queue" className="racer-queue-list">
-            {visibleEntries.map((entry, index) => (
+          <ExpandableQueueList
+            label="Race queue"
+            rows={upcoming.map((entry, index) => (
               <QueueRow
                 key={entry.id}
                 entry={entry}
@@ -87,20 +160,59 @@ export function RumbleQueuePanel({
                 selectedRacerId={selectedRacerId}
               />
             ))}
-          </ol>
+          />
         )}
-        {hasMore ? (
-          <button
-            type="button"
-            className="racer-inline-link"
-            aria-expanded={expanded}
-            onClick={() => {
-              setExpanded((value) => !value);
-            }}
-          >
-            {expanded ? "Show less" : "Show more"}
-          </button>
-        ) : null}
+      </div>
+    </Panel>
+  );
+}
+
+/**
+ * The `tournament queue` on the Rumble tab during a tourney: every race still to run, in the
+ * bracket's order. Racers can't leave a tourney race from here; opting out is its own action.
+ */
+export function TournamentQueuePanel({
+  footer,
+  liveSnapshot,
+  selectedRacerId,
+  tournamentName,
+  tournamentQueue
+}: {
+  /** Shown under the list, e.g. a link to the full bracket. */
+  footer: ReactNode;
+  liveSnapshot: AppSnapshot;
+  /** Empty while no racer is signed in, so no row is highlighted. */
+  selectedRacerId: string;
+  tournamentName: string;
+  tournamentQueue: TournamentQueueEntry[];
+}) {
+  return (
+    <Panel title="Tourney Queue">
+      <div className="racer-race-preview stack-sm">
+        <div className="racer-section-heading">
+          <strong>{tournamentName}</strong>
+          <p>Races run in bracket order.</p>
+        </div>
+        {tournamentQueue.length === 0 ? (
+          <EmptyState
+            title="No tourney races left"
+            body="The final results will show on the tourney tab."
+          />
+        ) : (
+          <ExpandableQueueList
+            label="Tourney queue"
+            rows={tournamentQueue.map((entry, index) => (
+              <TournamentQueueRow
+                key={entry.matchId}
+                entry={entry}
+                index={index}
+                liveSnapshot={liveSnapshot}
+                selectedRacerId={selectedRacerId}
+              />
+            ))}
+          />
+        )}
+        {footer}
       </div>
     </Panel>
   );

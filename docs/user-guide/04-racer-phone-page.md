@@ -175,10 +175,12 @@ it** to dismiss it and can join again once one of their races runs.
 
 ## When a tournament is running
 
-While a tournament is active, the open queue is **paused**. The racer's Rumble tab shows the current
-tournament matches in place of the queue, and racers can't add themselves until the tournament
-ends. During a tournament, matchups are set by the bracket (see the
-Tournaments page), not by racers joining.
+While a tournament is active, the open queue is **paused**. The racer's Rumble tab shows the
+**Tourney Queue** in its place: every race the tourney still has to run, in bracket order, with the
+same time estimates as the open queue. A slot the bracket hasn't filled yet reads **TBD**. A seeded
+racer sees their own races highlighted and a **Your Next Race** card above the list. Racers can't
+add themselves until the tournament ends: matchups are set by the bracket (see the Tournaments
+page), not by racers joining.
 
 ---
 

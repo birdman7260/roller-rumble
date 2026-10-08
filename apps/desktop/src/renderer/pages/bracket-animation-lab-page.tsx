@@ -400,6 +400,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     settings,
     themes,
     tournaments: [bundle],
+    tournamentQueue: [],
     paymentProvider: {
       stripe: {
         configured: false,

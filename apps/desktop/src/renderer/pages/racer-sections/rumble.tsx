@@ -2,133 +2,48 @@ import type {
   AppSnapshot,
   QueueEntry,
   RacerSummary,
-  TournamentBundle
+  TournamentBundle,
+  TournamentQueueEntry
 } from "@roller-rumble/shared/types";
-import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
+import { Button, Panel } from "@roller-rumble/shared-ui";
 import type { ReactNode } from "react";
 import {
   describeQueueEntry,
   isLeavableByRacer,
   resolveRacerName
 } from "../../lib/snapshot-display";
-import { resolveBackendAssetUrl } from "../../lib/assets";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
 import { getNextRaceTimingLabel } from "./queue-position-label";
-import { RumbleQueuePanel } from "./rumble-queue";
+import { RumbleQueuePanel, TournamentQueuePanel } from "./rumble-queue";
 import { InlineTabLink } from "./inline-tab-link";
-import type { TournamentRaceCard } from "./shared";
 
-function TournamentRaceCardView({
-  card,
-  liveSnapshot
+function NextRaceCardView({
+  children,
+  matchLabel,
+  opponentNames,
+  position,
+  timing
 }: {
-  card: TournamentRaceCard;
-  liveSnapshot: AppSnapshot;
+  children?: ReactNode;
+  matchLabel: string;
+  opponentNames: string[];
+  position: number;
+  timing: string;
 }) {
-  const participants = [
-    {
-      id: card.racerAId ?? null,
-      name: card.racerAId ? resolveRacerName(liveSnapshot, card.racerAId) : "TBD"
-    },
-    {
-      id: card.racerBId ?? null,
-      name: card.racerBId ? resolveRacerName(liveSnapshot, card.racerBId) : "TBD"
-    }
-  ];
-
   return (
-    <div className={`tournament-match-node tournament-match-node--${card.state}`}>
-      <div className="tournament-match-node__meta">
-        {card.roundLabel || card.kind === "group" ? (
-          <div>
-            {card.roundLabel ? <p className="eyebrow">{card.roundLabel}</p> : null}
-            {card.kind === "group" ? (
-              <strong className="tournament-match-node__label">{card.label}</strong>
-            ) : null}
-          </div>
-        ) : null}
-        <span className="tournament-match-node__status">{card.state}</span>
-      </div>
-      <div className="tournament-match-node__body">
-        {participants.map((participant, index) => {
-          const racer = participant.id
-            ? (liveSnapshot.racers.find((entry) => entry.racer.id === participant.id)?.racer ??
-              null)
-            : null;
-          const avatarUrl = resolveBackendAssetUrl(racer?.avatarUrl);
-          const participantName = participant.id ? participant.name : "TBD";
-          return (
-            <div
-              key={participant.id ?? `${card.id}:${String(index)}`}
-              className={`tournament-match-node__participant${
-                participant.id && participant.id === card.winnerRacerId ? " winner" : ""
-              }`}
-            >
-              <div className="tournament-match-node__identity">
-                {avatarUrl ? (
-                  <img
-                    className="tournament-match-node__avatar"
-                    src={avatarUrl}
-                    alt={participantName}
-                  />
-                ) : (
-                  <span className="tournament-match-node__avatar tournament-match-node__avatar--placeholder">
-                    {participantName.slice(0, 1).toUpperCase()}
-                  </span>
-                )}
-                <span className="tournament-match-node__name">{participantName}</span>
-              </div>
-              <span className="tournament-match-node__result">
-                {participant.id && participant.id === card.winnerRacerId
-                  ? card.state === "bye"
-                    ? "BYE"
-                    : "ADV"
-                  : ""}
-              </span>
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-}
-
-export function TournamentRacePreview({
-  activeTournament,
-  liveSnapshot,
-  onTabChange,
-  tournamentRaceCards
-}: {
-  activeTournament: TournamentBundle | null;
-  liveSnapshot: AppSnapshot;
-  onTabChange: (tabId: RacerTabId) => void;
-  tournamentRaceCards: TournamentRaceCard[];
-}) {
-  if (!activeTournament) {
-    return null;
-  }
-
-  return (
-    <Panel title="Current Matches">
-      <div className="racer-tournament-preview stack-sm">
-        <div className="racer-section-heading">
-          <strong>{activeTournament.tournament.name}</strong>
-          <p>Current stage matchups</p>
+    <Panel title="Your Next Race" aria-label="Your next race">
+      <div className="stack-md">
+        <div className="racer-state-card">
+          <span>{matchLabel}</span>
+          <strong>
+            {opponentNames.length > 0 ? `vs ${opponentNames.join(" & ")}` : "Your run"}
+          </strong>
+          <p>
+            #{position} in line · {timing}
+          </p>
         </div>
-        {tournamentRaceCards.length > 0 ? (
-          <div className="racer-tournament-match-grid">
-            {tournamentRaceCards.map((card) => (
-              <TournamentRaceCardView key={card.id} card={card} liveSnapshot={liveSnapshot} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            title="No active tourney matches"
-            body="The bracket will show the next stage as soon as the host advances the tourney."
-          />
-        )}
-        <InlineTabLink tabId="tournament" label="View tourney" onTabChange={onTabChange} />
+        {children}
       </div>
     </Panel>
   );
@@ -157,37 +72,59 @@ function NextRaceCard({
     return null;
   }
 
-  const opponentNames = nextEntry.racerIds.flatMap((racerId) =>
-    racerId === selectedRacerId ? [] : [resolveRacerName(liveSnapshot, racerId)]
+  return (
+    <NextRaceCardView
+      matchLabel={describeQueueEntry(nextEntry)}
+      opponentNames={nextEntry.racerIds.flatMap((racerId) =>
+        racerId === selectedRacerId ? [] : [resolveRacerName(liveSnapshot, racerId)]
+      )}
+      position={nextEntry.position}
+      timing={getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace)}
+    >
+      {hasQueuedSpot ? (
+        <div className="racer-queue-leave-all">
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onRequestLeaveQueue();
+            }}
+          >
+            Leave the queue entirely
+          </Button>
+        </div>
+      ) : null}
+    </NextRaceCardView>
   );
-  const timing = getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace);
+}
+
+/**
+ * The signed-in racer's next race in the `tournament queue`. Renders nothing once they have none.
+ */
+function TournamentNextRaceCard({
+  liveSnapshot,
+  selectedRacerId,
+  tournamentQueue
+}: {
+  liveSnapshot: AppSnapshot;
+  selectedRacerId: string;
+  tournamentQueue: TournamentQueueEntry[];
+}) {
+  const racesAhead = tournamentQueue.findIndex((entry) => entry.racerIds.includes(selectedRacerId));
+  const nextEntry = racesAhead === -1 ? null : tournamentQueue[racesAhead];
+
+  if (!nextEntry) {
+    return null;
+  }
 
   return (
-    <Panel title="Your Next Race" aria-label="Your next race">
-      <div className="stack-md">
-        <div className="racer-state-card">
-          <span>{describeQueueEntry(nextEntry)}</span>
-          <strong>
-            {opponentNames.length > 0 ? `vs ${opponentNames.join(" & ")}` : "Your run"}
-          </strong>
-          <p>
-            #{nextEntry.position} in line · {timing}
-          </p>
-        </div>
-        {hasQueuedSpot ? (
-          <div className="racer-queue-leave-all">
-            <Button
-              variant="ghost"
-              onClick={() => {
-                onRequestLeaveQueue();
-              }}
-            >
-              Leave the queue entirely
-            </Button>
-          </div>
-        ) : null}
-      </div>
-    </Panel>
+    <NextRaceCardView
+      matchLabel={nextEntry.roundLabel ?? "Tourney race"}
+      opponentNames={nextEntry.racerIds.flatMap((racerId) =>
+        racerId === selectedRacerId ? [] : [resolveRacerName(liveSnapshot, racerId, "TBD")]
+      )}
+      position={nextEntry.position}
+      timing={getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace)}
+    />
   );
 }
 
@@ -295,7 +232,7 @@ function PaymentReturnNotice({
 
 /**
  * The racer page's home tab: the racer's next race (while they have one) above the open race
- * queue. During a tournament the open queue is paused, so it shows the current matches instead.
+ * queue. During a tournament the open queue is paused, so it shows the tournament queue instead.
  */
 export function RumbleTab({
   activeTournament,
@@ -315,7 +252,7 @@ export function RumbleTab({
   tournamentMode,
   tournamentOptOutBusy,
   tournamentOptOutMessage,
-  tournamentRaceCards,
+  tournamentQueue,
   upcoming,
   visibleTournament
 }: {
@@ -338,7 +275,8 @@ export function RumbleTab({
   tournamentMode: boolean;
   tournamentOptOutBusy: boolean;
   tournamentOptOutMessage: string | null;
-  tournamentRaceCards: TournamentRaceCard[];
+  /** The active tourney's `tournament queue`; empty outside a tourney. */
+  tournamentQueue: TournamentQueueEntry[];
   upcoming: QueueEntry[];
   visibleTournament: TournamentBundle | null;
 }) {
@@ -360,12 +298,24 @@ export function RumbleTab({
             visibleTournament={visibleTournament}
           />
         ) : null}
-        <TournamentRacePreview
-          activeTournament={activeTournament}
-          liveSnapshot={liveSnapshot}
-          onTabChange={onTabChange}
-          tournamentRaceCards={tournamentRaceCards}
-        />
+        {selectedRacer ? (
+          <TournamentNextRaceCard
+            liveSnapshot={liveSnapshot}
+            selectedRacerId={selectedRacerId}
+            tournamentQueue={tournamentQueue}
+          />
+        ) : null}
+        {activeTournament ? (
+          <TournamentQueuePanel
+            footer={
+              <InlineTabLink tabId="tournament" label="View tourney" onTabChange={onTabChange} />
+            }
+            liveSnapshot={liveSnapshot}
+            selectedRacerId={selectedRacer ? selectedRacerId : ""}
+            tournamentName={activeTournament.tournament.name}
+            tournamentQueue={tournamentQueue}
+          />
+        ) : null}
         {selectedRacer ? null : (
           <Panel title="Register">
             <RegisterCta onTabChange={onTabChange} />

@@ -42,9 +42,9 @@ import type {
   TournamentByeFillOptionsResponse,
   TournamentRacerRemovalOptionsResponse,
   TournamentBundle,
+  TournamentQueueEntry,
   TournamentBracketLayoutMode,
   TournamentBracketSize,
-  TournamentPreset,
   TournamentOptOutResponse,
   TunnelDiagnostics,
   TunnelState,
@@ -99,6 +99,11 @@ import {
   undoGroupMatchResult,
   TournamentService
 } from "./tournaments";
+import {
+  buildTournamentQueue,
+  getPinnedUpNextMatchId,
+  withPinnedUpNextMatchId
+} from "./tournament-queue";
 import {
   createSignedPhotoBoothToken,
   PHOTO_BOOTH_TOKEN_TTL_MS,
@@ -886,7 +891,10 @@ export class RollerRumbleApp extends EventEmitter {
         mode: "open-time-trial"
       });
     }
-    this.emitSnapshot();
+    // Freeing the bikes or settling a slot can leave a tournament race ready for auto-stage.
+    if (!this.maybeAutoStageNextRace()) {
+      this.emitSnapshot();
+    }
     const replacementRacer = replacementSeed ? this.db.getRacer(replacementSeed.racerId) : null;
     const replacementName = replacementSeed
       ? (replacementRacer?.displayName ?? replacementSeed.label)
@@ -1015,7 +1023,10 @@ export class RollerRumbleApp extends EventEmitter {
         mode: "open-time-trial"
       });
     }
-    this.emitSnapshot();
+    // Freeing the bikes or settling a slot can leave a tournament race ready for auto-stage.
+    if (!this.maybeAutoStageNextRace()) {
+      this.emitSnapshot();
+    }
 
     const replacementRacer = replacementSeed ? this.db.getRacer(replacementSeed.racerId) : null;
     const replacementName = replacementSeed
@@ -1097,7 +1108,10 @@ export class RollerRumbleApp extends EventEmitter {
     this.db.updateAdminSettings({
       mode: nextBundle.tournament.preset
     });
-    this.emitSnapshot();
+    // Freeing the bikes or settling a slot can leave a tournament race ready for auto-stage.
+    if (!this.maybeAutoStageNextRace()) {
+      this.emitSnapshot();
+    }
     const replacementRacer = this.db.getRacer(replacementSeed.racerId);
     const replacementName = replacementRacer?.displayName ?? replacementSeed.label;
 
@@ -1693,12 +1707,21 @@ export class RollerRumbleApp extends EventEmitter {
     this.reconcileQueueRaceStatuses(activeEvent.id);
 
     const settings = this.db.getAdminSettings();
-    // Auto-stage is only for the open queue flow; tournament match staging stays explicit.
-    if (!settings.autoStageNextRace || settings.mode !== "open-time-trial") {
+    if (!settings.autoStageNextRace) {
       return false;
     }
 
     if (this.db.getCurrentRace(activeEvent.id)) {
+      return false;
+    }
+
+    // A live tournament pauses the open queue, so its own queue is the one auto-stage draws from.
+    const activeTournament = this.getActiveTournamentBundle(activeEvent.id);
+    if (activeTournament) {
+      return Boolean(this.findNextTournamentQueueEntry(activeTournament));
+    }
+
+    if (settings.mode !== "open-time-trial") {
       return false;
     }
 
@@ -2261,6 +2284,11 @@ export class RollerRumbleApp extends EventEmitter {
       return this.getSnapshot();
     }
 
+    const activeTournament = this.getActiveTournamentBundle(activeEvent.id);
+    if (activeTournament) {
+      return this.stageNextTournamentRace(activeTournament);
+    }
+
     const nextEntry = findNextQueuedEntry(this.db.listQueueEntries(activeEvent.id));
     if (!nextEntry) {
       return this.getSnapshot();
@@ -2336,10 +2364,10 @@ export class RollerRumbleApp extends EventEmitter {
     });
     if (currentRace.queueEntryId) {
       this.db.markQueueEntryStatus(currentRace.queueEntryId, "queued");
-      // Explicitly unstaging an open queue race is a host pause, not an invitation for auto-stage
-      // to immediately recreate the same staged race.
-      this.autoStagePausedUntilManualStage = true;
     }
+    // Explicitly unstaging a race is a host pause, not an invitation for auto-stage to immediately
+    // recreate the same staged race.
+    this.autoStagePausedUntilManualStage = true;
     this.runQueueNotificationTriggers(activeEvent.id);
     this.emitSnapshot();
     return this.getSnapshot();
@@ -2600,9 +2628,9 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   private stageTournamentRace(input: {
-    tournamentId: string;
+    bundle: TournamentBundle;
+    matchId: string;
     stageId: string;
-    preset: TournamentPreset;
     racerIds: [string, string];
   }): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
@@ -2611,12 +2639,18 @@ export class RollerRumbleApp extends EventEmitter {
       return this.getSnapshot();
     }
 
+    this.autoStagePausedUntilManualStage = false;
+    // Staging the pinned match uses up the pin; staging any other match leaves it waiting.
+    if (getPinnedUpNextMatchId(input.bundle) === input.matchId) {
+      this.savePinnedUpNextMatchId(input.bundle, null);
+    }
+
     const settings = this.db.getAdminSettings();
     const race = this.db.createRace({
       eventId: activeEvent.id,
-      tournamentId: input.tournamentId,
+      tournamentId: input.bundle.tournament.id,
       stageId: input.stageId,
-      mode: input.preset,
+      mode: input.bundle.tournament.preset,
       format: "match",
       themeId: settings.themeId,
       targetDistanceMeters: settings.targetDistanceMeters,
@@ -2746,7 +2780,65 @@ export class RollerRumbleApp extends EventEmitter {
       winnerRacerId: null
     });
     this.os2lTrigger.disarmRace();
+    this.autoStagePausedUntilManualStage = true;
     this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  /** The first match in the `tournament queue` that can go on the bikes now. */
+  private findNextTournamentQueueEntry(bundle: TournamentBundle): TournamentQueueEntry | null {
+    const currentRace = this.db.getCurrentRace(bundle.tournament.eventId);
+    return (
+      buildTournamentQueue({ bundle, currentRace }).find((entry) => entry.status === "ready") ??
+      null
+    );
+  }
+
+  private stageNextTournamentRace(bundle: TournamentBundle): AppSnapshot {
+    const nextEntry = this.findNextTournamentQueueEntry(bundle);
+    if (!nextEntry) {
+      return this.getSnapshot();
+    }
+
+    return nextEntry.matchKind === "bracket"
+      ? this.stageTournamentBracketMatch(bundle.tournament.id, nextEntry.matchId)
+      : this.stageTournamentGroupMatch(bundle.tournament.id, nextEntry.matchId);
+  }
+
+  private savePinnedUpNextMatchId(bundle: TournamentBundle, matchId: string | null): void {
+    this.db.saveTournamentBundle(withPinnedUpNextMatchId(bundle, matchId, nowIso()));
+  }
+
+  /**
+   * Pin a match to race next, ahead of the bracket's own order, or clear the pin with `null`. Only
+   * a match whose riders are both decided can be pinned. Pinning never disturbs the race already
+   * staged or on the bikes; when the bikes are free and auto-stage is on, the pinned match is
+   * staged straight away.
+   */
+  pinTournamentMatchUpNext(tournamentId: string, matchId: string | null): AppSnapshot {
+    const bundle = this.db.getTournamentBundle(tournamentId);
+    if (bundle?.tournament.status !== "active") {
+      throw new AppHttpError("There is no active tournament.", 404, "no_tournament");
+    }
+
+    if (matchId) {
+      const entry = buildTournamentQueue({
+        bundle,
+        currentRace: this.db.getCurrentRace(bundle.tournament.eventId)
+      }).find((candidate) => candidate.matchId === matchId);
+      if (entry?.status !== "ready") {
+        throw new AppHttpError(
+          "That match can't race yet. Pin a match whose riders are both decided.",
+          409,
+          "tournament_match_not_ready"
+        );
+      }
+    }
+
+    this.savePinnedUpNextMatchId(bundle, matchId);
+    if (!this.maybeAutoStageNextRace()) {
+      this.emitSnapshot();
+    }
     return this.getSnapshot();
   }
 
@@ -2790,7 +2882,11 @@ export class RollerRumbleApp extends EventEmitter {
       mode: input.preset
     });
     this.notifyTournamentStarted(bundle);
-    this.emitSnapshot();
+    // A new tournament is a fresh start: an earlier unstage no longer holds auto-stage back.
+    this.autoStagePausedUntilManualStage = false;
+    if (!this.maybeAutoStageNextRace()) {
+      this.emitSnapshot();
+    }
     return this.getSnapshot();
   }
 
@@ -2806,9 +2902,9 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     return this.stageTournamentRace({
-      tournamentId,
+      bundle,
+      matchId: node.id,
       stageId: node.stageId,
-      preset: bundle.tournament.preset,
       racerIds: [node.racerAId, node.racerBId]
     });
   }
@@ -2829,9 +2925,9 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     return this.stageTournamentRace({
-      tournamentId,
+      bundle,
+      matchId: match.id,
       stageId: stage.id,
-      preset: bundle.tournament.preset,
       racerIds: [match.racerAId, match.racerBId]
     });
   }

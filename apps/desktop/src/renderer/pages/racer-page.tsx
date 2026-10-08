@@ -5,12 +5,11 @@ import type { ChangeEvent, Dispatch, ReactNode, RefObject, SetStateAction } from
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   AppSnapshot,
-  BracketNode,
   NotificationConfig,
   RacerAuthSuccessResponse,
   RacerNotification,
-  RoundRobinMatch,
   TournamentBundle,
+  TournamentQueueEntry,
   WebPushSubscriptionInput
 } from "@roller-rumble/shared/types";
 import { ConfirmModal } from "@roller-rumble/shared-ui";
@@ -59,11 +58,7 @@ import { RegistrationWizard } from "./racer-sections/registration-wizard/registr
 import { clearRegistrationDraft } from "./racer-sections/registration-wizard/registration-draft";
 import { forgetPayAtDeskAcknowledged } from "./racer-sections/registration-wizard/pay-at-desk";
 import { useRegisteredRacerSteps } from "./racer-sections/registration-wizard/use-registered-racer-steps";
-import type {
-  ChallengeReplacementRequest,
-  QueueIssueModal,
-  TournamentRaceCard
-} from "./racer-sections/shared";
+import type { ChallengeReplacementRequest, QueueIssueModal } from "./racer-sections/shared";
 import { RacerBottomTabs } from "./racer-sections/tabs";
 import { TournamentTab } from "./racer-sections/tournament";
 import { TournamentOptOutConfirmModal } from "./racer-sections/tournament-opt-out-confirm-modal";
@@ -181,112 +176,6 @@ function canRacerOptOutFromTournament(
   }
 
   return true;
-}
-
-function getBracketRoundLabel(node: BracketNode): string | null {
-  const bracket = typeof node.meta.bracket === "string" ? node.meta.bracket : "winners";
-  if (bracket === "grand-final") {
-    return "Grand Final";
-  }
-  if (bracket === "reset") {
-    return "Reset Match";
-  }
-  if (bracket === "losers") {
-    return `Losers ${node.roundNumber}`;
-  }
-  // Winners rounds are the default path, so racers don't need a label for them.
-  return null;
-}
-
-function getStageOrder(bundle: TournamentBundle, stageId: string): number {
-  return bundle.stages.find((stage) => stage.id === stageId)?.order ?? Number.MAX_SAFE_INTEGER;
-}
-
-function sortBracketNodesByStageRoundAndMatch(
-  bundle: TournamentBundle,
-  nodes: BracketNode[]
-): BracketNode[] {
-  return nodes.toSorted((left, right) => {
-    const stageDelta = getStageOrder(bundle, left.stageId) - getStageOrder(bundle, right.stageId);
-    if (stageDelta !== 0) {
-      return stageDelta;
-    }
-    if (left.roundNumber !== right.roundNumber) {
-      return left.roundNumber - right.roundNumber;
-    }
-    return left.matchNumber - right.matchNumber;
-  });
-}
-
-function getCurrentTournamentRaceCards(
-  snapshot: AppSnapshot,
-  bundle: TournamentBundle
-): TournamentRaceCard[] {
-  const currentRace = snapshot.raceProjection.race;
-  const currentRaceParticipantIds = currentRace?.participants
-    .map((participant) => participant.racerId)
-    .toSorted();
-  const currentBracketNode =
-    currentRace?.tournamentId === bundle.tournament.id && currentRaceParticipantIds
-      ? bundle.bracketNodes.find((node) => {
-          const nodeIds = [node.racerAId, node.racerBId].filter(Boolean).toSorted();
-          return (
-            nodeIds.length === currentRaceParticipantIds.length &&
-            nodeIds.every((id, index) => id === currentRaceParticipantIds[index])
-          );
-        })
-      : null;
-
-  const sortedBracketNodes = sortBracketNodesByStageRoundAndMatch(bundle, bundle.bracketNodes);
-  const activeBracketNodes = sortedBracketNodes.filter(
-    (node) => node.state !== "finished" && node.state !== "bye"
-  );
-  const firstReadyBracketNode = activeBracketNodes.find((node) => node.state === "ready");
-  const currentStageId =
-    [
-      currentBracketNode?.stageId,
-      firstReadyBracketNode?.stageId,
-      activeBracketNodes[0]?.stageId,
-      sortedBracketNodes[0]?.stageId
-    ].find((stageId) => stageId !== undefined) ?? null;
-  const currentRoundNumber =
-    currentBracketNode?.roundNumber ??
-    firstReadyBracketNode?.roundNumber ??
-    activeBracketNodes.find((node) => node.stageId === currentStageId)?.roundNumber ??
-    sortedBracketNodes.find((node) => node.stageId === currentStageId)?.roundNumber ??
-    null;
-  const bracketNodes = currentStageId
-    ? sortedBracketNodes.filter((node) => node.stageId === currentStageId)
-    : [];
-  const currentRoundBracketNodes = currentRoundNumber
-    ? bracketNodes.filter((node) => node.roundNumber === currentRoundNumber)
-    : [];
-
-  if (currentRoundBracketNodes.length > 0) {
-    return currentRoundBracketNodes.map((node) => ({
-      id: node.id,
-      kind: "bracket",
-      racerAId: node.racerAId,
-      racerBId: node.racerBId,
-      roundLabel: getBracketRoundLabel(node),
-      state: node.state,
-      winnerRacerId: node.winnerRacerId
-    }));
-  }
-
-  const unfinishedGroupMatches = bundle.groupMatches.filter((match) => !match.winnerRacerId);
-  const groupMatches =
-    unfinishedGroupMatches.length > 0 ? unfinishedGroupMatches : bundle.groupMatches;
-  return groupMatches.map((match: RoundRobinMatch) => ({
-    id: match.id,
-    kind: "group",
-    label: match.scoreLabel ?? "Tourney match",
-    racerAId: match.racerAId,
-    racerBId: match.racerBId,
-    roundLabel: "Current Stage",
-    state: match.winnerRacerId ? "finished" : "ready",
-    winnerRacerId: match.winnerRacerId
-  }));
 }
 
 interface RacerPageProps {
@@ -437,7 +326,7 @@ interface RacerPageViewProps {
   supportingCardMotion: MotionProps;
   tournamentOptOutConfirmOpen: boolean;
   tournamentOptOutMessage: string | null;
-  tournamentRaceCards: TournamentRaceCard[];
+  tournamentQueue: TournamentQueueEntry[];
   tournaments: TournamentBundle[];
   unreadNotificationCount: number;
   upcoming: AppSnapshot["queue"];
@@ -1165,9 +1054,7 @@ function useRacerPageViewModel({
     selectedRacerId &&
     activeTournament.seeds.some((seed) => seed.racerId === selectedRacerId)
   );
-  const tournamentRaceCards = activeTournament
-    ? getCurrentTournamentRaceCards(snapshot, activeTournament)
-    : [];
+  const tournamentQueue = snapshot.tournamentQueue;
   const activeTabs = canBrowsePublicRacerInfo
     ? racerTabs
     : racerTabs.filter((tab) => tab.id === "rumble");
@@ -1331,7 +1218,7 @@ function useRacerPageViewModel({
     supportingCardMotion,
     tournamentOptOutConfirmOpen,
     tournamentOptOutMessage,
-    tournamentRaceCards,
+    tournamentQueue,
     tournaments,
     unreadNotificationCount,
     upcoming,
@@ -1514,7 +1401,7 @@ function RacerPageView(props: RacerPageViewProps) {
     setSelectedRacerDetailId,
     supportingCardMotion,
     tournamentOptOutMessage,
-    tournamentRaceCards,
+    tournamentQueue,
     tournaments,
     unreadNotificationCount,
     upcoming,
@@ -1586,7 +1473,7 @@ function RacerPageView(props: RacerPageViewProps) {
                   tournamentMode={tournamentMode}
                   tournamentOptOutBusy={tournamentOptOutBusy}
                   tournamentOptOutMessage={tournamentOptOutMessage}
-                  tournamentRaceCards={tournamentRaceCards}
+                  tournamentQueue={tournamentQueue}
                   upcoming={upcoming}
                   visibleTournament={visibleTournament}
                 />

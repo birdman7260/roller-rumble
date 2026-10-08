@@ -3,6 +3,7 @@ import type {
   AppSnapshot,
   BracketNode,
   TournamentBundle,
+  TournamentQueueEntry,
   TournamentByeFillOptionsResponse,
   TournamentRacerRemovalOptionsResponse
 } from "@roller-rumble/shared/types";
@@ -72,12 +73,46 @@ function tournamentBoardReducer(
   return { ...state, ...patch };
 }
 
+/**
+ * Pin a ready match to race next, or clear its pin. Unlike staging, this stays available while
+ * another race is staged or on the bikes: the pinned match goes on once the bikes are free.
+ */
+function PinUpNextButton({
+  entry,
+  onPinUpNext
+}: {
+  entry: TournamentQueueEntry;
+  onPinUpNext: (matchId: string | null) => void;
+}) {
+  return (
+    <Button
+      variant="ghost"
+      onClick={() => {
+        onPinUpNext(entry.pinnedUpNext ? null : entry.matchId);
+      }}
+    >
+      {entry.pinnedUpNext ? "Clear Up Next" : "Stage Next"}
+    </Button>
+  );
+}
+
+/** The match's `tournament queue` entry when the host can pin it up next: ready, not yet staged. */
+function findPinnableQueueEntry(
+  snapshot: AppSnapshot,
+  matchId: string | undefined
+): TournamentQueueEntry | null {
+  const entry = snapshot.tournamentQueue.find((candidate) => candidate.matchId === matchId);
+  return entry?.status === "ready" ? entry : null;
+}
+
 function TournamentMatchActionsModal({
   busy,
   bundle,
   capabilities,
   menuActionCount,
   menuNode,
+  menuPinnableEntry,
+  onPinUpNext,
   onStageMatch,
   onUndoMatch,
   openByeFillModal,
@@ -96,6 +131,9 @@ function TournamentMatchActionsModal({
   };
   menuActionCount: number;
   menuNode: BracketNode;
+  /** The menu match's place in the `tournament queue`, when it can be pinned up next. */
+  menuPinnableEntry: TournamentQueueEntry | null;
+  onPinUpNext?: (matchId: string | null) => void;
   onStageMatch?: (nodeId: string) => void;
   onUndoMatch?: (nodeId: string) => void;
   openByeFillModal: (nodeId: string) => Promise<void>;
@@ -138,6 +176,15 @@ function TournamentMatchActionsModal({
             >
               Stage Match
             </Button>
+          ) : null}
+          {menuPinnableEntry ? (
+            <PinUpNextButton
+              entry={menuPinnableEntry}
+              onPinUpNext={(matchId) => {
+                closeMenu();
+                onPinUpNext?.(matchId);
+              }}
+            />
           ) : null}
           {canUndoMenuNode ? (
             <Button
@@ -368,6 +415,7 @@ export function TournamentBracketBoard({
   hintText,
   expanded,
   onExpandedChange,
+  onPinUpNext,
   onStageMatch,
   onUndoMatch,
   presentationRequest,
@@ -379,6 +427,8 @@ export function TournamentBracketBoard({
   hintText?: string;
   expanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /** Pin a match to race next, or clear the pin with `null`. */
+  onPinUpNext?: (matchId: string | null) => void;
   onStageMatch?: (nodeId: string) => void;
   onUndoMatch?: (nodeId: string) => void;
   presentationRequest?: BracketPresentationRequest | null;
@@ -417,6 +467,7 @@ export function TournamentBracketBoard({
     menuNode && onUndoMatch && canUndoBracketNodeResult(bundle, menuNode)
   );
   const canFillMenuNode = menuNode ? canFillByeNode(bundle, menuNode) : false;
+  const menuPinnableEntry = onPinUpNext ? findPinnableQueueEntry(snapshot, menuNode?.id) : null;
   const replacementCandidateOptions =
     removalOptions?.candidates.map((candidate) => ({
       value: candidate.racerId,
@@ -429,6 +480,7 @@ export function TournamentBracketBoard({
     })) ?? [];
   const menuActionCount =
     (canStageMenuNode ? 1 : 0) +
+    (menuPinnableEntry ? 1 : 0) +
     (canUndoMenuNode ? 1 : 0) +
     (canFillMenuNode ? 1 : 0) +
     removableRacerIds.length;
@@ -556,13 +608,15 @@ export function TournamentBracketBoard({
         {hintText ??
           (canStageMatches
             ? "Click any matchup in the bracket for staging and admin options."
-            : "A tournament race is already staged. Start it or unstage it before changing the bracket.")}
+            : onPinUpNext
+              ? "A tournament race is already staged. Click a ready matchup and choose Stage Next to race it after this one."
+              : "A tournament race is already staged. Start it or unstage it before changing the bracket.")}
       </p>
       {boardMessage ? <p className="tournament-bracket__status">{boardMessage}</p> : null}
       <EliminationBracketView
         snapshot={snapshot}
         bundle={bundle}
-        interactive={Boolean(onStageMatch ?? onUndoMatch)}
+        interactive={Boolean(onStageMatch ?? onUndoMatch ?? onPinUpNext)}
         expandMode="container"
         expanded={expanded}
         onExpandedChange={onExpandedChange}
@@ -584,6 +638,8 @@ export function TournamentBracketBoard({
           }}
           menuActionCount={menuActionCount}
           menuNode={menuNode}
+          menuPinnableEntry={menuPinnableEntry}
+          onPinUpNext={onPinUpNext}
           onStageMatch={onStageMatch}
           onUndoMatch={onUndoMatch}
           openByeFillModal={openByeFillModal}
@@ -630,12 +686,15 @@ export function TournamentGroupMatchBoard({
   snapshot,
   bundle,
   canStageMatches,
+  onPinUpNext,
   onStageMatch,
   onUndoMatch
 }: {
   snapshot: AppSnapshot;
   bundle: TournamentBundle;
   canStageMatches: boolean;
+  /** Pin a match to race next, or clear the pin with `null`. */
+  onPinUpNext?: (matchId: string | null) => void;
   onStageMatch: (matchId: string) => void;
   onUndoMatch?: (matchId: string) => void;
 }) {
@@ -646,47 +705,58 @@ export function TournamentGroupMatchBoard({
   return (
     <div className="stack-md">
       <div className="list">
-        {bundle.groupMatches.map((match) => (
-          <div key={match.id} className="list-row tournament-match-row">
-            <div>
-              <strong>
-                {resolveTournamentRacerName(snapshot, bundle, match.racerAId)} vs{" "}
-                {resolveTournamentRacerName(snapshot, bundle, match.racerBId)}
-              </strong>
-              <p>{match.scoreLabel ?? "Tournament match"}</p>
-            </div>
-            <div className="button-row">
-              {match.winnerRacerId ? (
-                <>
-                  <span>
-                    Winner: {resolveTournamentRacerName(snapshot, bundle, match.winnerRacerId)}
-                  </span>
-                  {onUndoMatch ? (
+        {bundle.groupMatches.map((match) => {
+          const pinnableEntry = onPinUpNext ? findPinnableQueueEntry(snapshot, match.id) : null;
+          return (
+            <div key={match.id} className="list-row tournament-match-row">
+              <div>
+                <strong>
+                  {resolveTournamentRacerName(snapshot, bundle, match.racerAId)} vs{" "}
+                  {resolveTournamentRacerName(snapshot, bundle, match.racerBId)}
+                </strong>
+                <p>
+                  {match.scoreLabel ?? "Tournament match"}
+                  {pinnableEntry?.pinnedUpNext ? " · Pinned up next" : ""}
+                </p>
+              </div>
+              <div className="button-row">
+                {match.winnerRacerId ? (
+                  <>
+                    <span>
+                      Winner: {resolveTournamentRacerName(snapshot, bundle, match.winnerRacerId)}
+                    </span>
+                    {onUndoMatch ? (
+                      <Button
+                        variant="ghost"
+                        disabled={!canStageMatches}
+                        onClick={() => {
+                          onUndoMatch(match.id);
+                        }}
+                      >
+                        Undo Result
+                      </Button>
+                    ) : null}
+                  </>
+                ) : (
+                  <>
+                    {pinnableEntry && onPinUpNext ? (
+                      <PinUpNextButton entry={pinnableEntry} onPinUpNext={onPinUpNext} />
+                    ) : null}
                     <Button
                       variant="ghost"
                       disabled={!canStageMatches}
                       onClick={() => {
-                        onUndoMatch(match.id);
+                        onStageMatch(match.id);
                       }}
                     >
-                      Undo Result
+                      Stage Match
                     </Button>
-                  ) : null}
-                </>
-              ) : (
-                <Button
-                  variant="ghost"
-                  disabled={!canStageMatches}
-                  onClick={() => {
-                    onStageMatch(match.id);
-                  }}
-                >
-                  Stage Match
-                </Button>
-              )}
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {bundle.tournament.preset === "round-robin" && bundle.standings.length > 0 ? (
         <div className="standings-grid">

@@ -277,6 +277,16 @@ Requirements:
   matchup. `Implemented`
 - Tournament race controls must not use countdown start as an implicit staging shortcut.
   `Implemented`
+- Tournament races must follow a tournament queue derived from the bracket. Single elimination
+  goes round by round. Double elimination interleaves each losers round right after the winners
+  round that feeds it, and adds the reset final only when the grand final calls for it. Round robin
+  and group stages space races so riders rest, groups take turns, and groups race before the
+  finals. `Implemented`
+- `Stage Next Race` in the shared tray and the auto-stage setting must draw from the tournament
+  queue while a tournament is active. `Implemented`
+- The admin must be able to pin a ready tournament match "up next" from the tournament board,
+  even while another race is staged or running, so it races before the bracket's own order, and
+  must be able to clear that pin. `Implemented`
 
 ### Settings Tab
 
@@ -284,7 +294,7 @@ Requirements:
 
 - Theme selection. `Implemented`
 - Cue-start toggle. `Implemented`
-- Auto-stage-next-race toggle for open time trial. `Implemented`
+- Auto-stage-next-race toggle for the open queue and the tournament queue. `Implemented`
 - Event-only vs all-time race-data toggle. `Implemented`
 - Show-public-racer-info-before-sign-in toggle, disabled by default. When enabled, unauthenticated
   QR visitors may browse read-only race, queue, tournament, and racer information before registering.
@@ -551,10 +561,11 @@ Requirements:
 - Below that, the Rumble tab must show the race queue: the first six races, with a Show more /
   Show less toggle when there are more. Rows the signed-in racer is in must be highlighted with a
   filled row background and carry a Leave button. `Implemented`
-- In tournament mode, the Rumble tab must hide the next-race card and the open queue, show current-stage tournament
-  match cards styled like bracket nodes, including completed matches and BYEs from the currently
-  actionable round, and link to the Tournament tab. Tournament opt-out controls for seeded racers
-  should appear at the top of the Rumble tab. `Implemented`
+- In tournament mode, the Rumble tab must hide the open queue and instead show the tournament
+  queue: every match still to race, in bracket play order, with the same time estimates, undecided
+  slots shown as TBD, the signed-in racer's rows highlighted, and a link to the Tournament tab.
+  Seeded racers get a next-race card for their first tournament race. Tournament opt-out controls
+  for seeded racers should appear at the top of the Rumble tab. `Implemented`
 - The Me tab must hide the race-notification setup card once notifications are enabled on the
   current device. `Implemented`
 - The Me tab must show the racer's full stats in a dedicated card, keep the identity card free of

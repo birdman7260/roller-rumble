@@ -33,6 +33,7 @@ import {
   tournamentGroupMatchSchema,
   tournamentIdSchema,
   tournamentRacerSchema,
+  tournamentUpNextSchema,
   updateEventPaymentConfigSchema,
   updateEventSchema,
   updateRacerPaymentSchema,
@@ -798,6 +799,12 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     });
     const input = adminTournamentRacerRemovalSchema.parse(req.body);
     res.json(service.removeRacerFromTournament(params.tournamentId, params.racerId, input));
+  });
+
+  app.post(`${API_PREFIX}/tournaments/:tournamentId/up-next`, (req, res) => {
+    const params = tournamentIdSchema.parse({ tournamentId: req.params.tournamentId });
+    const input = tournamentUpNextSchema.parse(req.body);
+    res.json(service.pinTournamentMatchUpNext(params.tournamentId, input.matchId));
   });
 
   app.post(`${API_PREFIX}/tournaments/:tournamentId/bracket/:nodeId/stage`, (req, res) => {

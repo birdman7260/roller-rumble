@@ -380,6 +380,30 @@ export interface TournamentBundle {
   seeds: TournamentParticipantSeed[];
 }
 
+/**
+ * One race in the `tournament queue`: a tournament match still to be raced, in the order the
+ * bracket plays it. Derived from the tournament bundle, never stored.
+ */
+export interface TournamentQueueEntry {
+  /** The bracket node or group match this race plays. */
+  matchId: string;
+  matchKind: "bracket" | "group";
+  tournamentId: string;
+  /** 1-based place in the tournament queue. */
+  position: number;
+  /** Where the match sits in the tournament, e.g. "Round 2", "Losers 3", "Group A". */
+  roundLabel: string | null;
+  /** The two slots; null while the bracket has not decided who fills one. */
+  racerIds: [string | null, string | null];
+  /**
+   * `staging` while it is the current race, `ready` once both racers are known, `waiting` while
+   * an earlier match still decides a slot.
+   */
+  status: "staging" | "ready" | "waiting";
+  /** The host pinned this match to race next, ahead of the bracket's own order. */
+  pinnedUpNext: boolean;
+}
+
 export interface TournamentOptOutResponse {
   snapshot: AppSnapshot;
   tournamentId: string;
@@ -692,6 +716,8 @@ export interface AppSnapshot {
   queue: QueueEntry[];
   raceProjection: RaceProjectionModel;
   tournaments: TournamentBundle[];
+  /** The active tournament's `tournament queue`; empty while no tournament is running. */
+  tournamentQueue: TournamentQueueEntry[];
   themes: ThemeDefinition[];
   tunnel: TunnelState;
   os2l: Os2lDiagnostics;

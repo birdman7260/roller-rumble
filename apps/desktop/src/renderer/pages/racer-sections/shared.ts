@@ -1,4 +1,4 @@
-import type { BracketNode, ChallengeReplacementOption } from "@roller-rumble/shared/types";
+import type { ChallengeReplacementOption } from "@roller-rumble/shared/types";
 import type { MotionProps } from "framer-motion";
 
 const usdPaymentAmountFormatter = new Intl.NumberFormat(undefined, {
@@ -11,27 +11,6 @@ export interface RacerQueueSignupInput {
   requestedType?: "solo" | "auto-match";
   replaceQueueEntryId?: string;
 }
-
-export type TournamentRaceCard =
-  | {
-      id: string;
-      kind: "bracket";
-      racerAId?: string | null;
-      racerBId?: string | null;
-      roundLabel: string | null;
-      state: BracketNode["state"];
-      winnerRacerId?: string | null;
-    }
-  | {
-      id: string;
-      kind: "group";
-      label: string;
-      racerAId: string;
-      racerBId: string;
-      roundLabel: string;
-      state: "ready" | "finished";
-      winnerRacerId?: string | null;
-    };
 
 export interface ChallengeReplacementRequest {
   message: string;

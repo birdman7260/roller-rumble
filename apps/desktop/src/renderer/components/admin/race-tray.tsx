@@ -12,7 +12,7 @@ import {
   swapCurrentRaceLanes,
   unstageCurrentRace
 } from "../../lib/api";
-import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
+import { describeQueueEntry, formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
 import { canSwapRaceLanes } from "@roller-rumble/shared/race-lanes";
 import { LANE_SWAP_SHORTCUT_KEY } from "../../lib/lane-swap";
 import { isShortcutKeystroke } from "../../lib/shortcuts";
@@ -40,6 +40,10 @@ export function AdminRaceTray({
   const currentRace = snapshot.raceProjection.race;
   const resultPresentation = snapshot.raceProjection.resultPresentation;
   const nextQueueEntry = !activeTournament ? snapshot.raceProjection.nextQueueEntry : null;
+  // During a tournament the next race comes from the `tournament queue` instead of the open queue.
+  const nextTournamentEntry = activeTournament
+    ? (snapshot.tournamentQueue.find((entry) => entry.status === "ready") ?? null)
+    : null;
   const currentTournamentRace =
     activeTournament && currentRace?.tournamentId === activeTournament.tournament.id
       ? currentRace
@@ -74,7 +78,7 @@ export function AdminRaceTray({
     return null;
   }
 
-  const showOpenTimeTrialStageAction = Boolean(nextQueueEntry && !currentRace && !activeTournament);
+  const showStageNextRaceAction = Boolean((nextQueueEntry ?? nextTournamentEntry) && !currentRace);
 
   return (
     <aside className="admin-race-tray" aria-label="Race controls">
@@ -96,15 +100,32 @@ export function AdminRaceTray({
             </p>
             <CurrentRaceSummary snapshot={snapshot} currentRace={currentRace} />
           </>
+        ) : nextTournamentEntry ? (
+          <>
+            <p className="eyebrow">Next Tournament Race</p>
+            <div className="stack-sm">
+              <strong>
+                #{nextTournamentEntry.position}{" "}
+                {formatRacerNames(snapshot, nextTournamentEntry.racerIds)}
+              </strong>
+              <span className="admin-race-tray__detail">
+                {[
+                  nextTournamentEntry.roundLabel,
+                  nextTournamentEntry.pinnedUpNext ? "Pinned up next" : null
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </span>
+            </div>
+          </>
         ) : activeTournament ? (
           <>
             <p className="eyebrow">Tournament In Progress</p>
             <div className="stack-sm">
               <strong>{activeTournament.tournament.name}</strong>
               <span className="admin-race-tray__detail">
-                {activeTab === "tournaments"
-                  ? "Stage the next matchup from the board above. Countdown controls will appear here as soon as a race is staged."
-                  : "No matchup is staged yet. Open the tournament board to pick the next race."}
+                No match is ready to race yet. Results from the races still running decide the next
+                matchup.
               </span>
             </div>
           </>
@@ -150,7 +171,7 @@ export function AdminRaceTray({
         {!resultPresentation ? (
           <CurrentRaceActionRows
             currentRace={currentRace}
-            showStageNextRaceButton={showOpenTimeTrialStageAction}
+            showStageNextRaceButton={showStageNextRaceAction}
             onStageNextRace={() => {
               fireAndForget(stageNextRace(), "stage next race");
             }}

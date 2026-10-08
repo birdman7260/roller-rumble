@@ -27,8 +27,9 @@ export function resolveRacerName(
   return snapshot.racers.find((entry) => entry.racer.id === racerId)?.racer.displayName ?? fallback;
 }
 
-export function formatRacerNames(snapshot: AppSnapshot, racerIds: string[]): string {
-  return racerIds.map((racerId) => resolveRacerName(snapshot, racerId)).join(" vs ");
+/** The racers' names as "A vs B"; a tournament slot the bracket hasn't filled reads as TBD. */
+export function formatRacerNames(snapshot: AppSnapshot, racerIds: (string | null)[]): string {
+  return racerIds.map((racerId) => resolveRacerName(snapshot, racerId, "TBD")).join(" vs ");
 }
 
 export function describeQueueEntry(entry: QueueEntry): string {

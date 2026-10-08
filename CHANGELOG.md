@@ -8,6 +8,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- During a tourney you can change the race order: click a matchup on the bracket and choose **Stage Next**, and it goes on as soon as the bikes are free, even while another race is staged or running. Choose **Clear Up Next** to undo it.
 - Racers can now get on whichever bike they like. The race tray spells out who the app thinks is on each bike ("Left bike: Ava • Right bike: Bo"), and a new "Swap Bikes" button — or just pressing **S** from anywhere in the admin window — puts them the other way round. For a solo run the button reads "Move To Right Bike" (or left) and moves the lone rider across. Swap as many times as you like right up until you start the countdown; after that, use "Reset To Staged" first.
 - Registration includes a photo step: pick a photo or take a selfie, see it, and retake it if you like. When the event has a photo booth, the step offers its QR too, and a booth photo completes the step as soon as it arrives.
 - A new **Minutes per race for queue time estimates** setting (default 2 minutes) drives the racer page's wait estimates. Every race in the queue now shows roughly when it starts, not just the first few, and the queue list drops the "Get the mind right" and "Start stretching" lines in favor of the estimate. **Your Next Race** keeps those lines and adds the estimate in parentheses, e.g. "Start stretching (in 8 minutes)".
@@ -15,6 +16,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- During a tourney, races now line up in a **tourney queue** that follows the bracket: winners and losers rounds take turns in double elimination, round-robin riders get a breather between races, and group stages run before the finals. **Stage Next Race** in the race tray (and the auto-stage setting) now works during a tourney, taking the next race in that order.
+- The racer page's Rumble tab now shows the tourney queue, with time estimates and a **Your Next Race** card, instead of the current-round match cards.
 - A solo run is now recorded on the bike the racer actually rode instead of a lane that named no bike, so a solo racer on the right-hand bike is finally picked up by the race box. Their run still shows as a single centered card on the projector, exactly as before.
 - The admin desk's add-racer form now has separate Display name and Real name fields; only the display name is required. The Registered Racers list shows each racer's real name, phone, and email, and the racer search matches them too.
 - Racers now join through a short step-by-step registration with a progress bar: your details, then a racer name. Passkeys and email sign-in are gone. Whatever a racer has typed is kept on their phone, so a reload picks up where they left off.

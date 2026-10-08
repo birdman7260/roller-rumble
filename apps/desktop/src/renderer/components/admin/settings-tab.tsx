@@ -163,7 +163,7 @@ function GeneralSettingsPanel({ snapshot }: { snapshot: AppSnapshot }) {
               fireAndForget(updateSettings({ autoStageNextRace: event.target.checked }));
             }}
           />
-          Auto-stage the next queued open time trial race
+          Auto-stage the next race from the queue or the tourney bracket
         </label>
         <label className="toggle">
           <input

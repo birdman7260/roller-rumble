@@ -155,9 +155,10 @@ When there's a race ready to go, the tray shows **Next Open Time Trial Race** wi
 Staging loads that matchup as the current race and puts it on the projector's "on deck" state. The
 queue row for it now shows the **Staged** pill.
 
-> **Prefer it automatic?** In **Settings → Settings**, turn on **Auto-stage the next queued open
-> time trial race**. Then, after each race finishes, the app stages the next one for you and you
-> only need to press **Start Countdown**.
+> **Prefer it automatic?** In **Settings → Settings**, turn on **Auto-stage the next race from the
+> queue or the tourney bracket**. Then, after each race finishes, the app stages the next one for
+> you and you only need to press **Start Countdown**. It works the same way during a tourney, using
+> the bracket's race order.
 
 Once staged, you have two choices in the tray:
 
@@ -253,14 +254,14 @@ racer tries to join _from their own phone_.
 
 Found under **Settings → Settings**:
 
-| Setting                                             | What it does                                                    |
-| --------------------------------------------------- | --------------------------------------------------------------- |
-| **Theme**                                           | Changes the whole look across all screens.                      |
-| **Auto-stage the next queued open time trial race** | Loads the next race automatically after each finish.            |
-| **Show race info before racer sign-in**             | Whether phones can see the queue before registering.            |
-| **Max active queue entries per racer**              | How many times one racer can be waiting in the queue at once.   |
-| **Minutes per race for queue time estimates**       | How long one race takes, used for the racer page's wait times.  |
-| **Enable VirtualDJ cue start**                      | Lets a DJ trigger the countdown from music software (advanced). |
+| Setting                                                            | What it does                                                    |
+| ------------------------------------------------------------------ | --------------------------------------------------------------- |
+| **Theme**                                                          | Changes the whole look across all screens.                      |
+| **Auto-stage the next race from the queue or the tourney bracket** | Loads the next race automatically after each finish.            |
+| **Show race info before racer sign-in**                            | Whether phones can see the queue before registering.            |
+| **Max active queue entries per racer**                             | How many times one racer can be waiting in the queue at once.   |
+| **Minutes per race for queue time estimates**                      | How long one race takes, used for the racer page's wait times.  |
+| **Enable VirtualDJ cue start**                                     | Lets a DJ trigger the countdown from music software (advanced). |
 
 ---
 

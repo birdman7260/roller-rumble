@@ -16,6 +16,7 @@ import type { SensorStatus } from "../adapters/sensor";
 import type { RaceCountdownTiming } from "./race-countdown";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
 import { assembleSubsystemHealth } from "./subsystem-health";
+import { buildTournamentQueue } from "./tournament-queue";
 
 export type SnapshotStreamSurface = "admin" | "projector" | "racer";
 
@@ -70,6 +71,8 @@ export class SnapshotAssembler {
     // Snapshot tournament state is intentionally scoped to the active event so the racer page and
     // admin surfaces do not have to untangle cross-event tournament history on the client.
     const tournamentBundles = this.db.listTournamentBundles(activeEvent.id);
+    const activeTournament =
+      tournamentBundles.find((bundle) => bundle.tournament.status === "active") ?? null;
     const selectedTheme = getTheme(settings.themeId);
 
     // Gate on the persisted lifecycle flag, but derive the remaining time from RaceCountdown's live
@@ -94,6 +97,9 @@ export class SnapshotAssembler {
       racers,
       queue,
       tournaments: tournamentBundles,
+      tournamentQueue: activeTournament
+        ? buildTournamentQueue({ bundle: activeTournament, currentRace })
+        : [],
       tunnel: ctx.tunnel,
       os2l: ctx.os2l,
       photoBooth: ctx.photoBooth,

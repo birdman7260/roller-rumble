@@ -138,6 +138,7 @@
     }
   ],
   "tournaments": [],
+  "tournamentQueue": [],
   "tunnel": {
     "status": "active",
     "publicUrl": "https://race.example.test"

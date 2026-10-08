@@ -570,6 +570,20 @@ export async function removeRacerFromTournament(
   );
 }
 
+/** Pin a tournament match to race next, or clear the pin with `null`. */
+export async function pinTournamentMatchUpNext(
+  tournamentId: string,
+  matchId: string | null
+): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/tournaments/${tournamentId}/up-next`), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ matchId })
+    })
+  );
+}
+
 export async function stageTournamentBracketMatch(
   tournamentId: string,
   nodeId: string

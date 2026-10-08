@@ -3,16 +3,19 @@ import type {
   AdminSettings,
   AppSnapshot,
   CreateRacerInput,
+  EventRecord,
   QueueEntry,
   QueueOccurrence,
   RaceRecord,
   Racer,
-  RacerNotificationType
+  RacerNotificationType,
+  TournamentBundle
 } from "@roller-rumble/shared/types";
 import { COUNTDOWN_DURATION_MS } from "@roller-rumble/shared/constants";
 import { createRacerSchema } from "@roller-rumble/shared/validation";
 import type { SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { RollerRumbleApp } from "./app";
+import { TournamentService } from "./tournaments";
 
 type LifecycleInvoker = (this: unknown, event: SensorLifecycleEvent) => void;
 type StatusChangeInvoker = (this: unknown, status: SensorStatus) => void;
@@ -1518,6 +1521,7 @@ describe("app service lane swap", () => {
         }),
         getCurrentRace: () => null,
         listQueueEntries: () => [buildQueueEntry(racerIds)],
+        listTournamentBundles: () => [],
         markQueueEntryStatus: vi.fn(),
         updateRace: vi.fn()
       },
@@ -1711,5 +1715,201 @@ describe("app service admin quick-add", () => {
     });
     expect(ensureEventRegistration).toHaveBeenCalledWith("event-1", racer.id);
     expect(emitSnapshot).toHaveBeenCalled();
+  });
+});
+
+describe("app service tournament queue", () => {
+  const racers: Racer[] = ["Avery", "Blake", "Casey", "Drew"].map((displayName, index) => ({
+    id: `r${String(index + 1)}`,
+    displayName,
+    avatarUrl: null,
+    createdAt: "x",
+    updatedAt: "x",
+    realName: null,
+    email: null,
+    phone: null
+  }));
+
+  /**
+   * A real `RollerRumbleApp` over an in-memory stand-in for the database, holding one active
+   * four-rider single-elimination tournament: r1 vs r4, then r2 vs r3, then the final.
+   */
+  function makeTournamentApp(options: {
+    autoStageNextRace?: boolean;
+    currentRace?: RaceRecord | null;
+  }) {
+    let bundle: TournamentBundle = new TournamentService().createTournamentBundle({
+      event: { id: "event-1" } as EventRecord,
+      racers,
+      results: [],
+      name: "Bracket Night",
+      preset: "single-elimination"
+    });
+    let currentRace: RaceRecord | null = options.currentRace ?? null;
+    const settings = {
+      autoStageNextRace: options.autoStageNextRace ?? false,
+      mode: bundle.tournament.preset,
+      os2lEnabled: false,
+      targetDistanceMeters: 250,
+      themeId: "neon-night"
+    } as AdminSettings;
+
+    const db = {
+      getActiveEvent: () => ({ id: "event-1" }),
+      getAdminSettings: () => settings,
+      getCurrentRace: () =>
+        currentRace && ["scheduled", "staging", "countdown", "active"].includes(currentRace.state)
+          ? currentRace
+          : null,
+      getTournamentBundle: () => bundle,
+      listQueueEntries: () => [],
+      listRaces: () => [],
+      listTournamentBundles: () => [bundle],
+      markQueueEntryStatus: vi.fn(),
+      saveTournamentBundle: (next: TournamentBundle) => {
+        bundle = next;
+      },
+      createRace: (input: Partial<RaceRecord>) => {
+        currentRace = {
+          queueEntryId: null,
+          winnerRacerId: null,
+          startedAt: null,
+          finishedAt: null,
+          updatedAt: "x",
+          ...input,
+          id: "race-1",
+          state: "scheduled",
+          metrics: [],
+          createdAt: "x"
+        } as RaceRecord;
+        return currentRace;
+      },
+      updateRace: (_raceId: string, patch: Partial<RaceRecord>) => {
+        currentRace = currentRace ? { ...currentRace, ...patch } : null;
+      }
+    };
+
+    const app = Object.create(RollerRumbleApp.prototype) as RollerRumbleApp;
+    Object.assign(app, {
+      autoStagePausedUntilManualStage: false,
+      currentActiveRace: null,
+      db,
+      emitSnapshot: vi.fn(),
+      getSnapshot: vi.fn(() => ({}) as AppSnapshot),
+      os2lTrigger: { armRace: vi.fn(), disarmRace: vi.fn() },
+      raceCountdown: { dispose: vi.fn() },
+      resultPresentation: null,
+      runQueueNotificationTriggers: vi.fn(),
+      sensorAdapter: { endRace: vi.fn() }
+    });
+
+    const matchIdFor = (racerIds: [string, string]) =>
+      bundle.bracketNodes.find(
+        (node) => node.racerAId === racerIds[0] && node.racerBId === racerIds[1]
+      )!.id;
+    const finalId = bundle.bracketNodes.find((node) => node.roundNumber === 2)!.id;
+
+    return {
+      app,
+      autoStage: () => getAutoStageInvoker().call(app),
+      currentRace: () => currentRace,
+      currentRacerIds: () => currentRace?.participants.map((participant) => participant.racerId),
+      finalId,
+      matchIdFor,
+      pinnedMatchId: () => bundle.tournament.settings.upNextMatchId,
+      putCurrentRaceOnTheBikes: () => {
+        currentRace = currentRace ? { ...currentRace, state: "active" } : null;
+      },
+      tournamentId: bundle.tournament.id
+    };
+  }
+
+  it("stages the first match the bracket plays when the host presses Stage Next Race", () => {
+    const harness = makeTournamentApp({});
+
+    harness.app.stageNextRace();
+
+    expect(harness.currentRace()).toMatchObject({
+      state: "staging",
+      tournamentId: harness.tournamentId
+    });
+    expect(harness.currentRacerIds()).toEqual(["r1", "r4"]);
+  });
+
+  it("stages the host's pinned match ahead of the bracket order, then clears the pin", () => {
+    const harness = makeTournamentApp({});
+
+    harness.app.pinTournamentMatchUpNext(harness.tournamentId, harness.matchIdFor(["r2", "r3"]));
+    harness.app.stageNextRace();
+
+    expect(harness.currentRacerIds()).toEqual(["r2", "r3"]);
+    expect(harness.pinnedMatchId()).toBeUndefined();
+  });
+
+  it("auto-stages the next tournament race when the setting is on", () => {
+    const harness = makeTournamentApp({ autoStageNextRace: true });
+
+    expect(harness.autoStage()).toBe(true);
+    expect(harness.currentRacerIds()).toEqual(["r1", "r4"]);
+  });
+
+  it("leaves tournament staging to the host when auto-stage is off", () => {
+    const harness = makeTournamentApp({ autoStageNextRace: false });
+
+    expect(harness.autoStage()).toBe(false);
+    expect(harness.currentRace()).toBeNull();
+  });
+
+  it("pins a match up next while another race is on the bikes, without touching that race", () => {
+    const harness = makeTournamentApp({ autoStageNextRace: true });
+    harness.app.stageNextRace();
+    harness.putCurrentRaceOnTheBikes();
+
+    harness.app.pinTournamentMatchUpNext(harness.tournamentId, harness.matchIdFor(["r2", "r3"]));
+
+    expect(harness.currentRace()).toMatchObject({ state: "active" });
+    expect(harness.currentRacerIds()).toEqual(["r1", "r4"]);
+    expect(harness.pinnedMatchId()).toBe(harness.matchIdFor(["r2", "r3"]));
+  });
+
+  it("pins straight onto the bikes when auto-stage is on and the bikes are free", () => {
+    const harness = makeTournamentApp({ autoStageNextRace: true });
+
+    harness.app.pinTournamentMatchUpNext(harness.tournamentId, harness.matchIdFor(["r2", "r3"]));
+
+    expect(harness.currentRacerIds()).toEqual(["r2", "r3"]);
+    expect(harness.pinnedMatchId()).toBeUndefined();
+  });
+
+  it("refuses to pin a match whose riders the bracket hasn't decided", () => {
+    const harness = makeTournamentApp({});
+
+    expect(() => {
+      harness.app.pinTournamentMatchUpNext(harness.tournamentId, harness.finalId);
+    }).toThrow("can't race yet");
+    expect(harness.pinnedMatchId()).toBeUndefined();
+  });
+
+  it("clears the pin when the host passes no match", () => {
+    const harness = makeTournamentApp({});
+    harness.app.pinTournamentMatchUpNext(harness.tournamentId, harness.matchIdFor(["r2", "r3"]));
+
+    harness.app.pinTournamentMatchUpNext(harness.tournamentId, null);
+
+    expect(harness.pinnedMatchId()).toBeUndefined();
+  });
+
+  it("holds auto-stage after the host unstages a tournament race, until they stage one by hand", () => {
+    const harness = makeTournamentApp({ autoStageNextRace: true });
+    harness.app.stageNextRace();
+
+    harness.app.unstageCurrentRace();
+
+    expect(harness.currentRace()).toMatchObject({ state: "cancelled" });
+    expect(harness.autoStage()).toBe(false);
+
+    harness.app.stageNextRace();
+    harness.app.unstageCurrentTournamentRace();
+    expect(harness.autoStage()).toBe(false);
   });
 });

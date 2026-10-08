@@ -141,6 +141,7 @@
     }
   ],
   "tournaments": [],
+  "tournamentQueue": [],
   "tunnel": {
     "status": "active",
     "mode": "quick",

@@ -13,6 +13,7 @@ import { Button, EmptyState, Panel, StatPill, TextInput } from "@roller-rumble/s
 import {
   createTournament,
   endTournamentEarly,
+  pinTournamentMatchUpNext,
   stageTournamentBracketMatch,
   stageTournamentGroupMatch,
   undoTournamentBracketMatch,
@@ -102,8 +103,9 @@ function TournamentSummaryPanel({
             <StatPill label="Seeds" value={activeTournament.seeds.length} />
           </div>
           <p>
-            Open time trial is paused while this tournament is active. Stage the next matchup from
-            the tournament board below, or end the tournament early to return to the regular queue
+            Open time trial is paused while this tournament is active. Races run in bracket order:
+            Stage Next Race in the tray (or auto-stage) takes the next one, and choosing Stage Next
+            on a matchup below moves it up. End the tournament early to return to the regular queue
             flow.
           </p>
         </div>
@@ -209,6 +211,14 @@ function TournamentSummaryPanel({
         </div>
       )}
     </Panel>
+  );
+}
+
+/** Shared by the bracket and group boards, so both pin (or clear) up next the same way. */
+function requestPinUpNext(tournamentId: string, matchId: string | null): void {
+  fireAndForget(
+    pinTournamentMatchUpNext(tournamentId, matchId),
+    matchId ? "pin tournament match up next" : "clear tournament up next"
   );
 }
 
@@ -356,6 +366,9 @@ export function TournamentsTab({
                 onExpandedChange={(expanded) => {
                   setExpandedBracketTournamentId(expanded ? activeTournament.tournament.id : null);
                 }}
+                onPinUpNext={(matchId) => {
+                  requestPinUpNext(activeTournament.tournament.id, matchId);
+                }}
                 onStageMatch={(nodeId) => {
                   fireAndForget(
                     stageTournamentBracketMatch(activeTournament.tournament.id, nodeId),
@@ -387,6 +400,9 @@ export function TournamentsTab({
                   snapshot={snapshot}
                   bundle={activeTournament}
                   canStageMatches={!tournamentRaceLocked}
+                  onPinUpNext={(matchId) => {
+                    requestPinUpNext(activeTournament.tournament.id, matchId);
+                  }}
                   onStageMatch={(matchId) => {
                     fireAndForget(
                       stageTournamentGroupMatch(activeTournament.tournament.id, matchId),

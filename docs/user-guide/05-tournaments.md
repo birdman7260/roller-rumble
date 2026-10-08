@@ -81,7 +81,7 @@ until it ends:
 ### 1. The open queue is paused
 
 - Racers **can't add themselves** to the open queue from their phones. Their Rumble tab shows the
-  current tournament matches instead of the queue.
+  **tourney queue** instead (see below).
 - On the admin side, the **Active Tournament** card reminds you: _"Open time trial is paused while
   this tournament is active."_
 
@@ -91,18 +91,31 @@ until it ends:
   **unstages it** and returns that racer's entry to the queue — so the tournament and a leftover
   casual race don't fight over the screen. (A race that's already _live_ isn't interrupted.)
 
-### 3. You stage races from the bracket, not the queue
+### 3. Races run from the tourney queue
 
-- In normal mode you click **Stage Next Race** in the bottom tray. In tournament mode that button is
-  gone. Instead, you **click a match on the bracket board** and choose **Stage Match**. That loads
-  the tournament matchup as the current race.
+- The tournament has its own **tourney queue**: every match it still has to race, in the order the
+  bracket plays them. Single-elimination brackets go round by round. Double elimination alternates
+  winners and losers rounds, so each losers round runs right after the winners round that feeds it.
+  Round robins and group stages space races out so riders get a breather, and groups take turns.
+  The group stage finishes before the finals bracket, and the finals slots read TBD until every group
+  race is done.
+- **Stage Next Race** in the bottom tray stages the next match in that order, and the tray shows
+  which match that is. If **Auto-stage** is on in Settings, the next tourney race is staged for you
+  after each result, and the first one as soon as you start the tournament.
+- **To change the order**, click a match on the bracket board and choose **Stage Next**. That match
+  jumps to the front of the queue and goes on as soon as the bikes are free. You can do this while
+  another race is staged or running. Choose **Clear Up Next** on the same match to undo it. Only a
+  match whose two racers are both known can be moved up.
+- **To race a match right now**, click it and choose **Stage Match**, as before. This works only
+  while no race is staged.
 - Once a match is staged, the bottom tray shows **Tournament Race Ready** and the usual **Start
   Countdown** / **Finalize** controls appear there — the _running_ of a race is the same as always.
 
 ### 4. The bottom tray changes its guidance
 
-- When no match is staged, the tray shows **Tournament In Progress** and (from other tabs) an **Open
-  Tournament Board** button that jumps you to the Tournaments tab to pick the next match.
+- When no match is staged, the tray shows the **Next Tournament Race** (marked "Pinned up next" if
+  you moved it up) with a **Stage Next Race** button. From other tabs it also offers **Open
+  Tournament Board**, which jumps to the Tournaments tab.
 
 ### 5. You can't reshuffle the bracket mid-race
 
@@ -112,8 +125,10 @@ until it ends:
 
 ### 6. The racer phones switch focus
 
-- Racers use their **Tournament** tab to watch the live bracket and find their next match. Seeded
-  racers also get a **"tournament starting" notification** (if notifications are set up).
+- The Rumble tab on racer phones shows the tourney queue with time estimates. Seeded racers see
+  their own races highlighted and a **Your Next Race** card. The **Tournament** tab still shows the
+  live bracket. Seeded racers also get a **"tournament starting" notification** (if notifications
+  are set up).
 
 **To get the normal open-queue behavior back, you end the tournament** (see the last section).
 

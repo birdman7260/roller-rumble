@@ -1,5 +1,11 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import type { AppSnapshot, QueueEntry, RacerSummary } from "@roller-rumble/shared/types";
+import type {
+  AppSnapshot,
+  QueueEntry,
+  RacerSummary,
+  TournamentBundle,
+  TournamentQueueEntry
+} from "@roller-rumble/shared/types";
 import { describe, expect, it, vi } from "vitest";
 import { RumbleTab } from "./rumble";
 
@@ -41,6 +47,33 @@ function queueEntry(position: number, racerIds: string[]): QueueEntry {
   };
 }
 
+function tourneyEntry(
+  position: number,
+  racerIds: [string | null, string | null],
+  status: TournamentQueueEntry["status"] = racerIds.includes(null) ? "waiting" : "ready"
+): TournamentQueueEntry {
+  return {
+    matchId: `match-${String(position)}`,
+    matchKind: "bracket",
+    tournamentId: "tourney-1",
+    position,
+    roundLabel: position < 3 ? "Round 1" : "Round 2",
+    racerIds,
+    status,
+    pinnedUpNext: false
+  };
+}
+
+const tourney = {
+  tournament: { id: "tourney-1", name: "Bracket Night" }
+} as unknown as TournamentBundle;
+
+const tourneyQueue = [
+  tourneyEntry(1, ["ana", "ben"], "staging"),
+  tourneyEntry(2, ["me", "cy"]),
+  tourneyEntry(3, ["ana", null])
+];
+
 function renderRumble(overrides: Partial<Parameters<typeof RumbleTab>[0]> = {}) {
   const props: Parameters<typeof RumbleTab>[0] = {
     activeTournament: null,
@@ -60,7 +93,7 @@ function renderRumble(overrides: Partial<Parameters<typeof RumbleTab>[0]> = {}) 
     tournamentMode: false,
     tournamentOptOutBusy: false,
     tournamentOptOutMessage: null,
-    tournamentRaceCards: [],
+    tournamentQueue: [],
     upcoming: [],
     visibleTournament: null,
     ...overrides
@@ -165,10 +198,69 @@ describe("RumbleTab", () => {
     expect(onRequestLeaveEntry).toHaveBeenCalledWith(eightRaces[2]);
   });
 
-  it("leaves the queue and the next race card out during a tournament", () => {
-    renderRumble({ tournamentMode: true, upcoming: eightRaces.slice(0, 3) });
+  describe("during a tourney", () => {
+    function renderTourney(overrides: Partial<Parameters<typeof RumbleTab>[0]> = {}) {
+      return renderRumble({
+        activeTournament: tourney,
+        tournamentMode: true,
+        tournamentQueue: tourneyQueue,
+        upcoming: eightRaces.slice(0, 3),
+        visibleTournament: tourney,
+        ...overrides
+      });
+    }
 
-    expect(screen.queryByRole("list", { name: "Race queue" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("region", { name: "Your next race" })).not.toBeInTheDocument();
+    function tourneyRows() {
+      return within(screen.getByRole("list", { name: "Tourney queue" })).getAllByRole("listitem");
+    }
+
+    it("shows the tourney queue in the bracket's order instead of the open queue", () => {
+      renderTourney();
+
+      expect(screen.queryByRole("list", { name: "Race queue" })).not.toBeInTheDocument();
+      expect(tourneyRows().map((row) => row.querySelector("strong")?.textContent)).toEqual([
+        "#1 Ana vs Ben",
+        "Your race#2 Mo vs Cy",
+        "#3 Ana vs TBD"
+      ]);
+      expect(within(tourneyRows()[0]).getByText("Round 1")).toBeInTheDocument();
+      expect(
+        tourneyRows().map((row) => row.querySelector(".racer-queue-row__eta")?.textContent)
+      ).toEqual(["NOW!", "In 3 minutes", "In 6 minutes"]);
+    });
+
+    it("highlights the racer's tourney races without offering to leave them", () => {
+      renderTourney();
+
+      expect(tourneyRows()[1]).toHaveClass("racer-queue-row--mine");
+      expect(screen.queryByRole("button", { name: "Leave" })).not.toBeInTheDocument();
+    });
+
+    it("shows the racer's next tourney race above the queue", () => {
+      renderTourney();
+
+      const card = screen.getByRole("region", { name: "Your next race" });
+      expect(within(card).getByText("vs Cy")).toBeInTheDocument();
+      expect(within(card).getByText(/#2/)).toBeInTheDocument();
+      expect(within(card).getByText(/In 3 minutes/)).toBeInTheDocument();
+    });
+
+    it("names an undecided opponent as TBD on the next race card", () => {
+      renderTourney({
+        selectedRacer: racers[1],
+        selectedRacerId: "ana",
+        tournamentQueue: [tourneyEntry(1, ["me", "cy"]), tourneyEntry(2, [null, "ana"])]
+      });
+
+      const card = screen.getByRole("region", { name: "Your next race" });
+      expect(within(card).getByText("vs TBD")).toBeInTheDocument();
+    });
+
+    it("says so when the tourney has no races left to run", () => {
+      renderTourney({ tournamentQueue: [] });
+
+      expect(screen.getByText("No tourney races left")).toBeInTheDocument();
+      expect(screen.queryByRole("region", { name: "Your next race" })).not.toBeInTheDocument();
+    });
   });
 });

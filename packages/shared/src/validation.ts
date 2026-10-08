@@ -149,6 +149,11 @@ export const tournamentGroupMatchSchema = z.object({
   matchId: z.string().trim().min(1)
 });
 
+/** Pin a match to race next in the `tournament queue`, or clear the pin with `null`. */
+export const tournamentUpNextSchema = z.object({
+  matchId: z.string().trim().min(1).nullable()
+});
+
 export const tournamentRacerSchema = z.object({
   tournamentId: z.string().trim().min(1),
   racerId: z.string().trim().min(1)
