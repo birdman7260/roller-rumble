@@ -1,7 +1,7 @@
-import type { AppSnapshot } from "@roller-rumble/shared/types";
+import type { AppSnapshot, QueueEntry } from "@roller-rumble/shared/types";
 import { Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import { queueEntryBikeColors } from "../lib/bike-colors";
 import type { ProjectorIdleView } from "../lib/projector-idle-view";
 import { getQueuePositionLabel } from "../lib/queue-position-label";
@@ -47,44 +47,53 @@ function RacerSignupPrompt({
   );
 }
 
-function IdleCardHeader({ eyebrow, heading }: { eyebrow: string; heading: string }) {
-  return (
-    <header className="race-page__idle-card-header">
-      <span>{eyebrow}</span>
-      <strong>{heading}</strong>
-    </header>
-  );
+/** The races the queue card lists, and how many more it sums up in a footnote line. */
+function splitProjectorQueue(queue: readonly QueueEntry[]): {
+  hiddenCount: number;
+  shownEntries: QueueEntry[];
+} {
+  const shownEntries = queue.slice(0, PROJECTOR_QUEUE_ROWS);
+  return { hiddenCount: queue.length - shownEntries.length, shownEntries };
+}
+
+/** How many lines a list needs, so the stage can size its rows to fit the card. */
+function countQueueLines(queue: readonly QueueEntry[]): number {
+  const { hiddenCount, shownEntries } = splitProjectorQueue(queue);
+  return shownEntries.length + (hiddenCount > 0 ? 1 : 0);
 }
 
 function ProjectorQueueCard({ snapshot }: { snapshot: AppSnapshot }) {
-  const shownEntries = snapshot.queue.slice(0, PROJECTOR_QUEUE_ROWS);
-  const hiddenCount = snapshot.queue.length - shownEntries.length;
+  const { hiddenCount, shownEntries } = splitProjectorQueue(snapshot.queue);
 
   return (
     <Panel className="panel--glass race-page__idle-card">
-      <IdleCardHeader eyebrow="Race queue" heading="Up next" />
-      <ol aria-label="Race queue" className="race-page__idle-list">
-        {shownEntries.map((entry, index) => (
-          <li key={entry.id} className="race-page__idle-row">
-            <span className="race-page__idle-rank">{entry.position}</span>
-            <strong className="race-page__idle-name">
-              <RacerNamesByBike
-                colors={queueEntryBikeColors(snapshot, entry)}
-                racerIds={entry.racerIds}
-                snapshot={snapshot}
-              />
-            </strong>
-            <span className="race-page__idle-detail">
-              {getQueuePositionLabel(index, snapshot.settings.queueMinutesPerRace)}
-            </span>
-          </li>
-        ))}
-      </ol>
-      {hiddenCount > 0 ? (
-        <p className="race-page__idle-footnote">
-          +{hiddenCount} more {hiddenCount === 1 ? "race" : "races"}
-        </p>
-      ) : null}
+      <h2 className="race-page__idle-card-title">Race queue</h2>
+      <div className="race-page__idle-body">
+        <div className="race-page__idle-lines">
+          <ol aria-label="Race queue" className="race-page__idle-list">
+            {shownEntries.map((entry, index) => (
+              <li key={entry.id} className="race-page__idle-row">
+                <span className="race-page__idle-rank">{entry.position}</span>
+                <strong className="race-page__idle-name">
+                  <RacerNamesByBike
+                    colors={queueEntryBikeColors(snapshot, entry)}
+                    racerIds={entry.racerIds}
+                    snapshot={snapshot}
+                  />
+                </strong>
+                <span className="race-page__idle-detail">
+                  {getQueuePositionLabel(index, snapshot.settings.queueMinutesPerRace)}
+                </span>
+              </li>
+            ))}
+          </ol>
+          {hiddenCount > 0 ? (
+            <p className="race-page__idle-footnote">
+              +{hiddenCount} more {hiddenCount === 1 ? "race" : "races"}
+            </p>
+          ) : null}
+        </div>
+      </div>
     </Panel>
   );
 }
@@ -92,23 +101,26 @@ function ProjectorQueueCard({ snapshot }: { snapshot: AppSnapshot }) {
 function TopRacersBoard({ snapshot }: { snapshot: AppSnapshot }) {
   return (
     <Panel className="panel--glass race-page__idle-card">
-      <IdleCardHeader
-        eyebrow={`Best times · ${String(snapshot.settings.targetDistanceMeters)} m`}
-        heading="Top racers"
-      />
-      <ol aria-label="Top racers" className="race-page__idle-list">
-        {snapshot.raceProjection.topRacers.map((entry, index) => (
-          <li key={entry.racerId} className="race-page__idle-row">
-            <span className="race-page__idle-rank">{index + 1}</span>
-            <strong className="race-page__idle-name">
-              {resolveRacerName(snapshot, entry.racerId)}
-            </strong>
-            <span className="race-page__idle-detail race-page__idle-time">
-              {formatRaceTime(entry.finishTimeMs)}
-            </span>
-          </li>
-        ))}
-      </ol>
+      <h2 className="race-page__idle-card-title">
+        Best times · {snapshot.settings.targetDistanceMeters} m
+      </h2>
+      <div className="race-page__idle-body">
+        <div className="race-page__idle-lines">
+          <ol aria-label="Top racers" className="race-page__idle-list">
+            {snapshot.raceProjection.topRacers.map((entry, index) => (
+              <li key={entry.racerId} className="race-page__idle-row">
+                <span className="race-page__idle-rank">{index + 1}</span>
+                <strong className="race-page__idle-name">
+                  {resolveRacerName(snapshot, entry.racerId)}
+                </strong>
+                <span className="race-page__idle-detail race-page__idle-time">
+                  {formatRaceTime(entry.finishTimeMs)}
+                </span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
     </Panel>
   );
 }
@@ -149,11 +161,17 @@ export function ProjectorIdleStage({
   );
   const leadIsSignup = view === "signup-and-top-racers";
   const trailIsSignup = view === "queue-and-signup";
+  // Both halves size their rows for the longer list, so the queue and the board read at one size
+  // and the longer list still fits its card without spilling over the footnote.
+  const lineCount = Math.max(
+    leadIsSignup ? 0 : countQueueLines(snapshot.queue),
+    trailIsSignup ? 0 : snapshot.raceProjection.topRacers.length
+  );
 
   // The queue's side and the board's side stay put, so the board never jumps across the screen
   // as the queue fills and empties; whichever of the two is empty yields to the compact prompt.
   return (
-    <div className="race-page__idle-split">
+    <div className="race-page__idle-split" style={{ "--idle-lines": lineCount } as CSSProperties}>
       <IdleHalf key={leadIsSignup ? "lead:signup" : "lead:queue"}>
         {leadIsSignup ? compactSignup : <ProjectorQueueCard snapshot={snapshot} />}
       </IdleHalf>

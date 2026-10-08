@@ -1769,51 +1769,54 @@ p {
   min-height: 0;
 }
 
-/* Both half-stage cards share padding, spacing and heading scale so the halves stay in step. */
+/* Both half-stage cards share padding and spacing so the halves stay in step. */
 .race-page__idle-card,
 .race-page__signup-prompt--compact {
   --ui-panel-padding: clamp(1.1rem, 2.2vw, 2.2rem);
   gap: clamp(0.6rem, 1.6vh, 1.2rem);
 }
 
-.race-page__idle-card-header strong,
-.race-page__signup-prompt--compact .race-page__signup-copy strong {
-  font-size: clamp(2.2rem, 4.4vw, 4.6rem);
-  line-height: 0.9;
-}
-
 .race-page__idle-card {
   height: 100%;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr);
   overflow: hidden;
   border-width: 0.14rem;
   box-shadow: 0 2rem 4.5rem rgba(0, 0, 0, 0.34);
 }
 
-.race-page__idle-card-header {
-  display: grid;
-  gap: clamp(0.2rem, 0.6vh, 0.45rem);
-}
-
-.race-page__idle-card-header span {
+.race-page__idle-card-title {
+  margin: 0;
   color: var(--theme-accent);
-  font-size: clamp(0.9rem, 1.4vw, 1.5rem);
+  font-size: clamp(1rem, 1.7vw, 1.9rem);
   font-weight: 900;
   letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 
-.race-page__idle-card-header strong {
-  text-transform: uppercase;
+/* The space under the title; its height decides how big the rows can be. */
+.race-page__idle-body {
+  min-height: 0;
+  container-type: size;
+}
+
+/*
+ * Every line is sized in em, so one font size scales the whole list. A row is 1.9em tall (a 1.2
+ * line plus 0.35em padding top and bottom) with 0.3em between rows, so 2.2em per line always
+ * covers it: the font shrinks until `--idle-lines` lines fit the body, and never past the cap.
+ */
+.race-page__idle-lines {
+  display: grid;
+  align-content: start;
+  gap: 0.3em;
+  font-size: min(clamp(1.15rem, 2vw, 2.1rem), calc(100cqh / (2.2 * max(var(--idle-lines, 6), 1))));
+  line-height: 1.2;
 }
 
 .race-page__idle-list {
   display: grid;
-  align-content: start;
-  gap: clamp(0.35rem, 1vh, 0.7rem);
-  min-height: 0;
+  gap: 0.3em;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -1823,11 +1826,10 @@ p {
   display: grid;
   grid-template-columns: 2.4ch minmax(0, 1fr) auto;
   align-items: baseline;
-  gap: clamp(0.6rem, 1.2vw, 1.2rem);
-  padding: clamp(0.4rem, 1vh, 0.75rem) clamp(0.6rem, 1.1vw, 1rem);
+  gap: 0.6em;
+  padding: 0.35em 0.5em;
   border-radius: 0.8rem;
   background: color-mix(in srgb, var(--theme-surface-alt) 62%, transparent);
-  font-size: clamp(1.15rem, 2vw, 2.1rem);
 }
 
 .race-page__idle-rank {
@@ -1860,12 +1862,18 @@ p {
 
 .race-page__idle-footnote {
   margin: 0;
+  padding-inline: 0.5em;
   color: var(--theme-text-muted);
-  font-size: clamp(1rem, 1.6vw, 1.6rem);
+  font-size: 0.8em;
   font-weight: 800;
 }
 
 /* Half-stage signup prompt: heading over the QR, the body line left out. */
+.race-page__signup-prompt--compact .race-page__signup-copy strong {
+  font-size: clamp(2.2rem, 4.4vw, 4.6rem);
+  line-height: 0.9;
+}
+
 .race-page__signup-prompt--compact {
   width: 100%;
   grid-template-columns: minmax(0, 1fr);
