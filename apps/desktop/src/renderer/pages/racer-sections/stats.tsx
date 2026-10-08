@@ -18,10 +18,11 @@ export function ExpandedRacerStats({
   visibleTournament
 }: {
   entry: RacerSummary;
-  upcoming: QueueEntry[];
+  /** Shows the racer's queue positions when given; the Me tab leaves it out. */
+  upcoming?: QueueEntry[];
   visibleTournament: TournamentBundle | null;
 }) {
-  const racerQueueEntries = upcoming
+  const racerQueueEntries = (upcoming ?? [])
     .filter((queueEntry) => queueEntry.racerIds.includes(entry.racer.id))
     .toSorted((left, right) => left.position - right.position);
   const tournamentSeed = visibleTournament?.seeds.find((seed) => seed.racerId === entry.racer.id);
@@ -30,29 +31,18 @@ export function ExpandedRacerStats({
     <div className="racer-detail stack-md">
       <div className="racer-detail-stat-grid">
         <RacerStat
-          label="Event Record"
+          label="Wins-Losses"
           value={`${entry.stats.eventWins}-${Math.max(0, entry.stats.eventRaces - entry.stats.eventWins)}`}
           detail={`${entry.stats.eventRaces} event races`}
-        />
-        <RacerStat
-          label="Career Record"
-          value={`${entry.stats.wins}-${Math.max(0, entry.stats.races - entry.stats.wins)}`}
-          detail={`${entry.stats.careerRaces} total races`}
         />
         <RacerStat label="Best Finish" value={formatFinishTime(entry.stats.bestFinishTimeMs)} />
         <RacerStat label="Top Speed" value={`${entry.stats.topSpeedKph.toFixed(1)} km/h`} />
         <RacerStat label="Average Speed" value={`${entry.stats.averageSpeedKph.toFixed(1)} km/h`} />
-        <RacerStat
-          label="Roller Rumble Events Attended"
-          value={String(entry.stats.careerEventCount)}
-        />
       </div>
 
-      <div className="racer-detail-section">
-        <h3>Queue</h3>
-        {racerQueueEntries.length === 0 ? (
-          <p>No active queue entries.</p>
-        ) : (
+      {racerQueueEntries.length > 0 ? (
+        <div className="racer-detail-section">
+          <h3>Queue</h3>
           <div className="list">
             {racerQueueEntries.map((queueEntry) => (
               <div key={queueEntry.id} className="list-row">
@@ -61,8 +51,8 @@ export function ExpandedRacerStats({
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      ) : null}
 
       {visibleTournament ? (
         <div className="racer-detail-section">

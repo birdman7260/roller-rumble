@@ -1,0 +1,19 @@
+# Working session
+
+- the race and queue page could merge
+  - in the tourney mode, just show the upcoming matches
+- move the queue controls into two buttons that are always visible
+  - queue and challenge
+- me page
+  - show the racer name as well
+- tourney
+  - should auto queue and have the matches in a queue that can be seen from the app
+- after joining you see where you are in the queue and estimated time
+- tourney cleanup
+  - remove the stage numbers
+  - in the cards, use time estimates instead of "ready"
+- projector page
+  - shows the queue with estimated times when there is a queue
+  - show the QR if there isn't
+- modal for tourney should be on the whole screen not locked inside the tourney container
+- align the user photo in both the me tab and registration

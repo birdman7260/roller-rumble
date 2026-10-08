@@ -1,5 +1,4 @@
 import type {
-  QueueEntry,
   RacerNotification,
   RacerSummary,
   TournamentBundle
@@ -36,10 +35,10 @@ export function MeTab({
   registration,
   selectedRacer,
   selectedRacerAvatarUrl,
+  selectedRacerRealName,
   shouldShowNotificationPrompt,
   showNotificationDebugList,
   unreadNotificationCount,
-  upcoming,
   visibleTournament,
   layoutTransition,
   supportingCardMotion
@@ -60,10 +59,10 @@ export function MeTab({
   registration: ReactNode;
   selectedRacer?: RacerSummary | null;
   selectedRacerAvatarUrl: string | null;
+  selectedRacerRealName: string | null;
   shouldShowNotificationPrompt: boolean;
   showNotificationDebugList: boolean;
   unreadNotificationCount: number;
-  upcoming: QueueEntry[];
   visibleTournament: TournamentBundle | null;
 }) {
   return (
@@ -77,7 +76,11 @@ export function MeTab({
       <Panel title={selectedRacer ? "Your Race Card" : "Register"}>
         {selectedRacer ? (
           <div className="stack-md">
-            <div className="race-metric-card__header">
+            <div className="racer-race-card">
+              <div className="racer-race-card__names">
+                <strong>{selectedRacer.racer.displayName}</strong>
+                {selectedRacerRealName ? <span>{selectedRacerRealName}</span> : null}
+              </div>
               {selectedRacerAvatarUrl ? (
                 <div className="racer-avatar-frame">
                   <img
@@ -116,9 +119,6 @@ export function MeTab({
                   {selectedRacer.racer.displayName[0]}
                 </span>
               )}
-              <div>
-                <strong>{selectedRacer.racer.displayName}</strong>
-              </div>
             </div>
             {selectedRacerAvatarUrl && (avatarUploadBusy || avatarUploadMessage) ? (
               <p>{avatarUploadBusy ? "Uploading avatar…" : avatarUploadMessage}</p>
@@ -231,11 +231,7 @@ export function MeTab({
       {photoBoothEnabled && selectedRacer && !selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}
       {selectedRacer ? (
         <Panel title="Your Stats">
-          <ExpandedRacerStats
-            entry={selectedRacer}
-            upcoming={upcoming}
-            visibleTournament={visibleTournament}
-          />
+          <ExpandedRacerStats entry={selectedRacer} visibleTournament={visibleTournament} />
         </Panel>
       ) : null}
       {photoBoothEnabled && selectedRacer && selectedRacerAvatarUrl ? <PhotoBoothCard /> : null}

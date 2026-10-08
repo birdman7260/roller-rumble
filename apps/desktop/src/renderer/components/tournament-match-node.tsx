@@ -49,10 +49,7 @@ export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNod
       />
 
       <div className="tournament-match-node__meta">
-        <div>
-          <p className="eyebrow">{data.roundLabel}</p>
-          <strong className="tournament-match-node__label">{data.label}</strong>
-        </div>
+        {data.roundLabel ? <p className="eyebrow">{data.roundLabel}</p> : null}
         <span className="tournament-match-node__status">{data.state}</span>
       </div>
 

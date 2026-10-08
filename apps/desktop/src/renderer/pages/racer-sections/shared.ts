@@ -16,10 +16,9 @@ export type TournamentRaceCard =
   | {
       id: string;
       kind: "bracket";
-      label: string;
       racerAId?: string | null;
       racerBId?: string | null;
-      roundLabel: string;
+      roundLabel: string | null;
       state: BracketNode["state"];
       winnerRacerId?: string | null;
     }

@@ -40,10 +40,14 @@ function TournamentRaceCardView({
   return (
     <div className={`tournament-match-node tournament-match-node--${card.state}`}>
       <div className="tournament-match-node__meta">
-        <div>
-          <p className="eyebrow">{card.roundLabel}</p>
-          <strong className="tournament-match-node__label">{card.label}</strong>
-        </div>
+        {card.roundLabel || card.kind === "group" ? (
+          <div>
+            {card.roundLabel ? <p className="eyebrow">{card.roundLabel}</p> : null}
+            {card.kind === "group" ? (
+              <strong className="tournament-match-node__label">{card.label}</strong>
+            ) : null}
+          </div>
+        ) : null}
         <span className="tournament-match-node__status">{card.state}</span>
       </div>
       <div className="tournament-match-node__body">

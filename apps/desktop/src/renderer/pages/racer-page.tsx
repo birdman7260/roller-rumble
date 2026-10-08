@@ -180,7 +180,7 @@ function canRacerOptOutFromTournament(
   return true;
 }
 
-function getBracketRoundLabel(node: BracketNode): string {
+function getBracketRoundLabel(node: BracketNode): string | null {
   const bracket = typeof node.meta.bracket === "string" ? node.meta.bracket : "winners";
   if (bracket === "grand-final") {
     return "Grand Final";
@@ -191,7 +191,8 @@ function getBracketRoundLabel(node: BracketNode): string {
   if (bracket === "losers") {
     return `Losers ${node.roundNumber}`;
   }
-  return `Winners ${node.roundNumber}`;
+  // Winners rounds are the default path, so racers don't need a label for them.
+  return null;
 }
 
 function getStageOrder(bundle: TournamentBundle, stageId: string): number {
@@ -262,7 +263,6 @@ function getCurrentTournamentRaceCards(
     return currentRoundBracketNodes.map((node) => ({
       id: node.id,
       kind: "bracket",
-      label: node.slotLabel,
       racerAId: node.racerAId,
       racerBId: node.racerBId,
       roundLabel: getBracketRoundLabel(node),
@@ -311,6 +311,8 @@ interface RacerPageState {
   selectedOpponent: string;
   selectedRacerDetailId: string | null;
   selectedRacerId: string;
+  /** The signed-in racer's real name; snapshots strip it, so it comes from the session. */
+  selectedRacerRealName: string | null;
   signOutBusy: boolean;
   signOutConfirmOpen: boolean;
   tournamentOptOutBusy: boolean;
@@ -338,6 +340,7 @@ function createInitialRacerPageState(initialTab: string | undefined): RacerPageS
     selectedOpponent: "",
     selectedRacerDetailId: null,
     selectedRacerId: localStorage.getItem("roller-rumble.racerId") ?? "",
+    selectedRacerRealName: null,
     signOutBusy: false,
     signOutConfirmOpen: false,
     tournamentOptOutBusy: false,
@@ -427,6 +430,7 @@ interface RacerPageViewProps {
   selectedRacerAvatarUrl: string | null;
   selectedRacerId: string;
   selectedRacerNextQueueEntry: AppSnapshot["queue"][number] | undefined;
+  selectedRacerRealName: string | null;
   setBracketPresentationRequest: Dispatch<SetStateAction<BracketPresentationRequest | null>>;
   setChallengeReplacementRequest: Dispatch<SetStateAction<ChallengeReplacementRequest | null>>;
   setExpandedBracketTournamentId: Dispatch<SetStateAction<string | null>>;
@@ -474,6 +478,7 @@ function useRacerPageViewModel({
     selectedOpponent,
     selectedRacerDetailId,
     selectedRacerId,
+    selectedRacerRealName,
     signOutBusy,
     signOutConfirmOpen,
     tournamentOptOutBusy,
@@ -583,11 +588,14 @@ function useRacerPageViewModel({
       if (result.racer) {
         rememberRacerSessionToken(result.sessionToken);
         localStorage.setItem("roller-rumble.racerId", result.racer.id);
-        setState({ selectedRacerId: result.racer.id });
+        setState({
+          selectedRacerId: result.racer.id,
+          selectedRacerRealName: result.racer.realName
+        });
       } else {
         forgetRacerSessionToken();
         localStorage.removeItem("roller-rumble.racerId");
-        setState({ selectedRacerId: "" });
+        setState({ selectedRacerId: "", selectedRacerRealName: null });
       }
     }
     fireAndForget(hydrateSession(), "hydrate racer session");
@@ -741,7 +749,7 @@ function useRacerPageViewModel({
     registeredRacerSteps.holdPhotoStep(result.racer.id);
     queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
     localStorage.setItem("roller-rumble.racerId", result.racer.id);
-    setState({ selectedRacerId: result.racer.id });
+    setState({ selectedRacerId: result.racer.id, selectedRacerRealName: result.racer.realName });
     setActiveTab("race");
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
@@ -782,6 +790,7 @@ function useRacerPageViewModel({
       notificationMessage: null,
       notificationPromptVisible: false,
       selectedRacerId: "",
+      selectedRacerRealName: null,
       signOutBusy: false,
       signOutConfirmOpen: false,
       tournamentOptOutMessage: null
@@ -1312,6 +1321,7 @@ function useRacerPageViewModel({
     selectedRacerAvatarUrl,
     selectedRacerId,
     selectedRacerNextQueueEntry,
+    selectedRacerRealName,
     setBracketPresentationRequest,
     setChallengeReplacementRequest,
     setExpandedBracketTournamentId,
@@ -1404,6 +1414,7 @@ function RacerPageView({
   selectedRacerAvatarUrl,
   selectedRacerId,
   selectedRacerNextQueueEntry,
+  selectedRacerRealName,
   setBracketPresentationRequest,
   setChallengeReplacementRequest,
   setExpandedBracketTournamentId,
@@ -1522,11 +1533,11 @@ function RacerPageView({
                 registration={registration}
                 selectedRacer={selectedRacer}
                 selectedRacerAvatarUrl={selectedRacerAvatarUrl}
+                selectedRacerRealName={selectedRacerRealName}
                 shouldShowNotificationPrompt={shouldShowNotificationPrompt}
                 showNotificationDebugList={showNotificationDebugList}
                 supportingCardMotion={supportingCardMotion}
                 unreadNotificationCount={unreadNotificationCount}
-                upcoming={upcoming}
                 visibleTournament={visibleTournament}
               />
             ) : null}

@@ -27,10 +27,9 @@ export interface BracketFlowNodeData extends Record<string, unknown> {
   appNodeId: string;
   canSelect: boolean;
   highlighted: boolean;
-  label: string;
   onSelectMatch?: (nodeId: string) => void;
   participants: [BracketFlowParticipant, BracketFlowParticipant];
-  roundLabel: string;
+  roundLabel: string | null;
   side: BracketFlowSide;
   state: BracketNode["state"];
 }
@@ -88,7 +87,7 @@ function getBracket(node: BracketNode): string {
   return typeof node.meta.bracket === "string" ? node.meta.bracket : "winners";
 }
 
-function getRoundLabel(node: BracketNode): string {
+function getRoundLabel(node: BracketNode): string | null {
   const bracket = getBracket(node);
   if (bracket === "grand-final") {
     return "Grand Final";
@@ -99,7 +98,8 @@ function getRoundLabel(node: BracketNode): string {
   if (bracket === "losers") {
     return `Losers ${node.roundNumber}`;
   }
-  return `Winners ${node.roundNumber}`;
+  // Winners rounds are the default path, so racers don't need a label for them.
+  return null;
 }
 
 function getParticipantResult(node: BracketNode, racerId?: string | null): string | null {
@@ -374,7 +374,6 @@ export function buildBracketFlow(
         appNodeId: node.id,
         canSelect: interactive,
         highlighted: effectiveHighlightedNodeId === node.id,
-        label: node.slotLabel,
         onSelectMatch: undefined,
         participants: [
           getParticipant(snapshot, bundle, node, node.racerAId),

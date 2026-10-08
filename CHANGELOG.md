@@ -19,6 +19,9 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Racers now join through a short step-by-step registration with a progress bar: your details, then a racer name. Passkeys and email sign-in are gone. Whatever a racer has typed is kept on their phone, so a reload picks up where they left off.
 - Signing out on a racer phone now asks first and warns that the racer can't be recovered on that phone; signing out returns the phone to the start of registration.
 - Removed the "Allow accountless racer signup" setting; every racer registers through the registration wizard.
+- Tournament bracket cards no longer show match codes like "W1.1" or "Winners 1"; losers-bracket, grand final, and reset matches are still labelled.
+- Racer stats are simpler: the event record is now shown as "Wins-Losses", and the career record and "Roller Rumble Events Attended" stats are gone. On the Racers tab, a racer's queue spots only appear when they're actually in the queue.
+- The Me tab's race card now shows your racer name at the top, your full name under it, and your photo centered below. Queue details have moved off the Me tab, since the Race and Queue tabs already show them.
 - The operator handbook now walks through the registration wizard and the sign-out warning, explains that a racer with a lost or new phone registers again, and notes that racers no longer need the tunnel just to register (notifications and online payments still do).
 
 ### Fixed
