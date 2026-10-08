@@ -22,22 +22,24 @@ function QueueRow({
 }) {
   const isMine = Boolean(selectedRacerId) && entry.racerIds.includes(selectedRacerId);
   return (
-    <li className={`list-row racer-queue-row${isMine ? " racer-queue-row--mine" : ""}`}>
-      <strong>
-        {isMine ? <span className="visually-hidden">Your race</span> : null}#{entry.position}{" "}
-        {formatRacerNames(liveSnapshot, entry.racerIds)}
-      </strong>
-      <span>{getQueuePositionLabel(index)}</span>
-      {isLeavableByRacer(entry, selectedRacerId) ? (
-        <Button
-          variant="ghost"
-          onClick={() => {
-            onRequestLeaveEntry(entry);
-          }}
-        >
-          Leave
-        </Button>
-      ) : null}
+    <li className={`racer-queue-row${isMine ? " racer-queue-row--mine" : ""}`}>
+      <div className="racer-queue-row__body">
+        <strong>
+          {isMine ? <span className="visually-hidden">Your race</span> : null}#{entry.position}{" "}
+          {formatRacerNames(liveSnapshot, entry.racerIds)}
+        </strong>
+        <span>{getQueuePositionLabel(index)}</span>
+        {isLeavableByRacer(entry, selectedRacerId) ? (
+          <Button
+            variant="ghost"
+            onClick={() => {
+              onRequestLeaveEntry(entry);
+            }}
+          >
+            Leave
+          </Button>
+        ) : null}
+      </div>
     </li>
   );
 }
@@ -72,7 +74,7 @@ export function RumbleQueuePanel({
             body="The queue is open. Be the first racer to jump in."
           />
         ) : (
-          <ol aria-label="Race queue" className="list racer-queue-list">
+          <ol aria-label="Race queue" className="racer-queue-list">
             {visibleEntries.map((entry, index) => (
               <QueueRow
                 key={entry.id}

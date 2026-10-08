@@ -525,21 +525,33 @@ a {
 }
 
 .racer-queue-list {
-  margin-bottom: 0;
+  display: grid;
+  margin: 0;
   padding: 0;
   list-style: none;
 }
 
-.racer-queue-row--mine {
-  margin-inline: -0.75rem;
-  padding-inline: 0.75rem;
-  border-radius: 0.6rem;
-  background: color-mix(in srgb, var(--theme-accent) 38%, var(--theme-surface));
+/* The divider lives on the item and the highlight on its body, so the two never touch. */
+.racer-queue-row {
+  padding-block: 0.3rem;
 }
 
-.racer-queue-row--mine,
-.racer-queue-row--mine + .list-row {
-  border-top-color: transparent;
+.racer-queue-row + .racer-queue-row {
+  border-top: 1px solid var(--theme-accent-soft);
+}
+
+/* Every row carries the same inset, so names line up whether or not the row is highlighted. */
+.racer-queue-row__body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.6rem;
+}
+
+/* A neutral wash, so the racer's rows stand apart from the accent-tinted Leave button. */
+.racer-queue-row--mine .racer-queue-row__body {
+  background: color-mix(in srgb, var(--theme-text) 14%, transparent);
 }
 
 .racer-tournament-match-grid {
