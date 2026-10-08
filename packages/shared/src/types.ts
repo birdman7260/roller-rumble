@@ -549,6 +549,16 @@ export interface RacerStats {
   maxWattage: number;
 }
 
+/**
+ * One row of the `top racers board`: a racer's best qualifying run. The array index is the rank;
+ * names and avatars come from `AppSnapshot.racers`.
+ */
+export interface TopRacersEntry {
+  racerId: string;
+  raceId: string;
+  finishTimeMs: number;
+}
+
 export interface RaceProjectionModel {
   race: RaceRecord | null;
   countdownSecondsRemaining: number | null;
@@ -556,6 +566,8 @@ export interface RaceProjectionModel {
   winnerRacerId?: string | null;
   nextQueueEntry: QueueEntry | null;
   resultPresentation: RaceResultPresentation | null;
+  /** The `top racers board`, fastest first and already cut to the operator's row count. */
+  topRacers: TopRacersEntry[];
   theme: ThemeDefinition;
 }
 
@@ -643,6 +655,8 @@ export interface AdminSettings {
   queueClosedMessage: string;
   /** Minutes each queued race takes, used to estimate when racers further back will ride. */
   queueMinutesPerRace: number;
+  /** How many rows the projector's `top racers board` shows. */
+  raceDisplayTopRacersRows: number;
 }
 
 export interface StripeSetupStatus {

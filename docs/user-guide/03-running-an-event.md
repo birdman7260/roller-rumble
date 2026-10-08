@@ -215,6 +215,23 @@ You control how it looks from **Settings → Projector Display**:
     use Surge, since there's no opponent to compare against.)
 - **Ticker messages** — scrolling messages along the display. Type one message per line, set the
   **Ticker speed**, then **Save Ticker Messages** (or **Clear Messages** to remove them).
+- **Top racers shown between races** — how many rows the top racers board lists (3 to 10, 5 by
+  default). Fewer rows means bigger text, which helps on a dim projector or a big room.
+
+Between races (outside a tourney), the projector works out what to show on its own:
+
+- **Nobody has queued or raced yet** — the full sign-up card with the QR code.
+- **Races are queued and someone has finished a race** — the race queue on the left, with each
+  race's estimated start time, and the **top racers board** on the right: the fastest riders so
+  far with their best times. Each racer appears once, with their best run.
+- **The queue is empty but races have been run** — the top racers board stays up, and a smaller
+  sign-up card with the QR takes the queue's place.
+- **Races are queued but nobody has finished one yet** — the queue, with the smaller sign-up card
+  beside it.
+
+The board only counts this event's races at the current race distance, and only riders who made it
+to the finish line. If you change the race distance, the board shows the best times at the new
+distance (change it back and the old times return).
 
 The Race Display is view-only — there are no controls on it. Everything is driven from the admin
 window.

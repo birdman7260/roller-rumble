@@ -20,7 +20,8 @@
     "queueOpen": true,
     "allowSoloQueue": true,
     "queueClosedMessage": "",
-    "queueMinutesPerRace": 2
+    "queueMinutesPerRace": 2,
+    "raceDisplayTopRacersRows": 5
   },
   "activeEvent": {
     "id": "event-1",
@@ -244,6 +245,18 @@
       "updatedAt": "2026-06-24T11:00:00.000Z"
     },
     "resultPresentation": null,
+    "topRacers": [
+      {
+        "racerId": "racer-1",
+        "raceId": "race-history",
+        "finishTimeMs": 60000
+      },
+      {
+        "racerId": "racer-2",
+        "raceId": "race-history",
+        "finishTimeMs": 65000
+      }
+    ],
     "theme": {
       "id": "neon-night",
       "label": "Neon Night",

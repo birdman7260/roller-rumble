@@ -380,7 +380,8 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     queueOpen: true,
     allowSoloQueue: false,
     queueClosedMessage: "",
-    queueMinutesPerRace: 2
+    queueMinutesPerRace: 2,
+    raceDisplayTopRacersRows: 5
   };
 
   return {
@@ -394,6 +395,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
       nextQueueEntry: null,
       race: null,
       resultPresentation: null,
+      topRacers: [],
       theme
     },
     racers: labRacers,

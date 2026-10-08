@@ -16,6 +16,7 @@ import type { SensorStatus } from "../adapters/sensor";
 import type { RaceCountdownTiming } from "./race-countdown";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
 import { assembleSubsystemHealth } from "./subsystem-health";
+import { rankTopRacers } from "./top-racers";
 import { buildTournamentQueue } from "./tournament-queue";
 
 export type SnapshotStreamSurface = "admin" | "projector" | "racer";
@@ -67,6 +68,14 @@ export class SnapshotAssembler {
         .filter((entry) => ["queued", "staging"].includes(entry.status))
     );
     const currentRace = this.db.getCurrentRace(activeEvent.id);
+    // The board ranks the active event alone, whatever `includeAllRaceData` says (ADR 0022).
+    const topRacers = rankTopRacers({
+      eventId: activeEvent.id,
+      raceDistanceMeters: settings.targetDistanceMeters,
+      raceTargetDistanceById: this.db.listRaceTargetDistances(activeEvent.id),
+      results: allResults,
+      rows: settings.raceDisplayTopRacersRows
+    });
     const nextQueueEntry = findNextQueuedEntry(queue);
     // Snapshot tournament state is intentionally scoped to the active event so the racer page and
     // admin surfaces do not have to untangle cross-event tournament history on the client.
@@ -124,6 +133,7 @@ export class SnapshotAssembler {
         winnerRacerId: currentRace?.winnerRacerId ?? null,
         nextQueueEntry,
         resultPresentation: ctx.resultPresentation,
+        topRacers,
         theme: selectedTheme
       }
     };

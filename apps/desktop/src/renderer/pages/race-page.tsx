@@ -11,6 +11,7 @@ import {
   type BracketWinnerAdvance,
   EliminationBracketView
 } from "../components/elimination-bracket-view";
+import { ProjectorIdleStage } from "../components/projector-idle-stage";
 import { RaceGraphic } from "../components/race-graphics";
 import { RaceResultsOverlay } from "../components/race-results-overlay";
 import { EmptyState, Panel } from "@roller-rumble/shared-ui";
@@ -19,7 +20,7 @@ import { findBracketNodeByParticipantIds } from "../components/tournament-flow-l
 import { getActiveTournament } from "../lib/admin-competition";
 import { getConfettiEffectDurationMs } from "../lib/confetti-effects";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
-import { SIGNUP_PROMPT_DEFAULTS } from "../lib/signup-prompt-copy";
+import { getProjectorIdleView, type ProjectorIdleView } from "../lib/projector-idle-view";
 import { buildParticipantEntries, resolveRacerName } from "../lib/snapshot-display";
 
 const TOURNAMENT_PRE_RACE_STATES: RaceRecord["state"][] = ["scheduled", "staging", "interrupted"];
@@ -57,6 +58,8 @@ interface RacePageViewModel {
   bracketHighlightedNodeId: string | null;
   bracketPresentation: BracketPresentationRequest | null;
   displayRace: RaceRecord | null;
+  /** What the stage shows between open time trial races; null while a race or bracket holds it. */
+  idleView: ProjectorIdleView | null;
   metrics: RaceRecord["metrics"];
   orientation: RaceProjection["theme"]["orientation"];
   projection: RaceProjection;
@@ -64,7 +67,6 @@ interface RacePageViewModel {
   racers: ProjectorParticipantEntry[];
   resultPresentation: RaceResultPresentation | null;
   showRacePanel: boolean;
-  showSignupPrompt: boolean;
   showTournamentBracket: boolean;
   snapshot: AppSnapshot;
   tickerItems: string[];
@@ -462,35 +464,6 @@ function RaceTicker({
   );
 }
 
-function RacerSignupPrompt({
-  qrCodeDataUrl,
-  eyebrow,
-  heading,
-  description
-}: {
-  qrCodeDataUrl?: string;
-  eyebrow?: string | null;
-  heading?: string | null;
-  description?: string | null;
-}) {
-  return (
-    <Panel className="panel--glass race-page__signup-prompt">
-      <div className="race-page__signup-copy">
-        <span>{eyebrow ?? SIGNUP_PROMPT_DEFAULTS.eyebrow}</span>
-        <strong>{heading ?? SIGNUP_PROMPT_DEFAULTS.heading}</strong>
-        <p className="race-page__signup-desc">{description ?? SIGNUP_PROMPT_DEFAULTS.body}</p>
-      </div>
-      <div className="race-page__signup-qr-wrap">
-        {qrCodeDataUrl ? (
-          <img className="race-page__signup-qr" src={qrCodeDataUrl} alt="QR code for racer page" />
-        ) : (
-          <div className="race-page__signup-qr race-page__signup-qr--loading">Preparing QR</div>
-        )}
-      </div>
-    </Panel>
-  );
-}
-
 function TournamentBracketLayer({ model }: { model: RacePageViewModel }) {
   if (!model.bracketBundle) {
     return null;
@@ -529,13 +502,11 @@ function TournamentBracketLayer({ model }: { model: RacePageViewModel }) {
 function RaceLayer({ model }: { model: RacePageViewModel }) {
   return (
     <m.div
-      className={`race-page__race-layer ${
-        model.showSignupPrompt ? "race-page__race-layer--signup-prompt" : ""
-      }`}
+      className={`race-page__race-layer ${model.idleView ? "race-page__race-layer--idle" : ""}`}
       initial={false}
       animate={{
         opacity: model.showRacePanel ? 1 : model.bracketBundle ? 0 : 1,
-        x: model.showRacePanel || model.showSignupPrompt ? "0%" : "12%"
+        x: model.showRacePanel || model.idleView ? "0%" : "12%"
       }}
       transition={{
         duration: model.showRacePanel ? 0.42 : 0.32,
@@ -553,12 +524,11 @@ function RaceLayer({ model }: { model: RacePageViewModel }) {
           laneColorsFlipped={model.snapshot.settings.raceDisplayLaneColorsFlipped}
           glowMode={model.snapshot.settings.raceDisplayGlowMode}
         />
-      ) : model.showSignupPrompt ? (
-        <RacerSignupPrompt
+      ) : model.idleView ? (
+        <ProjectorIdleStage
+          view={model.idleView}
+          snapshot={model.snapshot}
           qrCodeDataUrl={model.qrCodeDataUrl}
-          eyebrow={model.snapshot.activeEvent.signupEyebrow}
-          heading={model.snapshot.activeEvent.signupHeading}
-          description={model.snapshot.activeEvent.description}
         />
       ) : !model.bracketBundle ? (
         <Panel className="panel--glass">
@@ -600,7 +570,7 @@ function RacePageView({ model }: { model: RacePageViewModel }) {
   return (
     <div
       className={`race-page race-page--${model.orientation} ${
-        model.showSignupPrompt ? "race-page--signup-prompt" : ""
+        model.idleView ? "race-page--idle" : ""
       }`}
     >
       <WinnerConfetti
@@ -848,16 +818,19 @@ function useRacePageViewModel(): RacePageViewModel | null {
   const metrics = displayRace?.metrics ?? [];
   const orientation = projection.theme.orientation;
   const tickerItems = buildTickerItems(snapshot);
-  // The no-staged-race prompt is an audience call-to-action, so it should use a full-width
-  // projector layout instead of inheriting the current theme's horizontal/vertical race-track
-  // geometry. The bottom ticker still communicates any queued upcoming races.
-  const showSignupPrompt = !bracketBundle && displayRace == null;
+  // The idle stage is an audience call-to-action, so it uses a full-width projector layout instead
+  // of inheriting the current theme's horizontal/vertical race-track geometry.
+  const idleView =
+    !bracketBundle && displayRace == null
+      ? getProjectorIdleView({ queue: snapshot.queue, topRacers: projection.topRacers })
+      : null;
 
   return {
     bracketBundle,
     bracketHighlightedNodeId,
     bracketPresentation,
     displayRace,
+    idleView,
     metrics,
     orientation,
     projection,
@@ -865,7 +838,6 @@ function useRacePageViewModel(): RacePageViewModel | null {
     racers,
     resultPresentation,
     showRacePanel,
-    showSignupPrompt,
     showTournamentBracket,
     snapshot,
     tickerItems,

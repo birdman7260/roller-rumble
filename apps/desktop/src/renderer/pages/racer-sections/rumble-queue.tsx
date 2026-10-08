@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { RacerNamesByBike } from "../../components/racer-names-by-bike";
 import { queueEntryBikeColors, tournamentEntryBikeColors } from "../../lib/bike-colors";
 import { isLeavableByRacer } from "../../lib/snapshot-display";
-import { getQueuePositionLabel } from "./queue-position-label";
+import { getQueuePositionLabel } from "../../lib/queue-position-label";
 
 /** How many races a queue shows before the racer taps Show more. */
 const QUEUE_PREVIEW_LIMIT = 6;

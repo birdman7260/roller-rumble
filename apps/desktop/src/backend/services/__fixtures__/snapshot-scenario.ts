@@ -199,7 +199,8 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     queueOpen: true,
     allowSoloQueue: true,
     queueClosedMessage: "",
-    queueMinutesPerRace: 2
+    queueMinutesPerRace: 2,
+    raceDisplayTopRacersRows: 5
   };
 }
 
@@ -341,6 +342,7 @@ export function makeSnapshotDb(
     listResults: () => ALL_RESULTS.map((result) => ({ ...result })),
     listQueueEntries: () => QUEUE.map((entry) => ({ ...entry })),
     getCurrentRace: () => ({ ...currentRace }),
+    listRaceTargetDistances: () => new Map([["race-history", 250]]),
     listTournamentBundles: () => [],
     listEventRacers: () => RACERS.map((racer) => ({ ...racer })),
     getEventRacerPayment: () => ({ ...PAYMENT })

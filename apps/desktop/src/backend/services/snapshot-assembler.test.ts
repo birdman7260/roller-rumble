@@ -81,6 +81,18 @@ describe("SnapshotAssembler.assemble", () => {
 
     expect(snapshot.raceProjection.countdownSecondsRemaining).toBeNull();
   });
+
+  it("ranks the active event's runs on the top racers board even with all race data included", () => {
+    const assembler = new SnapshotAssembler(makeSnapshotDb(true));
+
+    const snapshot = assembler.assemble(makeContext());
+
+    // Ada's faster 58s run belongs to another event, so her board time is this event's 60s run.
+    expect(snapshot.raceProjection.topRacers).toEqual([
+      { racerId: "racer-1", raceId: "race-history", finishTimeMs: 60_000 },
+      { racerId: "racer-2", raceId: "race-history", finishTimeMs: 65_000 }
+    ]);
+  });
 });
 
 describe("SnapshotAssembler subsystem health", () => {

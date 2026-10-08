@@ -20,7 +20,7 @@ import {
 } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
-import { getNextRaceTimingLabel } from "./queue-position-label";
+import { getNextRaceTimingLabel } from "../../lib/queue-position-label";
 import { RumbleQueuePanel, TournamentQueuePanel } from "./rumble-queue";
 import { InlineTabLink } from "./inline-tab-link";
 

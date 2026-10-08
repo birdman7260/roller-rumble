@@ -5,6 +5,8 @@ import {
   RACER_NOTIFICATION_TYPES,
   STRIPE_MIN_PAYMENT_AMOUNT_CENTS,
   SUPPORTED_TOURNAMENT_PRESETS,
+  TOP_RACERS_ROWS_MAX,
+  TOP_RACERS_ROWS_MIN,
   TOURNAMENT_BRACKET_LAYOUT_MODES,
   TOURNAMENT_BRACKET_SIZES
 } from "./constants";
@@ -181,6 +183,12 @@ export const settingUpdateSchema = z.object({
   raceDisplayShowEventName: z.boolean().optional(),
   raceDisplayTickerMessages: z.array(z.string().trim().min(1).max(120)).max(20).optional(),
   raceDisplayTickerSpeed: z.number().finite().min(24).max(180).optional(),
+  raceDisplayTopRacersRows: z
+    .number()
+    .int()
+    .min(TOP_RACERS_ROWS_MIN)
+    .max(TOP_RACERS_ROWS_MAX)
+    .optional(),
   maxActiveQueueEntriesPerRacer: z.number().int().min(1).max(10).optional(),
   targetDistanceMeters: z.number().finite().positive().max(100000).optional(),
   queueOpen: z.boolean().optional(),

@@ -9,6 +9,7 @@ import type {
   ProjectorWindowSizePreset,
   RaceGlowMode
 } from "@roller-rumble/shared/types";
+import { TOP_RACERS_ROWS_MAX, TOP_RACERS_ROWS_MIN } from "@roller-rumble/shared/constants";
 import { Button, Panel, StatPill } from "@roller-rumble/shared-ui";
 import {
   ensureRuntimeEnvFile,
@@ -317,6 +318,24 @@ function ProjectorDisplayPanel({
               }}
             />
             <span>{snapshot.settings.raceDisplayTickerSpeed} px/s</span>
+          </div>
+        </label>
+        <label>
+          Top racers shown between races
+          <div className="range-control">
+            <input
+              type="range"
+              min={TOP_RACERS_ROWS_MIN}
+              max={TOP_RACERS_ROWS_MAX}
+              step={1}
+              value={snapshot.settings.raceDisplayTopRacersRows}
+              onChange={(event) => {
+                fireAndForget(
+                  updateSettings({ raceDisplayTopRacersRows: Number(event.target.value) })
+                );
+              }}
+            />
+            <span>{snapshot.settings.raceDisplayTopRacersRows} racers</span>
           </div>
         </label>
         <label>

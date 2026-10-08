@@ -9,19 +9,10 @@ import { Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { bikeColorForLane } from "../lib/bike-colors";
+import { formatRaceTime } from "../lib/race-time";
 
 function formatSpeed(value: number | undefined): string {
   return `${(value ?? 0).toFixed(1)} km/h`;
-}
-
-function formatFinishTime(ms: number | undefined): string {
-  const totalMs = ms ?? 0;
-  const minutes = Math.floor(totalMs / 60000);
-  const seconds = (totalMs % 60000) / 1000;
-  if (minutes === 0) {
-    return `${seconds.toFixed(1)}s`;
-  }
-  return `${minutes}:${seconds < 10 ? "0" : ""}${seconds.toFixed(1)}`;
 }
 
 function getMetricForRacer(
@@ -119,7 +110,7 @@ export function RaceResultsOverlay({
                 </div>
                 <div className="race-page__result-finish-time">
                   <span>Finish Time</span>
-                  <strong>{formatFinishTime(metric?.finishedAtMs ?? metric?.elapsedMs)}</strong>
+                  <strong>{formatRaceTime(metric?.finishedAtMs ?? metric?.elapsedMs)}</strong>
                 </div>
                 <dl className="race-page__result-stats">
                   <div>

@@ -10,7 +10,8 @@ import {
   DEFAULT_SERVER_PORT,
   DEFAULT_TARGET_DISTANCE_METERS,
   DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
-  DEFAULT_THEME_ID
+  DEFAULT_THEME_ID,
+  DEFAULT_TOP_RACERS_ROWS
 } from "@roller-rumble/shared/constants";
 import type {
   AdminSettings,
@@ -173,6 +174,7 @@ function getDefaultAdminSettings(): AdminSettings {
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Fiercely local racing all night"],
     raceDisplayTickerSpeed: DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND,
+    raceDisplayTopRacersRows: DEFAULT_TOP_RACERS_ROWS,
     maxActiveQueueEntriesPerRacer: 3,
     targetDistanceMeters: DEFAULT_TARGET_DISTANCE_METERS,
     serverPort: DEFAULT_SERVER_PORT,
@@ -1654,6 +1656,20 @@ export class AppDatabase {
       .get();
 
     return row ? mapRace(row) : null;
+  }
+
+  /**
+   * Each of the event's races' target distance, keyed by race id. A narrow read for the `top racers
+   * board`, which runs on every snapshot and needs no race's metrics or participants.
+   */
+  listRaceTargetDistances(eventId: string): Map<string, number> {
+    const rows = this.orm
+      .select({ id: races.id, targetDistanceMeters: races.targetDistanceMeters })
+      .from(races)
+      .where(eq(races.eventId, eventId))
+      .all();
+
+    return new Map(rows.map((row) => [row.id, row.targetDistanceMeters]));
   }
 
   listRaces(eventId: string): RaceRecord[] {

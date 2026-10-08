@@ -13,6 +13,7 @@ import {
   type LaneTelemetryState
 } from "./metrics";
 import { finishBudgetDeadlineMs, readFinishBudgetPercent } from "./finish-budget";
+import { hasReachedFinishLine } from "./finish-line";
 
 export interface FinalizedRaceResult {
   race: RaceRecord;
@@ -167,7 +168,7 @@ export class ActiveRace {
     // Check if this lane just crossed the finish line
     const justFinished =
       next.snapshot.finishedAtMs == null &&
-      next.snapshot.distanceMeters >= this.targetDistanceMeters;
+      hasReachedFinishLine(next.snapshot.distanceMeters, this.targetDistanceMeters);
 
     if (justFinished) {
       const finishedState = finishLaneTelemetryState(next, timestampMs);

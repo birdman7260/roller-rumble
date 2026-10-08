@@ -9,6 +9,13 @@ export const DEFAULT_TARGET_DISTANCE_METERS = 250;
  */
 export const DEFAULT_QUEUE_CLOSED_MESSAGE = "The queue is currently closed.";
 export const DEFAULT_TICKER_SPEED_PIXELS_PER_SECOND = 72;
+/**
+ * The projector's `top racers board` row count bounds: below three it is a podium, and above ten
+ * the type shrinks past what reads from the back of the room (ADR 0022).
+ */
+export const TOP_RACERS_ROWS_MIN = 3;
+export const TOP_RACERS_ROWS_MAX = 10;
+export const DEFAULT_TOP_RACERS_ROWS = 5;
 export const COUNTDOWN_SECONDS = 4;
 export const COUNTDOWN_DURATION_MS = COUNTDOWN_SECONDS * 1000;
 /**
