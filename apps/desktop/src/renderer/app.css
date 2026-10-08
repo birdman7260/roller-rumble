@@ -394,6 +394,89 @@ a {
   color: var(--theme-text);
 }
 
+/* Queue actions docked to the top of the bottom tabs, so joining or
+   challenging is one tap away from every tab without covering any content. */
+.racer-bottom-dock {
+  display: grid;
+  gap: 0.45rem;
+}
+
+/* Flex rather than equal columns: each button grows from its own content
+   width, so "Queue up" and "Challenge" keep their full labels beside "Solo" on
+   a narrow phone. */
+.racer-queue-dock {
+  display: flex;
+  gap: 0.45rem;
+  position: relative;
+  min-inline-size: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.racer-queue-dock__action.button {
+  flex: 1 1 auto;
+  gap: 0.4rem;
+  min-height: 2.75rem;
+  padding: 0.45rem 0.55rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+.racer-queue-dock__action span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.racer-queue-dock__icon {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+/* A tiny "VS" badge reads as a challenge at a glance, more than any icon. */
+.racer-queue-dock__vs {
+  display: inline-grid;
+  flex: none;
+  place-items: center;
+  height: 1.2rem;
+  padding: 0 0.3rem;
+  border-radius: 0.3rem;
+  background: var(--theme-accent);
+  color: var(--theme-surface);
+  font-size: 0.68rem;
+  font-style: italic;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+}
+
+.racer-queue-dock__closed {
+  flex: 1;
+  margin: 0;
+  padding: 0.65rem 0.85rem;
+  border: 1px dashed var(--theme-border);
+  border-radius: var(--ui-radius-control);
+  background: var(--theme-surface);
+  color: var(--theme-text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Top-aligned rather than centred so the phone keyboard never covers the
+   opponent search. */
+.racer-challenge-modal {
+  width: min(28rem, calc(100vw - 2rem));
+  margin-top: max(1rem, 12dvh);
+}
+
+.racer-challenge-modal__field {
+  display: grid;
+  gap: 0.35rem;
+}
+
 .racer-public-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -801,33 +884,8 @@ p {
   color: var(--theme-text);
 }
 
-.racer-action-grid,
-.racer-challenge-controls {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.racer-action-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.racer-action-grid .button,
-.racer-challenge-controls .button {
-  width: 100%;
-}
-
-.racer-challenge-controls {
-  grid-template-columns: minmax(0, 1fr) minmax(9rem, 12rem);
-  align-items: end;
-}
-
-.racer-picker-label,
-.racer-picker-label .search-select {
-  min-width: 0;
-}
-
-/* Leaving the queue stays visible even under a closed queue, so it sits below
-   the join/challenge controls with a divider of its own (issue #28). */
+/* Leaving the queue stays visible even under a closed queue, so it keeps a
+   divider of its own below the racer's queue details (issue #28). */
 .racer-queue-leave-all {
   margin-top: 0.85rem;
   padding-top: 0.85rem;
@@ -4424,11 +4482,6 @@ button.tournament-match-node:active {
     width: 100%;
   }
 
-  .racer-action-grid,
-  .racer-challenge-controls {
-    grid-template-columns: 1fr;
-  }
-
   .racer-notification-callout,
   .racer-notification-item {
     grid-template-columns: 1fr;
@@ -4503,20 +4556,35 @@ button.tournament-match-node:active {
     padding-bottom: calc(5rem + env(safe-area-inset-bottom));
   }
 
-  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-bottom-tabs {
+  /* The docked queue actions add a row above the tabs; keep the last card and
+     toasts clear of it. */
+  body.route-racer .racer-page-shell--queue-dock .racer-page-grid {
+    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
+  }
+
+  body.route-racer:has(.racer-page-shell--queue-dock) {
+    --toast-bottom-offset: 8.75rem;
+  }
+
+  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-bottom-dock {
     position: fixed;
     left: 0;
     right: 0;
     bottom: 0;
     z-index: 20;
     width: 100%;
+    /* Opaque, full-bleed, and extended into the safe area so no scrolling content
+       is ever visible below or beside the dock and tab bar. */
+    background: var(--theme-surface);
+    padding: 0.5rem 0.75rem calc(0.35rem + env(safe-area-inset-bottom));
+    box-shadow: 0 -0.4rem 1rem rgba(0, 0, 0, 0.28);
+  }
+
+  body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-bottom-tabs {
     border: 0;
     border-radius: 0;
-    /* Opaque, full-bleed, and extended into the safe area so no scrolling content
-       is ever visible below or beside the tab bar. */
-    background: var(--theme-surface);
-    padding: 0.35rem 0.75rem calc(0.35rem + env(safe-area-inset-bottom));
-    box-shadow: 0 -0.4rem 1rem rgba(0, 0, 0, 0.28);
+    padding: 0;
+    box-shadow: none;
   }
 }
 

@@ -1,3 +1,4 @@
+import { DEFAULT_QUEUE_CLOSED_MESSAGE } from "@roller-rumble/shared/constants";
 import type {
   AppSnapshot,
   QueueEntry,
@@ -15,9 +16,9 @@ import {
 import { resolveBackendAssetUrl } from "../../lib/assets";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
-import { QueueActions, QueuePreviewPanel } from "./queue";
+import { QueuePreviewPanel } from "./queue";
 import { InlineTabLink } from "./inline-tab-link";
-import type { RacerQueueSignupInput, TournamentRaceCard } from "./shared";
+import type { TournamentRaceCard } from "./shared";
 
 function TournamentRaceCardView({
   card,
@@ -140,21 +141,17 @@ export function RaceDashboard({
   currentRace,
   currentRaceNames,
   liveSnapshot,
-  onQueueSignup,
   onRequestLeaveQueue,
   onTabChange,
   onTournamentOptOut,
   paymentReturnState,
-  queueMessage,
   queuePreviewEntries,
-  selectedOpponent,
   selectedRacer,
   selectedRacerCanOptOutOfVisibleTournament,
   selectedRacerId,
   selectedRacerInCurrentRace,
   selectedRacerIsInActiveTournament,
   selectedRacerNextQueueEntry,
-  setSelectedOpponent,
   showFullQueueLink,
   tournamentMode,
   tournamentOptOutBusy,
@@ -169,23 +166,20 @@ export function RaceDashboard({
   currentRace: RaceRecord | null;
   currentRaceNames: string | null;
   liveSnapshot: AppSnapshot;
-  onQueueSignup: (input: RacerQueueSignupInput) => Promise<void>;
   onRequestLeaveQueue: () => void;
   onTabChange: (tabId: RacerTabId) => void;
   onTournamentOptOut: () => Promise<void>;
+  /** Set when a queue checkout returns to the racer page (`?payment=success|cancelled`). */
   paymentReturnState: string | null;
-  queueMessage: string | null;
   queuePreviewEntries: QueueEntry[];
   /** The registration wizard, shown while this phone has no racer signed in. */
   registration: ReactNode;
-  selectedOpponent: string;
   selectedRacer?: RacerSummary | null;
   selectedRacerCanOptOutOfVisibleTournament: boolean;
   selectedRacerId: string;
   selectedRacerInCurrentRace: boolean;
   selectedRacerIsInActiveTournament: boolean;
   selectedRacerNextQueueEntry?: QueueEntry | null;
-  setSelectedOpponent: (value: string) => void;
   showFullQueueLink: boolean;
   tournamentMode: boolean;
   tournamentOptOutBusy: boolean;
@@ -194,20 +188,7 @@ export function RaceDashboard({
   upcoming: QueueEntry[];
   visibleTournament: TournamentBundle | null;
 }) {
-  const queueActions = (
-    <QueueActions
-      liveSnapshot={liveSnapshot}
-      onQueueSignup={onQueueSignup}
-      paymentReturnState={paymentReturnState}
-      queueMessage={queueMessage}
-      selectedOpponent={selectedOpponent}
-      selectedRacer={selectedRacer}
-      selectedRacerId={selectedRacerId}
-      setSelectedOpponent={setSelectedOpponent}
-    />
-  );
-  // Leaving stays available under a closed queue, so it sits outside the
-  // queueOpen gate inside QueueActions (issue #28).
+  // Leaving stays available under a closed queue, unlike joining (issue #28).
   const hasQueuedSpot =
     Boolean(selectedRacer) && upcoming.some((entry) => isLeavableByRacer(entry, selectedRacerId));
   const leaveQueueControl = hasQueuedSpot ? (
@@ -325,6 +306,16 @@ export function RaceDashboard({
     <div className="racer-card-stack">
       <Panel title="Roller Rumble">
         <div className="stack-md">
+          {paymentReturnState === "success" ? (
+            <p className="form-success">
+              {selectedRacer.payment.status === "paid"
+                ? "Payment confirmed. You are ready to race."
+                : "Payment is processing. This updates as soon as Stripe confirms it."}
+            </p>
+          ) : null}
+          {paymentReturnState === "cancelled" ? (
+            <p className="form-error">Checkout was cancelled. You can try again.</p>
+          ) : null}
           {selectedRacerInCurrentRace && currentRace ? (
             <div className="racer-state-card racer-state-card--urgent">
               <span>You're up</span>
@@ -339,9 +330,17 @@ export function RaceDashboard({
               <strong>Position #{selectedRacerNextQueueEntry.position}</strong>
               <p>{describeQueueEntry(selectedRacerNextQueueEntry)}</p>
             </div>
-          ) : null}
-
-          {!selectedRacerInCurrentRace ? queueActions : null}
+          ) : (
+            <div className="racer-state-card">
+              <span>Ready to ride</span>
+              <strong>Not in the queue yet</strong>
+              <p>
+                {liveSnapshot.settings.queueOpen
+                  ? "Tap Queue up below to get in the next race, or Challenge to pick your opponent."
+                  : liveSnapshot.settings.queueClosedMessage.trim() || DEFAULT_QUEUE_CLOSED_MESSAGE}
+              </p>
+            </div>
+          )}
 
           {selectedRacerIsInActiveTournament && visibleTournament ? (
             <div className="racer-state-card">

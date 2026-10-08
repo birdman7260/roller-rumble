@@ -214,6 +214,7 @@ export function SearchableSelect({
   placeholder,
   disabled = false,
   noResultsText = "No matching options",
+  menuPlacement = "overlay",
   "aria-label": ariaLabel,
   "aria-labelledby": ariaLabelledBy
 }: {
@@ -224,6 +225,8 @@ export function SearchableSelect({
   placeholder: string;
   disabled?: boolean;
   noResultsText?: string;
+  /** `inline` puts the results in the page flow, pushing what follows down instead of covering it. */
+  menuPlacement?: "overlay" | "inline";
   "aria-label"?: string;
   "aria-labelledby"?: string;
 }) {
@@ -263,7 +266,14 @@ export function SearchableSelect({
   }
 
   return (
-    <div ref={rootRef} className={cx("search-select", disabled && "search-select--disabled")}>
+    <div
+      ref={rootRef}
+      className={cx(
+        "search-select",
+        menuPlacement === "inline" && "search-select--inline-menu",
+        disabled && "search-select--disabled"
+      )}
+    >
       <input
         id={id}
         value={query}
@@ -330,6 +340,70 @@ export function SearchableSelect({
   );
 }
 
+/**
+ * A native modal dialog: focus trapping, Escape-to-dismiss, and the backdrop come from
+ * `showModal()`. The shell owns the card, eyebrow, and title; callers supply the body and actions.
+ */
+export function Modal({
+  open,
+  eyebrow,
+  title,
+  className,
+  dismissDisabled = false,
+  onDismiss,
+  actions,
+  children
+}: {
+  open: boolean;
+  eyebrow?: string;
+  title: string;
+  className?: string;
+  /** Ignore Escape, e.g. while the dialog's action is in flight. */
+  dismissDisabled?: boolean;
+  onDismiss: () => void;
+  actions: ReactNode;
+  children: ReactNode;
+}) {
+  const titleId = useId();
+
+  if (!open) {
+    return null;
+  }
+
+  // The dialog element only exists while open, so open it modally the moment it
+  // mounts. A ref callback (rather than an effect watching a prop) opens it
+  // synchronously at commit — no extra render, no late frame. showModal() moves
+  // focus to the first focusable control unless a child sets autoFocus.
+  return (
+    <dialog
+      ref={(dialog) => {
+        if (dialog && !dialog.open) {
+          dialog.showModal();
+        }
+      }}
+      className={cx("confirm-modal", className)}
+      aria-labelledby={titleId}
+      onCancel={(event) => {
+        // Escape fires this; route it through onDismiss so state stays the source
+        // of truth, and swallow it while dismissing is disabled.
+        event.preventDefault();
+        if (!dismissDisabled) {
+          onDismiss();
+        }
+      }}
+    >
+      <div className="confirm-modal__card">
+        {eyebrow ? <span className="confirm-modal__eyebrow">{eyebrow}</span> : null}
+        <h2 id={titleId} className="confirm-modal__title">
+          {title}
+        </h2>
+        {children}
+        <div className="confirm-modal__actions">{actions}</div>
+      </div>
+    </dialog>
+  );
+}
+
 export function ConfirmModal({
   open,
   busy = false,
@@ -351,50 +425,26 @@ export function ConfirmModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
-  const titleId = useId();
-
-  if (!open) {
-    return null;
-  }
-
-  // The dialog element only exists while open, so open it modally the moment it
-  // mounts. showModal() gives focus trapping, Escape-to-close, and the backdrop
-  // for free; initial focus lands on the cancel button (autoFocus below) so a
-  // stray Enter can't confirm. A ref callback (rather than an effect watching a
-  // prop) opens it synchronously at commit — no extra render, no late frame.
+  // Initial focus lands on the cancel button (autoFocus below) so a stray Enter can't confirm.
   return (
-    <dialog
-      ref={(dialog) => {
-        if (dialog && !dialog.open) {
-          dialog.showModal();
-        }
-      }}
-      className="confirm-modal"
-      aria-labelledby={titleId}
-      onCancel={(event) => {
-        // Escape fires this; route it through onCancel so state stays the source
-        // of truth, and swallow it while a confirm is in flight.
-        event.preventDefault();
-        if (!busy) {
-          onCancel();
-        }
-      }}
-    >
-      <div className="confirm-modal__card">
-        {eyebrow ? <span className="confirm-modal__eyebrow">{eyebrow}</span> : null}
-        <h2 id={titleId} className="confirm-modal__title">
-          {title}
-        </h2>
-        <p className="confirm-modal__body">{body}</p>
-        <div className="confirm-modal__actions">
+    <Modal
+      open={open}
+      eyebrow={eyebrow}
+      title={title}
+      dismissDisabled={busy}
+      onDismiss={onCancel}
+      actions={
+        <>
           <Button autoFocus variant="ghost" disabled={busy} onClick={onCancel}>
             {cancelLabel}
           </Button>
           <Button variant="accent" disabled={busy} onClick={onConfirm}>
             {confirmLabel}
           </Button>
-        </div>
-      </div>
-    </dialog>
+        </>
+      }
+    >
+      <p className="confirm-modal__body">{body}</p>
+    </Modal>
   );
 }

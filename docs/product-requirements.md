@@ -539,8 +539,11 @@ Requirements:
   status. `Implemented`
 - The racer page queue and challenge controls must reflow cleanly on narrow mobile screens so
   buttons stay legible and the opponent picker remains usable at phone widths. `Implemented`
-- The Queue tab must show the queue list first, then signed-in queue controls below it for
-  convenience. `Implemented`
+- Signed-in racers must be able to join the head-to-head queue, queue a solo run (when allowed),
+  or open a challenge picker from a row of queue actions docked above the bottom tabs on every tab,
+  instead of from queue-controls cards on the Race and Queue tabs. The challenge picker is a modal
+  with a type-to-filter opponent field. The dock shows the operator's closed-queue message while the
+  queue is closed and disappears during tournament mode. `Implemented`
 - While tournament mode is active, the Queue tab must show a tournament-mode notice above the queue
   and grey out the open queue list to make clear that open queueing is paused. `Implemented`
 - In open queue mode, the Race tab must preview the next three queued matches and link to the Queue

@@ -27,6 +27,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The photo and payment steps now have a Back button. Going back from the photo step lets a racer fix their racer name and contact details; tapping Continue on the racer name step saves the changes.
 - The photo step now uses the same round photo as the Me tab. With no photo yet, the circle shows the racer's initial, an "Add photo" hint, and a camera badge; tapping anywhere on it takes a picture or picks one, and the pencil changes it afterwards. The Me tab shows the same circle for racers without a photo, replacing the separate upload field.
 - Uploading a photo no longer shows an "Avatar updated." message; the new photo appearing is the confirmation.
+- On the racer page, joining the queue is now one tap away from every tab: a row of **Queue up**, **Solo**, and **Challenge** buttons sits just above the tabs, replacing the queue controls cards on the Race and Queue tabs. **Challenge** opens a window where you type an opponent's name and pick them. The row shows the queue-closed message while the queue is closed and disappears during a tournament. Queue problems such as an unpaid entry fee now pop up as a short message, and the "Payment confirmed" note after checkout appears on the Race tab.
 
 ### Fixed
 

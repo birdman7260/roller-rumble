@@ -186,6 +186,14 @@ textarea,
   box-shadow: 0 1rem 2rem rgba(0, 0, 0, 0.24);
 }
 
+/* Inline menus push the content below them down instead of floating over it,
+   for tight spots like a dialog whose actions sit right under the field. */
+.search-select--inline-menu .search-select__menu {
+  position: static;
+  margin-top: 0.35rem;
+  box-shadow: none;
+}
+
 .search-select__option {
   border: none;
   border-radius: 0.8rem;
@@ -391,7 +399,8 @@ textarea,
   position: fixed;
   inset: auto;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 5.25rem);
+  /* Surfaces with taller bottom chrome raise toasts clear of it. */
+  bottom: calc(env(safe-area-inset-bottom, 0px) + var(--toast-bottom-offset, 5.25rem));
   transform: translateX(-50%);
   width: min(26rem, calc(100vw - 2rem));
   margin: 0;

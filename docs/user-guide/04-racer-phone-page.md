@@ -35,13 +35,13 @@ generally opens it once and leaves it up during the event.
 
 Along the bottom of the racer page are up to five tabs:
 
-| Tab            | What's there                                               |
-| -------------- | ---------------------------------------------------------- |
-| **Race**       | The live race view — what's happening right now.           |
-| **Queue**      | The upcoming lineup, and the buttons to join or challenge. |
-| **Tournament** | The bracket/standings, when a tournament is running.       |
-| **Racers**     | The list of racers at the event.                           |
-| **Me**         | Your race card / your stats / notifications.               |
+| Tab            | What's there                                                      |
+| -------------- | ----------------------------------------------------------------- |
+| **Race**       | The live race view — what's happening right now.                  |
+| **Queue**      | The upcoming lineup, and a **Leave** button on your own races.    |
+| **Tournament** | The bracket/standings, when a tournament is running.              |
+| **Racers**     | The list of racers at the event, with a Challenge button on each. |
+| **Me**         | Your race card / your stats / notifications.                      |
 
 Which tabs show up depends on the event. (For example, the Tournament tab is most useful when a
 tournament is active.) Whether someone can browse these before registering is controlled by the
@@ -134,17 +134,26 @@ purpose (for example, to fix a typo in their display name). It shows the same wa
 
 ---
 
-## Joining a race (the "Queue" tab)
+## Joining a race (the queue buttons)
 
-Once registered, the racer uses the **Queue** tab to get in line. The **Queue Controls** card offers:
+Once registered, the racer gets in line from the row of buttons sitting just above the tabs. The row
+stays put on every tab, so joining is always one tap away:
 
-- **Join Head-to-Head Queue** — get matched automatically against another waiting racer.
-- **Solo Run** — race alone against the clock.
-- **Challenge** — pick a specific opponent from the searchable list and tap **Challenge** to line up
-  a match against that exact person.
+- **Queue up** — get matched automatically against another waiting racer.
+- **Solo** — race alone against the clock. Only shown when solo runs are allowed in admin settings.
+- **Challenge** (the **VS** button) — opens a window to pick a specific opponent. Type part of their
+  name to narrow the list, tap them, then tap **Challenge** to line up a match against that exact
+  person. **Cancel** backs out.
 
-The **Upcoming Races** card above shows the current lineup with positions, so racers can see how
-long the wait is.
+Racers can also tap **Challenge** next to anyone on the **Racers** tab. A short message pops up to
+confirm each join or challenge.
+
+While you've closed the queue, the button row shows your **queue closed message** instead. During a
+tournament the row disappears entirely.
+
+The **Queue** tab shows the current lineup with positions, so racers can see how long the wait is.
+Each of a racer's own races has a **Leave** button, and **Leave the queue entirely** drops all of
+them at once.
 
 ### "Pick a challenge to replace"
 
@@ -172,10 +181,11 @@ Tournaments page), not by racers joining.
 ## Payments on the phone (only if you charge a fee)
 
 If the event requires an entrance fee, racers usually settle it in the wizard's **Payment** step
-(above). If a racer still owes the fee when they try to join, the Queue tab tells them the price, and
-tapping a join or challenge button opens **Stripe Checkout** on their phone. After they pay, the page
-returns and their intended join/challenge happens automatically. You'll see a "Payment confirmed" or
-"Payment is processing" message on their card. Full details are on the _Payments_ page.
+(above). If a racer still owes the fee when they try to join, tapping a join or challenge button
+opens **Stripe Checkout** on their phone (or pops up a message with the price). After they pay, the
+page returns to the Race tab and their intended join/challenge happens automatically. You'll see a
+"Payment confirmed" or "Payment is processing" message on their Race tab card. Full details are on
+the _Payments_ page.
 
 Remember: this fee is only enforced when a racer joins **from their own phone**. You can always add
 or comp someone from the admin side.

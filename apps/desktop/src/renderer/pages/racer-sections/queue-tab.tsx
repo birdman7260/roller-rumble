@@ -2,8 +2,7 @@ import type { AppSnapshot, QueueEntry, RacerSummary } from "@roller-rumble/share
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { isLeavableByRacer, resolveRacerName } from "../../lib/snapshot-display";
-import { QueueActions } from "./queue-actions";
-import type { RacerQueueSignupInput, SectionMotionProps } from "./shared";
+import type { SectionMotionProps } from "./shared";
 
 function getQueuePositionLabel(index: number): string {
   switch (index) {
@@ -24,30 +23,20 @@ function getQueuePositionLabel(index: number): string {
 
 export function QueueTab({
   liveSnapshot,
-  onQueueSignup,
   onRequestLeaveEntry,
   onRequestLeaveQueue,
-  paymentReturnState,
-  queueMessage,
-  selectedOpponent,
   selectedRacer,
   selectedRacerId,
-  setSelectedOpponent,
   tournamentMode,
   upcoming,
   layoutTransition,
   supportingCardMotion
 }: SectionMotionProps & {
   liveSnapshot: AppSnapshot;
-  onQueueSignup: (input: RacerQueueSignupInput) => Promise<void>;
   onRequestLeaveEntry: (entry: QueueEntry) => void;
   onRequestLeaveQueue: () => void;
-  paymentReturnState: string | null;
-  queueMessage: string | null;
-  selectedOpponent: string;
   selectedRacer?: RacerSummary | null;
   selectedRacerId: string;
-  setSelectedOpponent: (value: string) => void;
   tournamentMode: boolean;
   upcoming: QueueEntry[];
 }) {
@@ -114,42 +103,20 @@ export function QueueTab({
               ))}
             </div>
           )}
+          {hasQueuedSpot ? (
+            <div className="racer-queue-leave-all">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  onRequestLeaveQueue();
+                }}
+              >
+                Leave the queue entirely
+              </Button>
+            </div>
+          ) : null}
         </Panel>
       </m.div>
-      {selectedRacer && !tournamentMode ? (
-        <m.div
-          key="racer-queue-controls"
-          layout="position"
-          transition={layoutTransition}
-          {...supportingCardMotion}
-          className="racer-page-grid__card racer-page-grid__card--supporting"
-        >
-          <Panel title="Queue Controls">
-            <QueueActions
-              liveSnapshot={liveSnapshot}
-              onQueueSignup={onQueueSignup}
-              paymentReturnState={paymentReturnState}
-              queueMessage={queueMessage}
-              selectedOpponent={selectedOpponent}
-              selectedRacer={selectedRacer}
-              selectedRacerId={selectedRacerId}
-              setSelectedOpponent={setSelectedOpponent}
-            />
-            {hasQueuedSpot ? (
-              <div className="racer-queue-leave-all">
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    onRequestLeaveQueue();
-                  }}
-                >
-                  Leave the queue entirely
-                </Button>
-              </div>
-            ) : null}
-          </Panel>
-        </m.div>
-      ) : null}
     </>
   );
 }
