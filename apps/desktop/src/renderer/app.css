@@ -549,6 +549,10 @@ a {
   padding: 0.6rem;
 }
 
+.racer-queue-row__eta {
+  text-align: end;
+}
+
 /* A neutral wash, so the racer's rows stand apart from the accent-tinted Leave button. */
 .racer-queue-row--mine .racer-queue-row__body {
   background: color-mix(in srgb, var(--theme-text) 14%, transparent);

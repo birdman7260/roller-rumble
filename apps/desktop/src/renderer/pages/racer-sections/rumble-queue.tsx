@@ -28,7 +28,7 @@ function QueueRow({
           {isMine ? <span className="visually-hidden">Your race</span> : null}#{entry.position}{" "}
           {formatRacerNames(liveSnapshot, entry.racerIds)}
         </strong>
-        <span>{getQueuePositionLabel(index)}</span>
+        <span className="racer-queue-row__eta">{getQueuePositionLabel(index)}</span>
         {isLeavableByRacer(entry, selectedRacerId) ? (
           <Button
             variant="ghost"
