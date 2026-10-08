@@ -3388,52 +3388,13 @@ p {
   background: var(--theme-surface-alt);
 }
 
-.tournament-match-action-popover,
+/* Opened with showModal(), so the dialog sits in the top layer over the whole
+   admin window rather than inside the bracket's (possibly transformed) panel. */
 .tournament-action-modal {
-  position: fixed;
-  inset: 0;
-  z-index: 80;
-  display: grid;
-  place-items: center;
-  padding: clamp(1rem, 4vw, 3rem);
+  width: min(28rem, calc(100vw - 2rem));
 }
 
-.tournament-match-action-popover__backdrop,
-.tournament-action-modal::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  border: 0;
-  background:
-    radial-gradient(
-      circle at 50% 28%,
-      color-mix(in srgb, var(--theme-accent) 16%, transparent),
-      transparent 36rem
-    ),
-    color-mix(in srgb, var(--theme-background) 72%, transparent);
-  backdrop-filter: blur(12px);
-}
-
-.tournament-match-action-popover__card,
-.tournament-action-modal__card {
-  position: relative;
-  z-index: 1;
-  display: grid;
-  gap: 1rem;
-  width: min(100%, 34rem);
-  padding: 1.25rem;
-  border: 1px solid var(--theme-border);
-  border-radius: var(--ui-radius-panel);
-  background: var(--theme-surface);
-  box-shadow: var(--theme-shadow, 0 1.4rem 4rem rgb(0 0 0 / 0.34));
-}
-
-.tournament-match-action-popover__card h3,
-.tournament-action-modal__card h3 {
-  margin: 0;
-}
-
-.tournament-match-action-popover__actions {
+.tournament-action-modal__action-list {
   display: grid;
   gap: 0.65rem;
 }

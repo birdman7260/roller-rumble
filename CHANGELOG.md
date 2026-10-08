@@ -31,6 +31,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Clicking a match in the admin tournament bracket now opens its actions (Stage Match, Undo Result, Fill BYE Slot, Remove racer) in a window centered over the whole admin app instead of one squeezed inside the bracket panel, so it's always fully visible. Click outside it or press Escape to close it. The follow-up Remove racer and Fill BYE slot windows also open over the whole app, and Escape closes them too.
 - The opponent list in the racer's Challenge window now pops up over the window instead of pushing the Cancel and Challenge buttons down. That list and the admin desk's type-to-search racer pickers now open upward when there isn't room below the field, and stay attached to the field as the page scrolls or the phone keyboard opens. Pressing Escape while the list is open closes just the list, not the whole Challenge window.
 - The race box now listens to the correct bike when no lane map has been set up, instead of assuming the first rider is always on the first sensor port.
 - Adding a racer at the admin desk always creates a new racer, even if the email or phone matches someone else.

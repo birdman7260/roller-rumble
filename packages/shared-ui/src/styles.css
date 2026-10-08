@@ -331,7 +331,18 @@ textarea,
   animation: confirm-modal-fade 140ms ease-out;
 }
 
+.confirm-modal__backdrop-dismiss {
+  position: fixed;
+  inset: 0;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  cursor: default;
+}
+
 .confirm-modal__card {
+  position: relative;
+  z-index: 1;
   width: 100%;
   display: flex;
   flex-direction: column;

@@ -367,6 +367,7 @@ export function Modal({
   title,
   className,
   dismissDisabled = false,
+  dismissOnBackdropClick = false,
   onDismiss,
   actions,
   children
@@ -377,6 +378,8 @@ export function Modal({
   className?: string;
   /** Ignore Escape, e.g. while the dialog's action is in flight. */
   dismissDisabled?: boolean;
+  /** Also dismiss when the backdrop outside the card is clicked. */
+  dismissOnBackdropClick?: boolean;
   onDismiss: () => void;
   actions: ReactNode;
   children: ReactNode;
@@ -417,6 +420,19 @@ export function Modal({
         {children}
         <div className="confirm-modal__actions">{actions}</div>
       </div>
+      {dismissOnBackdropClick ? (
+        // Covers the viewport behind the card so a click outside it dismisses. It
+        // comes after the card so showModal() never picks it for initial focus, and
+        // stays out of the tab order since Escape already dismisses from the keyboard.
+        <button
+          type="button"
+          className="confirm-modal__backdrop-dismiss"
+          aria-label="Close dialog"
+          tabIndex={-1}
+          disabled={dismissDisabled}
+          onClick={onDismiss}
+        />
+      ) : null}
     </dialog>
   );
 }
