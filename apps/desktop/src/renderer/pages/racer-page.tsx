@@ -50,11 +50,10 @@ import {
   QueueIssueModalView,
   RacerNotificationModal
 } from "./racer-sections/modals";
-import { QueueTab } from "./racer-sections/queue";
 import { QueueDock } from "./racer-sections/queue-dock";
 import { getQueueDockState } from "./racer-sections/queue-dock-state";
 import type { QueueDockState } from "./racer-sections/queue-dock-state";
-import { RaceDashboard } from "./racer-sections/race";
+import { RumbleTab } from "./racer-sections/rumble";
 import { RacersTab } from "./racer-sections/racers";
 import { RegistrationWizard } from "./racer-sections/registration-wizard/registration-wizard";
 import { clearRegistrationDraft } from "./racer-sections/registration-wizard/registration-draft";
@@ -73,18 +72,17 @@ import type { QueueLeaveRequest } from "./racer-sections/queue-leave-confirm-mod
 
 const racerSnapshotQueryKey = snapshotQueryKey("racer");
 const notificationQueuePromptStorageKey = "roller-rumble.notifications.queuePromptedAt";
-export type RacerTabId = "race" | "queue" | "tournament" | "racers" | "me";
+export type RacerTabId = "rumble" | "tournament" | "racers" | "me";
 
 const racerTabs: { id: RacerTabId; label: string }[] = [
-  { id: "race", label: "Race" },
-  { id: "queue", label: "Queue" },
+  { id: "rumble", label: "Rumble" },
   { id: "tournament", label: "Tournament" },
   { id: "racers", label: "Racers" },
   { id: "me", label: "Me" }
 ];
 
 function normalizeRacerTab(tab: string | undefined): RacerTabId {
-  return racerTabs.some((entry) => entry.id === tab) ? (tab as RacerTabId) : "race";
+  return racerTabs.some((entry) => entry.id === tab) ? (tab as RacerTabId) : "rumble";
 }
 
 function isPushSupported(): boolean {
@@ -370,7 +368,6 @@ interface RacerPageViewFlags {
   selectedRacerInCurrentRace: boolean;
   selectedRacerIsInActiveTournament: boolean;
   shouldShowNotificationPrompt: boolean;
-  showFullQueueLink: boolean;
   showNotificationDebugList: boolean;
   tournamentMode: boolean;
   tournamentOptOutBusy: boolean;
@@ -423,7 +420,6 @@ interface RacerPageViewProps {
   queueIssueModal: QueueIssueModal | null;
   queueLeaveBusy: boolean;
   queueLeaveRequest: QueueLeaveRequest | null;
-  raceQueuePreviewEntries: AppSnapshot["queue"];
   racerContentRef: RefObject<HTMLDivElement | null>;
   racerNotifications: RacerNotification[];
   reduceMotion: boolean;
@@ -434,7 +430,6 @@ interface RacerPageViewProps {
   selectedRacer: AppSnapshot["racers"][number] | undefined;
   selectedRacerAvatarUrl: string | null;
   selectedRacerId: string;
-  selectedRacerNextQueueEntry: AppSnapshot["queue"][number] | undefined;
   selectedRacerRealName: string | null;
   setBracketPresentationRequest: Dispatch<SetStateAction<BracketPresentationRequest | null>>;
   setChallengeReplacementRequest: Dispatch<SetStateAction<ChallengeReplacementRequest | null>>;
@@ -747,7 +742,7 @@ function useRacerPageViewModel({
     queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
     localStorage.setItem("roller-rumble.racerId", result.racer.id);
     setState({ selectedRacerId: result.racer.id, selectedRacerRealName: result.racer.realName });
-    setActiveTab("race");
+    setActiveTab("rumble");
     const url = new URL(window.location.href);
     url.searchParams.delete("tab");
     window.history.replaceState(window.history.state, "", url);
@@ -1093,9 +1088,6 @@ function useRacerPageViewModel({
   const selectedRacerQueueEntries = snapshot.queue.filter((entry) =>
     entry.racerIds.includes(selectedRacerId)
   );
-  const selectedRacerNextQueueEntry = selectedRacerQueueEntries
-    .toSorted((left, right) => left.position - right.position)
-    .at(0);
   const selectedRacerAvatarUrl = resolveBackendAssetUrl(registeredRacer?.racer.avatarUrl);
   const canBrowsePublicRacerInfo =
     !registrationInProgress &&
@@ -1183,12 +1175,10 @@ function useRacerPageViewModel({
   const tournamentRaceCards = activeTournament
     ? getCurrentTournamentRaceCards(snapshot, activeTournament)
     : [];
-  const raceQueuePreviewEntries = tournamentMode ? [] : upcoming.slice(0, 3);
-  const showFullQueueLink = !tournamentMode && upcoming.length > 3;
   const activeTabs = canBrowsePublicRacerInfo
     ? racerTabs
-    : racerTabs.filter((tab) => tab.id === "race");
-  const visibleActiveTab = activeTabs.some((tab) => tab.id === activeTab) ? activeTab : "race";
+    : racerTabs.filter((tab) => tab.id === "rumble");
+  const visibleActiveTab = activeTabs.some((tab) => tab.id === activeTab) ? activeTab : "rumble";
   const visibleSelectedRacerDetailId =
     selectedRacerDetailId &&
     snapshot.racers.some((entry) => entry.racer.id === selectedRacerDetailId)
@@ -1215,7 +1205,7 @@ function useRacerPageViewModel({
     }
     setActiveTab(tabId);
     const url = new URL(window.location.href);
-    if (tabId === "race") {
+    if (tabId === "rumble") {
       url.searchParams.delete("tab");
     } else {
       url.searchParams.set("tab", tabId);
@@ -1299,7 +1289,6 @@ function useRacerPageViewModel({
       selectedRacerInCurrentRace,
       selectedRacerIsInActiveTournament,
       shouldShowNotificationPrompt,
-      showFullQueueLink,
       showNotificationDebugList: snapshot.settings.showRacerNotificationDebugList,
       tournamentMode,
       tournamentOptOutBusy
@@ -1329,7 +1318,6 @@ function useRacerPageViewModel({
     queueIssueModal,
     queueLeaveBusy,
     queueLeaveRequest,
-    raceQueuePreviewEntries,
     racerContentRef,
     racerNotifications,
     reduceMotion,
@@ -1341,7 +1329,6 @@ function useRacerPageViewModel({
     selectedRacer,
     selectedRacerAvatarUrl,
     selectedRacerId,
-    selectedRacerNextQueueEntry,
     selectedRacerRealName,
     setBracketPresentationRequest,
     setChallengeReplacementRequest,
@@ -1520,7 +1507,6 @@ function RacerPageView(props: RacerPageViewProps) {
     openChallengeModal,
     paymentReturnState,
     queueDockState,
-    raceQueuePreviewEntries,
     racerContentRef,
     racerNotifications,
     reduceMotion,
@@ -1532,7 +1518,6 @@ function RacerPageView(props: RacerPageViewProps) {
     selectedRacer,
     selectedRacerAvatarUrl,
     selectedRacerId,
-    selectedRacerNextQueueEntry,
     selectedRacerRealName,
     setBracketPresentationRequest,
     setExpandedBracketTournamentId,
@@ -1557,7 +1542,6 @@ function RacerPageView(props: RacerPageViewProps) {
     selectedRacerInCurrentRace,
     selectedRacerIsInActiveTournament,
     shouldShowNotificationPrompt,
-    showFullQueueLink,
     showNotificationDebugList,
     tournamentMode,
     tournamentOptOutBusy
@@ -1585,25 +1569,25 @@ function RacerPageView(props: RacerPageViewProps) {
           }`}
         >
           <AnimatePresence initial={false} mode="popLayout">
-            {!bracketExpanded && visibleActiveTab === "race" ? (
+            {!bracketExpanded && visibleActiveTab === "rumble" ? (
               <m.div
-                key="racer-race-dashboard"
+                key="racer-rumble"
                 layout="position"
                 transition={{ layout: layoutTransition }}
                 {...supportingCardMotion}
                 className="racer-page-grid__card racer-page-grid__card--supporting"
               >
-                <RaceDashboard
+                <RumbleTab
                   activeTournament={activeTournament ?? null}
                   canBrowsePublicRacerInfo={canBrowsePublicRacerInfo}
                   currentRace={currentRace ?? null}
                   currentRaceNames={currentRaceNames}
                   liveSnapshot={liveSnapshot}
+                  onRequestLeaveEntry={requestLeaveQueueEntry}
                   onRequestLeaveQueue={requestLeaveQueue}
                   onTabChange={handleTabChange}
                   onTournamentOptOut={requestTournamentOptOut}
                   paymentReturnState={paymentReturnState}
-                  queuePreviewEntries={raceQueuePreviewEntries}
                   registration={registration}
                   selectedRacer={selectedRacer}
                   selectedRacerCanOptOutOfVisibleTournament={
@@ -1612,8 +1596,6 @@ function RacerPageView(props: RacerPageViewProps) {
                   selectedRacerId={selectedRacerId}
                   selectedRacerInCurrentRace={selectedRacerInCurrentRace}
                   selectedRacerIsInActiveTournament={selectedRacerIsInActiveTournament}
-                  selectedRacerNextQueueEntry={selectedRacerNextQueueEntry}
-                  showFullQueueLink={showFullQueueLink}
                   tournamentMode={tournamentMode}
                   tournamentOptOutBusy={tournamentOptOutBusy}
                   tournamentOptOutMessage={tournamentOptOutMessage}
@@ -1648,20 +1630,6 @@ function RacerPageView(props: RacerPageViewProps) {
                 supportingCardMotion={supportingCardMotion}
                 unreadNotificationCount={unreadNotificationCount}
                 visibleTournament={visibleTournament}
-              />
-            ) : null}
-
-            {!bracketExpanded && visibleActiveTab === "queue" && canBrowsePublicRacerInfo ? (
-              <QueueTab
-                layoutTransition={layoutTransition}
-                liveSnapshot={liveSnapshot}
-                onRequestLeaveEntry={requestLeaveQueueEntry}
-                onRequestLeaveQueue={requestLeaveQueue}
-                selectedRacer={selectedRacer}
-                selectedRacerId={selectedRacerId}
-                supportingCardMotion={supportingCardMotion}
-                tournamentMode={tournamentMode}
-                upcoming={upcoming}
               />
             ) : null}
 

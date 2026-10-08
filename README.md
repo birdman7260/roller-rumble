@@ -243,7 +243,7 @@ the racer page with that notification selected so the matching in-app modal appe
     draws after the source matchup is marked advanced and before the bracket commits the winner
     into the next slot
 - `/racer`
-  - mobile-first bottom tabs for `Race`, `Queue`, `Tournament`, `Racers`, and `Me`
+  - mobile-first bottom tabs for `Rumble`, `Tournament`, `Racers`, and `Me`
   - a registration wizard with a progress bar: contact details, display name, a required photo
     (selfie or upload, or the photo booth), and an entry-fee payment step when the event charges one
   - sign-out behind a confirmation warning that the racer can't be recovered on this phone
@@ -251,16 +251,16 @@ the racer page with that notification selected so the matching in-app modal appe
   - short-lived photo booth QR for DSLR avatar capture after registration
   - payment-aware queue signup
   - Web Push opt-in plus full-screen in-page notification modals
-  - challenge signup from Race controls or the Racers tab
+  - challenge signup from the queue actions above the tabs or the Racers tab
   - a challenge replacement picker when every active queue spot is already a locked challenge
-  - upcoming races, with the Race tab previewing the next three open queue matches and linking to
-    the full Queue tab when more are waiting
+  - a `Rumble` tab with the racer's next race (shown only while they're in line) above the race
+    queue, which lists six races with Show more for the rest and highlights the racer's own races
   - racer list with inline expanded stats for each event racer
   - full personal stats in the `Me` tab alongside account, avatar, and notification tools, with
     existing-avatar replacement available from a small image edit control and the photo booth QR in
     its own card
   - the active tournament, or the most recent completed tournament when none is active; while a
-    tournament is active, the Race tab previews current-stage tournament matches instead of open
+    tournament is active, the Rumble tab previews current-stage tournament matches instead of open
     queue controls
   - in-place live tournament brackets and standings, with racer-facing mobile bracket controls kept
     outside the canvas

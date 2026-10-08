@@ -31,17 +31,16 @@ generally opens it once and leaves it up during the event.
 
 ---
 
-## The five tabs
+## The four tabs
 
-Along the bottom of the racer page are up to five tabs:
+Along the bottom of the racer page are up to four tabs:
 
-| Tab            | What's there                                                      |
-| -------------- | ----------------------------------------------------------------- |
-| **Race**       | The live race view — what's happening right now.                  |
-| **Queue**      | The upcoming lineup, and a **Leave** button on your own races.    |
-| **Tournament** | The bracket/standings, when a tournament is running.              |
-| **Racers**     | The list of racers at the event, with a Challenge button on each. |
-| **Me**         | Your race card / your stats / notifications.                      |
+| Tab            | What's there                                                                            |
+| -------------- | --------------------------------------------------------------------------------------- |
+| **Rumble**     | Your next race (while you're in line), then the race queue with your races highlighted. |
+| **Tournament** | The bracket/standings, when a tournament is running.                                    |
+| **Racers**     | The list of racers at the event, with a Challenge button on each.                       |
+| **Me**         | Your race card / your stats / notifications.                                            |
 
 Which tabs show up depends on the event. (For example, the Tournament tab is most useful when a
 tournament is active.) Whether someone can browse these before registering is controlled by the
@@ -151,9 +150,14 @@ confirm each join or challenge.
 While you've closed the queue, the button row shows your **queue closed message** instead. During a
 tournament the row disappears entirely.
 
-The **Queue** tab shows the current lineup with positions, so racers can see how long the wait is.
-Each of a racer's own races has a **Leave** button, and **Leave the queue entirely** drops all of
-them at once.
+The **Rumble** tab is the racer page's home. While a racer is in line, a **Your Next Race** card sits
+at the top with their opponent, their spot in line, and roughly how soon they're up; when their race
+is on the bikes it switches to **You're up — Go to the bikes**. **Leave the queue entirely** on that
+card drops all of their races at once.
+
+Below it, the **Race Queue** shows the lineup with positions, so racers can see how long the wait
+is. The first six races show up front; **Show more** reveals the rest. The racer's own races are
+highlighted, and each has a **Leave** button.
 
 ### "Pick a challenge to replace"
 
@@ -171,8 +175,8 @@ it** to dismiss it and can join again once one of their races runs.
 
 ## When a tournament is running
 
-While a tournament is active, the open queue is **paused**. The racer's Queue tab shows a
-**Tournament Mode** notice — the lineup is still visible for reference, but racers can't add
+While a tournament is active, the open queue is **paused**. The racer's Rumble tab shows the current
+tournament matches and an **Open queue paused** notice above the queue — the lineup is still visible for reference, but racers can't add
 themselves until the tournament ends. During a tournament, matchups are set by the bracket (see the
 Tournaments page), not by racers joining.
 
@@ -183,8 +187,8 @@ Tournaments page), not by racers joining.
 If the event requires an entrance fee, racers usually settle it in the wizard's **Payment** step
 (above). If a racer still owes the fee when they try to join, tapping a join or challenge button
 opens **Stripe Checkout** on their phone (or pops up a message with the price). After they pay, the
-page returns to the Race tab and their intended join/challenge happens automatically. You'll see a
-"Payment confirmed" or "Payment is processing" message on their Race tab card. Full details are on
+page returns to the Rumble tab and their intended join/challenge happens automatically. You'll see a
+"Payment confirmed" or "Payment is processing" message at the top of their Rumble tab. Full details are on
 the _Payments_ page.
 
 Remember: this fee is only enforced when a racer joins **from their own phone**. You can always add

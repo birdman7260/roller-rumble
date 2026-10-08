@@ -541,17 +541,22 @@ Requirements:
   buttons stay legible and the opponent picker remains usable at phone widths. `Implemented`
 - Signed-in racers must be able to join the head-to-head queue, queue a solo run (when allowed),
   or open a challenge picker from a row of queue actions docked above the bottom tabs on every tab,
-  instead of from queue-controls cards on the Race and Queue tabs. The challenge picker is a modal
+  instead of from queue-controls cards on the Rumble tab. The challenge picker is a modal
   with a type-to-filter opponent field. The dock shows the operator's closed-queue message while the
   queue is closed and disappears during tournament mode. `Implemented`
-- While tournament mode is active, the Queue tab must show a tournament-mode notice above the queue
-  and grey out the open queue list to make clear that open queueing is paused. `Implemented`
-- In open queue mode, the Race tab must preview the next three queued matches and link to the Queue
-  tab when more matches exist, with that preview shown as its own card. `Implemented`
-- In tournament mode, the Race tab must hide open queue controls and open queue previews, show
-  current-stage tournament match cards styled like bracket nodes, including completed matches and
-  BYEs from the currently actionable round, and link to the Tournament tab. Tournament opt-out
-  controls for seeded racers should appear near the top of the Race tab. `Implemented`
+- The racer page's first tab, **Rumble**, replaces the separate Race and Queue tabs. For a
+  signed-in racer with a race coming up, it must lead with a "Your Next Race" card (opponent,
+  position, time-until label, and Leave the queue entirely), or "You're up" while they are in the
+  current race; the card is hidden when they have no race coming up. `Implemented`
+- Below that, the Rumble tab must show the race queue: the first six races, with a Show more /
+  Show less toggle when there are more. Rows the signed-in racer is in must be highlighted and
+  carry a Leave button. `Implemented`
+- While tournament mode is active, the Rumble tab must show an "Open queue paused" notice above the
+  queue and grey out the open queue list to make clear that open queueing is paused. `Implemented`
+- In tournament mode, the Rumble tab must hide the next-race card, show current-stage tournament
+  match cards styled like bracket nodes, including completed matches and BYEs from the currently
+  actionable round, and link to the Tournament tab. Tournament opt-out controls for seeded racers
+  should appear at the top of the Rumble tab. `Implemented`
 - The Me tab must hide the race-notification setup card once notifications are enabled on the
   current device. `Implemented`
 - The Me tab must show the racer's full stats in a dedicated card, keep the identity card free of
