@@ -60,7 +60,7 @@ on the Admin Display.
 
 ### 3. The Racer Page (the phone screen)
 
-This is the **racers'** screen. Riders open it on their own phones to sign in, add themselves to
+This is the **racers'** screen. Riders open it on their own phones to register, add themselves to
 the race queue, challenge a friend, and get notified when it's their turn. It's designed to be
 simple and thumb-friendly on a small screen.
 
@@ -85,9 +85,12 @@ A **racer** is a rider. Each racer has a display name and (optionally) an avatar
 can be added two ways:
 
 - **By the host** — you add them from the Racers tab.
-- **By themselves** — they sign up on their own phone from the Racer Page.
+- **By themselves** — they register on their own phone from the Racer Page, through a short
+  step-by-step **registration wizard**.
 
-A racer's history (their past races and results) sticks with them across events.
+A racer's history (their past races and results) sticks with them across events. Each racer has a
+public **display name** (shown on the big screen) and private **contact details** (real name, phone,
+email) that only hosts see.
 
 ### Queue
 
@@ -136,13 +139,10 @@ all three screens at once. You pick a theme in the Settings tab.
 
 These features are powerful but not required for a basic event. Each has its own page later.
 
-- **Passkey sign-in** — Racers can create a secure account using their phone's Face ID, Touch ID,
-  or fingerprint (called a "passkey"). No passwords to remember. There are also recovery paths for
-  when someone shows up on a new phone.
 - **Payments (Stripe)** — You can require racers to pay an entrance fee before they join the queue.
 - **The tunnel** — A secure internet link (via a tool called _cloudflared_) that lets phones
-  connect from anywhere, not just the local Wi-Fi. This is also what makes passkeys and phone
-  notifications work reliably.
+  connect from anywhere, not just the local Wi-Fi. Racers can register without it, but phone
+  notifications and online payments need it.
 - **Notifications** — Push alerts to racers' phones ("your race is coming up").
 - **Photo booth** — An optional Raspberry Pi setup that snaps a nice camera photo for a racer's
   avatar. (We don't use this at most events; it has a brief page for reference.)
@@ -153,28 +153,28 @@ These features are powerful but not required for a basic event. Each has its own
 
 Keep this handy. These are the exact words the app and this handbook use.
 
-| Word                  | Plain-English meaning                                                                  |
-| --------------------- | -------------------------------------------------------------------------------------- |
-| **Host**              | The person running the event on the laptop (you).                                      |
-| **Surface**           | One of the three screens: Admin, Race Display, or Racer Page.                          |
-| **Event**             | One race session; holds everything for that session. Only one is active.               |
-| **Racer**             | A rider. Has a name and optional avatar.                                               |
-| **Queue**             | The lineup of upcoming casual races.                                                   |
-| **Stage**             | To line up a race so it's ready to start (but not started yet).                        |
-| **Race Desk**         | The Admin tab where you stage, start, and finish races.                                |
-| **Tournament**        | A structured competition (bracket or standings).                                       |
-| **Bracket**           | The tree diagram showing who plays who in an elimination tournament.                   |
-| **BYE**               | An empty bracket slot; the racer facing a BYE advances automatically.                  |
-| **Passkey**           | A secure login using Face ID / Touch ID / fingerprint instead of a password.           |
-| **Identity**          | An email, phone number, or name that points to a racer's account.                      |
-| **Accountless racer** | A racer who signs in with just a display name — no email or passkey.                   |
-| **Host-assist**       | You (the host) helping a racer get back into their account via a scan-able QR code.    |
-| **Tunnel**            | The secure internet link that lets phones connect from anywhere.                       |
-| **cloudflared**       | The behind-the-scenes tool that creates the tunnel.                                    |
-| **Simulator**         | Fake pedaling data so you can practice without real bikes.                             |
-| **Sensor**            | The thing that measures real pedaling (hardware support is still being finished).      |
-| **Snapshot**          | The live picture of the event the app sends to all three screens to keep them in sync. |
-| **AppSnapshot**       | The technical name for that live picture. You'll rarely need this word.                |
+| Word                | Plain-English meaning                                                                     |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| **Host**            | The person running the event on the laptop (you).                                         |
+| **Surface**         | One of the three screens: Admin, Race Display, or Racer Page.                             |
+| **Event**           | One race session; holds everything for that session. Only one is active.                  |
+| **Racer**           | A rider. Has a name and optional avatar.                                                  |
+| **Queue**           | The lineup of upcoming casual races.                                                      |
+| **Stage**           | To line up a race so it's ready to start (but not started yet).                           |
+| **Race Desk**       | The Admin tab where you stage, start, and finish races.                                   |
+| **Tournament**      | A structured competition (bracket or standings).                                          |
+| **Bracket**         | The tree diagram showing who plays who in an elimination tournament.                      |
+| **BYE**             | An empty bracket slot; the racer facing a BYE advances automatically.                     |
+| **Display name**    | A racer's public fun name, shown on the big screen and to other racers.                   |
+| **Contact details** | A racer's real name, phone, and email. Only hosts see them.                               |
+| **Registration**    | Creating a racer: on their phone through the registration wizard, or by you at the desk.  |
+| **Device login**    | What keeps a racer signed in. It lives only on their phone; lose it and they re-register. |
+| **Tunnel**          | The secure internet link that lets phones connect from anywhere.                          |
+| **cloudflared**     | The behind-the-scenes tool that creates the tunnel.                                       |
+| **Simulator**       | Fake pedaling data so you can practice without real bikes.                                |
+| **Sensor**          | The thing that measures real pedaling (hardware support is still being finished).         |
+| **Snapshot**        | The live picture of the event the app sends to all three screens to keep them in sync.    |
+| **AppSnapshot**     | The technical name for that live picture. You'll rarely need this word.                   |
 
 ---
 

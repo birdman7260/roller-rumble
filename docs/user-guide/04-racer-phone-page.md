@@ -1,16 +1,17 @@
 # 4. The Racer Phone Page
 
-The **Racer Page** is what riders open on their own phones to sign in, add themselves to the race
+The **Racer Page** is what riders open on their own phones to register, add themselves to the race
 queue, challenge a friend, and get alerts when their race is coming up. This page walks through what
 racers see and do — and what _you_ (the host) do when a racer gets stuck.
 
 You don't operate this page yourself, but you'll be the one helping racers through it at the desk,
 so it's worth knowing well.
 
-> **The big requirement:** Secure phone sign-in (passkeys) and phone notifications only work over a
-> secure **`https://`** web address. On phones, that means racers should reach the page through the
-> **Cloudflare tunnel** (covered on the _Going Online_ page), not a plain `http://` Wi-Fi address.
-> If you're only testing on the laptop itself, `localhost` is fine.
+> **Do racers need the tunnel?** Not to register or race. Phones on the same Wi-Fi as the laptop can
+> register, join the queue, and upload a photo over the plain Wi-Fi address. The **Cloudflare
+> tunnel** (covered on the _Going Online_ page) is still what you want for a real event: it lets
+> phones join from anywhere, and phone **notifications** and online **payments** only work over its
+> secure **`https://`** address.
 
 ---
 
@@ -20,12 +21,13 @@ Racers get to the page one of these ways:
 
 - **Scan a QR code.** The projector (Race Display) and the admin window can show a QR code that
   points straight to the racer page for the current event. This is the easiest option — riders
-  point their phone camera at it and tap the link.
+  point their phone camera at it and tap the link. It points at your tunnel address when you have
+  one, and at the laptop's Wi-Fi address otherwise (details on the _Going Online_ page).
 - **Type the address.** If you're using the tunnel, it has a fixed web address (like
   `https://your-event-name.example.com/racer`) that you can print or write on a sign.
 
-Once open, the page stays signed in across refreshes, so a racer generally opens it once and leaves
-it up during the event.
+Once a racer has registered, the page remembers them on that phone across refreshes, so a racer
+generally opens it once and leaves it up during the event.
 
 ---
 
@@ -39,103 +41,100 @@ Along the bottom of the racer page are up to five tabs:
 | **Queue**      | The upcoming lineup, and the buttons to join or challenge. |
 | **Tournament** | The bracket/standings, when a tournament is running.       |
 | **Racers**     | The list of racers at the event.                           |
-| **Me**         | Sign in / your race card / your stats / notifications.     |
+| **Me**         | Your race card / your stats / notifications.               |
 
 Which tabs show up depends on the event. (For example, the Tournament tab is most useful when a
-tournament is active.) Whether someone can browse these before signing in is controlled by the
+tournament is active.) Whether someone can browse these before registering is controlled by the
 **Show race info before racer sign-in** setting on the admin side.
 
 ---
 
-## Signing in (the "Me" tab)
+## Registering
 
-Everything about a racer's account happens on the **Me** tab. There are three ways a racer can get
-in.
+A new racer registers by walking through a short **registration wizard**. A progress bar at the top
+shows which step they're on and how many are left. There's no password, no email sign-in, and no
+Face ID prompt.
 
-### A brand-new racer (register)
+Where the wizard appears depends on the **Show race info before racer sign-in** setting:
 
-1. On the **Me** tab, type your **Email** and tap **Sign in**.
-2. Because the email is new, the page switches to registration and asks for a **Display name**
-   (what shows on the race screen) and an optional **Phone**.
-3. Tap **Register [name]**.
-4. The phone prompts for **Face ID / Touch ID / fingerprint / PIN** to create a **passkey**. Approve
-   it.
+- **Off (the default):** the page opens straight to a **Register** card with the wizard, and no tabs.
+- **On:** visitors can browse the tabs first, then tap **Register**, which takes them to the **Me**
+  tab's wizard.
 
-That's it — the racer is signed in and has a secure account tied to their phone. No password to
-remember.
+Either way, the tabs disappear while a racer is partway through the wizard and come back once
+they've finished.
 
-### A returning racer (sign in)
+1. **Your details** — their real **name**, **phone**, and **email**. Only you (the hosts) see these,
+   in the admin window, so you can reach a racer about their races. They're never shown on the big
+   screen or to other racers. If something's mistyped, the field explains what's wrong, and
+   **Continue** stays greyed out until all three look right.
+2. **Pick your racer name** — the fun name the crowd sees on the projector (Turbo Tortoise, Captain
+   Cadence…). Tapping **Continue** here creates the racer. Nothing appears on the big screen until
+   this step, so someone who gives up halfway never shows up by their real name.
+3. **Your photo** — required. They tap **Take a selfie** or **Choose a photo**, see a preview, and
+   can retake it. If you run the photo booth, its QR shows here too, and a booth photo counts as soon
+   as it arrives.
+4. **Payment** — _only when the event charges an entry fee._ With Stripe set up, they tap the **Pay** button and
+   finish on Stripe's checkout page, then come straight back. Without Stripe, the step says **Pay at
+   the desk**; they tap **Got it** and you mark them paid from the admin window (see the _Payments_
+   page).
 
-1. On the **Me** tab, type the **Email** you registered with and tap **Sign in**.
-2. Approve the **Face ID / Touch ID / fingerprint** prompt.
+When the last step is done, the racer lands on the race page, ready to queue.
 
-Done. Their history and stats come back with them.
+If a racer closes the page or their phone locks partway through, they pick up where they left off
+the next time they open it on the same phone.
 
-### No account — just race (accountless)
-
-If the host has turned on **Allow accountless racer signup** (in admin **Settings → Settings**), the
-Me tab also offers a **Continue without an account** box:
-
-1. Type a **Display name**.
-2. Tap **Continue accountless**.
-
-The racer can race right away with no email or passkey. Later, they can **secure the account** (add
-an email and passkey) from their race card without losing their profile — see below.
-
----
-
-## When a racer sees "See the host"
-
-Sometimes a returning racer types their email and the page shows a **"See the host"** message:
-
-> _"This email is already registered, but it does not have a passkey yet. A host can help attach one
-> safely."_
-
-This means: **that email already belongs to an account, but this particular phone/browser doesn't
-have a passkey for it.** It usually happens when someone:
-
-- switched phones (passkeys don't automatically move between an iPhone and an Android),
-- is using a different browser than they originally registered on, or
-- was originally added by the host with an email but never created a passkey.
-
-The app blocks a self-serve claim here on purpose — otherwise anyone could type someone else's email
-and take over their account.
-
-**What to do right now (current workarounds):**
-
-- **Use the original device/browser.** If the racer has the phone they first registered on, the
-  passkey lives there and normal **Sign in** works.
-- **Race accountless for today.** Have them tap **Continue accountless** with their name and race
-  now. Their results this event just won't be linked to their old history yet.
-- **Host adds them.** You can add the racer from the admin **Racers** tab so they're in the event
-  and can be queued. (Their older history stays under the old account.)
-
-> **Heads up:** A one-tap "host helps attach a passkey" tool (a scan-able QR from the admin Racers
-> tab) is planned but **not built into the current app yet**. For now, use the workarounds above. If
-> a page or older note tells you to "generate an attach QR" in the Racers tab, that button doesn't
-> exist in this version.
+> **One racer per registration.** Every registration creates a brand-new racer, even if the name,
+> phone, or email matches someone already at the event. Nobody can "sign in as" someone else by
+> typing their details.
 
 ---
 
-## Your Race Card (once signed in)
+## The phone _is_ the login
 
-After signing in, the Me tab turns into **Your Race Card**. From here a racer can:
+Once registered, the racer stays signed in **on that phone, in that browser**. That's the only place
+their login lives. There is no password and no way to sign back in from somewhere else. That means:
 
-- **See their name and avatar.** Tap the little pencil on the avatar (or the **Upload avatar**
-  control) to set or change their picture.
-- **Sign out.**
+- **Lost phone, new phone, different browser, or cleared browser data → register again.** The racer
+  goes through the wizard as a new racer. Their earlier races stay under the old racer; they won't be
+  linked to the new one.
+- **Private / incognito tabs forget the racer when closed.** Ask racers to use a normal browser tab.
+- **Signing out is permanent on that phone** — see below.
+
+At the desk, the fix for "I can't get back in" is always the same: have them register again (or add
+them yourself from the admin **Racers** tab).
+
+---
+
+## Your Race Card (once registered)
+
+After the wizard, the Me tab turns into **Your Race Card**. From here a racer can:
+
+- **See their name and photo.** Tap the little pencil on the photo to change it.
 - **Enable Notifications** — turn on phone alerts for "your race is coming up." (More on the _Going
   Online_ page.)
 - **See Your Stats** — race count, wins, and where they sit in the queue or bracket.
-- **Secure This Account** — _only shown for accountless racers._ They enter an **Email** and
-  **Display name**, tap **Create Passkey**, approve the Face ID / fingerprint prompt, and their
-  existing profile is upgraded to a full account. Nothing about their history is lost.
+- **Sign out** — behind a strong warning (below).
+
+### Signing out
+
+Tapping **Sign out** opens a warning: **"This racer will be gone from this phone."** Because there's
+no password or email sign-in, a racer who signs out can't get that racer back on that phone. Their
+races, queue spots, and photo stay behind, and to race again they register as a brand-new racer. They
+can tap **Stay signed in** to back out, or **Sign out for good** to confirm, which returns the page to
+the start of the wizard.
+
+A racer who's stuck partway through the wizard sees a **Sign out and start over** button for the same
+purpose (for example, to fix a typo in their display name). It shows the same warning.
+
+> **Sharing one phone?** Two people can't both be signed in on the same phone and browser. The
+> second racer either uses their own phone, or you add them from the admin **Racers** tab.
 
 ---
 
 ## Joining a race (the "Queue" tab)
 
-Once signed in, the racer uses the **Queue** tab to get in line. The **Queue Controls** card offers:
+Once registered, the racer uses the **Queue** tab to get in line. The **Queue Controls** card offers:
 
 - **Join Head-to-Head Queue** — get matched automatically against another waiting racer.
 - **Solo Run** — race alone against the clock.
@@ -170,10 +169,11 @@ Tournaments page), not by racers joining.
 
 ## Payments on the phone (only if you charge a fee)
 
-If the event requires an entrance fee, the Queue tab tells the racer the price, and tapping a join
-or challenge button opens **Stripe Checkout** on their phone. After they pay, the page returns and
-their intended join/challenge happens automatically. You'll see a "Payment confirmed" or "Payment is
-processing" message on their card. Full details are on the _Payments_ page.
+If the event requires an entrance fee, racers usually settle it in the wizard's **Payment** step
+(above). If a racer still owes the fee when they try to join, the Queue tab tells them the price, and
+tapping a join or challenge button opens **Stripe Checkout** on their phone. After they pay, the page
+returns and their intended join/challenge happens automatically. You'll see a "Payment confirmed" or
+"Payment is processing" message on their card. Full details are on the _Payments_ page.
 
 Remember: this fee is only enforced when a racer joins **from their own phone**. You can always add
 or comp someone from the admin side.
@@ -195,23 +195,24 @@ setup is on the _Going Online_ page.
 
 ## Photo booth QR (optional)
 
-If you run the optional Raspberry Pi photo booth, a signed-in racer's card shows a **Photo Booth**
-QR they can present to the booth scanner to capture a nice camera avatar. Most events don't use
+If you run the optional Raspberry Pi photo booth, the wizard's photo step and a registered racer's
+card show a **Photo Booth** QR they can present to the booth scanner to capture a nice camera avatar. Most events don't use
 this; it has a short reference page.
 
 ---
 
 ## Common racer-page problems
 
-| What the racer sees                             | Likely cause                                               | What to do                                                                          |
-| ----------------------------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------- |
-| No Face ID / passkey prompt appears             | Page opened over plain `http://`, not the secure tunnel    | Have them open the **tunnel `https://` address** (or scan the event QR)             |
-| "See the host" after entering email             | Email is registered but this phone has no passkey          | Use the workarounds above (original device, accountless, or host-add)               |
-| Can't find **Continue accountless**             | Accountless signup is turned off                           | Host enables **Allow accountless racer signup** in Settings, or registers/adds them |
-| Join button opens a payment screen unexpectedly | Event requires an entrance fee                             | That's expected; they pay, or you comp them from the admin **Racers** tab           |
-| Signed out after refreshing                     | Rare cookie/origin issue across the tunnel                 | Sign in again; make sure they're using the tunnel address consistently              |
-| Can't join — "Tournament Mode"                  | A tournament is active                                     | The open queue is paused until the tournament ends                                  |
-| Notifications never arrive                      | Push keys missing, or not on the tunnel `https://` address | Confirm push keys were generated and they're on the tunnel (Going Online page)      |
+| What the racer sees                             | Likely cause                                                  | What to do                                                                     |
+| ----------------------------------------------- | ------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| "I can't get back in" / new phone               | The login only lives on the phone they registered on          | Have them register again, or add them from the admin **Racers** tab            |
+| Racer was forgotten after closing the tab       | They registered in a private / incognito tab                  | Register again in a normal browser tab                                         |
+| **Continue** stays greyed out on "Your details" | One of name, phone, or email isn't filled in correctly        | Check the red message under each field; phone needs 7–15 digits                |
+| Stuck on the **Your photo** step                | A photo is required to finish registering                     | Take a selfie or choose any photo; they can change it later                    |
+| Join button opens a payment screen unexpectedly | Event requires an entrance fee                                | That's expected; they pay, or you comp them from the admin **Racers** tab      |
+| Racer forgotten after switching addresses       | The Wi-Fi address and tunnel address count as different sites | Stick to one address (the QR); if lost, register again                         |
+| Can't join — "Tournament Mode"                  | A tournament is active                                        | The open queue is paused until the tournament ends                             |
+| Notifications never arrive                      | Push keys missing, or not on the tunnel `https://` address    | Confirm push keys were generated and they're on the tunnel (Going Online page) |
 
 For deeper issues, see the **Troubleshooting** page.
 

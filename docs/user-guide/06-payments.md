@@ -14,9 +14,11 @@ If you're not charging a fee, skip this whole page.
 
 ## What the fee actually does
 
-- When payment is required, a racer who taps **Join** or **Challenge** on their phone is sent to a
-  **Stripe Checkout** page to pay before they get in line.
-- After they pay, the app automatically completes the join/challenge they were trying to do.
+- When payment is required, registration on the racer's phone ends with a **Payment** step. With
+  Stripe set up, they pay on a **Stripe Checkout** page and come straight back. Without Stripe, the
+  step tells them to **pay at the desk**, and you mark them paid from the **Racers** tab.
+- A racer who still hasn't paid and taps **Join** or **Challenge** is sent to Stripe Checkout first.
+  After they pay, the app automatically completes the join/challenge they were trying to do.
 - The fee is **only enforced on the racer's phone.** As the host, you can always add, comp, or mark
   someone paid from the admin side — the desk is never blocked by the payment gate.
 
@@ -122,6 +124,12 @@ address.
 ---
 
 ## How a payment flows (the big picture)
+
+Most racers pay in the registration wizard's **Payment** step: they tap the **Pay** button, pay on Stripe
+Checkout, and come back to the wizard, which moves on by itself once Stripe confirms the payment (the
+same webhook described below). If they cancel, they stay on the Payment step and can try again.
+
+A racer who reaches the queue unpaid goes through this flow instead:
 
 1. Racer taps **Join** / **Challenge** on their phone.
 2. The app opens **Stripe Checkout**; the racer pays with card / Apple Pay / Google Pay.
@@ -240,8 +248,8 @@ The fee is set **per event**, so each event can have its own price (or none).
 3. Turn on **Require entrance fee before racer queue signup**.
 4. Click **Save Payment Settings**.
 
-The **Current Fee** pill now shows the amount, and racers joining from their phones will be sent to
-Checkout.
+The **Current Fee** pill now shows the amount, new racers get a **Payment** step at the end of
+registration, and unpaid racers joining from their phones will be sent to Checkout.
 
 > Leaving the "Require" toggle **off** but setting an amount means the fee is displayed as info but
 > not enforced. Turn the toggle **on** to actually gate the queue.

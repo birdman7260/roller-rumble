@@ -13,14 +13,14 @@ paths. Future sign-in or recovery is explicitly out of scope.
 
 ## Execution status (updated 2026-10-07)
 
-| Slice                                               | State       | Depends on |
-| --------------------------------------------------- | ----------- | ---------- |
-| S1 Decision record + glossary                       | ✅ Done     | —          |
-| S2 Contact details, register endpoint, admin desk   | ✅ Done     | S1         |
-| S3 Wizard shell + contact-details and display-name  | ✅ Done     | S2         |
-| S4 Photo + payment steps                            | ✅ Done     | S3         |
-| S5 Remove passkeys, accountless, cookie, identities | ✅ Done     | S3         |
-| S6 User guide + README sweep                        | Not started | S4, S5     |
+| Slice                                               | State   | Depends on |
+| --------------------------------------------------- | ------- | ---------- |
+| S1 Decision record + glossary                       | ✅ Done | —          |
+| S2 Contact details, register endpoint, admin desk   | ✅ Done | S1         |
+| S3 Wizard shell + contact-details and display-name  | ✅ Done | S2         |
+| S4 Photo + payment steps                            | ✅ Done | S3         |
+| S5 Remove passkeys, accountless, cookie, identities | ✅ Done | S3         |
+| S6 User guide + README sweep                        | ✅ Done | S4, S5     |
 
 S4 and S5 are independent once S3 lands. Every code slice must pass the full quality gate
 (`pnpm format && pnpm quality && pnpm typecheck && pnpm test && pnpm build`) and add a
@@ -254,7 +254,7 @@ so it has no CHANGELOG entry.
   - `ROLLER_RUMBLE_PASSKEY_RP_ID` was only read in `auth.ts`; it was never in `env.ts` or
     `.env`. The setting toggle lived in `components/admin/settings-tab.tsx`.
 
-### S6 — User guide + README sweep
+### S6 — User guide + README sweep ✅
 
 - Update `docs/user-guide/02`, `03`, `04`, `07`, and `08`, plus the README:
   - Remove passkey, HTTPS-for-passkeys, and host-assist guidance.
@@ -262,9 +262,20 @@ so it has no CHANGELOG entry.
   - Explain that a lost phone means registering again.
   - Note that racers no longer need the tunnel just to register.
 - Refresh the auth section of `docs/product-requirements.md`.
+- **As built:**
+  - Also swept `docs/user-guide/01` (glossary), `06` (the wizard's payment step), and the
+    user-guide index, and marked the auth section of `docs/project-handoff-summary.md`
+    superseded.
+  - The guides warn that a device login is stored per browser origin, so the LAN address and the
+    tunnel address are different logins: start the tunnel before racers register, and don't swap a
+    token-mode tunnel for a quick-mode one mid-event.
+  - CHANGELOG: Changed, a handbook entry, since the operator guide is user-facing.
 
 ## Follow-ups (out of scope)
 
-- The projector and admin QR could fall back to the LAN URL when no tunnel is running, now
-  that registration doesn't need HTTPS.
+- The projector and admin QR fall back to the LAN URL only when no tunnel URL is set. In token
+  mode, `CloudflaredTunnelManager` reports the configured public URL even while the tunnel is
+  stopped, so the QR keeps pointing at the tunnel. The guides tell hosts to clear the public racer
+  URL for a Wi-Fi-only event. A follow-up could fall back to the LAN URL whenever the tunnel isn't
+  running.
 - `racer merge` and `racer reconciliation` for duplicate racers created by re-registering.

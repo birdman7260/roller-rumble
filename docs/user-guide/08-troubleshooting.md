@@ -86,8 +86,10 @@ files were loaded at startup — useful for confirming the app is reading the fi
 
 1. **Settings load only at startup.** Changed something and nothing happened? **Fully quit and reopen
    the app.** ("Fully quit" = the whole app, not just closing a window.)
-2. **Phones need the tunnel's `https://` address.** Sign-in, notifications, and payments all fail
-   over a plain `http://` Wi-Fi link. Use the tunnel QR/URL.
+2. **Pick one racer address and stick to it.** Racers can register over plain Wi-Fi, but
+   notifications and online payments need the tunnel's `https://` address. A racer's login lives on
+   their phone for the address they registered on, so start the tunnel before doors open and keep
+   everyone on the tunnel QR/URL.
 3. **Test mode vs live mode (Stripe) are separate worlds.** Test keys won't take real money; live
    keys reject test cards. Confirm your key prefix (`sk_test_` vs `sk_live_`).
 4. **Do setup the day before, on the event laptop, on a normal network.** Corporate/inspected
@@ -150,15 +152,17 @@ files were loaded at startup — useful for confirming the app is reading the fi
 | Seeding looks unfair          | Few/no results to rank by             | Run open races first, then start the tournament  |
 | Finalized a match wrong       | Human error                           | Open the match → **Undo Result** (if still safe) |
 
-### Racer phone & sign-in
+### Racer phone & registration
 
-| Problem                                  | Cause                                          | Fix                                                                               |
-| ---------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------- |
-| No Face ID / passkey prompt              | On a plain `http://` link                      | Use the tunnel **`https://`** address / QR                                        |
-| "See the host" after entering email      | Email registered, but no passkey on this phone | Use original device, race **accountless**, or host-adds them (see Racer Page doc) |
-| No "Continue accountless" option         | Accountless signup disabled                    | Enable **Allow accountless racer signup**, or register/add them                   |
-| Signed out after refresh                 | Rare cross-origin cookie issue                 | Sign in again; keep to the same tunnel address                                    |
-| Join opens a payment screen unexpectedly | Event requires a fee                           | Expected; they pay, or you comp them                                              |
+| Problem                                        | Cause                                                    | Fix                                                           |
+| ---------------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------- |
+| "I can't get back in" (new phone, signed out)  | The login lives only on the phone they registered on     | Register again, or **Add Racer** at the desk                  |
+| Racer forgotten after closing the tab          | Registered in a private / incognito tab                  | Register again in a normal tab                                |
+| Racer forgotten after switching Wi-Fi ↔ tunnel | Wi-Fi and tunnel addresses count as different sites      | Register again; pick one address before doors open            |
+| **Continue** greyed out on "Your details"      | Name, phone, or email isn't valid yet                    | Read the red message under the field; phone needs 7–15 digits |
+| Can't get past "Your photo"                    | A photo is required to finish                            | Take a selfie or choose any photo                             |
+| Same person shows up twice in the Racers list  | They registered twice (each registration is a new racer) | Expected; queue the one they're using now                     |
+| Join opens a payment screen unexpectedly       | Event requires a fee and they haven't paid               | Expected; they pay, or you comp them                          |
 
 ### Tunnel
 
@@ -204,15 +208,18 @@ files were loaded at startup — useful for confirming the app is reading the fi
 
 When you're live and something breaks, use the fast fallback — fix the root cause later.
 
-- **Racer can't sign in / passkey trouble** → have them tap **Continue accountless** with their name
-  and race now. Reconcile later.
+- **Racer lost their login** (new phone, signed out, cleared browser) → have them register again,
+  or add them with **Racers tab → Quick Add Racer** and queue them from the desk. Their old races stay under their
+  old racer.
 - **Payment stuck "processing"** but they paid → **Racers tab → Mark Paid**, and queue them.
-- **Someone needs to race but isn't in the system** → **Racers tab → Quick Add**, then **Add To
+- **Someone needs to race but isn't in the system** → **Racers tab → Quick Add Racer**, then **Add To
   Queue** (host actions bypass the fee gate).
 - **A race won't finish** (rider bailed) → **Finalize Current**.
-- **Tunnel died mid-event** → if everyone's on the same Wi-Fi, they can still reach the LAN address
-  for viewing, but secure sign-in/payments won't work until the tunnel is back. Restart the tunnel
-  (**Stop Tunnel** → **Start Tunnel**); if token mode is failing, quick mode gets you a URL fast.
+- **Tunnel died mid-event** → racers who registered on the tunnel address can't use their phones
+  until it's back (on the Wi-Fi address they'd look like strangers), so queue them from the desk
+  meanwhile. Restart the tunnel (**Stop Tunnel** → **Start Tunnel**). In **token mode** the address
+  comes back unchanged and racers are still signed in; a **quick mode** URL is a new address, so
+  everyone would have to register again — avoid switching mid-event.
 - **Everything feels wedged** → **fully quit and reopen the app.** Interrupted races recover, and
   most transient issues clear.
 

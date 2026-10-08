@@ -119,8 +119,9 @@ The full notifications topic (how racers turn them on, sending manual messages) 
 
 For a real event where racers join from their own phones, you'll usually also want:
 
-- **The internet tunnel** — so phones can reach the app from anywhere, and so secure phone sign-in
-  (passkeys) and notifications work reliably. Set up on the **Going Online** page.
+- **The internet tunnel** — so phones can reach the app from anywhere, not just your Wi-Fi, and so
+  phone notifications and online payments work. Racers can register over plain Wi-Fi without it.
+  Set up on the **Going Online** page.
 - **Payments (Stripe)** — only if you charge an entrance fee. Set up on the **Payments** page.
 
 You can skip both for a quick practice session on the same Wi-Fi, but plan to set them up before a

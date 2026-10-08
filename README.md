@@ -7,23 +7,25 @@ Roller Rumble is a local-first Electron app for running live stationary-bike rac
 - `Racer Page` for phones over the local network or a `cloudflared` tunnel
 
 The current codebase supports open time trial operation, live race presentation, persistent event
-data, passkey registration, event-scoped payments, Web Push notifications, theme support, live
+data, racer self-registration, event-scoped payments, Web Push notifications, theme support, live
 tournament operation, and the Raspberry Pi photo booth workflow.
 
 ## What The App Does
 
 - Creates and persists events
-- Requires racer self-registration through email plus a passkey, with host-assisted recovery when
-  an older email identity does not have a passkey yet
-- Keeps accountless racer signup available only when admins explicitly enable it, requires a
-  display name, and lets accountless racers later attach an email/passkey to preserve the same
-  profile
+- Registers racers on their own phones through a step-by-step registration wizard with a progress
+  bar: contact details, a public display name, a required photo, and (when the event charges a fee)
+  payment. Every registration creates a new racer; nothing is ever matched or merged by email or
+  phone
+- Keeps racers signed in with a device login held only in the phone's browser storage; there is no
+  password, passkey, or recovery path, so a lost phone means registering again
+- Keeps contact details (real name, phone, email) operator-only: they are stripped from everything
+  sent to racer phones
 - Tracks event-scoped entrance-fee amount/status and can require Stripe Checkout payment before
   racers add themselves to the queue; host/admin queue actions can still bypass payment
 - Sends racer notifications through browser Web Push when configured, with full-screen in-app
   modals while the racer page is open and a debug-only notification history list
-- Turns the racer identity card into `Your Race Card` after signup instead of leaving a separate
-  register card on screen
+- Turns the racer's registration card into `Your Race Card` once the wizard is finished
 - Lets racers upload avatars
 - Lets racers generate a short-lived kaleidoscope photo booth QR after registration so a paired
   Raspberry Pi booth can capture a DSLR avatar for them
@@ -89,7 +91,7 @@ The app is intentionally local-first. Everything important runs on the host mach
 - `Framer Motion` drives the live race-visualizer animation layer so rider markers and progress fills move smoothly with incoming telemetry.
 - `React Flow` powers the custom elimination-bracket board so the app can own node styling, edge
   routing, and viewport camera behavior.
-- `SQLite` is the source of truth for events, racers, passkey credentials, event payment config/status,
+- `SQLite` is the source of truth for events, racers and their contact details, event payment config/status,
   queue entries, races, results, tournaments, push subscriptions, notification deliveries, and
   settings.
 - `Drizzle ORM` provides the typed query layer over `better-sqlite3`, while checked-in SQL files remain the migration source of truth.
@@ -114,21 +116,31 @@ The current sensor path is a simulator. A real USB adapter seam exists, but the 
 
 ## Racer Auth And Payments
 
-The Racer Page uses real WebAuthn/passkeys for self-registration and sign-in. Passkeys require a
-secure browser origin, so phones should use the Cloudflare HTTPS tunnel in production; localhost is
-acceptable for development. The backend stores passkey credentials in SQLite and issues a signed
-HTTP-only racer session cookie after a successful passkey ceremony. The browser also keeps the same
-signed session token in local storage as a fallback for dev/tunnel cases where cookie handling is
-inconsistent across origins, so refreshing the racer page should keep the racer signed in.
+Racers join through the Racer Page's registration wizard (see
+[ADR 0024](docs/adr/0024-racer-identity-is-the-device-held-racer-id.md)). The wizard collects the
+racer's contact details (real name, phone, email; validated by format only), then their public
+display name. Submitting the display name calls `POST /api/auth/register`, which always inserts a
+new racer and returns a signed device login naming the new racer id. The wizard then asks for a
+photo and, when the event requires payment, the entry fee.
 
-If an email exists but has no passkey credential yet, the racer page tells the racer to see the
-host instead of allowing an unsafe self-claim. Admins can still create racers from the admin
-console.
+The device login never expires and lives only in the phone's local storage. The server reads it
+only from the `Authorization: Bearer` header; there is no cookie. Because the device login is the
+racer's only identity, a lost phone, cleared browser data, a private tab, or a different origin
+(the LAN address versus the tunnel address) means registering again. Signing out asks for
+confirmation with that warning. Registration does not need HTTPS, so phones on the same network can
+register over the LAN address; Web Push and Stripe Checkout still need the tunnel.
+
+Contact details are operator-only: the admin snapshot carries them, but every snapshot sent to the
+racer page strips them, and a racer sees their own only through `GET /api/auth/session`. The admin
+`Quick Add Racer` form is insert-only too, with a required display name and optional real name,
+phone, and email.
 
 Payment enforcement is event-scoped. The Event tab lets hosts set the current event's entrance fee
 and whether payment is required before racer-page queue signup. If payment is required and the racer
-has not been marked `paid` or `waived` for that event, the Racer Page starts Stripe Checkout and
-returns to `/racer` after payment. Stripe webhooks mark the event racer `paid` and automatically
+has not been marked `paid` or `waived` for that event, the registration wizard ends with a payment
+step: with Stripe configured it opens an entry-fee-only Checkout (`POST /api/racer/payments/checkout`);
+without Stripe it tells the racer to pay at the desk. A racer who still owes the fee when queueing
+gets Stripe Checkout from the queue button and returns to `/racer` after payment. Stripe webhooks mark the event racer `paid` and automatically
 queue the stored join/challenge intent. Admin queue controls intentionally bypass the gate so hosts
 can resolve cash, comp, or edge-case desk flows.
 
@@ -232,9 +244,9 @@ the racer page with that notification selected so the matching in-app modal appe
     into the next slot
 - `/racer`
   - mobile-first bottom tabs for `Race`, `Queue`, `Tournament`, `Racers`, and `Me`
-  - email/passkey sign-in and registration
-  - optional admin-enabled accountless registration with a required display name
-  - accountless-to-passkey account upgrade
+  - a registration wizard with a progress bar: contact details, display name, a required photo
+    (selfie or upload, or the photo booth), and an entry-fee payment step when the event charges one
+  - sign-out behind a confirmation warning that the racer can't be recovered on this phone
   - avatar upload
   - short-lived photo booth QR for DSLR avatar capture after registration
   - payment-aware queue signup
@@ -252,9 +264,9 @@ the racer page with that notification selected so the matching in-app modal appe
     queue controls
   - in-place live tournament brackets and standings, with racer-facing mobile bracket controls kept
     outside the canvas
-  - optional admin-enabled read-only public browsing before sign-in; queueing, challenges,
-    notifications, avatars, photo booth QR, account upgrades, sign-out, and tournament opt-out still
-    require a signed-in racer
+  - optional admin-enabled read-only public browsing before registering; queueing, challenges,
+    notifications, avatars, photo booth QR, sign-out, and tournament opt-out still require a
+    registered racer
 - `/bracket-lab`
   - developer test page for replaying tournament bracket camera and connector handoff animations
     against mocked bracket data
@@ -994,7 +1006,7 @@ Current automated tests cover:
 
 - speed, distance, and wattage calculations
 - queue insertion, challenge placement, bumping, removal, and shifting rules
-- passkey/auth and event-scoped payment gating
+- racer registration, device logins, and event-scoped payment gating
 - Stripe Checkout session and webhook handling
 - Web Push notification targeting and queue/tournament triggers
 - theme registry validation

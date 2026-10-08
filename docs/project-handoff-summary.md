@@ -512,6 +512,12 @@ Umbrella panel picker:
 
 ## 15. Registration, Auth, And Sessions
 
+> **Superseded (2026-10-07).** Passkeys, email sign-in, accountless signup, host-assisted claim,
+> and the session cookie were all removed. Racers now register through a step-by-step registration
+> wizard and stay signed in with a device login held only on their phone. See
+> [ADR 0024](adr/0024-racer-identity-is-the-device-held-racer-id.md). This section and the passkey
+> mentions in sections 3 and 6 are kept as history.
+
 Registration direction:
 
 - force real registration by default

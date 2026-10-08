@@ -52,22 +52,31 @@ current **Theme**, and the **Tunnel** status.
 Racers can get into the system two ways:
 
 - **You add them** on the Racers tab (fastest for a walk-up desk).
-- **They add themselves** from their phones on the Racer Page (covered on the next page).
+- **They register themselves** from their phones on the Racer Page (covered on the next page).
 
 To add a racer yourself:
 
 1. Click the **Racers** tab.
 2. In the **Quick Add Racer** card, fill in:
-   - **Name** — required (this is their display name, e.g. `Alex Fast`).
-   - **Email** — optional.
-   - **Phone** — optional.
+   - **Display name** — required. This is the name on the big screen, e.g. `Turbo Tortoise`.
+   - **Real name (optional)**, **Email (optional)**, **Phone (optional)** — only hosts ever see
+     these.
 3. Click **Add Racer**.
 
 They immediately appear in the **Registered Racers** list below, which shows each racer's race
-count and wins. Use the **Search racers** box to find someone in a long list.
+count and wins, plus their real name, phone, and email when you have them. Use the **Search racers**
+box to find someone by any of those.
 
-> **Do I need email/phone?** Not to race. Email/phone matter for racers who want a secure account
-> and history on their own phone (see the Racer Page page). For a quick desk add, a name is enough.
+> **Every Add Racer makes a new racer.** Adding someone whose email or phone matches an existing
+> racer does **not** merge them; you get a second racer. Search first if you think they're already
+> in the list.
+
+> **Do I need email/phone?** Not to race. They just help you reach someone. For a quick desk add, a
+> display name is enough.
+
+> **Desk-added racers don't have the phone page.** A racer you add here isn't signed in on any
+> phone; you queue them from the admin window. If they'd rather manage things from their own phone,
+> have them register on the Racer Page instead (that creates their own racer).
 
 ---
 
@@ -244,14 +253,13 @@ racer tries to join _from their own phone_.
 
 Found under **Settings → Settings**:
 
-| Setting                                 | What it does                                                            |
-| --------------------------------------- | ----------------------------------------------------------------------- |
-| **Theme**                               | Changes the whole look across all screens.                              |
-| **Auto-stage the next queued race**     | Loads the next race automatically after each finish.                    |
-| **Allow accountless racer signup**      | Lets racers sign up with just a name on their phone (no email/passkey). |
-| **Show race info before racer sign-in** | Whether phones can see the queue before signing in.                     |
-| **Max active queue entries per racer**  | How many times one racer can be waiting in the queue at once.           |
-| **Enable VirtualDJ cue start**          | Lets a DJ trigger the countdown from music software (advanced).         |
+| Setting                                             | What it does                                                    |
+| --------------------------------------------------- | --------------------------------------------------------------- |
+| **Theme**                                           | Changes the whole look across all screens.                      |
+| **Auto-stage the next queued open time trial race** | Loads the next race automatically after each finish.            |
+| **Show race info before racer sign-in**             | Whether phones can see the queue before registering.            |
+| **Max active queue entries per racer**              | How many times one racer can be waiting in the queue at once.   |
+| **Enable VirtualDJ cue start**                      | Lets a DJ trigger the countdown from music software (advanced). |
 
 ---
 
@@ -272,5 +280,5 @@ For anything not covered here, see the dedicated **Troubleshooting** page.
 
 ---
 
-**Next:** [The Racer Phone Page](04-racer-phone-page.md) — how racers sign in, join the queue,
-challenge each other, and recover their account.
+**Next:** [The Racer Phone Page](04-racer-phone-page.md) — how racers register, join the queue,
+and challenge each other.

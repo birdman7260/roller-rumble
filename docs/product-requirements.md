@@ -19,15 +19,14 @@ Roller Rumble is a local-first Electron application for running live stationary-
 - a `Racer Page` for phones over the local network or a `cloudflared` tunnel
 
 The app must support both open time trial operation and tournament play while preserving event data,
-race results, and racer identities across restarts.
+race results, and racer accounts across restarts.
 
 ## Core Domain
 
 The app manages:
 
-- `Racers`
-- `Identities` for email, phone, and optional accountless local identities
-- `Passkey credentials`
+- `Racers`, each with a public display name and operator-only contact details (real name, email,
+  phone)
 - `Events`
 - `Event-specific racer registrations`
 - `Event-specific payment config and status`
@@ -47,19 +46,24 @@ The app manages:
 
 Requirements:
 
-- Racer identity is global across events. `Implemented`
+- Racer accounts are global across events. `Implemented`
 - Race history is event-scoped by default for seeding and stats. `Implemented`
 - Admin can toggle between event-only race data and all-time race data for seeding/stat views.
   `Implemented`
 - More than one tournament can exist for a single event, but only one can be active at a time.
   `Implemented`
-- Racer self-registration must use email plus a passkey, with passkey credentials stored locally
-  and a signed session used for racer-owned actions. The session should prefer an HTTP-only cookie
-  and also keep a signed local-storage fallback so refreshes remain logged in across dev/tunnel
-  origin edge cases. `Implemented`
-- Accountless racer signup must only be available when admins enable it, must require a display
-  name, and accountless racers must be able to attach an email/passkey later without losing their
-  profile. `Implemented`
+- A racer's only identity is the racer id generated when they register, held on their phone as a
+  `device login`: a signed token naming the racer id, with no expiry, stored only in the browser's
+  local storage and sent only as an `Authorization: Bearer` header. There are no passkeys, no
+  cookies, no email sign-in, and no recovery path; a lost device login means registering again
+  (ADR 0024). `Implemented`
+- Every racer-creation path (racer registration and admin quick-add) must insert a new racer and
+  never look up or merge an existing racer by contact details. `Implemented`
+- Contact details are validated by format only (email format; phone with 7–15 digits after
+  stripping punctuation, stored as entered; real name 1–80 characters, trimmed), are not unique,
+  and are never used for lookup. `Implemented`
+- Contact details are operator-only: every snapshot or racer payload sent to the racer page must
+  strip them, and a racer sees only their own through `GET /api/auth/session`. `Implemented`
 - Entrance-fee requirement, amount, currency, and racer status must be tracked per active event.
   `Implemented`
 - Stripe Checkout must be available for racer-page self-service payment, with Stripe webhooks
@@ -282,9 +286,8 @@ Requirements:
 - Cue-start toggle. `Implemented`
 - Auto-stage-next-race toggle for open time trial. `Implemented`
 - Event-only vs all-time race-data toggle. `Implemented`
-- Allow-accountless-racer-signup toggle, disabled by default. `Implemented`
 - Show-public-racer-info-before-sign-in toggle, disabled by default. When enabled, unauthenticated
-  QR visitors may browse read-only race, queue, tournament, and racer information before signing in.
+  QR visitors may browse read-only race, queue, tournament, and racer information before registering.
   `Implemented`
 - Tunnel start/stop controls. `Implemented`
 - Web Push setup health must show whether public notification configuration is present without
@@ -471,29 +474,35 @@ Requirements:
 
 Requirements:
 
-- Racers must register with email plus a passkey by default. `Implemented`
-- The initial racer identity flow must show only email and `Sign in`; if no account exists for the
-  email, the remaining registration fields appear and the primary action becomes `Register {name}`.
-  `Implemented`
-- Registration fields must be manifest-like/extensible so additional fields can be added later
-  without rewriting the flow. `Implemented`
-- If an existing email has no passkey credential, the racer page must show host-assisted recovery
-  guidance instead of allowing an unsafe self-claim. `Implemented`
-- Accountless local identity remains available only when an admin setting enables it. `Implemented`
-- The racer page's primary identity card must show registration controls before signup and then
-  change into the racer's own race card after registration instead of keeping a separate register
-  card visible. `Implemented`
-- Accountless identity must be stored locally for reuse. `Implemented`
-- Accountless racers must be able to attach email plus a passkey later and keep the same racer
-  profile. `Implemented`
+- Racers must register through a step-by-step `registration wizard` with a themed, accessible
+  progress bar showing the current step, the total, and each step's label. `Implemented`
+- The wizard steps are `Your details` (real name, phone, email; inline format errors, Continue
+  disabled until all are valid), `Racer name` (the public display name), `Photo` (required, no
+  skip), and `Payment` (only when the event requires payment for queue signup). `Implemented`
+- The racer must be created only when the racer-name step is submitted, so an abandoned wizard never
+  puts a real name on the projector. Inputs typed before that are kept as a per-device draft that
+  survives a reload. Registration must never read or reuse an existing device login. `Implemented`
+- After the racer is created, the wizard must resume at the first incomplete step. The photo step
+  completes from the racer's avatar on the server (so a photo booth avatar completes it), and the
+  payment step completes when the event payment status is `paid` or `waived`, or, without Stripe,
+  once the racer acknowledges paying at the desk. `Implemented`
+- With Stripe configured, the payment step must open an entry-fee-only Checkout that marks the racer
+  paid without queueing them; a cancelled checkout stays on the step. `Implemented`
+- Registration must not require HTTPS, so phones on the same network can register over the LAN
+  address. `Implemented`
+- Sign-out must sit behind a confirmation warning that the racer can't be recovered on this phone.
+  Confirming forgets the device login and returns the page to the start of the wizard. A racer still
+  in the wizard can sign out to start over. `Implemented`
+- The racer page's primary card must show the wizard before registration and then change into the
+  racer's own race card once the wizard is finished. `Implemented`
 - The racer page must use mobile-first bottom tabs for `Race`, `Queue`, `Tournament`, `Racers`, and
   `Me`, with `Race` as the default flow and an optional `tab` query param for direct focus.
   `Implemented`
 - Racer bottom-tab switches must reset the tab content to the top without visible slide-up motion,
   and the currently active tab button must be inert. `Implemented`
-- When public racer info is disabled, signed-out racers should only see event context plus the
-  sign-in/register flow. When enabled, signed-out racers may browse read-only race state, queue,
-  tournament, and racer stats. Racer-owned actions must always require sign-in. `Implemented`
+- When public racer info is disabled, unregistered visitors should only see event context plus the
+  registration wizard. When enabled, they may browse read-only race state, queue, tournament, and
+  racer stats. Racer-owned actions must always require a device login. `Implemented`
 - Racers must be able to upload an avatar. `Implemented`
 - Uploaded avatar images must resolve through the backend asset origin so they display correctly
   from local Vite dev, packaged desktop, local-network racer pages, and Cloudflare tunnel URLs.
@@ -827,8 +836,9 @@ Current delivery notes:
 - Browser API/WebSocket routing must ignore localhost `VITE_API_BASE` overrides when loaded from a
   public tunnel hostname, so racer phones connect to the Cloudflare origin rather than
   `127.0.0.1` on their own device. `Implemented`
-- Passkey registration and sign-in require a secure browser origin, so production racer phones
-  should use the stable HTTPS Cloudflare tunnel; localhost remains acceptable for development.
+- Racer registration works over the LAN address, but Web Push and Stripe Checkout need the stable
+  HTTPS Cloudflare tunnel, so production racer phones should use it. A device login is stored per
+  browser origin, so racers who switch between the LAN and tunnel addresses must register again.
   `Implemented`
 - In dev mode, the embedded backend must proxy Vite hot-reload websocket upgrades while still owning
   the app snapshot websocket at `/ws`, so public tunnel testing does not show misleading websocket

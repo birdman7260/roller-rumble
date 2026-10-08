@@ -19,6 +19,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - Racers now join through a short step-by-step registration with a progress bar: your details, then a racer name. Passkeys and email sign-in are gone. Whatever a racer has typed is kept on their phone, so a reload picks up where they left off.
 - Signing out on a racer phone now asks first and warns that the racer can't be recovered on that phone; signing out returns the phone to the start of registration.
 - Removed the "Allow accountless racer signup" setting; every racer registers through the registration wizard.
+- The operator handbook now walks through the registration wizard and the sign-out warning, explains that a racer with a lost or new phone registers again, and notes that racers no longer need the tunnel just to register (notifications and online payments still do).
 
 ### Fixed
 

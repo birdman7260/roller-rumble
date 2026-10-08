@@ -2,12 +2,12 @@
 
 This page covers two connected topics:
 
-- **The tunnel** — how racers' phones reach the app over the internet, and why it matters for secure
-  sign-in, notifications, and payments.
+- **The tunnel** — how racers' phones reach the app over the internet, and why it matters for
+  notifications and payments.
 - **Notifications** — sending "your race is coming up" alerts to racers' phones.
 
-They live together because notifications (and passkeys, and payments) all depend on the tunnel's
-secure `https://` address.
+They live together because notifications (and online payments) depend on the tunnel's secure
+`https://` address.
 
 ---
 
@@ -18,15 +18,23 @@ secure `https://` address.
 The app runs on your laptop. For a racer's phone to reach it, the phone needs a web address that
 points at your laptop. There are two ways:
 
-| Connection            | Address looks like               | Works for…                 | Problem                                                                                |
-| --------------------- | -------------------------------- | -------------------------- | -------------------------------------------------------------------------------------- |
-| **Local Wi-Fi (LAN)** | `http://192.168.1.42:3187`       | Phones on the _same_ Wi-Fi | It's plain `http://`, so **passkeys, notifications, and payments don't work reliably** |
-| **Tunnel**            | `https://your-event.example.com` | Phones **anywhere**        | None for our purposes — this is the real-event choice                                  |
+| Connection            | Address looks like               | Works for…                 | Problem                                                                   |
+| --------------------- | -------------------------------- | -------------------------- | ------------------------------------------------------------------------- |
+| **Local Wi-Fi (LAN)** | `http://192.168.1.42:3187`       | Phones on the _same_ Wi-Fi | It's plain `http://`, so **notifications and online payments don't work** |
+| **Tunnel**            | `https://your-event.example.com` | Phones **anywhere**        | None for our purposes — this is the real-event choice                     |
 
-The magic ingredient is **`https://`** (the secure padlock). Phones refuse to do Face ID sign-in
-(passkeys) or push notifications over plain `http://`. The tunnel gives you a proper `https://`
-address, so **for any real event, use the tunnel.** Plain Wi-Fi is only okay for a quick same-room
-test where nobody needs to sign in securely.
+Racers **don't need the tunnel to register or race**: the registration wizard, the queue, and photo
+uploads all work over the plain Wi-Fi address, as long as the phone is on the same Wi-Fi as the
+laptop. What needs **`https://`** (the secure padlock) is phone **push notifications**, and online
+**payments** need the tunnel so Stripe can reach the app. So **for any real event, use the tunnel.**
+Plain Wi-Fi is fine for a same-room event with no notifications and no online payments.
+
+> **Pick one address before doors open.** A racer's login lives on their phone _for the address they
+> registered on_. The Wi-Fi address and the tunnel address count as two different sites, so a racer
+> who registered on the Wi-Fi address and later opens the tunnel address shows up as a stranger and
+> has to register again. So decide up front: for a tunnel event, **start the tunnel before racers
+> start registering** and keep it running; for a Wi-Fi-only event, leave the tunnel off and the
+> **Public racer URL** empty, so the QR shows the Wi-Fi address (see _Using and sharing the tunnel_).
 
 ## cloudflared — the tool that makes the tunnel
 
@@ -109,6 +117,10 @@ Cloudflare.
 
 - The **Tunnel card** and the projector can show a **QR code** pointing at the racer page. Racers
   scan it with their phone camera.
+- Which address the QR shows depends on your tunnel setup: with a **Public racer URL** set (token
+  mode), it always shows that address, even while the tunnel is stopped; in quick mode it shows the
+  quick tunnel's address while one is running; with neither, it shows the laptop's Wi-Fi address.
+  So in token mode, a stopped tunnel means the QR leads nowhere: start it before doors open.
 - With token mode, the address never changes, so you can also print it on a sign.
 - To take it down, click **Stop Tunnel**. To bring it back, **Start Tunnel**.
 
@@ -194,7 +206,8 @@ normal events.
 | --------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------------------- |
 | Tunnel **Status** won't go **active**         | cloudflared missing, bad token, or no internet            | Install cloudflared; recheck the token; confirm internet    |
 | Token-mode URL loads but styles/QR are broken | Public Hostname pointed at `5173` or Path set to `/racer` | Fix it to `HTTP` → `127.0.0.1:3187`, Path empty             |
-| Racers can open the page but can't sign in    | They're on a plain `http://` Wi-Fi link                   | Have them use the **tunnel `https://`** address / QR        |
+| Racer "forgotten" after switching addresses   | They registered on the Wi-Fi address, now on the tunnel   | They register again; pick one address before doors open     |
+| QR leads to a page that won't load            | Token mode with the tunnel stopped (QR still shows it)    | **Start Tunnel**, or clear **Public racer URL** and restart |
 | Quick-mode URL stopped working                | Quick URLs change on restart                              | Re-share the new URL, or switch to token mode               |
 | Notifications never arrive                    | Push keys missing, or racers not on the tunnel            | Generate push keys + restart; confirm they're on the tunnel |
 | **Web Push** pill says **Not configured**     | Push keys not generated/applied                           | **Generate Push Keys**, then fully restart                  |

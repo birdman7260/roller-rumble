@@ -15,7 +15,7 @@ tournament, or trying to figure out why something isn't working, you're in the r
    the Overview below, then jump to whatever you need.
 2. **Ask an AI assistant.** You can paste one of these pages (or several) into a chat with an AI
    assistant like Claude or ChatGPT and ask it questions in your own words — for example,
-   _"The racer page won't let someone sign in, what do I check?"_ The pages are written so an AI
+   _"A racer got a new phone and can't get back in, what do I do?"_ The pages are written so an AI
    can give you accurate answers from them. For best results, paste the specific page your
    question is about **plus** the Troubleshooting page.
 
@@ -28,7 +28,7 @@ Read them in order the first time. After that, treat them as reference.
 | 1   | [Overview & Key Concepts](01-overview.md)                   | What the app is, its three screens, and the words we use         |
 | 2   | [First-Time Setup](02-first-time-setup.md)                  | Installing, the settings file, keys, and getting the app running |
 | 3   | [Running an Event](03-running-an-event.md)                  | Creating an event, adding racers, the queue, running a race      |
-| 4   | [The Racer Phone Page](04-racer-phone-page.md)              | How racers sign in, join, challenge, and recover their account   |
+| 4   | [The Racer Phone Page](04-racer-phone-page.md)              | How racers register, join, and challenge each other              |
 | 5   | [Tournaments & Brackets](05-tournaments.md)                 | Single/double elimination, round robin, groups                   |
 | 6   | [Payments (Stripe)](06-payments.md)                         | Charging an entrance fee before racers can join                  |
 | 7   | [Going Online (Tunnel & Notifications)](07-going-online.md) | Letting phones connect over the internet and sending push alerts |
