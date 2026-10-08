@@ -6,6 +6,9 @@ const snapshot = {
   raceProjection: {
     race: null
   },
+  settings: {
+    raceDisplayLaneColorsFlipped: false
+  },
   racers: [
     {
       racer: {
@@ -52,6 +55,103 @@ function makeBundle(nodeIds: string[]): TournamentBundle {
   };
 }
 
+/** A one-match bracket with the given slots and state, for reading the slots' bike colours. */
+function makeMatchBundle(
+  node: Pick<TournamentBundle["bracketNodes"][number], "racerAId" | "racerBId" | "state"> & {
+    winnerRacerId?: string | null;
+  }
+): TournamentBundle {
+  const bundle = makeBundle(["match-1"]);
+  return { ...bundle, bracketNodes: [{ ...bundle.bracketNodes[0], ...node }] };
+}
+
+function slotBikeColors(flowSnapshot: AppSnapshot, bundle: TournamentBundle) {
+  return buildBracketFlow(flowSnapshot, bundle, false).nodes[0]?.data.participants.map(
+    (participant) => participant.bikeColor
+  );
+}
+
+describe("bracket slot bike colours", () => {
+  it("colours a match still to race: slot A the left bike, slot B the right", () => {
+    expect(
+      slotBikeColors(
+        snapshot,
+        makeMatchBundle({ racerAId: "racer-1", racerBId: "racer-2", state: "ready" })
+      )
+    ).toEqual(["orange", "purple"]);
+  });
+
+  it("colours only the filled slot of a pending match", () => {
+    expect(
+      slotBikeColors(
+        snapshot,
+        makeMatchBundle({ racerAId: null, racerBId: "racer-2", state: "pending" })
+      )
+    ).toEqual([null, "purple"]);
+  });
+
+  it("leaves finished matches and byes plain", () => {
+    expect(
+      slotBikeColors(
+        snapshot,
+        makeMatchBundle({
+          racerAId: "racer-1",
+          racerBId: "racer-2",
+          state: "finished",
+          winnerRacerId: "racer-1"
+        })
+      )
+    ).toEqual([null, null]);
+    expect(
+      slotBikeColors(
+        snapshot,
+        makeMatchBundle({
+          racerAId: "racer-1",
+          racerBId: null,
+          state: "bye",
+          winnerRacerId: "racer-1"
+        })
+      )
+    ).toEqual([null, null]);
+  });
+
+  it("follows a lane swap on the match on the bikes", () => {
+    const swappedSnapshot = {
+      ...snapshot,
+      raceProjection: {
+        race: {
+          tournamentId: "tournament-1",
+          participants: [
+            { racerId: "racer-2", lane: "left" },
+            { racerId: "racer-1", lane: "right" }
+          ]
+        }
+      }
+    } as unknown as AppSnapshot;
+
+    expect(
+      slotBikeColors(
+        swappedSnapshot,
+        makeMatchBundle({ racerAId: "racer-1", racerBId: "racer-2", state: "ready" })
+      )
+    ).toEqual(["purple", "orange"]);
+  });
+
+  it("follows the flipped lane colours", () => {
+    const flippedSnapshot = {
+      ...snapshot,
+      settings: { raceDisplayLaneColorsFlipped: true }
+    } as AppSnapshot;
+
+    expect(
+      slotBikeColors(
+        flippedSnapshot,
+        makeMatchBundle({ racerAId: "racer-1", racerBId: "racer-2", state: "ready" })
+      )
+    ).toEqual(["purple", "orange"]);
+  });
+});
+
 describe("tournament flow layout", () => {
   it("marks only the match pinned up next", () => {
     const flow = buildBracketFlow(snapshot, makeBundle(["match-1", "match-2"]), true, {
@@ -74,6 +174,9 @@ describe("tournament flow layout", () => {
     const byeSnapshot = {
       raceProjection: {
         race: null
+      },
+      settings: {
+        raceDisplayLaneColorsFlipped: false
       },
       racers: [
         {

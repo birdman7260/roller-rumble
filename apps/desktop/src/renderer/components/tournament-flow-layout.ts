@@ -11,12 +11,18 @@ import {
   getTournamentBracketSize,
   resolveTournamentRacerName
 } from "../lib/admin-competition";
+import { racerBikeColors, type BikeColor } from "../lib/bike-colors";
 
 export type BracketFlowSide = "left" | "right" | "center";
 export type ResolvedBracketLayout = "standard" | "center-converging";
 
 export interface BracketFlowParticipant {
   avatarUrl: string | null;
+  /**
+   * The bike this racer will ride, shown only while the match is still to race. Finished matches,
+   * byes and unfilled slots have no racer headed for a bike, so they stay plain.
+   */
+  bikeColor: BikeColor | null;
   id: string | null;
   isWinner: boolean;
   name: string;
@@ -117,7 +123,8 @@ function getParticipant(
   snapshot: AppSnapshot,
   bundle: TournamentBundle,
   node: BracketNode,
-  racerId?: string | null
+  racerId: string | null | undefined,
+  bikeColor: BikeColor | null
 ): BracketFlowParticipant {
   const isMissingByeOpponent = !racerId && node.state === "bye" && Boolean(node.winnerRacerId);
   const racer = racerId
@@ -126,11 +133,32 @@ function getParticipant(
 
   return {
     avatarUrl: racer?.avatarUrl ?? null,
+    bikeColor,
     id: racerId ?? null,
     isWinner: Boolean(racerId && node.winnerRacerId === racerId),
     name: isMissingByeOpponent ? "BYE" : resolveTournamentRacerName(snapshot, bundle, racerId),
     resultText: getParticipantResult(node, racerId)
   };
+}
+
+/**
+ * Slot A races the left bike and slot B the right, as staging assigns them, unless this is the match
+ * on the bikes: then its race's lanes win so a `lane swap` shows on the bracket too.
+ */
+function getSlotBikeColors(
+  snapshot: AppSnapshot,
+  node: BracketNode,
+  isCurrentMatch: boolean
+): (BikeColor | null)[] {
+  if (node.state !== "pending" && node.state !== "ready") {
+    return [null, null];
+  }
+
+  return racerBikeColors(
+    [node.racerAId ?? null, node.racerBId ?? null],
+    isCurrentMatch ? snapshot.raceProjection.race : null,
+    snapshot.settings.raceDisplayLaneColorsFlipped
+  );
 }
 
 function getRoundOneMatchCount(nodes: BracketNode[]): number {
@@ -360,6 +388,11 @@ export function buildBracketFlow(
 
   const nodes = bundle.bracketNodes.map((node): BracketFlowNode => {
     const placement = placements.get(node.id) ?? { side: "left", x: 0, y: 0 };
+    const [racerABikeColor, racerBBikeColor] = getSlotBikeColors(
+      snapshot,
+      node,
+      node.id === currentMatchNodeId
+    );
 
     return {
       id: node.id,
@@ -380,8 +413,8 @@ export function buildBracketFlow(
         onSelectMatch: undefined,
         pinned: options.pinnedNodeId === node.id,
         participants: [
-          getParticipant(snapshot, bundle, node, node.racerAId),
-          getParticipant(snapshot, bundle, node, node.racerBId)
+          getParticipant(snapshot, bundle, node, node.racerAId, racerABikeColor),
+          getParticipant(snapshot, bundle, node, node.racerBId, racerBBikeColor)
         ],
         roundLabel: getRoundLabel(node),
         side: placement.side,

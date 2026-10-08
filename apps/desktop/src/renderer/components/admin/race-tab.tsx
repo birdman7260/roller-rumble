@@ -10,7 +10,9 @@ import {
   TextInput
 } from "@roller-rumble/shared-ui";
 import { removeRacerFromQueueEntry, updateSettings } from "../../lib/api";
-import { describeQueueEntry, formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
+import { queueEntryBikeColors } from "../../lib/bike-colors";
+import { describeQueueEntry, resolveRacerName } from "../../lib/snapshot-display";
+import { RacerNamesByBike } from "../racer-names-by-bike";
 import { fireAndForget } from "../../lib/ui-actions";
 import { useMasonryGrid } from "../../lib/use-masonry-grid";
 
@@ -238,7 +240,13 @@ export function RaceTab({
                   <div>
                     <strong>#{entry.position}</strong>
                     {isStagedMatch ? <span className="queue-status-pill">Staged</span> : null}
-                    <p>{formatRacerNames(snapshot, entry.racerIds)}</p>
+                    <p>
+                      <RacerNamesByBike
+                        colors={queueEntryBikeColors(snapshot, entry)}
+                        racerIds={entry.racerIds}
+                        snapshot={snapshot}
+                      />
+                    </p>
                     <p>{describeQueueEntry(entry)}</p>
                   </div>
                   <div className="button-row">

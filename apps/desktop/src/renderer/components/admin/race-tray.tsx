@@ -12,12 +12,14 @@ import {
   swapCurrentRaceLanes,
   unstageCurrentRace
 } from "../../lib/api";
-import { describeQueueEntry, formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
+import { queueEntryBikeColors, tournamentEntryBikeColors } from "../../lib/bike-colors";
+import { describeQueueEntry } from "../../lib/snapshot-display";
 import { canSwapRaceLanes } from "@roller-rumble/shared/race-lanes";
 import { LANE_SWAP_SHORTCUT_KEY } from "../../lib/lane-swap";
 import { isShortcutKeystroke } from "../../lib/shortcuts";
 import { fireAndForget } from "../../lib/ui-actions";
 import { Button } from "@roller-rumble/shared-ui";
+import { RacerNamesByBike } from "../racer-names-by-bike";
 import { CurrentRaceActionRows, CurrentRaceSummary } from "./current-race-controls";
 import type { AdminTabId } from "./types";
 
@@ -106,7 +108,11 @@ export function AdminRaceTray({
             <div className="stack-sm">
               <strong>
                 #{nextTournamentEntry.position}{" "}
-                {formatRacerNames(snapshot, nextTournamentEntry.racerIds)}
+                <RacerNamesByBike
+                  colors={tournamentEntryBikeColors(snapshot, nextTournamentEntry)}
+                  racerIds={nextTournamentEntry.racerIds}
+                  snapshot={snapshot}
+                />
               </strong>
               <span className="admin-race-tray__detail">
                 {[
@@ -135,9 +141,11 @@ export function AdminRaceTray({
             <div className="stack-sm">
               <strong>
                 #{nextQueueEntry.position}{" "}
-                {nextQueueEntry.racerIds
-                  .map((racerId) => resolveRacerName(snapshot, racerId))
-                  .join(" vs ")}
+                <RacerNamesByBike
+                  colors={queueEntryBikeColors(snapshot, nextQueueEntry)}
+                  racerIds={nextQueueEntry.racerIds}
+                  snapshot={snapshot}
+                />
               </strong>
               <span className="admin-race-tray__detail">{describeQueueEntry(nextQueueEntry)}</span>
             </div>

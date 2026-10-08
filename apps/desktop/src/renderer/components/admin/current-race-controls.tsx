@@ -1,5 +1,8 @@
+import { Fragment } from "react";
 import type { AppSnapshot, RaceRecord } from "@roller-rumble/shared/types";
-import { formatRacerNames, resolveRacerName } from "../../lib/snapshot-display";
+import { bikeColorForLane, racerBikeColors } from "../../lib/bike-colors";
+import { resolveRacerName } from "../../lib/snapshot-display";
+import { RacerNamesByBike, BikeName } from "../racer-names-by-bike";
 import { canSwapRaceLanes } from "@roller-rumble/shared/race-lanes";
 import { describeBike, describeLaneSwap, LANE_SWAP_SHORTCUT_KEY } from "../../lib/lane-swap";
 import { Button } from "@roller-rumble/shared-ui";
@@ -159,27 +162,35 @@ export function CurrentRaceSummary({
   snapshot: AppSnapshot;
   currentRace: RaceRecord;
 }) {
+  const laneColorsFlipped = snapshot.settings.raceDisplayLaneColorsFlipped;
+  const racerIds = currentRace.participants.map((participant) => participant.racerId);
+
   return (
     <div className="stack-sm">
       <strong>
         {currentRace.state.toUpperCase()} •{" "}
         {currentRace.format === "solo" ? "Solo" : "Head-to-head"}
       </strong>
+      {/* Each name in its bike's colour, read off the race's lanes so a lane swap recolours it. */}
       <span>
-        {formatRacerNames(
-          snapshot,
-          currentRace.participants.map((participant) => participant.racerId)
-        )}
+        <RacerNamesByBike
+          colors={racerBikeColors(racerIds, currentRace, laneColorsFlipped)}
+          racerIds={racerIds}
+          snapshot={snapshot}
+        />
       </span>
       {/* The lineup the app believes, spelled out per bike: a lane swap is only checkable if the
           operator can compare it against the riders actually sitting in front of them. */}
       <span className="admin-race-tray__detail">
-        {currentRace.participants
-          .map(
-            (participant) =>
-              `${describeBike(participant.lane)}: ${resolveRacerName(snapshot, participant.racerId)}`
-          )
-          .join(" • ")}
+        {currentRace.participants.map((participant, index) => (
+          <Fragment key={participant.racerId}>
+            {index > 0 ? " • " : null}
+            {describeBike(participant.lane)}:{" "}
+            <BikeName color={bikeColorForLane(participant.lane, laneColorsFlipped)}>
+              {resolveRacerName(snapshot, participant.racerId)}
+            </BikeName>
+          </Fragment>
+        ))}
       </span>
     </div>
   );

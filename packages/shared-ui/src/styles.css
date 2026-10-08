@@ -19,6 +19,18 @@ textarea {
   --ui-control-shadow: 0 0.55rem 1.4rem rgba(0, 0, 0, 0.18);
   --ui-control-hover-shadow: 0 0.8rem 1.6rem rgba(0, 0, 0, 0.22);
   --ui-field-bg: var(--theme-surface);
+  /* The colours the two physical bikes wear; the projector's lane colours are these too. */
+  --bike-color-orange: #ff8c00;
+  --bike-color-purple: #c060ff;
+}
+
+/* A racer's name in the colour of the bike they will ride, so they can find it at a glance. */
+.bike-name--orange {
+  color: var(--bike-color-orange);
+}
+
+.bike-name--purple {
+  color: var(--bike-color-purple);
 }
 
 .panel {

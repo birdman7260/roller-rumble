@@ -2,6 +2,7 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import type {
   AppSnapshot,
   QueueEntry,
+  RaceRecord,
   RacerSummary,
   TournamentBundle,
   TournamentQueueEntry
@@ -27,8 +28,19 @@ const racers = Object.entries(racerNames).map(([id, displayName]) => ({
 
 const liveSnapshot = {
   racers,
-  settings: { queueOpen: true, queueClosedMessage: "", queueMinutesPerRace: 3 }
+  raceProjection: { race: null },
+  settings: {
+    queueOpen: true,
+    queueClosedMessage: "",
+    queueMinutesPerRace: 3,
+    raceDisplayLaneColorsFlipped: false
+  }
 } as unknown as AppSnapshot;
+
+/** The snapshot with this race on the bikes. */
+function withStagedRace(race: Partial<RaceRecord>): AppSnapshot {
+  return { ...liveSnapshot, raceProjection: { race } } as unknown as AppSnapshot;
+}
 
 function queueEntry(position: number, racerIds: string[]): QueueEntry {
   return {
@@ -117,14 +129,73 @@ function queueRows() {
   return within(screen.getByRole("list", { name: "Race queue" })).getAllByRole("listitem");
 }
 
+function nextRaceCard() {
+  return screen.getByRole("region", { name: "Your next race" });
+}
+
+function nextRaceHeadline() {
+  return nextRaceCard().querySelector(".racer-state-card strong")?.textContent;
+}
+
+/** The bike colour a name is shown in, or null when it isn't coloured. */
+function bikeColorOf(element: HTMLElement): string | null {
+  const bikeClass = [...element.classList].find((name) => name.startsWith("bike-name--"));
+  return bikeClass ? bikeClass.replace("bike-name--", "") : null;
+}
+
 describe("RumbleTab", () => {
   it("shows the racer's next race above the queue while they are in it", () => {
     renderRumble({ upcoming: eightRaces });
 
-    const card = screen.getByRole("region", { name: "Your next race" });
-    expect(within(card).getByText("vs Eli")).toBeInTheDocument();
+    const card = nextRaceCard();
+    expect(nextRaceHeadline()).toBe("You vs Eli");
     expect(within(card).getByText(/#3/)).toBeInTheDocument();
     expect(within(card).getByText(/In 6 minutes/)).toBeInTheDocument();
+  });
+
+  it("colours You and the opponent by the bike each will ride", () => {
+    renderRumble({ upcoming: [queueEntry(1, ["me", "eli"])] });
+    expect(bikeColorOf(within(nextRaceCard()).getByText("You"))).toBe("orange");
+    expect(bikeColorOf(within(nextRaceCard()).getByText("Eli"))).toBe("purple");
+  });
+
+  it("puts the racer on the right bike when they are second in the lineup", () => {
+    renderRumble({ upcoming: [queueEntry(1, ["eli", "me"])] });
+    expect(nextRaceHeadline()).toBe("You vs Eli");
+    expect(bikeColorOf(within(nextRaceCard()).getByText("You"))).toBe("purple");
+    expect(bikeColorOf(within(nextRaceCard()).getByText("Eli"))).toBe("orange");
+  });
+
+  it("follows a lane swap on the race already staged", () => {
+    const staged = { ...queueEntry(1, ["me", "eli"]), status: "staging" as const };
+    renderRumble({
+      liveSnapshot: withStagedRace({
+        queueEntryId: staged.id,
+        participants: [
+          { racerId: "eli", lane: "left" },
+          { racerId: "me", lane: "right" }
+        ]
+      }),
+      upcoming: [staged]
+    });
+
+    expect(bikeColorOf(within(nextRaceCard()).getByText("You"))).toBe("purple");
+    expect(bikeColorOf(within(queueRows()[0]).getByText("Mo"))).toBe("purple");
+    expect(bikeColorOf(within(queueRows()[0]).getByText("Eli"))).toBe("orange");
+  });
+
+  it("colours a solo run by the bike the racer will ride", () => {
+    renderRumble({ upcoming: [queueEntry(1, ["me"])] });
+    expect(bikeColorOf(within(nextRaceCard()).getByText("Your run"))).toBe("orange");
+  });
+
+  it("colours each queued racer's name by the bike they will ride", () => {
+    renderRumble({ upcoming: eightRaces });
+
+    expect(queueRows()[0].querySelector("strong")?.textContent).toBe("#1 Ana vs Ben");
+    expect(bikeColorOf(within(queueRows()[0]).getByText("Ana"))).toBe("orange");
+    expect(bikeColorOf(within(queueRows()[0]).getByText("Ben"))).toBe("purple");
+    expect(bikeColorOf(within(queueRows()[3]).getByText("Fay"))).toBe("orange");
   });
 
   it("adds the time estimate to a hype line on the next race card", () => {
@@ -224,6 +295,8 @@ describe("RumbleTab", () => {
         "#3 Ana vs TBD"
       ]);
       expect(within(tourneyRows()[0]).getByText("Round 1")).toBeInTheDocument();
+      expect(bikeColorOf(within(tourneyRows()[2]).getByText("Ana"))).toBe("orange");
+      expect(bikeColorOf(within(tourneyRows()[2]).getByText("TBD"))).toBeNull();
       expect(
         tourneyRows().map((row) => row.querySelector(".racer-queue-row__eta")?.textContent)
       ).toEqual(["NOW!", "In 3 minutes", "In 6 minutes"]);
@@ -239,8 +312,10 @@ describe("RumbleTab", () => {
     it("shows the racer's next tourney race above the queue", () => {
       renderTourney();
 
-      const card = screen.getByRole("region", { name: "Your next race" });
-      expect(within(card).getByText("vs Cy")).toBeInTheDocument();
+      const card = nextRaceCard();
+      expect(nextRaceHeadline()).toBe("You vs Cy");
+      expect(bikeColorOf(within(card).getByText("You"))).toBe("orange");
+      expect(bikeColorOf(within(card).getByText("Cy"))).toBe("purple");
       expect(within(card).getByText(/#2/)).toBeInTheDocument();
       expect(within(card).getByText(/In 3 minutes/)).toBeInTheDocument();
     });
@@ -252,8 +327,9 @@ describe("RumbleTab", () => {
         tournamentQueue: [tourneyEntry(1, ["me", "cy"]), tourneyEntry(2, [null, "ana"])]
       });
 
-      const card = screen.getByRole("region", { name: "Your next race" });
-      expect(within(card).getByText("vs TBD")).toBeInTheDocument();
+      expect(nextRaceHeadline()).toBe("You vs TBD");
+      expect(bikeColorOf(within(nextRaceCard()).getByText("You"))).toBe("purple");
+      expect(bikeColorOf(within(nextRaceCard()).getByText("TBD"))).toBeNull();
     });
 
     it("says so when the tourney has no races left to run", () => {

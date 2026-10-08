@@ -2556,7 +2556,7 @@ p {
 
 .race-lane {
   --race-lane-color: #ff6500;
-  --race-lane-color-bright: #ff8c00;
+  --race-lane-color-bright: var(--bike-color-orange);
   --race-lane-color-soft: rgba(255, 101, 0, 0.22);
   --race-lane-color-shadow: rgba(255, 101, 0, 0.38);
   --race-lane-avatar-size: clamp(6.8rem, 10.4vw, 11rem);
@@ -2566,14 +2566,14 @@ p {
 
 .race-lane--orange {
   --race-lane-color: #ff6500;
-  --race-lane-color-bright: #ff8c00;
+  --race-lane-color-bright: var(--bike-color-orange);
   --race-lane-color-soft: rgba(255, 101, 0, 0.22);
   --race-lane-color-shadow: rgba(255, 101, 0, 0.38);
 }
 
 .race-lane--purple {
   --race-lane-color: #a020f0;
-  --race-lane-color-bright: #c060ff;
+  --race-lane-color-bright: var(--bike-color-purple);
   --race-lane-color-soft: rgba(160, 32, 240, 0.24);
   --race-lane-color-shadow: rgba(160, 32, 240, 0.4);
 }
@@ -3881,6 +3881,32 @@ button.tournament-match-node:active {
 :root[data-theme-ui="pixel"] .tournament-match-node__participant.winner {
   color: #15110d;
   background: var(--theme-success);
+}
+
+/*
+ * A slot still to race wears the colour of the bike its racer will ride. Listed after the pixel
+ * slot background so the bike tint wins on every theme.
+ */
+.tournament-match-node__participant--bike-orange {
+  --bracket-slot-bike-color: var(--bike-color-orange);
+}
+
+.tournament-match-node__participant--bike-purple {
+  --bracket-slot-bike-color: var(--bike-color-purple);
+}
+
+.tournament-match-node__participant--bike-orange,
+.tournament-match-node__participant--bike-purple,
+:root[data-theme-ui="pixel"] .tournament-match-node__participant--bike-orange,
+:root[data-theme-ui="pixel"] .tournament-match-node__participant--bike-purple {
+  background: color-mix(in srgb, var(--bracket-slot-bike-color) 18%, transparent);
+  box-shadow: inset 0.22rem 0 0 var(--bracket-slot-bike-color);
+}
+
+.tournament-match-node__participant--bike-orange .tournament-match-node__name,
+.tournament-match-node__participant--bike-purple .tournament-match-node__name {
+  color: var(--bracket-slot-bike-color);
+  font-weight: 700;
 }
 
 :root[data-theme-connector="pixel"] .tournament-connector-edge__base {

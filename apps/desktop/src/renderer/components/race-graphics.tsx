@@ -17,6 +17,7 @@ import type {
   ThemeDefinition
 } from "@roller-rumble/shared/types";
 import { resolveBackendAssetUrl } from "../lib/assets";
+import { bikeColorForLane } from "../lib/bike-colors";
 import type { ProjectorParticipantEntry } from "../lib/snapshot-display";
 import { getMonogram } from "../lib/monogram";
 import { useLaneGlow } from "../lib/use-lane-glow";
@@ -68,8 +69,6 @@ interface RaceGraphicProps {
    */
   streakIntensityOverride?: Record<string, number>;
 }
-
-type RaceLaneColor = "orange" | "purple";
 
 const FALLBACK_MIN_NAME_FONT_SIZE_PX = 22;
 
@@ -261,18 +260,12 @@ function getVerticalMarkerPosition(percentageValue: string, spriteHeightRem: num
  * for a solo racer — always slot zero — the lane is the only thing that can move, so this is what
  * makes a `lane swap` visible on the projector.
  */
-function getLaneColor(lane: RaceParticipant["lane"], laneColorsFlipped: boolean): RaceLaneColor {
-  const topLaneColor: RaceLaneColor = laneColorsFlipped ? "purple" : "orange";
-  const secondaryLaneColor: RaceLaneColor = laneColorsFlipped ? "orange" : "purple";
-  return lane === "right" ? secondaryLaneColor : topLaneColor;
-}
-
 function getLaneClassName(
   baseClassName: string,
   lane: RaceParticipant["lane"],
   laneColorsFlipped: boolean
 ): string {
-  return `${baseClassName} race-lane race-lane--${getLaneColor(lane, laneColorsFlipped)}`;
+  return `${baseClassName} race-lane race-lane--${bikeColorForLane(lane, laneColorsFlipped)}`;
 }
 
 /** Merge the per-lane cue intensities into a marker's inline style as CSS variables. */

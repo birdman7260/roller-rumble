@@ -87,6 +87,10 @@ export function TournamentMatchNode({ data, selected }: NodeProps<BracketFlowNod
               key={participant.id ?? `${data.appNodeId}:${index}`}
               className={`tournament-match-node__participant${
                 participant.isWinner ? " winner" : ""
+              }${
+                participant.bikeColor
+                  ? ` tournament-match-node__participant--bike-${participant.bikeColor}`
+                  : ""
               }`}
             >
               <div className="tournament-match-node__identity">

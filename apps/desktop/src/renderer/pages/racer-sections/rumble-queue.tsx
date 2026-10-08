@@ -1,7 +1,9 @@
 import type { AppSnapshot, QueueEntry, TournamentQueueEntry } from "@roller-rumble/shared/types";
 import { Button, EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { useState, type ReactNode } from "react";
-import { formatRacerNames, isLeavableByRacer } from "../../lib/snapshot-display";
+import { RacerNamesByBike } from "../../components/racer-names-by-bike";
+import { queueEntryBikeColors, tournamentEntryBikeColors } from "../../lib/bike-colors";
+import { isLeavableByRacer } from "../../lib/snapshot-display";
 import { getQueuePositionLabel } from "./queue-position-label";
 
 /** How many races a queue shows before the racer taps Show more. */
@@ -13,7 +15,7 @@ function QueueRowTitle({
   position
 }: {
   isMine: boolean;
-  names: string;
+  names: ReactNode;
   position: number;
 }) {
   return (
@@ -42,7 +44,13 @@ function QueueRow({
       <div className="racer-queue-row__body">
         <QueueRowTitle
           isMine={isMine}
-          names={formatRacerNames(liveSnapshot, entry.racerIds)}
+          names={
+            <RacerNamesByBike
+              colors={queueEntryBikeColors(liveSnapshot, entry)}
+              racerIds={entry.racerIds}
+              snapshot={liveSnapshot}
+            />
+          }
           position={entry.position}
         />
         <span className="racer-queue-row__eta">
@@ -81,7 +89,13 @@ function TournamentQueueRow({
         <div className="racer-queue-row__match">
           <QueueRowTitle
             isMine={isMine}
-            names={formatRacerNames(liveSnapshot, entry.racerIds)}
+            names={
+              <RacerNamesByBike
+                colors={tournamentEntryBikeColors(liveSnapshot, entry)}
+                racerIds={entry.racerIds}
+                snapshot={liveSnapshot}
+              />
+            }
             position={entry.position}
           />
           {entry.roundLabel ? (

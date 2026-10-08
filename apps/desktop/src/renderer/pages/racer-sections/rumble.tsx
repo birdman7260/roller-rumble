@@ -6,7 +6,13 @@ import type {
   TournamentQueueEntry
 } from "@roller-rumble/shared/types";
 import { Button, Panel } from "@roller-rumble/shared-ui";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
+import { BikeName } from "../../components/racer-names-by-bike";
+import {
+  queueEntryBikeColors,
+  tournamentEntryBikeColors,
+  type BikeColor
+} from "../../lib/bike-colors";
 import {
   describeQueueEntry,
   isLeavableByRacer,
@@ -18,16 +24,52 @@ import { getNextRaceTimingLabel } from "./queue-position-label";
 import { RumbleQueuePanel, TournamentQueuePanel } from "./rumble-queue";
 import { InlineTabLink } from "./inline-tab-link";
 
+interface NextRaceRider {
+  key: string;
+  name: string;
+  bikeColor: BikeColor | null;
+}
+
+/**
+ * Split a race's racers into the signed-in racer's bike and their opponents, each with the bike they will
+ * ride. An opponent the bracket hasn't decided reads as TBD and has no bike colour yet.
+ */
+function splitNextRaceRiders(
+  liveSnapshot: AppSnapshot,
+  racerIds: readonly (string | null)[],
+  bikeColors: (BikeColor | null)[],
+  selectedRacerId: string
+): { ownBikeColor: BikeColor | null; opponents: NextRaceRider[] } {
+  const ownIndex = racerIds.indexOf(selectedRacerId);
+  return {
+    ownBikeColor: bikeColors[ownIndex] ?? null,
+    opponents: racerIds.flatMap((racerId, index) =>
+      index === ownIndex
+        ? []
+        : [
+            {
+              key: racerId ?? `slot:${String(index)}`,
+              name: resolveRacerName(liveSnapshot, racerId, "TBD"),
+              bikeColor: bikeColors[index] ?? null
+            }
+          ]
+    )
+  };
+}
+
 function NextRaceCardView({
   children,
   matchLabel,
-  opponentNames,
+  opponents,
+  ownBikeColor,
   position,
   timing
 }: {
   children?: ReactNode;
   matchLabel: string;
-  opponentNames: string[];
+  opponents: NextRaceRider[];
+  /** The bike the signed-in racer will ride, so they can find it before they're called up. */
+  ownBikeColor: BikeColor | null;
   position: number;
   timing: string;
 }) {
@@ -37,7 +79,19 @@ function NextRaceCardView({
         <div className="racer-state-card">
           <span>{matchLabel}</span>
           <strong>
-            {opponentNames.length > 0 ? `vs ${opponentNames.join(" & ")}` : "Your run"}
+            {opponents.length > 0 ? (
+              <>
+                <BikeName color={ownBikeColor}>You</BikeName> vs{" "}
+                {opponents.map((opponent, index) => (
+                  <Fragment key={opponent.key}>
+                    {index > 0 ? " & " : null}
+                    <BikeName color={opponent.bikeColor}>{opponent.name}</BikeName>
+                  </Fragment>
+                ))}
+              </>
+            ) : (
+              <BikeName color={ownBikeColor}>Your run</BikeName>
+            )}
           </strong>
           <p>
             #{position} in line · {timing}
@@ -75,8 +129,11 @@ function NextRaceCard({
   return (
     <NextRaceCardView
       matchLabel={describeQueueEntry(nextEntry)}
-      opponentNames={nextEntry.racerIds.flatMap((racerId) =>
-        racerId === selectedRacerId ? [] : [resolveRacerName(liveSnapshot, racerId)]
+      {...splitNextRaceRiders(
+        liveSnapshot,
+        nextEntry.racerIds,
+        queueEntryBikeColors(liveSnapshot, nextEntry),
+        selectedRacerId
       )}
       position={nextEntry.position}
       timing={getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace)}
@@ -119,8 +176,11 @@ function TournamentNextRaceCard({
   return (
     <NextRaceCardView
       matchLabel={nextEntry.roundLabel ?? "Tourney race"}
-      opponentNames={nextEntry.racerIds.flatMap((racerId) =>
-        racerId === selectedRacerId ? [] : [resolveRacerName(liveSnapshot, racerId, "TBD")]
+      {...splitNextRaceRiders(
+        liveSnapshot,
+        nextEntry.racerIds,
+        tournamentEntryBikeColors(liveSnapshot, nextEntry),
+        selectedRacerId
       )}
       position={nextEntry.position}
       timing={getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace)}

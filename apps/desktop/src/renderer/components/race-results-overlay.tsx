@@ -8,8 +8,7 @@ import { LANE_DISPLAY_ORDER } from "@roller-rumble/shared/race-lanes";
 import { Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../lib/assets";
-
-type RaceResultLaneColor = "orange" | "purple";
+import { bikeColorForLane } from "../lib/bike-colors";
 
 function formatSpeed(value: number | undefined): string {
   return `${(value ?? 0).toFixed(1)} km/h`;
@@ -33,19 +32,10 @@ function getMetricForRacer(
 }
 
 // Placement and colour both follow the bike the racer was on, matching the live display
-// (`getLaneColor` in race-graphics). A solo racer keeps the same centered geometry either way, but
+// (`bikeColorForLane`). A solo racer keeps the same centered geometry either way, but
 // their lane colour moves with them — which is what makes a `lane swap` visible for a lone rider.
 function getParticipantLaneClass(lane: RaceParticipant["lane"]): string {
   return lane === "right" ? "race-page__result-card--right" : "race-page__result-card--left";
-}
-
-function getParticipantLaneColor(
-  lane: RaceParticipant["lane"],
-  laneColorsFlipped: boolean
-): RaceResultLaneColor {
-  const leadColor: RaceResultLaneColor = laneColorsFlipped ? "purple" : "orange";
-  const secondaryColor: RaceResultLaneColor = laneColorsFlipped ? "orange" : "purple";
-  return lane === "right" ? secondaryColor : leadColor;
 }
 
 function getOrderedResultParticipants(race: RaceRecord): RaceParticipant[] {
@@ -105,7 +95,7 @@ export function RaceResultsOverlay({
             const identityClassName = `race-page__result-identity${
               avatarUrl ? "" : " race-page__result-identity--no-avatar"
             }`;
-            const laneColor = getParticipantLaneColor(participant.lane, laneColorsFlipped);
+            const laneColor = bikeColorForLane(participant.lane, laneColorsFlipped);
 
             return (
               <Panel
