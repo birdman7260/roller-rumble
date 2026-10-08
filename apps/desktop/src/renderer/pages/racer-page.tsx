@@ -35,6 +35,7 @@ import {
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { resolveRacerName } from "../lib/snapshot-display";
 import { fireAndForget } from "../lib/ui-actions";
+import { useHeightCssVariable } from "../lib/use-height-css-variable";
 import {
   racerNotificationsQueryKey,
   snapshotQueryKey,
@@ -1479,6 +1480,20 @@ function RacerPageModals({
   );
 }
 
+/**
+ * The queue actions and tabs at the foot of the page. The phone layout fixes it to the bottom of the
+ * screen, so it publishes its live height (tabs alone, or tabs plus a queue row that may wrap) for
+ * the page and toasts to clear.
+ */
+function RacerBottomDock({ children }: { children: ReactNode }) {
+  const dockRef = useHeightCssVariable<HTMLDivElement>("--racer-bottom-dock-height");
+  return (
+    <div ref={dockRef} className="racer-bottom-dock">
+      {children}
+    </div>
+  );
+}
+
 function RacerPageView(props: RacerPageViewProps) {
   const {
     activeTabs,
@@ -1553,7 +1568,7 @@ function RacerPageView(props: RacerPageViewProps) {
       <div
         className={`racer-page-shell${bracketExpanded ? " racer-page-shell--expanded" : ""}${
           authOnlyMode ? " racer-page-shell--auth-only" : ""
-        }${queueDockState === "hidden" ? "" : " racer-page-shell--queue-dock"}`}
+        }`}
       >
         {!bracketExpanded ? (
           <RacerEventBar
@@ -1690,7 +1705,7 @@ function RacerPageView(props: RacerPageViewProps) {
         </div>
 
         {!bracketExpanded && activeTabs.length > 1 ? (
-          <div className="racer-bottom-dock">
+          <RacerBottomDock>
             <QueueDock
               state={queueDockState}
               allowSolo={liveSnapshot.settings.allowSoloQueue}
@@ -1703,7 +1718,7 @@ function RacerPageView(props: RacerPageViewProps) {
               onTabChange={handleTabChange}
               visibleActiveTab={visibleActiveTab}
             />
-          </div>
+          </RacerBottomDock>
         ) : null}
       </div>
       <RacerPageModals {...props} />

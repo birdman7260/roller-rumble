@@ -4553,17 +4553,18 @@ button.tournament-match-node:active {
     overflow: visible;
     overscroll-behavior: auto;
     padding-right: 0;
-    padding-bottom: calc(5rem + env(safe-area-inset-bottom));
+    /* Clear the fixed bottom dock by its measured height (set from the page as
+       --racer-bottom-dock-height, safe area included), so the last card stays
+       reachable whether or not the queue actions row is showing. */
+    padding-bottom: calc(var(--racer-bottom-dock-height, 0px) + 0.75rem);
   }
 
-  /* The docked queue actions add a row above the tabs; keep the last card and
-     toasts clear of it. */
-  body.route-racer .racer-page-shell--queue-dock .racer-page-grid {
-    padding-bottom: calc(8.5rem + env(safe-area-inset-bottom));
-  }
-
-  body.route-racer:has(.racer-page-shell--queue-dock) {
-    --toast-bottom-offset: 8.75rem;
+  /* Toasts float just above the dock. The toast viewport adds the safe area
+     itself, and the measured dock height already includes it. */
+  body.route-racer:has(.racer-bottom-dock) {
+    --toast-bottom-offset: calc(
+      var(--racer-bottom-dock-height, 0px) + 0.5rem - env(safe-area-inset-bottom, 0px)
+    );
   }
 
   body.route-racer .racer-page-shell:not(.racer-page-shell--expanded) .racer-bottom-dock {
