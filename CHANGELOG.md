@@ -12,6 +12,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+## 0.1.25 - 2026-10-09
+
+### Added
+
+### Changed
+
+### Fixed
+
 - The Intel Mac download (`mac-x64`) now opens. In 0.1.24 the app icon appeared in the Dock but no window ever opened.
 
 ## 0.1.24 - 2026-10-09
