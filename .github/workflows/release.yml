@@ -48,6 +48,11 @@ jobs:
             artifact: roller-rumble-windows
     env:
       CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      # electron-builder hard-links node_modules into the packaged app when
+      # it detects CI. The mac build rebuilds native modules in place for
+      # each arch, so the arm64 rebuild overwrote better-sqlite3 inside the
+      # already-packaged x64 app and Intel builds shipped an arm64 binary.
+      USE_HARD_LINKS: "false"
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
