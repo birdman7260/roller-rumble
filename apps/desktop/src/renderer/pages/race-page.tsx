@@ -1,3 +1,4 @@
+import { COUNTDOWN_DURATION_MS, COUNTDOWN_SECONDS } from "@roller-rumble/shared/constants";
 import type {
   AppSnapshot,
   QueueEntry,
@@ -26,6 +27,7 @@ import { buildParticipantEntries, resolveRacerName } from "../lib/snapshot-displ
 
 const TOURNAMENT_PRE_RACE_STATES: RaceRecord["state"][] = ["scheduled", "staging", "interrupted"];
 const TOURNAMENT_LIVE_STATES: RaceRecord["state"][] = ["countdown", "active"];
+const COUNTDOWN_BEAT_MS = COUNTDOWN_DURATION_MS / COUNTDOWN_SECONDS;
 const BRACKET_RETURN_FOCUS_DELAY_MS = 1050;
 const WINNER_ADVANCE_ANIMATION_MS = 1200;
 const BRACKET_HOLD_AFTER_ADVANCE_MS = 5000;
@@ -569,6 +571,60 @@ function RaceResultsLayer({ model }: { model: RacePageViewModel }) {
   );
 }
 
+/**
+ * The full-screen countdown numbers, followed by a "RUMBLE!" held for one countdown beat once the
+ * race goes live. RUMBLE! only plays for a countdown this display actually watched, so reopening
+ * the projector mid-race doesn't replay it.
+ */
+function CountdownOverlay({
+  race,
+  secondsRemaining
+}: {
+  race: RaceRecord | null;
+  secondsRemaining: number | null;
+}) {
+  // The countdown this display watched, and whether its race has gone live and is showing RUMBLE!.
+  const [watched, setWatched] = useState<{ raceId: string; rumbling: boolean } | null>(null);
+
+  if (race?.state === "countdown") {
+    if (watched?.raceId !== race.id || watched.rumbling) {
+      setWatched({ raceId: race.id, rumbling: false });
+    }
+  } else if (watched && !watched.rumbling) {
+    setWatched(
+      race?.id === watched.raceId && race.state === "active"
+        ? { raceId: race.id, rumbling: true }
+        : null
+    );
+  }
+
+  const rumbling = watched?.rumbling ?? false;
+
+  useEffect(() => {
+    if (!rumbling) {
+      return;
+    }
+
+    const timerId = window.setTimeout(() => {
+      setWatched(null);
+    }, COUNTDOWN_BEAT_MS);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [rumbling]);
+
+  if (secondsRemaining != null && secondsRemaining > 0) {
+    return <div className="countdown-overlay">{secondsRemaining}</div>;
+  }
+
+  if (secondsRemaining === 0 || rumbling) {
+    return <div className="countdown-overlay countdown-overlay--rumble">RUMBLE!</div>;
+  }
+
+  return null;
+}
+
 function RacePageView({ model }: { model: RacePageViewModel }) {
   return (
     <div
@@ -593,13 +649,10 @@ function RacePageView({ model }: { model: RacePageViewModel }) {
       />
       <LocalMark variant={model.orientation === "horizontal" ? "footer" : "corner"} />
 
-      {model.projection.countdownSecondsRemaining ? (
-        <div className="countdown-overlay">
-          {model.projection.countdownSecondsRemaining > 0
-            ? model.projection.countdownSecondsRemaining
-            : "GO!"}
-        </div>
-      ) : null}
+      <CountdownOverlay
+        race={model.projection.race}
+        secondsRemaining={model.projection.countdownSecondsRemaining}
+      />
 
       <RaceStage model={model} />
       <RaceResultsLayer model={model} />

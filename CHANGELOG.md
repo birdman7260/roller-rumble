@@ -8,6 +8,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- When the race countdown finishes, the projector now shows "RUMBLE!" for one beat, in time with the countdown numbers, as the race starts.
+
 ### Changed
 
 - The projector display now shows the Roller Rumble logo in place of the "Roller Rumble" title text. Turning off "Show event name under the logo on the projector" in Settings now also gives that space back to the race results card.

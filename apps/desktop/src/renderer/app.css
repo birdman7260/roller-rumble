@@ -1884,6 +1884,11 @@ p {
   z-index: 12;
 }
 
+/* RUMBLE! is seven characters wide, so it steps down from the single-digit size to stay on screen. */
+.countdown-overlay--rumble {
+  font-size: clamp(4.5rem, 11vw, 12rem);
+}
+
 .race-page__results-overlay {
   position: absolute;
   z-index: 14;
@@ -4381,6 +4386,10 @@ button.tournament-match-node:active {
 
   .countdown-overlay {
     font-size: clamp(5.6rem, 13vw, 10rem);
+  }
+
+  .countdown-overlay--rumble {
+    font-size: clamp(3.6rem, 9vw, 7.5rem);
   }
 
   /* Horizontal lane sizing is fully container-driven (issue #23), so it has no
