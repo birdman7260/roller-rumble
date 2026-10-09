@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.23 - 2026-10-09
+
+### Added
+
 - Between races, the projector now shows more than the sign-up QR. Once racers are queued and someone has finished a race, it shows the race queue (with each race's estimated start time) beside a **top racers board** listing the fastest riders so far and their best times. When the queue empties, the board stays up and a smaller sign-up card with the QR takes the queue's place. The full sign-up card still shows until someone queues or finishes a race. The board lists each racer once, by their best finished run at the current race distance in this event. Choose how many racers it shows (3 to 10, default 5) under **Settings → Projector Display → Top racers shown between races**. Names longer than 20 characters are cut short with "…", and a race whose names don't fit on one line wraps onto a second. Each card shows as many rows as fit the screen, so a few long names can mean fewer rows; the queue's "+N more races" line counts any that didn't fit.
 - Racer names now wear the color of the bike they'll ride (orange or purple, matching the projector's lane colors), so everyone can tell which bike to get on. You'll see it in the admin queue list, in the race tray at the bottom of the admin window, and in the racer page's race and tourney queues. Pressing **Swap Bikes** recolors the names straight away. On the tourney bracket, a match still to race tints each racer's slot with their bike's color; finished matches, byes, and empty slots stay as they were. The racer page's **Your Next Race** card now reads "You vs Ana", with "You" in your bike's color and the opponent's name in theirs. If you've flipped the projector's lane colors, the names follow.
 - During a tourney you can change the race order: click a matchup on the bracket and choose **Stage Next**, and it goes on as soon as the bikes are free, even while another race is staged or running. The pinned match wears a pin icon in its top-right corner on the admin bracket (racers and the projector don't see it). Choose **Clear Up Next** to undo it.
