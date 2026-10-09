@@ -1,7 +1,7 @@
 # framer-motion
 
-| Package                     | Installed | Target |
-| --------------------------- | --------- | ------ |
+| Package                      | Installed | Target |
+| ---------------------------- | --------- | ------ |
 | framer-motion (apps/desktop) | 12.38.0   | 14.0.0 |
 
 Sources: motiondivision/motion publishes **no GitHub Releases** (`gh release list` is empty; only tags). The primary sources are the root `CHANGELOG.md` at tag `v14.0.0` (<https://github.com/motiondivision/motion/blob/v14.0.0/CHANGELOG.md>) and the React upgrade guide (<https://motion.dev/docs/react-upgrade-guide>, sections "13.0" and "14.0"). Below, `CL#<anchor>` stands for `https://github.com/motiondivision/motion/blob/v14.0.0/CHANGELOG.md#<anchor>`.

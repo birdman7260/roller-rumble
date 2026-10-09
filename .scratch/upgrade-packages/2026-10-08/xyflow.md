@@ -1,9 +1,9 @@
 # xyflow
 
-| Package                                 | Installed | Target |
-| --------------------------------------- | --------- | ------ |
-| @xyflow/react                           | 12.10.2   | 12.12.0 |
-| @xyflow/system (transitive, exact pin)  | 0.0.76    | 0.0.83 |
+| Package                                | Installed | Target  |
+| -------------------------------------- | --------- | ------- |
+| @xyflow/react                          | 12.10.2   | 12.12.0 |
+| @xyflow/system (transitive, exact pin) | 0.0.76    | 0.0.83  |
 
 Repo usage context: `@xyflow/react` is a direct dependency only of `apps/desktop` (`apps/desktop/package.json:48`, `^12.10.2`). `@xyflow/system` is not a direct dependency anywhere; it arrives as an exact-pinned dependency of `@xyflow/react` (12.12.0 → `@xyflow/system@0.0.83`). Usage is limited to the tournament bracket:
 

@@ -14,6 +14,7 @@ import {
 import { ProjectorIdleStage } from "../components/projector-idle-stage";
 import { RaceGraphic } from "../components/race-graphics";
 import { RaceResultsOverlay } from "../components/race-results-overlay";
+import { RollerRumbleLogo } from "../components/roller-rumble-logo";
 import { EmptyState, Panel } from "@roller-rumble/shared-ui";
 import { WinnerConfetti } from "../components/winner-confetti";
 import { findBracketNodeByParticipantIds } from "../components/tournament-flow-layout";
@@ -312,7 +313,9 @@ function ProjectorBrand({
 }) {
   return (
     <header className="race-page__brand">
-      <h1>Roller Rumble</h1>
+      <h1>
+        <RollerRumbleLogo className="race-page__brand-logo" />
+      </h1>
       {showEventName ? <p>{eventName}</p> : null}
     </header>
   );
@@ -571,7 +574,7 @@ function RacePageView({ model }: { model: RacePageViewModel }) {
     <div
       className={`race-page race-page--${model.orientation} ${
         model.idleView ? "race-page--idle" : ""
-      }`}
+      } ${model.snapshot.settings.raceDisplayShowEventName ? "race-page--event-name" : ""}`}
     >
       <WinnerConfetti
         winnerKey={model.winnerKey}

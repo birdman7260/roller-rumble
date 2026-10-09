@@ -1,9 +1,9 @@
 # ws
 
-| Package  | Installed | Target |
-| -------- | --------- | ------ |
-| ws       | 8.20.0    | 8.22.0 |
-| @types/ws | 8.18.1   | 8.18.2 |
+| Package   | Installed | Target |
+| --------- | --------- | ------ |
+| ws        | 8.20.0    | 8.22.0 |
+| @types/ws | 8.18.1    | 8.18.2 |
 
 Repo usage context: `ws` is only imported in `apps/desktop/src/backend/server.ts:11-12`. The server is created as `new WebSocketServer({ noServer: true })` (`server.ts:224`) with default options, is server→client only (no `"message"` listener anywhere in `apps/desktop/src/backend`), uses `client.readyState === 1`, `client.send(string)`, `client.ping()`, `client.terminate()` and `wsServer.close()`, and never calls `WebSocket#close(code, reason)`. The renderer (`apps/desktop/src/renderer/lib/query.tsx:147`) uses the browser's native `WebSocket`, not `ws`. Engines/peer deps unchanged at 8.22.0 (`node >=10.0.0`; optional peers `bufferutil ^4.0.1`, `utf-8-validate >=5.0.2`).
 

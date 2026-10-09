@@ -1,11 +1,11 @@
 # react
 
-| Package          | Installed                                         | Target |
-| ---------------- | ------------------------------------------------- | ------ |
+| Package          | Installed                                                                   | Target |
+| ---------------- | --------------------------------------------------------------------------- | ------ |
 | react            | 19.2.5 (apps/desktop, packages/shared-ui); 19.2.6 (tools/photo-booth-agent) | 19.3.0 |
-| react-dom        | 19.2.5 (apps/desktop); 19.2.6 (tools/photo-booth-agent) | 19.3.0 |
-| @types/react     | 19.2.14 (apps/desktop, packages/shared-ui, tools/photo-booth-agent) | 19.3.0 |
-| @types/react-dom | 19.2.3 (apps/desktop, tools/photo-booth-agent)    | 19.3.0 |
+| react-dom        | 19.2.5 (apps/desktop); 19.2.6 (tools/photo-booth-agent)                     | 19.3.0 |
+| @types/react     | 19.2.14 (apps/desktop, packages/shared-ui, tools/photo-booth-agent)         | 19.3.0 |
+| @types/react-dom | 19.2.3 (apps/desktop, tools/photo-booth-agent)                              | 19.3.0 |
 
 Summary: no breaking changes, no deprecations and no code edits required. The items marked `[ ]` are spots in the repo that 19.3 behavior changes touch. Each one needs a manual check only. Repo TypeScript is 5.9.3 (root `package.json:58` `^5.8.3`; both lockfiles resolve 5.9.3), which meets the new `@types` floor of TS 5.6.
 

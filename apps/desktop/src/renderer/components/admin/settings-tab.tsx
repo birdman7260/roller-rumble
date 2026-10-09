@@ -275,7 +275,7 @@ function ProjectorDisplayPanel({
               fireAndForget(updateSettings({ raceDisplayShowEventName: event.target.checked }));
             }}
           />
-          Show event name under the Roller Rumble title
+          Show event name under the logo on the projector
         </label>
         <label className="toggle">
           <input

@@ -1,8 +1,8 @@
 # nanoid
 
-| Package                                  | Installed | Target |
-| ---------------------------------------- | --------- | ------ |
-| nanoid (apps/desktop)                    | 5.1.9     | 6.0.2  |
+| Package                                       | Installed | Target |
+| --------------------------------------------- | --------- | ------ |
+| nanoid (apps/desktop)                         | 5.1.9     | 6.0.2  |
 | nanoid (tools/photo-booth-agent, own install) | 5.1.11    | 6.0.2  |
 
 Repo usage (all call sites import only `nanoid` from `"nanoid"`, ESM, server/Node side only):

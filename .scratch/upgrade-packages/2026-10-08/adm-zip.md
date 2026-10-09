@@ -1,9 +1,9 @@
 # adm-zip
 
-| Package         | Installed | Target                                   |
-| --------------- | --------- | ---------------------------------------- |
-| adm-zip         | 0.5.17    | 0.6.1                                    |
-| @types/adm-zip  | 0.5.8     | remove (adm-zip 0.6 ships its own types) |
+| Package        | Installed | Target                                   |
+| -------------- | --------- | ---------------------------------------- |
+| adm-zip        | 0.5.17    | 0.6.1                                    |
+| @types/adm-zip | 0.5.8     | remove (adm-zip 0.6 ships its own types) |
 
 Repo usage (searched `adm-zip`, `AdmZip`, `IZipEntry` across `apps/`, `packages/`, `tools/`, `scripts/`, root configs): only `apps/desktop/src/electron/main.ts:5` (`import AdmZip from "adm-zip"`) and `main.ts:207-211` (`saveDiagnosticsBundle`: `new AdmZip()`, `zip.addFile(name, Buffer)`, `zip.writeZip(filePath)`). The app only **writes** small zips; it never reads, extracts, or uses `addLocalFolder*`.
 

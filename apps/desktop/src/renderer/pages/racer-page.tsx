@@ -15,6 +15,7 @@ import type {
 import { ConfirmModal } from "@roller-rumble/shared-ui";
 import { ToastProvider, useToast } from "@roller-rumble/shared-ui/toast";
 import type { BracketPresentationRequest } from "../components/elimination-bracket-view";
+import { RollerRumbleLogo } from "../components/roller-rumble-logo";
 import {
   ApiError,
   cancelRacerCheckoutPayment,
@@ -276,7 +277,6 @@ interface RacerPageViewProps {
   confirmQueueLeave: () => Promise<void>;
   currentRaceNames: string | null;
   dismissNotificationModal: (notification: RacerNotification) => Promise<void>;
-  eventStatusLabel: string;
   expandedBracketTournament: TournamentBundle | null;
   expandedBracketTournamentId: string | null;
   flags: RacerPageViewFlags;
@@ -1065,20 +1065,6 @@ function useRacerPageViewModel({
       ? selectedRacerDetailId
       : null;
   const authOnlyMode = !selectedRacer && !canBrowsePublicRacerInfo && !bracketExpanded;
-  const eventStatusLabel = !snapshot.settings.queueOpen
-    ? snapshot.settings.queueClosedMessage.trim() || "QUEUE CLOSED"
-    : currentRace?.state === "active"
-      ? "Race live"
-      : currentRace?.state === "countdown"
-        ? "Countdown"
-        : currentRace?.state === "staging"
-          ? "Staging"
-          : activeTournament
-            ? "Tourney active"
-            : upcoming.length > 0
-              ? "Queue open"
-              : "Open event";
-
   function handleTabChange(tabId: RacerTabId): void {
     if (tabId === visibleActiveTab) {
       return;
@@ -1155,7 +1141,6 @@ function useRacerPageViewModel({
     confirmSignOut,
     currentRaceNames,
     dismissNotificationModal,
-    eventStatusLabel,
     expandedBracketTournament,
     expandedBracketTournamentId,
     flags: {
@@ -1228,22 +1213,10 @@ function useRacerPageViewModel({
   };
 }
 
-function RacerEventBar({
-  activeEvent,
-  eventStatusLabel
-}: {
-  activeEvent: AppSnapshot["activeEvent"];
-  eventStatusLabel: string;
-}) {
+function RacerBrandBar() {
   return (
-    <header className="racer-event-bar">
-      <div>
-        <span>{eventStatusLabel}</span>
-        <strong>{activeEvent.name}</strong>
-        {activeEvent.description ? (
-          <p className="racer-event-bar__desc">{activeEvent.description}</p>
-        ) : null}
-      </div>
+    <header className="racer-brand-bar">
+      <RollerRumbleLogo className="racer-brand-bar__logo" />
     </header>
   );
 }
@@ -1367,7 +1340,6 @@ function RacerPageView(props: RacerPageViewProps) {
     avatarUploadMessage,
     bracketPresentationRequest,
     currentRaceNames,
-    eventStatusLabel,
     expandedBracketTournament,
     expandedBracketTournamentId,
     flags,
@@ -1430,12 +1402,7 @@ function RacerPageView(props: RacerPageViewProps) {
           authOnlyMode ? " racer-page-shell--auth-only" : ""
         }`}
       >
-        {!bracketExpanded ? (
-          <RacerEventBar
-            activeEvent={liveSnapshot.activeEvent}
-            eventStatusLabel={eventStatusLabel}
-          />
-        ) : null}
+        {!bracketExpanded ? <RacerBrandBar /> : null}
 
         <div
           key={bracketExpanded ? "bracket-expanded" : visibleActiveTab}

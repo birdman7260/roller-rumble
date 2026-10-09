@@ -10,6 +10,9 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- The projector display now shows the Roller Rumble logo in place of the "Roller Rumble" title text. Turning off "Show event name under the logo on the projector" in Settings now also gives that space back to the race results card.
+- The racer page header is now the Roller Rumble logo, pinned to the top of the page as you scroll. The event name, event description, and race status line no longer appear there.
+
 ### Fixed
 
 ## 0.1.25 - 2026-10-09
