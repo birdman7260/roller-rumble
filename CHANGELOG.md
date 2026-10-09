@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.24 - 2026-10-09
+
+### Added
+
 - Roller Rumble now runs on Intel Macs. Each release includes two Mac downloads, one ending in `mac-arm64` for Apple Silicon Macs (M1 and later) and one ending in `mac-x64` for Intel Macs. Both need macOS 11 Big Sur or newer.
 
 ### Changed
