@@ -369,6 +369,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     mode: "single-elimination",
     os2lEnabled: false,
     raceDisplayLaneColorsFlipped: false,
+    raceDisplaySkeletonRiders: false,
     raceDisplayGlowMode: "rivalry",
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: [],

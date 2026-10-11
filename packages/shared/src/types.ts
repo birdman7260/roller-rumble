@@ -640,6 +640,8 @@ export interface AdminSettings {
   showPublicRacerInfoWithoutLogin: boolean;
   showRacerNotificationDebugList: boolean;
   raceDisplayLaneColorsFlipped: boolean;
+  /** Swaps the themed rider sprites for the skeleton riders on the race lanes (trying them out). */
+  raceDisplaySkeletonRiders: boolean;
   raceDisplayGlowMode: RaceGlowMode;
   raceDisplayShowEventName: boolean;
   raceDisplayTickerMessages: string[];

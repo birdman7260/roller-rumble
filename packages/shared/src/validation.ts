@@ -179,6 +179,7 @@ export const settingUpdateSchema = z.object({
   showPublicRacerInfoWithoutLogin: z.boolean().optional(),
   showRacerNotificationDebugList: z.boolean().optional(),
   raceDisplayLaneColorsFlipped: z.boolean().optional(),
+  raceDisplaySkeletonRiders: z.boolean().optional(),
   raceDisplayGlowMode: z.enum(["rivalry", "surge"]).optional(),
   raceDisplayShowEventName: z.boolean().optional(),
   raceDisplayTickerMessages: z.array(z.string().trim().min(1).max(120)).max(20).optional(),

@@ -10,6 +10,7 @@
     "showPublicRacerInfoWithoutLogin": true,
     "showRacerNotificationDebugList": false,
     "raceDisplayLaneColorsFlipped": false,
+    "raceDisplaySkeletonRiders": false,
     "raceDisplayGlowMode": "rivalry",
     "raceDisplayShowEventName": true,
     "raceDisplayTickerMessages": [

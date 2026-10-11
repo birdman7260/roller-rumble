@@ -36,6 +36,8 @@ interface RaceGraphicProps {
   metrics: RaceMetricsSnapshot[];
   targetDistanceMeters: number;
   laneColorsFlipped: boolean;
+  /** Swaps the themed rider sprites for the skeleton riders (the admin "skeleton riders" toggle). */
+  skeletonRiders?: boolean;
   glowMode: RaceGlowMode;
   /**
    * Current race lifecycle state. Drives the elapsed clock: it stays at zero
@@ -322,12 +324,16 @@ function LaneStreak() {
  */
 function LaneMarkerContent({
   entry,
+  laneColorsFlipped,
   metric,
+  skeletonRiders,
   spriteDisplayHeightRem,
   theme
 }: {
-  entry: RacerSummary;
+  entry: ProjectorParticipantEntry;
+  laneColorsFlipped: boolean;
   metric?: RaceMetricsSnapshot;
+  skeletonRiders: boolean;
   spriteDisplayHeightRem: number;
   theme: ThemeDefinition;
 }) {
@@ -337,9 +343,11 @@ function LaneMarkerContent({
       <LaneGlow />
       <LaneFlash />
       <RaceSpriteAvatar
+        bikeColor={bikeColorForLane(entry.lane, laneColorsFlipped)}
         displayHeightRem={spriteDisplayHeightRem}
         label={entry.racer.displayName}
         metric={metric}
+        skeletonRiders={skeletonRiders}
         theme={theme}
       />
     </>
@@ -473,6 +481,7 @@ function HorizontalTrackRace({
   graphicRootRef,
   laneColorsFlipped,
   markerSizeRem,
+  skeletonRiders,
   metaHeader,
   metrics,
   progressTransition,
@@ -484,6 +493,7 @@ function HorizontalTrackRace({
   graphicRootRef: RefObject<HTMLDivElement | null>;
   laneColorsFlipped: boolean;
   markerSizeRem: number;
+  skeletonRiders: boolean;
   metaHeader: ReactNode;
   metrics: RaceMetricsSnapshot[];
   progressTransition: Transition;
@@ -539,6 +549,8 @@ function HorizontalTrackRace({
               >
                 <LaneMarkerContent
                   entry={entry}
+                  laneColorsFlipped={laneColorsFlipped}
+                  skeletonRiders={skeletonRiders}
                   metric={metric}
                   spriteDisplayHeightRem={markerSizeRem}
                   theme={theme}
@@ -558,6 +570,7 @@ export function RaceGraphic({
   metrics,
   targetDistanceMeters,
   laneColorsFlipped,
+  skeletonRiders = false,
   glowMode,
   raceState,
   startedAt,
@@ -653,6 +666,8 @@ export function RaceGraphic({
                 >
                   <LaneMarkerContent
                     entry={entry}
+                    laneColorsFlipped={laneColorsFlipped}
+                    skeletonRiders={skeletonRiders}
                     metric={metric}
                     spriteDisplayHeightRem={spriteDisplayHeightRem}
                     theme={theme}
@@ -719,6 +734,8 @@ export function RaceGraphic({
                 >
                   <LaneMarkerContent
                     entry={entry}
+                    laneColorsFlipped={laneColorsFlipped}
+                    skeletonRiders={skeletonRiders}
                     metric={metric}
                     spriteDisplayHeightRem={horizontalMarkerSizeRem}
                     theme={theme}
@@ -779,6 +796,8 @@ export function RaceGraphic({
                 >
                   <LaneMarkerContent
                     entry={entry}
+                    laneColorsFlipped={laneColorsFlipped}
+                    skeletonRiders={skeletonRiders}
                     metric={metric}
                     spriteDisplayHeightRem={horizontalMarkerSizeRem}
                     theme={theme}
@@ -801,6 +820,7 @@ export function RaceGraphic({
       }}
       graphicRootRef={graphicRootRef}
       laneColorsFlipped={laneColorsFlipped}
+      skeletonRiders={skeletonRiders}
       markerSizeRem={horizontalMarkerSizeRem}
       metaHeader={metaHeader}
       metrics={metrics}

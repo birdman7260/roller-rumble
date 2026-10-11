@@ -3337,8 +3337,64 @@ p {
   }
 }
 
+/*
+ * Skeleton riders: a 3 × 3 sheet of square frames, read right to left, top to bottom. With the
+ * sheet at 300% of the frame size, each cell sits at 0%, 50%, or 100% of the background position,
+ * so the keyframes name the cells directly. The inline `step-end` timing holds each frame until
+ * the next keyframe.
+ */
+.race-sprite-avatar.race-sprite-avatar--skeleton {
+  background-position: 100% 0;
+  background-size: 300% 300%;
+  animation-name: race-sprite-skeleton-frames;
+  image-rendering: auto;
+}
+
+@keyframes race-sprite-skeleton-frames {
+  0% {
+    background-position: 100% 0;
+  }
+
+  11.11% {
+    background-position: 50% 0;
+  }
+
+  22.22% {
+    background-position: 0 0;
+  }
+
+  33.33% {
+    background-position: 100% 50%;
+  }
+
+  44.44% {
+    background-position: 50% 50%;
+  }
+
+  55.56% {
+    background-position: 0 50%;
+  }
+
+  66.67% {
+    background-position: 100% 100%;
+  }
+
+  77.78% {
+    background-position: 50% 100%;
+  }
+
+  88.89% {
+    background-position: 0 100%;
+  }
+
+  100% {
+    background-position: 100% 0;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .race-sprite-avatar {
+  .race-sprite-avatar,
+  .race-sprite-avatar.race-sprite-avatar--skeleton {
     animation: none;
   }
 }

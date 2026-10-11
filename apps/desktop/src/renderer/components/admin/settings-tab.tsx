@@ -287,6 +287,16 @@ function ProjectorDisplayPanel({
           />
           Flip projector lane colors
         </label>
+        <label className="toggle">
+          <input
+            type="checkbox"
+            checked={snapshot.settings.raceDisplaySkeletonRiders}
+            onChange={(event) => {
+              fireAndForget(updateSettings({ raceDisplaySkeletonRiders: event.target.checked }));
+            }}
+          />
+          Use skeleton riders in the race lanes
+        </label>
         <label>
           Lane glow
           <select

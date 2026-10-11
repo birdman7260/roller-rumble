@@ -170,6 +170,7 @@ function getDefaultAdminSettings(): AdminSettings {
     showPublicRacerInfoWithoutLogin: false,
     showRacerNotificationDebugList: false,
     raceDisplayLaneColorsFlipped: false,
+    raceDisplaySkeletonRiders: false,
     raceDisplayGlowMode: "rivalry",
     raceDisplayShowEventName: true,
     raceDisplayTickerMessages: ["Fiercely local racing all night"],

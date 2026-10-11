@@ -9,6 +9,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Added
 
 - When the race countdown finishes, the projector now shows "RUMBLE!" for one beat, in time with the countdown numbers, as the race starts.
+- A new **Use skeleton riders in the race lanes** setting under **Settings → Projector Display** swaps the theme's rider sprites for skeleton riders on orange and purple bikes, so the two can be compared. The skeleton rider follows its bike when lanes are swapped.
 
 ### Changed
 

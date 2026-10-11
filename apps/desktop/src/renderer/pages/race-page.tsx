@@ -527,6 +527,7 @@ function RaceLayer({ model }: { model: RacePageViewModel }) {
           raceState={model.displayRace.state}
           startedAt={model.displayRace.startedAt}
           laneColorsFlipped={model.snapshot.settings.raceDisplayLaneColorsFlipped}
+          skeletonRiders={model.snapshot.settings.raceDisplaySkeletonRiders}
           glowMode={model.snapshot.settings.raceDisplayGlowMode}
         />
       ) : model.idleView ? (
