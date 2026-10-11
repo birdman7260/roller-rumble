@@ -315,9 +315,13 @@ a {
 .racer-state-card > span,
 .racer-payment-summary span {
   color: var(--theme-text-muted);
-  font-size: 0.78rem;
+  font-size: 0.9rem;
   font-weight: 700;
   text-transform: uppercase;
+}
+
+.racer-page-shell .eyebrow {
+  font-size: 0.85rem;
 }
 
 /* The wordmark scales with the viewport but stays a compact header on phones. */
@@ -390,7 +394,7 @@ a {
   gap: 0.4rem;
   min-height: 2.75rem;
   padding: 0.45rem 0.55rem;
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 800;
   white-space: nowrap;
 }
@@ -417,7 +421,7 @@ a {
   border-radius: 0.3rem;
   background: var(--theme-accent);
   color: var(--theme-surface);
-  font-size: 0.68rem;
+  font-size: 0.8rem;
   font-style: italic;
   font-weight: 900;
   letter-spacing: 0.04em;
@@ -431,7 +435,7 @@ a {
   border-radius: var(--ui-radius-control);
   background: var(--theme-surface);
   color: var(--theme-text-muted);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 700;
   text-align: center;
 }
@@ -532,7 +536,7 @@ a {
 
 .racer-queue-row__round {
   color: var(--theme-text-muted);
-  font-size: 0.8rem;
+  font-size: 0.9rem;
 }
 
 /* A neutral wash, so the racer's rows stand apart from the accent-tinted Leave button. */
@@ -615,7 +619,7 @@ a {
 
 .racer-detail-stat span {
   color: var(--theme-text-muted);
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   font-weight: 800;
   text-transform: uppercase;
 }
@@ -756,13 +760,15 @@ a {
   animation: admin-race-tray-rise 220ms ease;
 }
 
+/* Covers the whole card and inherits its corner radius, so the gradient strip is clipped by the same curve as the border. */
 .admin-race-tray::before {
   content: "";
   position: absolute;
-  inset: 0 auto 0 0;
-  width: 0.35rem;
-  border-radius: 1.4rem 0 0 1.4rem;
-  background: linear-gradient(180deg, var(--theme-accent), var(--theme-warning));
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(180deg, var(--theme-accent), var(--theme-warning)) left / 0.35rem 100%
+    no-repeat;
 }
 
 .admin-race-tray__meta,
@@ -781,8 +787,21 @@ a {
   flex-wrap: wrap;
 }
 
+.admin-race-tray .eyebrow {
+  font-size: 1.1rem;
+}
+
+.admin-race-tray__meta strong {
+  font-size: 1.35rem;
+}
+
 .admin-race-tray__detail {
   color: var(--theme-text-muted);
+  font-size: 1.25rem;
+}
+
+.admin-race-tray .button {
+  font-size: 1.1rem;
 }
 
 @keyframes admin-race-tray-rise {
@@ -1024,7 +1043,7 @@ p {
   border: 1px solid var(--theme-accent-soft);
   border-radius: 999px;
   color: var(--theme-accent);
-  font-size: 0.82rem;
+  font-size: 0.92rem;
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -1079,13 +1098,13 @@ p {
 
 .racer-notification-modal__match-option span {
   color: var(--theme-text-muted);
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-weight: 800;
   text-transform: uppercase;
 }
 
 .racer-notification-modal__match-option strong {
-  font-size: 1.05rem;
+  font-size: 1.15rem;
 }
 
 .racer-notification-modal__actions {
@@ -3356,6 +3375,13 @@ p {
   color: var(--theme-text-muted);
 }
 
+.racer-avatar-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
 .racer-avatar-frame {
   position: relative;
   flex: 0 0 auto;
@@ -3392,7 +3418,7 @@ p {
 }
 
 .racer-avatar-uploading__label {
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
@@ -3421,6 +3447,7 @@ p {
   color: var(--theme-text);
   background: color-mix(in srgb, var(--theme-surface) 86%, transparent);
   box-shadow: 0 0.55rem 1.1rem rgba(0, 0, 0, 0.28);
+  padding: 0;
   cursor: pointer;
 }
 
@@ -3429,7 +3456,7 @@ p {
   transform: translateY(-1px);
 }
 
-.racer-avatar-edit-button:has(input:focus-visible) {
+.racer-avatar-edit-button:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
 }
@@ -3453,15 +3480,6 @@ p {
   stroke-width: 2;
 }
 
-.racer-avatar-edit-button__input {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  overflow: hidden;
-  clip: rect(0 0 0 0);
-  white-space: nowrap;
-}
-
 .racer-avatar--small {
   width: 2.5rem;
   height: 2.5rem;
@@ -3472,6 +3490,8 @@ p {
   position: relative;
   align-content: center;
   gap: 0.35rem;
+  padding: 0;
+  font: inherit;
   border: 2px dashed color-mix(in srgb, var(--theme-accent) 55%, transparent);
   color: var(--theme-text);
   cursor: pointer;
@@ -3481,7 +3501,7 @@ p {
   background: color-mix(in srgb, var(--theme-accent-soft) 72%, var(--theme-surface));
 }
 
-.racer-avatar--empty:has(input:focus-visible) {
+.racer-avatar--empty:focus-visible {
   outline: 2px solid var(--theme-accent);
   outline-offset: 2px;
 }
@@ -3497,13 +3517,102 @@ p {
 
 .racer-avatar-empty__hint {
   color: var(--theme-text-muted);
-  font-size: 0.85rem;
+  font-size: 0.95rem;
   font-weight: 600;
 }
 
 .registration-photo-step__avatar {
   display: flex;
   justify-content: center;
+}
+
+/* The selfie camera is a full-screen dialog opened with showModal(), so it sits in the top layer
+   above the racer page. The preview is mirrored, as a selfie is seen in a mirror. */
+.racer-selfie-camera {
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: #000;
+  color: #fff;
+  overflow: hidden;
+}
+
+.racer-selfie-camera::backdrop {
+  background: #000;
+}
+
+.racer-selfie-camera .button {
+  color: #fff;
+  border-color: rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.racer-selfie-camera__video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scaleX(-1);
+}
+
+.racer-selfie-camera__video.is-hidden {
+  visibility: hidden;
+}
+
+.racer-selfie-camera__status {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  margin: 0;
+  padding: 2rem;
+  text-align: center;
+  font-weight: 600;
+}
+
+.racer-selfie-camera__close {
+  position: absolute;
+  top: max(0.75rem, env(safe-area-inset-top));
+  right: 0.75rem;
+}
+
+/* The shutter and the library button stack at the bottom, above the video. */
+.racer-selfie-camera__controls {
+  position: absolute;
+  inset: auto 0 0;
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: 1.5rem 1rem max(1.5rem, env(safe-area-inset-bottom));
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.6), transparent);
+}
+
+.racer-selfie-camera__shutter {
+  width: 4.5rem;
+  height: 4.5rem;
+  padding: 0;
+  border: 0.3rem solid #000;
+  border-radius: 999px;
+  background: #fff;
+  box-shadow: 0 0 0 0.2rem #fff;
+  cursor: pointer;
+}
+
+.racer-selfie-camera__shutter:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.racer-selfie-camera__shutter:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 4px;
 }
 
 /* Back sits on the left and the forward action on the right, even when it is alone. */
@@ -4625,7 +4734,7 @@ button.tournament-match-node:active {
     min-width: 0;
     min-height: 3rem;
     padding-inline: 0.2rem;
-    font-size: 0.78rem;
+    font-size: 0.9rem;
   }
 
   .racer-public-summary {

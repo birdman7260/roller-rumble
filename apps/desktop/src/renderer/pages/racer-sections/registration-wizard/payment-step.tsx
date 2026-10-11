@@ -84,7 +84,6 @@ function OnlinePaymentStep({
     return (
       <div className="form-grid">
         <div className="racer-section-heading">
-          <strong>Entry fee</strong>
           <p className="form-success">
             Thanks! Confirming your payment with Stripe. This moves on by itself in a moment.
           </p>
@@ -97,7 +96,6 @@ function OnlinePaymentStep({
   return (
     <div className="form-grid">
       <div className="racer-section-heading">
-        <strong>Entry fee</strong>
         <p>
           {fee ? `Racing here costs ${fee}. ` : ""}You'll pay securely with Stripe and come straight
           back here.

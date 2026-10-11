@@ -97,9 +97,7 @@ export function AdminRaceTray({
           </>
         ) : currentRace ? (
           <>
-            <p className="eyebrow">
-              {currentTournamentRace ? "Tournament Race Ready" : "Race Controls Live"}
-            </p>
+            {currentTournamentRace ? <p className="eyebrow">Tournament Race Ready</p> : null}
             <CurrentRaceSummary snapshot={snapshot} currentRace={currentRace} />
           </>
         ) : nextTournamentEntry ? (

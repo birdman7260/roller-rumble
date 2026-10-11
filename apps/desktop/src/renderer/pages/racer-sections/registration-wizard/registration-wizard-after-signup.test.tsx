@@ -118,13 +118,14 @@ describe("RegistrationWizard after the racer is created", () => {
 
     expect(screen.getByText("Step 3 of 3")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
-    expect(screen.getByLabelText("Add photo")).toHaveAttribute("accept", "image/*");
+    expect(screen.getByRole("button", { name: "Add photo" })).toBeInTheDocument();
+    expect(screen.getByLabelText("Choose from library")).toHaveAttribute("accept", "image/*");
   });
 
   it("shows the new photo with a change option before moving on", async () => {
     const onAvatarUpload = vi.fn(async () => undefined);
     const view = render(<SignedInRacerPage racer={makeRacer()} onAvatarUpload={onAvatarUpload} />);
-    fireEvent.change(screen.getByLabelText("Add photo"), {
+    fireEvent.change(screen.getByLabelText("Choose from library"), {
       target: { files: [new File(["selfie"], "selfie.jpg", { type: "image/jpeg" })] }
     });
     await waitFor(() => {
@@ -138,7 +139,7 @@ describe("RegistrationWizard after the racer is created", () => {
       "/avatars/racer-1.jpg"
     );
     expect(screen.getByLabelText("Change photo")).toBeInTheDocument();
-    expect(screen.queryByLabelText("Add photo")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add photo" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     expect(screen.getByText("Race page")).toBeInTheDocument();
   });

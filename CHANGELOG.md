@@ -14,6 +14,10 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 - The projector display now shows the Roller Rumble logo in place of the "Roller Rumble" title text. Turning off "Show event name under the logo on the projector" in Settings now also gives that space back to the race results card.
 - The racer page header is now the Roller Rumble logo, pinned to the top of the page as you scroll. The event name, event description, and race status line no longer appear there.
+- The staging controls on the admin page now use larger text, and the "Race Controls Live" label above a staged race is gone. Tournament races still show their "Tournament Race Ready" label.
+- The racer page now uses larger text for its labels, buttons, and status details, making them easier to read on a phone.
+- Tapping the racer photo now opens a selfie camera on the front lens, with a shutter button and a "Choose from library" button at the bottom. A "Choose from library" button also sits under the photo, and on a plain-Wi-Fi address the phone's own camera app opens instead, since browsers only allow the selfie camera over HTTPS.
+- The racer registration steps are trimmed down. Each step's card is titled for the step: "Register", "Racer Name", "Mean Muggin'", and "Entry Fee". The intro text under the step headings is gone, and the phone field example now reads 555-555-5555.
 
 ### Fixed
 

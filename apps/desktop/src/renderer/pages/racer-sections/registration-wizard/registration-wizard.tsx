@@ -1,5 +1,4 @@
 import { useState } from "react";
-import type { ChangeEvent } from "react";
 import type {
   EventRecord,
   RacerAuthSuccessResponse,
@@ -15,7 +14,16 @@ import { PhotoStep } from "./photo-step";
 import { loadRegistrationDraft, saveRegistrationDraft } from "./registration-draft";
 import type { RegistrationDraft } from "./registration-draft";
 import { buildRegistrationSteps, resolveResumeStep } from "./registration-steps";
+import type { RegistrationStepId } from "./registration-steps";
 import type { RegisteredRacerSteps } from "./use-registered-racer-steps";
+
+/** The card title for each step; the card keeps "Register" once the wizard is finished. */
+const panelTitles: Record<RegistrationStepId, string> = {
+  "contact-details": "Register",
+  "display-name": "Racer Name",
+  photo: "Mean Muggin'",
+  payment: "Entry Fee"
+};
 
 /**
  * What the wizard needs once this phone holds a device login: the photo and payment steps, and
@@ -29,7 +37,7 @@ export interface SignedInRegistration {
   avatarUrl: string | null;
   avatarUploadBusy: boolean;
   avatarUploadMessage: string | null;
-  onAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  onAvatarUpload: (file: File) => Promise<void>;
   /** Asks to sign out, so a racer stuck on a step can start over as someone new (D12). */
   onSignOut: () => void;
   onlinePaymentAvailable: boolean;
@@ -99,7 +107,7 @@ export function RegistrationWizard({
   return (
     <div className="registration-wizard stack-md">
       {currentStepId ? <StepProgress steps={steps} currentStepId={currentStepId} /> : null}
-      <Panel title="Register">
+      <Panel title={currentStepId ? panelTitles[currentStepId] : "Register"}>
         {currentStepId === "contact-details" ? (
           <ContactDetailsStep
             details={draft}
@@ -142,9 +150,9 @@ export function RegistrationWizard({
             busy={signedIn.avatarUploadBusy}
             message={signedIn.avatarUploadMessage}
             photoBoothEnabled={signedIn.photoBoothEnabled}
-            onUpload={(uploadEvent) => {
+            onUpload={(file) => {
               signedIn.steps.holdPhotoStep(signedIn.racer.racer.id);
-              fireAndForget(signedIn.onAvatarUpload(uploadEvent), "upload racer photo");
+              fireAndForget(signedIn.onAvatarUpload(file), "upload racer photo");
             }}
             onBack={() => {
               // The racer record holds the name the projector shows, so Back starts from it.

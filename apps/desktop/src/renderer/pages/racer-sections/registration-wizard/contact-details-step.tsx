@@ -20,7 +20,13 @@ const contactFields: {
     autoComplete: "name",
     placeholder: "Alex Fast"
   },
-  { field: "phone", label: "Phone", type: "tel", autoComplete: "tel", placeholder: "555-0100" },
+  {
+    field: "phone",
+    label: "Phone",
+    type: "tel",
+    autoComplete: "tel",
+    placeholder: "555-555-5555"
+  },
   {
     field: "email",
     label: "Email",
@@ -31,8 +37,8 @@ const contactFields: {
 ];
 
 /**
- * Step 1, "Your details": the racer's `contact details`. Only the event hosts see them; a field's
- * error shows once the racer leaves it, and Continue waits until all three are valid.
+ * Step 1: the racer's `contact details`. Only the event hosts see them; a field's error shows
+ * once the racer leaves it, and Continue waits until all three are valid.
  */
 export function ContactDetailsStep({
   details,
@@ -57,10 +63,6 @@ export function ContactDetailsStep({
         }
       }}
     >
-      <div className="racer-section-heading">
-        <strong>Your details</strong>
-        <p>Only the event hosts see these, so they can reach you about your races.</p>
-      </div>
       {contactFields.map(({ field, label, type, autoComplete, placeholder }) => {
         const inputId = `registration-${field}`;
         const errorId = `${inputId}-error`;

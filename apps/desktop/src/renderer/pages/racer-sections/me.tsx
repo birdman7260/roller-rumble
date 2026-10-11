@@ -5,7 +5,7 @@ import type {
 } from "@roller-rumble/shared/types";
 import { Button, Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
-import type { ChangeEvent, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { fireAndForget } from "../../lib/ui-actions";
 import { AvatarPicker } from "./avatar-picker";
 import { PhotoBoothQr } from "./photo-booth-qr";
@@ -50,7 +50,7 @@ export function MeTab({
   notificationConfigured: boolean;
   notificationConfigMessage: string | null | undefined;
   notificationMessage: string | null;
-  onAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  onAvatarUpload: (file: File) => Promise<void>;
   onEnableNotifications: () => Promise<void>;
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
   onSignOut: () => void;
@@ -86,8 +86,8 @@ export function MeTab({
                 avatarUrl={selectedRacerAvatarUrl}
                 displayName={selectedRacer.racer.displayName}
                 busy={avatarUploadBusy}
-                onUpload={(event) => {
-                  fireAndForget(onAvatarUpload(event), "upload racer avatar");
+                onUpload={(file) => {
+                  fireAndForget(onAvatarUpload(file), "upload racer avatar");
                 }}
               />
             </div>

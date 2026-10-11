@@ -70,8 +70,10 @@ they've finished.
 2. **Pick your racer name** — the fun name the crowd sees on the projector (Turbo Tortoise, Captain
    Cadence…). Tapping **Continue** here creates the racer. Nothing appears on the big screen until
    this step, so someone who gives up halfway never shows up by their real name.
-3. **Your photo** — required. They tap the empty circle (it says **Add photo**) to take a picture or
-   pick one, see a preview, and can change it with the little pencil. If you run the photo booth,
+3. **Your photo** — required. They tap the empty circle (it says **Add photo**) to take a selfie with
+   the front camera, or tap **Choose from library** at the bottom of that screen (or the button under
+   the circle) to pick one, see a preview, and can change it with the little pencil. On a plain
+   Wi-Fi address the phone's own camera app opens instead. If you run the photo booth,
    its QR shows here too, and a booth photo counts as soon as it arrives. **Back** from here returns
    to the racer name and details, so a racer can fix a typo; tapping **Continue** on the racer name
    step saves the change.

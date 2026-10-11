@@ -1,7 +1,7 @@
 import { AnimatePresence, LayoutGroup, m, useReducedMotion } from "framer-motion";
 import type { MotionProps } from "framer-motion";
 import { useEffect, useEffectEvent, useReducer, useRef } from "react";
-import type { ChangeEvent, Dispatch, ReactNode, RefObject, SetStateAction } from "react";
+import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   AppSnapshot,
@@ -280,7 +280,7 @@ interface RacerPageViewProps {
   expandedBracketTournament: TournamentBundle | null;
   expandedBracketTournamentId: string | null;
   flags: RacerPageViewFlags;
-  handleAvatarUpload: (event: ChangeEvent<HTMLInputElement>) => Promise<void>;
+  handleAvatarUpload: (file: File) => Promise<void>;
   handleChallengeRacer: (opponentRacerId: string) => void;
   handleEnableNotifications: () => Promise<void>;
   handleQueueSignup: (input: {
@@ -851,10 +851,8 @@ function useRacerPageViewModel({
     }
   }
 
-  async function handleAvatarUpload(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const input = event.currentTarget;
-    const file = event.target.files?.[0];
-    if (!file || !selectedRacerId) {
+  async function handleAvatarUpload(file: File): Promise<void> {
+    if (!selectedRacerId) {
       return;
     }
 
@@ -864,7 +862,6 @@ function useRacerPageViewModel({
       const nextSnapshot = await uploadAvatar(selectedRacerId, file);
       queryClient.setQueryData(racerSnapshotQueryKey, nextSnapshot);
       // The new photo itself is the confirmation, so success shows no message.
-      input.value = "";
     } catch (error) {
       setAvatarUploadMessage(error instanceof Error ? error.message : "Could not upload avatar.");
     } finally {
