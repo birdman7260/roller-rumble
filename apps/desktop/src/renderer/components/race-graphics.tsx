@@ -20,7 +20,7 @@ import { resolveBackendAssetUrl } from "../lib/assets";
 import { bikeColorForLane } from "../lib/bike-colors";
 import type { ProjectorParticipantEntry } from "../lib/snapshot-display";
 import { getMonogram } from "../lib/monogram";
-import { SKELETON_RIDER_SCALE } from "../lib/skeleton-riders";
+import { SKELETON_RIDER_BOX_SCALE } from "../lib/skeleton-riders";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
 import { useSpeedStreaks } from "../lib/use-speed-streaks";
@@ -614,7 +614,7 @@ export function RaceGraphic({
   // anatomy: a bottom-anchored rider marker sized by the measured --race-marker-size.
   // Only the vertical climb variant opts out.
   const isHorizontal = theme.orientation !== "vertical";
-  const riderScale = skeletonRiders ? SKELETON_RIDER_SCALE : 1;
+  const riderScale = skeletonRiders ? SKELETON_RIDER_BOX_SCALE : 1;
   const { graphicRootRef, markerSizeRem: horizontalMarkerSizeRem } = useMeasuredMarkerSize(
     isHorizontal,
     riderScale
