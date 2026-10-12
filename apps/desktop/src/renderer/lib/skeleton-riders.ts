@@ -14,6 +14,13 @@ const SKELETON_RIDER_SHEET_URLS: Record<BikeColor, string> = {
   purple: skeletonPurpleUrl
 };
 
+/**
+ * How much larger the skeleton rider is drawn than the theme's rider on the same lane. The lane
+ * layout reserves space from the same size, so the course grows with the rider rather than the
+ * rider overlapping the lane card.
+ */
+export const SKELETON_RIDER_SCALE = 2;
+
 /** Frames on the skeleton sheet's 3 × 3 grid. */
 const SKELETON_RIDER_FRAME_COUNT = 9;
 

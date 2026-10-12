@@ -20,6 +20,7 @@ import { resolveBackendAssetUrl } from "../lib/assets";
 import { bikeColorForLane } from "../lib/bike-colors";
 import type { ProjectorParticipantEntry } from "../lib/snapshot-display";
 import { getMonogram } from "../lib/monogram";
+import { SKELETON_RIDER_SCALE } from "../lib/skeleton-riders";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
 import { useSpeedStreaks } from "../lib/use-speed-streaks";
@@ -99,12 +100,16 @@ function useViewportHeight(): number {
  * result as the `--race-marker-size` CSS variable on the graphic root. The same
  * rem value is returned so the sprite and the marker's horizontal offset math
  * read one source of truth — the layout reserves exactly the space the sprite
- * occupies, so they cannot disagree. `active` gates the observer to the
+ * occupies, so they cannot disagree. `riderScale` enlarges that size for the
+ * skeleton riders, so the reserved space grows with them. `active` gates the observer to the
  * horizontal variants and re-establishes it if the orientation changes; the
  * effect (not a per-render callback ref) keeps the observer stable across the
  * frequent race re-renders.
  */
-function useMeasuredMarkerSize(active: boolean): {
+function useMeasuredMarkerSize(
+  active: boolean,
+  riderScale: number
+): {
   graphicRootRef: RefObject<HTMLDivElement | null>;
   markerSizeRem: number;
 } {
@@ -122,7 +127,7 @@ function useMeasuredMarkerSize(active: boolean): {
       Number.parseFloat(window.getComputedStyle(document.documentElement).fontSize) || 16;
 
     function publish(heightPx: number): void {
-      const sizeRem = computeMarkerSizeRem(heightPx, rootFontSizePx);
+      const sizeRem = computeMarkerSizeRem(heightPx, rootFontSizePx) * riderScale;
       element.style.setProperty("--race-marker-size", `${sizeRem}rem`);
       setMarkerSizeRem((current) => (Math.abs(current - sizeRem) < 0.001 ? current : sizeRem));
     }
@@ -139,7 +144,7 @@ function useMeasuredMarkerSize(active: boolean): {
     return () => {
       observer.disconnect();
     };
-  }, [active]);
+  }, [active, riderScale]);
 
   return { graphicRootRef, markerSizeRem };
 }
@@ -609,10 +614,14 @@ export function RaceGraphic({
   // anatomy: a bottom-anchored rider marker sized by the measured --race-marker-size.
   // Only the vertical climb variant opts out.
   const isHorizontal = theme.orientation !== "vertical";
-  const { graphicRootRef, markerSizeRem: horizontalMarkerSizeRem } =
-    useMeasuredMarkerSize(isHorizontal);
+  const riderScale = skeletonRiders ? SKELETON_RIDER_SCALE : 1;
+  const { graphicRootRef, markerSizeRem: horizontalMarkerSizeRem } = useMeasuredMarkerSize(
+    isHorizontal,
+    riderScale
+  );
   const spriteScale = viewportHeight <= 720 ? 0.72 : viewportHeight <= 820 ? 0.84 : 1;
-  const spriteDisplayHeightRem = (theme.orientation === "vertical" ? 4.5 : 5.4) * spriteScale;
+  const spriteDisplayHeightRem =
+    (theme.orientation === "vertical" ? 4.5 : 5.4) * spriteScale * riderScale;
   // Keep one shared motion profile across themes so each graphic can style itself
   // differently without feeling like a completely different timing system.
   const progressTransition = prefersReducedMotion
