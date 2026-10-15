@@ -36,8 +36,13 @@ way it already treats an unpaired `auto-match` spot.
   queue-status notifications never tell its racers they're up.
 - Turning the setting off affects only new challenges. Requests already pending stay pending until they
   are answered or removed.
-- Leaving a request, or giving up its spot to send a challenge of your own, counts as declining it.
-  The challenger is always told, and never ends up in an auto-match they didn't choose.
+- A racer with a request waiting on them must answer it before they can join the queue, queue a solo
+  run, or challenge anyone. The racer page's modal already asks for that answer, and the self-service
+  signup endpoint refuses (`challenge_answer_required`) so a request is never left hanging while its
+  racer carries on without it. This also means a racer cannot give up a request's spot to send a
+  challenge of their own. The queue module still resolves that case as a decline if it ever happens.
+- Leaving a request counts as declining it. The challenger is always told, and never ends up in an
+  auto-match they didn't choose.
 - A request that upgrades the challenged racer's existing spot takes that spot over while it is
   pending. That spot is skipped like the request until they answer, and a decline restores it.
 - The host's own match composition at the admin desk never sends a request.

@@ -2020,6 +2020,7 @@ export class RollerRumbleApp extends EventEmitter {
     }
 
     const activeEvent = this.db.getActiveEvent()!;
+    this.assertNoUnansweredChallengeRequest(activeEvent.id, racerId);
     this.db.ensureEventRegistration(activeEvent.id, racerId);
     const racer = this.db.getRacer(racerId);
     if (!racer) {
@@ -2191,18 +2192,6 @@ export class RollerRumbleApp extends EventEmitter {
       );
     }
 
-    const replacedEntry = input.replaceQueueEntryId
-      ? this.db
-          .listQueueEntries(activeEvent.id)
-          .find((entry) => entry.id === input.replaceQueueEntryId)
-      : undefined;
-    if (replacedEntry?.status === "queued" && replacedEntry.awaitingRacerId === input.racerId) {
-      // Giving up a request still waiting on this racer is declining it: the challenger is told,
-      // and their spot resolves by prior intent instead of becoming an auto-match they never chose.
-      this.answerChallengeRequest(replacedEntry.id, input.racerId, "decline");
-      return this.signUpQueue({ ...input, replaceQueueEntryId: undefined });
-    }
-
     const replaceOccurrenceId = input.replaceQueueEntryId
       ? this.resolveChallengeReplacementOccurrenceId(
           activeEvent.id,
@@ -2274,6 +2263,28 @@ export class RollerRumbleApp extends EventEmitter {
       this.emitSnapshot();
     }
     return this.getSnapshot();
+  }
+
+  /**
+   * A racer with a `challenge request` waiting on them answers it before queueing or challenging on
+   * their own, so a request is never left hanging while its racer carries on without it.
+   */
+  private assertNoUnansweredChallengeRequest(eventId: string, racerId: string): void {
+    const request = this.db
+      .listQueueEntries(eventId)
+      .find((entry) => entry.status === "queued" && entry.awaitingRacerId === racerId);
+    if (!request) {
+      return;
+    }
+
+    const challengerId = request.racerIds.find((candidate) => candidate !== racerId);
+    const challengerName =
+      (challengerId ? this.db.getRacer(challengerId)?.displayName : undefined) ?? "a racer";
+    throw new AppHttpError(
+      `Answer your challenge from ${challengerName} first.`,
+      409,
+      "challenge_answer_required"
+    );
   }
 
   /** The challenged racer agrees to a `challenge request`, which then races from the spot it holds. */

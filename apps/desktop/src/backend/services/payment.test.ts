@@ -80,6 +80,7 @@ function makeStore() {
     })),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
     ensureEventRegistration: vi.fn(),
+    listQueueEntries: vi.fn(() => []),
     getEventRacerPayment: vi.fn(
       (_eventId: string, racerId: string) => payments.get(racerId) ?? { status: "unpaid" }
     ),

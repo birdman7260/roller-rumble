@@ -858,6 +858,14 @@ function useRacerPageViewModel({
         });
         return;
       }
+      if (error instanceof ApiError && error.code === "challenge_answer_required") {
+        setQueueIssueModal({
+          eyebrow: "Challenge",
+          title: "Answer your challenge first",
+          message: error.message
+        });
+        return;
+      }
       if (error instanceof ApiError && error.code === "challenge_target_unavailable") {
         setQueueIssueModal({
           eyebrow: "Challenge Queue",

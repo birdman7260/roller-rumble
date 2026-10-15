@@ -1959,7 +1959,7 @@ describe("app service challenge requests", () => {
   type SignUpInvoker = (
     this: unknown,
     racerId: string,
-    input: { opponentRacerId?: string; replaceQueueEntryId?: string }
+    input: { opponentRacerId?: string; requestedType?: "solo" | "auto-match" }
   ) => Promise<unknown>;
   type AnswerInvoker = (this: unknown, entryId: string, racerId: string) => AppSnapshot;
 
@@ -1974,7 +1974,7 @@ describe("app service challenge requests", () => {
     "notifyChallengeAbandonmentRemovals",
     "queueStatusChannelKey",
     "challengeRequestChannelKey",
-    "resolveChallengeReplacementOccurrenceId",
+    "assertNoUnansweredChallengeRequest",
     "challengeRequestChannelPrefix",
     "answerChallengeRequest",
     "notifyChallengeAnswered"
@@ -2035,10 +2035,13 @@ describe("app service challenge requests", () => {
         .filter((input) => input.type === type && input.racerIds.includes(racerId));
 
     return {
-      challenge: (racerId: string, opponentRacerId: string, replaceQueueEntryId?: string) =>
+      challenge: (racerId: string, opponentRacerId: string) =>
         (getAppMethod("signUpQueueForRacer") as unknown as SignUpInvoker).call(target, racerId, {
-          opponentRacerId,
-          replaceQueueEntryId
+          opponentRacerId
+        }),
+      join: (racerId: string, requestedType: "solo" | "auto-match") =>
+        (getAppMethod("signUpQueueForRacer") as unknown as SignUpInvoker).call(target, racerId, {
+          requestedType
         }),
       accept: (entryId: string, racerId: string) =>
         (getAppMethod("acceptChallengeRequestForRacer") as unknown as AnswerInvoker).call(
@@ -2141,17 +2144,22 @@ describe("app service challenge requests", () => {
     expect(service.sentTo("r1", "queue_status_update")).toEqual([]);
   });
 
-  it("treats replacing a request that waits on you as declining it", async () => {
-    const service = makeService({ maxActiveQueueEntriesPerRacer: 1 });
+  it("makes the challenged racer answer before they can queue or challenge on their own", async () => {
+    const service = makeService();
     await service.challenge("r1", "r2");
     const requestId = service.queue()[0].id;
 
-    await service.challenge("r2", "r3", requestId);
+    await expect(service.join("r2", "auto-match")).rejects.toThrow(
+      "Answer your challenge from Name r1 first."
+    );
+    await expect(service.challenge("r2", "r3")).rejects.toThrow(
+      "Answer your challenge from Name r1 first."
+    );
 
-    expect(service.queue().map((entry) => entry.racerIds)).toEqual([["r2", "r3"]]);
-    expect(service.sentTo("r1", "challenge_answered")).toEqual([
-      expect.objectContaining({ title: "Challenge declined" })
-    ]);
+    service.accept(requestId, "r2");
+    await service.join("r2", "auto-match");
+
+    expect(service.queue().map((entry) => entry.racerIds)).toEqual([["r1", "r2"], ["r2"]]);
   });
 
   it("does not tell an opponent who never answered that they are out of the queue", async () => {
