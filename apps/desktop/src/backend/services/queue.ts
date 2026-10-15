@@ -326,6 +326,17 @@ function resolveBrokenChallengeOccurrence(
     };
   }
 
+  return removeChallengeOccurrence(occurrence, updatedAt);
+}
+
+/**
+ * Take a racer's side of a challenge out of the queue. A declined `challenge request` does this to
+ * the challenger whatever their spot was before, since it was only there for that race (ADR 0026).
+ */
+function removeChallengeOccurrence(
+  occurrence: QueueOccurrence,
+  updatedAt: string
+): QueueOccurrence {
   return {
     ...occurrence,
     status: "removed",
@@ -590,8 +601,9 @@ function findChallengeReplacementAnchor(
 /**
  * What is left of a challenge after one racer reuses their side of it for a new challenge. A
  * partner in an accepted challenge stays queued as an auto-match. If the `challenge request` was
- * still unanswered, nobody agreed to race, so the partner is resolved as if it had been declined,
- * and any spot that resolves to removed comes back in `dropped`.
+ * still unanswered, nobody agreed to race: the awaited racer moving on declines it, which drops
+ * the challenger, and the challenger moving on returns the awaited racer to their prior intent.
+ * Any spot that ends up removed comes back in `dropped`.
  */
 function releaseReplacementSlotRemainder(
   slot: QueueSlot,
@@ -605,17 +617,21 @@ function releaseReplacementSlotRemainder(
   );
   const releasedOccurrences = slot.occurrences
     .filter((occurrence) => occurrence.id !== replacedOccurrenceId)
-    .map((occurrence) =>
-      occurrence.awaitingChallengeResponse || replacedWasAwaiting
-        ? resolveBrokenChallengeOccurrence(occurrence, timestamp)
-        : {
-            ...occurrence,
-            intent: "auto-match" as const,
-            priorIntent: null,
-            lockGroupId: null,
-            updatedAt: timestamp
-          }
-    );
+    .map((occurrence) => {
+      if (replacedWasAwaiting) {
+        return removeChallengeOccurrence(occurrence, timestamp);
+      }
+      if (occurrence.awaitingChallengeResponse) {
+        return resolveBrokenChallengeOccurrence(occurrence, timestamp);
+      }
+      return {
+        ...occurrence,
+        intent: "auto-match" as const,
+        priorIntent: null,
+        lockGroupId: null,
+        updatedAt: timestamp
+      };
+    });
   const remainingOccurrences = releasedOccurrences.filter(
     (occurrence) => occurrence.status === "queued"
   );
@@ -961,9 +977,10 @@ export function acceptChallengeRequest(
 }
 
 /**
- * The challenged racer says no: neither side races. Each racer's spot is resolved the way a
- * `challenge abandonment` resolves a stranded partner, so a spot the challenge created goes away
- * and a spot it upgraded keeps its place under its prior intent.
+ * The challenged racer says no: neither side races. The challenger's spot leaves the queue with the
+ * request. The challenged racer's spot is resolved the way a `challenge abandonment` resolves a
+ * stranded partner, so a spot the challenge created goes away and a spot it upgraded keeps its
+ * place under its prior intent.
  */
 export function declineChallengeRequest(
   entries: QueueEntry[],
@@ -973,9 +990,12 @@ export function declineChallengeRequest(
 ): QueueOccurrence[] {
   const occurrenceIds = findChallengeRequestOccurrenceIds(entries, entryId, racerId);
   const timestamp = new Date().toISOString();
-  return occurrences.map((occurrence) =>
-    occurrenceIds.has(occurrence.id) && occurrence.status === "queued"
+  return occurrences.map((occurrence) => {
+    if (!occurrenceIds.has(occurrence.id) || occurrence.status !== "queued") {
+      return occurrence;
+    }
+    return occurrence.racerId === racerId
       ? resolveBrokenChallengeOccurrence(occurrence, timestamp)
-      : occurrence
-  );
+      : removeChallengeOccurrence(occurrence, timestamp);
+  });
 }

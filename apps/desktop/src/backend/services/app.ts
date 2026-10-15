@@ -171,7 +171,7 @@ const CHALLENGE_ANSWER_MESSAGES: Record<
     answeringTitle: string;
     answeringBody: (challengerName: string) => string;
     challengerTitle: string;
-    challengerBody: (answeringName: string, challengerKeepsSpot: boolean) => string;
+    challengerBody: (answeringName: string) => string;
   }
 > = {
   accept: {
@@ -186,10 +186,8 @@ const CHALLENGE_ANSWER_MESSAGES: Record<
     answeringTitle: "Challenge declined",
     answeringBody: (challengerName) => `You turned down ${challengerName}'s challenge.`,
     challengerTitle: "Challenge declined",
-    challengerBody: (answeringName, challengerKeepsSpot) =>
-      `${answeringName} declined your challenge. ${
-        challengerKeepsSpot ? "You keep your spot in the queue." : "You're out of the race queue."
-      }`
+    challengerBody: (answeringName) =>
+      `${answeringName} declined your challenge, so it's off the queue.`
   }
 };
 
@@ -2293,8 +2291,9 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   /**
-   * The challenged racer turns a `challenge request` down. Neither racer races it; each spot is
-   * resolved by its prior intent, as a `challenge abandonment` would be (ADR-0015).
+   * The challenged racer turns a `challenge request` down. Neither racer races it: the challenger's
+   * spot leaves the queue, and the challenged racer's is resolved by its prior intent, as a
+   * `challenge abandonment` would be (ADR-0015).
    */
   declineChallengeRequestForRacer(entryId: string, racerId: string): AppSnapshot {
     return this.answerChallengeRequest(entryId, racerId, "decline");
@@ -2382,7 +2381,7 @@ export class RollerRumbleApp extends EventEmitter {
       eventId,
       type: "challenge_answered",
       title: messages.challengerTitle,
-      body: messages.challengerBody(answeringName, challengerOccurrence.status === "queued"),
+      body: messages.challengerBody(answeringName),
       url: "/racer",
       channelKey: this.challengeRequestChannelKey(
         eventId,

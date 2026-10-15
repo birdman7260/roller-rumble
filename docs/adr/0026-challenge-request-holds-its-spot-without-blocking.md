@@ -15,10 +15,13 @@ way it already treats an unpaired `auto-match` spot.
   explain, but one phone left in a pocket would stall the whole event until the host stepped in.
   Skipping reuses the readiness rule that unpaired auto-match spots already follow, so nothing in
   staging, auto-stage, or the snapshot's `nextQueueEntry` needed special handling.
-- **Resolve a decline by prior intent (chosen)** vs. **always keep the challenger queued.** A decline
-  resolves both racers the way a `challenge abandonment` resolves a stranded partner (ADR 0015). A spot
-  the challenge created is removed, and a spot it upgraded falls back to its prior intent. A challenger
-  who only ever wanted that race does not end up in an auto-match they never asked for.
+- **Drop the challenger on a decline (chosen)** vs. **resolve both racers by prior intent** vs.
+  **always keep the challenger queued.** A declined request leaves the queue with the challenger's
+  spot, even when the challenge upgraded a spot they already had. That spot was spent on a race that
+  isn't happening, and letting it fall back to a solo run or auto-match would hand the challenger a
+  race they didn't ask for at the front of the line. The challenged racer never asked for any of it,
+  so their side resolves the way a `challenge abandonment` resolves a stranded partner (ADR 0015): a
+  spot the challenge created is removed, and a spot it upgraded falls back to its prior intent.
 - **Flag on the occurrence (chosen)** vs. **a separate requests table.** The request already is the
   challenge's lock group. One boolean on the challenged racer's occurrence travels through the queue
   module's existing projection and abandonment logic, and the projected entry's `awaitingRacerId`
@@ -41,8 +44,8 @@ way it already treats an unpaired `auto-match` spot.
   signup endpoint refuses (`challenge_answer_required`) so a request is never left hanging while its
   racer carries on without it. This also means a racer cannot give up a request's spot to send a
   challenge of their own. The queue module still resolves that case as a decline if it ever happens.
-- Leaving a request counts as declining it. The challenger is always told, and never ends up in an
-  auto-match they didn't choose.
+- Leaving a request counts as declining it. The challenger is always told that their challenge is off
+  the queue, and never ends up in an auto-match they didn't choose.
 - A request that upgrades the challenged racer's existing spot takes that spot over while it is
   pending. That spot is skipped like the request until they answer, and a decline restores it.
 - The host's own match composition at the admin desk never sends a request.

@@ -966,7 +966,7 @@ describe("queue service", () => {
       ]);
     });
 
-    it("returns upgraded spots to their prior intent when declined", () => {
+    it("drops the challenger's spot but gives the opponent theirs back when declined", () => {
       const requested = project(
         challenge([
           occurrence("o1", "r1", { intent: "solo" }),
@@ -981,11 +981,10 @@ describe("queue service", () => {
         requested.entries
       );
 
+      // The challenger's spot was there for this race, so it goes even though it began as a solo run.
       expect(declined.occurrences.find((candidate) => candidate.id === "o1")).toMatchObject({
-        status: "queued",
-        intent: "solo",
-        lockGroupId: null,
-        awaitingChallengeResponse: false
+        status: "removed",
+        lockGroupId: null
       });
       expect(declined.occurrences.find((candidate) => candidate.id === "o2")).toMatchObject({
         status: "queued",
@@ -993,10 +992,7 @@ describe("queue service", () => {
         lockGroupId: null,
         awaitingChallengeResponse: false
       });
-      expect(declined.entries.map((candidate) => candidate.racerIds)).toEqual([
-        ["r1"],
-        ["r2", "r3"]
-      ]);
+      expect(declined.entries.map((candidate) => candidate.racerIds)).toEqual([["r2", "r3"]]);
     });
 
     it("puts an unanswered opponent back where they were when the challenger leaves", () => {
@@ -1061,6 +1057,7 @@ describe("queue service", () => {
       const lockedChallenges = [
         occurrence("o1", "r3", {
           intent: "challenge",
+          priorIntent: "auto-match",
           lockGroupId: "lock-1",
           projectedPosition: 1
         }),
@@ -1083,8 +1080,7 @@ describe("queue service", () => {
       expect(replaced.entries).toEqual([
         expect.objectContaining({ racerIds: ["r1", "r2"], awaitingRacerId: null })
       ]);
-      // Moving on from the request declines it, so the challenger it pulled in is not left behind
-      // in an auto-match they never asked for.
+      // Moving on from the request declines it, so the challenger's spot goes with it.
       expect(replaced.occurrences.find((candidate) => candidate.id === "o1")?.status).toBe(
         "removed"
       );

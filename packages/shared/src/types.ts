@@ -243,8 +243,8 @@ export interface QueueOccurrence {
   lockGroupId: string | null;
   /**
    * True on the challenged racer's occurrence while their `challenge request`
-   * is unanswered. Accepting clears it; declining resolves both racers the way
-   * a challenge abandonment would (ADR-0015).
+   * is unanswered. Accepting clears it; declining removes the challenger's spot
+   * and resolves this one the way a challenge abandonment would (ADR-0015).
    */
   awaitingChallengeResponse: boolean;
   signupSequence: number;

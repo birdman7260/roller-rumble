@@ -2119,7 +2119,7 @@ describe("app service challenge requests", () => {
     const answers = service.sentTo("r1", "challenge_answered");
     expect(answers).toHaveLength(1);
     expect(answers[0].title).toBe("Challenge declined");
-    expect(answers[0].body).toContain("You're out of the race queue");
+    expect(answers[0].body).toBe("Name r2 declined your challenge, so it's off the queue.");
   });
 
   it("only lets the challenged racer answer", async () => {
