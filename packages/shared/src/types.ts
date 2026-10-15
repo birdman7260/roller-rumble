@@ -2,6 +2,7 @@ import type { SubsystemId } from "./managed-settings";
 import type {
   APP_MODES,
   EVENT_PAYMENT_STATUSES,
+  HOST_SET_EVENT_PAYMENT_STATUSES,
   PAYMENT_RECORD_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
   QUEUE_ENTRY_LOCK_TYPES,
@@ -25,6 +26,7 @@ import type {
 } from "./constants";
 
 export type EventPaymentStatus = (typeof EVENT_PAYMENT_STATUSES)[number];
+export type HostSetEventPaymentStatus = (typeof HOST_SET_EVENT_PAYMENT_STATUSES)[number];
 export type PaymentRecordStatus = (typeof PAYMENT_RECORD_STATUSES)[number];
 export type AppMode = (typeof APP_MODES)[number];
 export type QueueEntryType = (typeof QUEUE_ENTRY_TYPES)[number];
@@ -835,9 +837,44 @@ export interface RacerAuthSuccessResponse {
 }
 
 export interface UpdateRacerPaymentInput {
-  status: EventPaymentStatus;
+  status: HostSetEventPaymentStatus;
   note?: string;
   providerReference?: string;
+}
+
+/**
+ * A Stripe entrance fee the host can refund once the event ends: paid by a racer who has no
+ * finished race result in the active event. A failed earlier refund comes back for a retry.
+ */
+export interface UnracedRefundCandidate {
+  paymentId: string;
+  racerId: string;
+  displayName: string;
+  amountCents: number;
+  currency: string;
+  status: PaymentRecordStatus;
+  failureMessage?: string | null;
+}
+
+export interface UnracedRefundOutcome extends Pick<
+  UnracedRefundCandidate,
+  "paymentId" | "racerId" | "displayName" | "amountCents" | "currency"
+> {
+  status: Extract<PaymentRecordStatus, "refunded" | "refund_pending" | "refund_failed">;
+  message?: string | null;
+}
+
+export interface UnracedRefundPreview {
+  candidates: UnracedRefundCandidate[];
+}
+
+/** The payment ids the host reviewed and confirmed for refund. */
+export interface RefundUnracedPaymentsInput {
+  paymentIds: string[];
+}
+
+export interface UnracedRefundResult {
+  outcomes: UnracedRefundOutcome[];
 }
 
 export interface UpdateEventPaymentConfigInput {

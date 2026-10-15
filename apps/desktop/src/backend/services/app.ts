@@ -38,7 +38,10 @@ import type {
   RacerQueueSignupResponse,
   RacerNotification,
   RacerNotificationType,
+  HostSetEventPaymentStatus,
   StripeConnectionTestResult,
+  UnracedRefundPreview,
+  UnracedRefundResult,
   RoundRobinMatch,
   TournamentByeFillOptionsResponse,
   TournamentRacerRemovalOptionsResponse,
@@ -1708,6 +1711,19 @@ export class RollerRumbleApp extends EventEmitter {
     return this.getSnapshot();
   }
 
+  async previewUnracedRefunds(): Promise<UnracedRefundPreview> {
+    const preview = await this.payment.previewUnracedRefunds();
+    // Checking pending refunds with Stripe may have settled some.
+    this.emitSnapshot();
+    return preview;
+  }
+
+  async refundUnracedPayments(paymentIds: string[]): Promise<UnracedRefundResult> {
+    const result = await this.payment.refundUnracedPayments(paymentIds);
+    this.emitSnapshot();
+    return result;
+  }
+
   /**
    * The `registration wizard`'s submit: always a new racer (ADR-0024). The response carries the
    * racer payload, since it goes back to a racer phone.
@@ -1923,7 +1939,7 @@ export class RollerRumbleApp extends EventEmitter {
   updateRacerPaymentStatus(
     racerId: string,
     input: {
-      status: "unpaid" | "paid" | "waived";
+      status: HostSetEventPaymentStatus;
       note?: string;
       providerReference?: string;
     }
@@ -2149,6 +2165,8 @@ export class RollerRumbleApp extends EventEmitter {
       this.completeStripeCheckoutSession(event.data.object);
     } else if (event.type === "checkout.session.expired") {
       this.payment.applyCheckoutExpired(event.data.object);
+    } else if (event.type === "refund.updated" || event.type === "refund.failed") {
+      this.payment.applyRefundUpdated(event.data.object);
     }
 
     this.payment.markWebhookProcessed(event.id, event.type);

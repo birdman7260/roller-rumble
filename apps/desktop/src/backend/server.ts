@@ -36,6 +36,7 @@ import {
   tournamentUpNextSchema,
   updateEventPaymentConfigSchema,
   updateEventSchema,
+  refundUnracedPaymentsSchema,
   updateRacerPaymentSchema,
   updatePhotoBoothStatusSchema,
   webPushSubscriptionSchema
@@ -115,6 +116,38 @@ function requireRacerSession(req: express.Request, service: RollerRumbleApp) {
   }
   return racer;
 }
+
+const LOOPBACK_ADDRESSES = new Set(["127.0.0.1", "::1", "::ffff:127.0.0.1"]);
+const LOOPBACK_HOSTNAMES = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+function isLoopbackOrigin(origin: string): boolean {
+  try {
+    return LOOPBACK_HOSTNAMES.has(new URL(origin).hostname);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Admin routes are otherwise reachable by anyone who can reach the server, so routes that move
+ * money accept only the host machine's own admin window. Cloudflare tunnel traffic also arrives
+ * over loopback (cloudflared runs on this machine), but Cloudflare always stamps it with
+ * `cf-connecting-ip`. A web page open in a browser on this machine would also arrive over
+ * loopback, so a browser-sent `Origin` must be a loopback page too.
+ */
+function requireHostAdminWindow(req: express.Request, refusal: string): void {
+  const fromLoopback = LOOPBACK_ADDRESSES.has(req.socket.remoteAddress ?? "");
+  const origin = req.get("origin");
+  if (
+    !fromLoopback ||
+    req.get("cf-connecting-ip") !== undefined ||
+    (origin !== undefined && !isLoopbackOrigin(origin))
+  ) {
+    throw new AppHttpError(refusal, 403, "host_admin_window_required");
+  }
+}
+
+const REFUNDS_HOST_ONLY = "Refunds are only available from the host laptop's admin window.";
 
 async function proxyDevRequest(
   rendererDevUrl: string,
@@ -715,6 +748,25 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
   app.post(`${API_PREFIX}/admin/queue`, (req, res) => {
     const input = queueSignupSchema.parse(req.body);
     res.json(service.signUpQueue(input));
+  });
+
+  app.get(`${API_PREFIX}/admin/events/current/refunds/unraced`, async (req, res, next) => {
+    try {
+      requireHostAdminWindow(req, REFUNDS_HOST_ONLY);
+      res.json(await service.previewUnracedRefunds());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/admin/events/current/refunds/unraced`, async (req, res, next) => {
+    try {
+      requireHostAdminWindow(req, REFUNDS_HOST_ONLY);
+      const input = refundUnracedPaymentsSchema.parse(req.body);
+      res.json(await service.refundUnracedPayments(input.paymentIds));
+    } catch (error) {
+      next(error);
+    }
   });
 
   app.post(`${API_PREFIX}/admin/racers/:racerId/payment`, (req, res) => {

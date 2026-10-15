@@ -162,8 +162,9 @@ below).
    ```
    https://your-event.example.com/api/webhooks/stripe
    ```
-3. Select the events to send. The checkout completion events are the important ones (Stripe's
-   "Checkout session completed" / "expired"). If unsure, you can send all events.
+3. Select the events to send: `checkout.session.completed` and `checkout.session.expired` for
+   payments, plus `refund.updated` and `refund.failed` so end-of-event refunds that Stripe settles
+   later are recorded (see _Refunding racers who didn't race_). If unsure, you can send all events.
 4. Save the endpoint.
 5. Copy the endpoint's **Signing secret** (starts with `whsec_`).
 
@@ -269,6 +270,37 @@ your own way.
 
 ---
 
+## Refunding racers who didn't race
+
+If more people paid than you had time to race, refund them after the event from the **Event** tab →
+**Refunds** card. The card only appears while Stripe is set up.
+
+1. Click **Review Refunds**. The list shows every racer who paid through Stripe for **this** event
+   and has **no finished race**. A racer whose only race was stopped before the finish counts as
+   not having raced. Racers you marked paid or waived by hand aren't listed, because no money went
+   through Stripe.
+2. Check the names and the total, then click **Refund N racers** and confirm. Only the racers in
+   the list you reviewed are refunded; anyone who became eligible since waits for the next
+   review. Refunds cannot be undone.
+3. The card reports how many were refunded. A refund Stripe couldn't send shows its reason and
+   stays in the list, so you can retry it with the same button, or refund it from the Stripe
+   Dashboard instead.
+
+Things to know:
+
+- **Do this before you click Create New Event.** Refunds only cover the active event.
+- **Refunds only work on the host laptop's admin window.** They're refused over the tunnel or the
+  LAN, so nobody else can send them.
+- **Stripe keeps its processing fee** on every refund, so you pay that fee for each racer.
+- A refunded racer's fee status on the **Racers** tab reads **refunded**. Stripe shows the refund
+  on the payment in the Dashboard, and the money usually reaches the racer's card within 5–10
+  business days.
+- Most card refunds settle at once. If Stripe reports one as still settling, the app records it
+  as refunded once Stripe confirms, either through the webhook or the next time you click
+  **Refresh List**.
+
+---
+
 ## Behind a corporate network (Zscaler, VPN, HTTPS inspection)
 
 Some office networks inspect HTTPS traffic (Zscaler is common). On those, the **Test Stripe
@@ -299,6 +331,7 @@ Safari or Chrome work fine. The fix is to give the app your company's trusted ce
 | Cert error `UNABLE_TO_GET_ISSUER_CERT_LOCALLY`      | Corporate HTTPS inspection                             | Set the **Stripe CA certificate file** (above)                                                   |
 | Test payments won't take a real card                | You're in Stripe **test mode**                         | Use Stripe's test card numbers; switch to live keys for real events                              |
 | Racer isn't sent to Checkout at all                 | The fee isn't required, or they're already paid/waived | Confirm the **Require** toggle is on and their status is unpaid                                  |
+| A refund shows as failed                            | Stripe refused it (e.g. a disputed charge)             | Read the reason in the **Refunds** card; retry, or refund it from the Stripe Dashboard           |
 
 For anything else, see the **Troubleshooting** page, or paste this page plus Troubleshooting into an
 AI assistant with the exact error text.

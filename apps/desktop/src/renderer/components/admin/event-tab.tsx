@@ -15,28 +15,12 @@ import {
   updateActiveEvent,
   updateEventPaymentConfig
 } from "../../lib/api";
+import { formatPaymentAmount } from "../../lib/payment-amount";
 import { SIGNUP_PROMPT_DEFAULTS } from "../../lib/signup-prompt-copy";
 import { formatRacerNames } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 import { useMasonryGrid } from "../../lib/use-masonry-grid";
-
-const usdPaymentAmountFormatter = new Intl.NumberFormat(undefined, {
-  style: "currency",
-  currency: "USD"
-});
-
-function formatPaymentAmount(amountCents: number | null | undefined, currency: string): string {
-  if (typeof amountCents !== "number") {
-    return "Not set";
-  }
-
-  const normalizedCurrency = currency.toUpperCase();
-  if (normalizedCurrency === "USD") {
-    return usdPaymentAmountFormatter.format(amountCents / 100);
-  }
-
-  return `${normalizedCurrency} ${(amountCents / 100).toFixed(2)}`;
-}
+import { EventRefundsPanel } from "./event-refunds-panel";
 
 function parseDollarAmountToCents(value: string): number | null {
   const parsed = Number(value);
@@ -402,6 +386,10 @@ export function EventTab({
       <EventDetailsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 
       <EventPaymentsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
+
+      {snapshot.paymentProvider.stripe.configured ? (
+        <EventRefundsPanel key={snapshot.activeEvent.id} />
+      ) : null}
 
       <Panel title="Session Snapshot">
         <div className="stat-grid">

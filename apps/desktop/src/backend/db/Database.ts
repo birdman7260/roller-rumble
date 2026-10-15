@@ -98,6 +98,10 @@ export interface StoredPaymentRecord {
   failureCode?: string | null;
   failureMessage?: string | null;
   completedAt?: string | null;
+  stripeRefundId?: string | null;
+  refundIssuedAt?: string | null;
+  /** Numbers the refund's idempotency key; bumped after Stripe definitely refused a refund. */
+  refundAttempt: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -224,6 +228,9 @@ function mapPayment(row: PaymentRow): StoredPaymentRecord {
     failureCode: row.failureCode,
     failureMessage: row.failureMessage,
     completedAt: row.completedAt,
+    stripeRefundId: row.stripeRefundId,
+    refundIssuedAt: row.refundIssuedAt,
+    refundAttempt: row.refundAttempt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
   };
@@ -910,6 +917,9 @@ export class AppDatabase {
         failureCode: null,
         failureMessage: null,
         completedAt: null,
+        stripeRefundId: null,
+        refundIssuedAt: null,
+        refundAttempt: 0,
         createdAt: timestamp,
         updatedAt: timestamp
       })
@@ -921,6 +931,16 @@ export class AppDatabase {
   getPaymentRecord(paymentId: string): StoredPaymentRecord | null {
     const row = this.orm.select().from(payments).where(eq(payments.id, paymentId)).get();
     return row ? mapPayment(row) : null;
+  }
+
+  listEventPaymentRecords(eventId: string): StoredPaymentRecord[] {
+    return this.orm
+      .select()
+      .from(payments)
+      .where(eq(payments.eventId, eventId))
+      .orderBy(asc(payments.createdAt))
+      .all()
+      .map(mapPayment);
   }
 
   getPaymentByStripeCheckoutSessionId(sessionId: string): StoredPaymentRecord | null {
@@ -942,6 +962,9 @@ export class AppDatabase {
       failureCode: string | null;
       failureMessage: string | null;
       completedAt: string | null;
+      stripeRefundId: string | null;
+      refundIssuedAt: string | null;
+      refundAttempt: number;
     }>
   ): StoredPaymentRecord {
     this.orm

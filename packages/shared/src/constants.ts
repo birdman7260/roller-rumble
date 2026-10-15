@@ -96,14 +96,19 @@ export const QUEUE_ENTRY_STATUSES = [
   "removed"
 ] as const;
 export const QUEUE_OCCURRENCE_INTENTS = ["auto-match", "solo", "challenge"] as const;
-export const EVENT_PAYMENT_STATUSES = ["unpaid", "paid", "waived"] as const;
+export const EVENT_PAYMENT_STATUSES = ["unpaid", "paid", "waived", "refunded"] as const;
+/** The entrance-fee statuses the host may set by hand; `refunded` only follows a Stripe refund. */
+export const HOST_SET_EVENT_PAYMENT_STATUSES = ["unpaid", "paid", "waived"] as const;
 export const PAYMENT_RECORD_STATUSES = [
   "checkout_created",
   "paid",
   "cancelled",
   "expired",
   "failed",
-  "queue_failed"
+  "queue_failed",
+  "refund_pending",
+  "refunded",
+  "refund_failed"
 ] as const;
 export const RACER_NOTIFICATION_TYPES = [
   "admin_message",

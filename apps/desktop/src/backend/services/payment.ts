@@ -4,9 +4,14 @@ import {
   STRIPE_MIN_PAYMENT_AMOUNT_CENTS
 } from "@roller-rumble/shared/constants";
 import type {
+  HostSetEventPaymentStatus,
   Racer,
   RacerQueueSignupInput,
   StripeConnectionTestResult,
+  UnracedRefundCandidate,
+  UnracedRefundOutcome,
+  UnracedRefundPreview,
+  UnracedRefundResult,
   UpdateEventPaymentConfigInput
 } from "@roller-rumble/shared/types";
 import { nowIso } from "@roller-rumble/shared/utils";
@@ -35,7 +40,26 @@ function valueFromRecord(value: unknown, key: string): unknown {
     : null;
 }
 
-function getStripeFailureDetails(error: unknown): StripeFailureDetails {
+/** How to describe a Stripe failure that is not a connection, key or permission problem. */
+interface StripeOperationFailure {
+  code: string;
+  messagePrefix: string;
+}
+
+const CHECKOUT_FAILURE: StripeOperationFailure = {
+  code: "stripe_checkout_failed",
+  messagePrefix: "Could not start Stripe Checkout."
+};
+
+const REFUND_FAILURE: StripeOperationFailure = {
+  code: "stripe_refund_failed",
+  messagePrefix: "Stripe could not refund this payment."
+};
+
+function getStripeFailureDetails(
+  error: unknown,
+  operation: StripeOperationFailure = CHECKOUT_FAILURE
+): StripeFailureDetails {
   if (error instanceof StripeCaCertificateError) {
     return {
       code: error.code,
@@ -81,11 +105,34 @@ function getStripeFailureDetails(error: unknown): StripeFailureDetails {
   }
 
   return {
-    code: stripeCode ?? "stripe_checkout_failed",
-    message: `Could not start Stripe Checkout. ${message}`,
+    code: stripeCode ?? operation.code,
+    message: `${operation.messagePrefix} ${message}`,
     requestId: typeof requestId === "string" ? requestId : null,
     type: stripeType
   };
+}
+
+/**
+ * Payments that took the racer's money and have not been refunded yet. `queue_failed` was paid
+ * but never queued; `refund_failed` is offered again so the host can retry.
+ */
+const REFUNDABLE_PAYMENT_STATUSES = new Set<StoredPaymentRecord["status"]>([
+  "paid",
+  "queue_failed",
+  "refund_failed"
+]);
+
+/**
+ * Whether Stripe answered a refund request with a definite refusal, so no refund was made and a
+ * retry must use a new idempotency key (Stripe replays a key's first answer, errors included, for
+ * 24 hours). Connection failures and 5xx answers leave it unknown whether the refund was made,
+ * and a 409 means the same key is still in flight, so those keep the key.
+ */
+function isDefiniteStripeRefusal(error: unknown): boolean {
+  const statusCode = valueFromRecord(error, "statusCode");
+  return (
+    typeof statusCode === "number" && statusCode >= 400 && statusCode < 500 && statusCode !== 409
+  );
 }
 
 /**
@@ -103,6 +150,9 @@ export type PaymentStore = Pick<
   | "updatePaymentRecord"
   | "getPaymentRecord"
   | "getPaymentByStripeCheckoutSessionId"
+  | "listEventPaymentRecords"
+  | "listResults"
+  | "getRacer"
   | "hasProcessedWebhookEvent"
   | "markWebhookEventProcessed"
 >;
@@ -118,6 +168,7 @@ export class PaymentService {
   private stripeClient: Stripe | null = null;
   private stripeSecretKey: string | null = null;
   private stripeExtraCaCertFile: string | null = null;
+  private refundRunInProgress = false;
 
   constructor(private readonly db: PaymentStore) {}
 
@@ -226,7 +277,7 @@ export class PaymentService {
   updateRacerPaymentStatus(
     racerId: string,
     input: {
-      status: "unpaid" | "paid" | "waived";
+      status: HostSetEventPaymentStatus;
       note?: string;
       providerReference?: string;
     }
@@ -325,6 +376,223 @@ export class PaymentService {
       paymentId: updatedPayment.id,
       checkoutUrl: session.url
     };
+  }
+
+  /**
+   * Lists the active event's Stripe entrance fees paid by racers who have no finished race
+   * result, so the host can refund the racers who never got to race. First asks Stripe about
+   * any refund still pending, in case its webhook never reached the app.
+   */
+  async previewUnracedRefunds(): Promise<UnracedRefundPreview> {
+    await this.settlePendingRefunds();
+    return { candidates: this.listUnracedRefundCandidates() };
+  }
+
+  private async settlePendingRefunds(): Promise<void> {
+    const activeEvent = this.db.getActiveEvent()!;
+    const pending = this.db
+      .listEventPaymentRecords(activeEvent.id)
+      .filter((payment) => payment.status === "refund_pending" && payment.stripeRefundId);
+    for (const payment of pending) {
+      try {
+        this.applyRefundUpdated(
+          await this.getStripeClient().refunds.retrieve(payment.stripeRefundId!)
+        );
+      } catch (error) {
+        // Leave it pending; the next review or Stripe's webhook settles it.
+        console.warn("[stripe] pending refund check failed", {
+          ...getStripeFailureDetails(error, REFUND_FAILURE),
+          paymentId: payment.id
+        });
+      }
+    }
+  }
+
+  /**
+   * Refunds the candidates the host reviewed in `previewUnracedRefunds` through Stripe, one at a
+   * time, and records each refund on the payment and the racer's event registration. Only the
+   * reviewed `paymentIds` that are still eligible are refunded, so a racer who became eligible
+   * after the review is never refunded without the host seeing them. The caller broadcasts the
+   * snapshot.
+   */
+  async refundUnracedPayments(paymentIds: string[]): Promise<UnracedRefundResult> {
+    if (this.refundRunInProgress) {
+      throw new AppHttpError(
+        "Refunds are already being sent. Wait for them to finish.",
+        409,
+        "refunds_in_progress"
+      );
+    }
+
+    this.refundRunInProgress = true;
+    try {
+      const outcomes: UnracedRefundOutcome[] = [];
+      const reviewed = new Set(paymentIds);
+      const candidates = this.listUnracedRefundCandidates().filter((candidate) =>
+        reviewed.has(candidate.paymentId)
+      );
+      for (const candidate of candidates) {
+        outcomes.push(await this.refundCandidate(candidate));
+      }
+      return { outcomes };
+    } finally {
+      this.refundRunInProgress = false;
+    }
+  }
+
+  private async refundCandidate(candidate: UnracedRefundCandidate): Promise<UnracedRefundOutcome> {
+    const payment = this.db.getPaymentRecord(candidate.paymentId)!;
+    const { paymentId, racerId, displayName, amountCents, currency } = candidate;
+    const outcome = (
+      status: UnracedRefundOutcome["status"],
+      message: string | null
+    ): UnracedRefundOutcome => ({
+      paymentId,
+      racerId,
+      displayName,
+      amountCents,
+      currency,
+      status,
+      message
+    });
+
+    const failRefund = (code: string, message: string, refused: boolean): UnracedRefundOutcome => {
+      this.db.updatePaymentRecord(payment.id, {
+        status: "refund_failed",
+        failureCode: code,
+        failureMessage: message,
+        ...(refused ? { refundAttempt: payment.refundAttempt + 1 } : {})
+      });
+      return outcome("refund_failed", message);
+    };
+
+    const paymentIntentId = payment.stripePaymentIntentId;
+    if (!paymentIntentId) {
+      return failRefund(
+        "missing_payment_intent",
+        "Roller Rumble has no Stripe payment reference for this payment. Refund it from the Stripe Dashboard.",
+        false
+      );
+    }
+
+    let refund: Stripe.Refund;
+    try {
+      refund = await this.getStripeClient().refunds.create(
+        {
+          payment_intent: paymentIntentId,
+          metadata: {
+            paymentId: payment.id,
+            eventId: payment.eventId,
+            racerId: payment.racerId
+          }
+        },
+        // Retrying a request that never got an answer reuses the key, so it can't refund the
+        // payment twice. Once Stripe refuses or fails a refund the attempt number moves on, so
+        // the retry is a new request and not a replay of that answer.
+        {
+          idempotencyKey:
+            payment.refundAttempt === 0
+              ? `refund-${payment.id}`
+              : `refund-${payment.id}-attempt-${payment.refundAttempt}`
+        }
+      );
+    } catch (error) {
+      // Refunded already, e.g. the app stopped after Stripe made the refund but before it was
+      // recorded here, or the host refunded it from the Stripe Dashboard.
+      if (valueFromRecord(error, "code") === "charge_already_refunded") {
+        this.db.updatePaymentRecord(payment.id, {
+          status: "refunded",
+          refundIssuedAt: payment.refundIssuedAt ?? nowIso(),
+          failureCode: null,
+          failureMessage: null
+        });
+        this.markRacerRefunded(payment, payment.stripeRefundId ?? paymentIntentId);
+        return outcome("refunded", "Stripe had already refunded this payment.");
+      }
+
+      const failure = getStripeFailureDetails(error, REFUND_FAILURE);
+      console.warn("[stripe] refund failed", { ...failure, paymentId: payment.id });
+      return failRefund(failure.code, failure.message, isDefiniteStripeRefusal(error));
+    }
+
+    // Card refunds usually settle at once; anything else waits for Stripe's refund webhook.
+    const settled = refund.status === "succeeded";
+    this.db.updatePaymentRecord(payment.id, {
+      status: settled ? "refunded" : "refund_pending",
+      stripeRefundId: refund.id,
+      refundIssuedAt: nowIso(),
+      failureCode: null,
+      failureMessage: null
+    });
+    if (!settled) {
+      return outcome("refund_pending", null);
+    }
+
+    this.markRacerRefunded(payment, refund.id);
+    return outcome("refunded", null);
+  }
+
+  /**
+   * Settles a refund this app issued from Stripe's refund webhook. Refunds made elsewhere, such
+   * as the Stripe Dashboard, carry no payment id and are ignored.
+   */
+  applyRefundUpdated(refund: Stripe.Refund): void {
+    const paymentId =
+      typeof refund.metadata?.paymentId === "string" ? refund.metadata.paymentId : null;
+    const payment = paymentId ? this.db.getPaymentRecord(paymentId) : null;
+    if (payment?.stripeRefundId !== refund.id) {
+      return;
+    }
+
+    if (refund.status === "succeeded" && payment.status === "refund_pending") {
+      this.db.updatePaymentRecord(payment.id, { status: "refunded" });
+      this.markRacerRefunded(payment, refund.id);
+    } else if (refund.status === "failed" || refund.status === "canceled") {
+      this.db.updatePaymentRecord(payment.id, {
+        status: "refund_failed",
+        failureCode: refund.failure_reason ?? refund.status,
+        failureMessage: `Stripe could not complete the refund (${refund.failure_reason ?? refund.status}).`,
+        refundAttempt: payment.refundAttempt + 1
+      });
+      // Only undo the "refunded" this refund put on the racer; a pending refund never set it.
+      if (payment.status === "refunded") {
+        this.db.updateEventRacerPayment(payment.eventId, payment.racerId, {
+          status: "paid",
+          note: "Stripe refund failed",
+          providerReference: payment.stripePaymentIntentId ?? undefined
+        });
+      }
+    }
+  }
+
+  private markRacerRefunded(payment: StoredPaymentRecord, refundId: string): void {
+    this.db.updateEventRacerPayment(payment.eventId, payment.racerId, {
+      status: "refunded",
+      note: "Stripe refund",
+      providerReference: refundId
+    });
+  }
+
+  private listUnracedRefundCandidates(): UnracedRefundCandidate[] {
+    const activeEvent = this.db.getActiveEvent()!;
+    const racedRacerIds = new Set(
+      this.db.listResults(activeEvent.id).map((result) => result.racerId)
+    );
+    return this.db
+      .listEventPaymentRecords(activeEvent.id)
+      .filter(
+        (payment) =>
+          REFUNDABLE_PAYMENT_STATUSES.has(payment.status) && !racedRacerIds.has(payment.racerId)
+      )
+      .map((payment) => ({
+        paymentId: payment.id,
+        racerId: payment.racerId,
+        displayName: this.db.getRacer(payment.racerId)?.displayName ?? "Unknown racer",
+        amountCents: payment.amountCents,
+        currency: payment.currency,
+        status: payment.status,
+        failureMessage: payment.failureMessage ?? null
+      }));
   }
 
   /**

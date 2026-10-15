@@ -155,7 +155,8 @@ enabled in the Stripe Dashboard. In local development, use the Stripe CLI to for
 `/api/webhooks/stripe`.
 
 The Stripe CLI does not create Checkout sessions for the app; it only forwards completed/expired
-webhook events back to Roller Rumble after Stripe Checkout runs. The desktop app must still be able
+Checkout events (and `refund.updated` / `refund.failed` for end-of-event refunds) back to Roller
+Rumble after Stripe Checkout runs. The desktop app must still be able
 to make outbound HTTPS requests to Stripe when an unpaid racer queues. Use `Event -> Event Payments
 -> Test Stripe Connection` to confirm that Roller Rumble can authenticate with Stripe and reach the
 Stripe API from the machine running the app. If that test fails, check the secret key, internet/VPN

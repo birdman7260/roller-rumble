@@ -17,6 +17,7 @@ const { stripeMock, fakeConfig } = vi.hoisted(() => ({
   stripeMock: {
     checkout: { sessions: { create: vi.fn() } },
     balance: { retrieve: vi.fn() },
+    refunds: { create: vi.fn(), retrieve: vi.fn() },
     webhooks: { constructEvent: vi.fn() }
   },
   fakeConfig: {
@@ -59,6 +60,7 @@ function makeStore() {
   const racers = new Map<string, Racer>();
   const payments = new Map<string, { status: "unpaid" | "paid" | "waived" }>();
   const paymentRecords = new Map<string, Record<string, unknown>>();
+  const results: { eventId: string; racerId: string }[] = [];
   const activeEvent: EventRecord = {
     id: "event-1",
     name: "Test Event",
@@ -106,6 +108,7 @@ function makeStore() {
         failureCode: null,
         failureMessage: null,
         completedAt: null,
+        refundAttempt: 0,
         createdAt: timestamp,
         updatedAt: timestamp
       };
@@ -122,6 +125,10 @@ function makeStore() {
       return next;
     }),
     getPaymentRecord: vi.fn((paymentId: string) => paymentRecords.get(paymentId) ?? null),
+    listEventPaymentRecords: vi.fn((eventId: string) =>
+      [...paymentRecords.values()].filter((record) => record.eventId === eventId)
+    ),
+    listResults: vi.fn((eventId: string) => results.filter((result) => result.eventId === eventId)),
     getPaymentByStripeCheckoutSessionId: vi.fn((sessionId: string) => {
       for (const record of paymentRecords.values()) {
         if (record.stripeCheckoutSessionId === sessionId) {
@@ -134,13 +141,36 @@ function makeStore() {
     markWebhookEventProcessed: vi.fn()
   };
 
-  return { db, racers, payments, paymentRecords, activeEvent };
+  return { db, racers, payments, paymentRecords, results, activeEvent };
 }
 
 type Store = ReturnType<typeof makeStore>;
 
 function newPayment(store: Store): PaymentService {
   return new PaymentService(store.db as unknown as PaymentStore);
+}
+
+/** Registers a racer whose Stripe Checkout for the active event completed. */
+function seedStripePaidRacer(
+  store: Store,
+  racerId: string,
+  displayName: string,
+  paymentIntentId: string | null = `pi_${racerId}`
+): string {
+  store.racers.set(racerId, makeRacer(racerId, displayName));
+  const record = store.db.createPaymentRecord({
+    eventId: store.activeEvent.id,
+    racerId,
+    amountCents: 1000,
+    currency: "usd",
+    queueIntent: null
+  });
+  store.db.updatePaymentRecord(record.id, {
+    status: "paid",
+    stripePaymentIntentId: paymentIntentId
+  });
+  store.payments.set(racerId, { status: "paid" });
+  return record.id;
 }
 
 // Orchestration tests drive the methods RollerRumbleApp keeps (the queue cascade
@@ -195,6 +225,27 @@ const startEntryCheckoutForRacer = getPrototypeMethod(
   "startEntryCheckoutForRacer"
 ) as StartEntryCheckout;
 const handleStripeWebhook = getPrototypeMethod("handleStripeWebhook") as StripeWebhookHandler;
+
+/** Reviews the refunds and confirms every one, as the host does from the Refunds card. */
+async function refundEveryReviewedPayment(payment: PaymentService) {
+  const { candidates } = await payment.previewUnracedRefunds();
+  return payment.refundUnracedPayments(candidates.map((candidate) => candidate.paymentId));
+}
+
+/** The idempotency key of every refund request sent to Stripe so far. */
+function refundIdempotencyKeys(): string[] {
+  return (
+    stripeMock.refunds.create.mock.calls as unknown as [unknown, { idempotencyKey: string }][]
+  ).map(([, options]) => options.idempotencyKey);
+}
+
+/** Stripe accepts every refund and settles it at once, naming it after its payment. */
+function settledRefund() {
+  return vi.fn(async (params: { metadata: { paymentId: string } }) => ({
+    id: `re_${params.metadata.paymentId}`,
+    status: "succeeded"
+  }));
+}
 
 describe("PaymentService", () => {
   beforeEach(() => {
@@ -267,6 +318,256 @@ describe("PaymentService", () => {
   });
 });
 
+describe("PaymentService end-of-event refunds", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    stripeMock.refunds.create = settledRefund();
+    stripeMock.refunds.retrieve = vi.fn(async (id: string) => ({
+      id,
+      status: "pending",
+      metadata: {}
+    }));
+  });
+
+  it("offers a refund to every Stripe-paid racer with no finished race result", async () => {
+    const store = makeStore();
+    seedStripePaidRacer(store, "raced", "Raced Racer");
+    store.results.push({ eventId: "event-1", racerId: "raced" });
+    const unracedPaymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    store.racers.set("abandoned", makeRacer("abandoned", "Abandoned Checkout"));
+    store.db.createPaymentRecord({
+      eventId: "event-1",
+      racerId: "abandoned",
+      amountCents: 1000,
+      currency: "usd",
+      queueIntent: null
+    });
+
+    await expect(newPayment(store).previewUnracedRefunds()).resolves.toEqual({
+      candidates: [
+        {
+          paymentId: unracedPaymentId,
+          racerId: "unraced",
+          displayName: "Unraced Racer",
+          amountCents: 1000,
+          currency: "usd",
+          status: "paid",
+          failureMessage: null
+        }
+      ]
+    });
+  });
+
+  it("refunds each unraced racer through Stripe and records the refund", async () => {
+    const store = makeStore();
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer", "pi_unraced");
+
+    await expect(refundEveryReviewedPayment(newPayment(store))).resolves.toEqual({
+      outcomes: [
+        {
+          paymentId,
+          racerId: "unraced",
+          displayName: "Unraced Racer",
+          amountCents: 1000,
+          currency: "usd",
+          status: "refunded",
+          message: null
+        }
+      ]
+    });
+    expect(stripeMock.refunds.create).toHaveBeenCalledWith(
+      expect.objectContaining({ payment_intent: "pi_unraced" }),
+      { idempotencyKey: `refund-${paymentId}` }
+    );
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({
+      status: "refunded",
+      stripeRefundId: `re_${paymentId}`
+    });
+    expect(store.payments.get("unraced")).toEqual({ status: "refunded" });
+    expect((await newPayment(store).previewUnracedRefunds()).candidates).toEqual([]);
+  });
+
+  it("keeps refunding the rest when Stripe rejects one refund, and offers it again", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = makeStore();
+    const rejectedPaymentId = seedStripePaidRacer(store, "rejected", "Rejected Racer");
+    const refundedPaymentId = seedStripePaidRacer(store, "refunded", "Refunded Racer");
+    stripeMock.refunds.create = vi.fn(async (params: { metadata: { paymentId: string } }) => {
+      if (params.metadata.paymentId === rejectedPaymentId) {
+        throw Object.assign(new Error("Charge ch_1 has been disputed."), {
+          type: "StripeInvalidRequestError",
+          code: "charge_disputed",
+          requestId: "req_refund"
+        });
+      }
+      return settledRefund()(params);
+    });
+
+    const { outcomes } = await refundEveryReviewedPayment(newPayment(store));
+
+    expect(outcomes.map(({ paymentId, status }) => ({ paymentId, status }))).toEqual([
+      { paymentId: rejectedPaymentId, status: "refund_failed" },
+      { paymentId: refundedPaymentId, status: "refunded" }
+    ]);
+    expect(outcomes[0]?.message).toContain("Charge ch_1 has been disputed.");
+    expect(store.paymentRecords.get(rejectedPaymentId)).toMatchObject({
+      status: "refund_failed",
+      failureCode: "charge_disputed"
+    });
+    expect(store.payments.get("rejected")).toEqual({ status: "paid" });
+    expect((await newPayment(store).previewUnracedRefunds()).candidates).toEqual([
+      expect.objectContaining({ paymentId: rejectedPaymentId, status: "refund_failed" })
+    ]);
+    warnSpy.mockRestore();
+  });
+
+  it("retries a refund Stripe refused outright as a new request, not a replay of the refusal", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = makeStore();
+    seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    const payment = newPayment(store);
+    stripeMock.refunds.create.mockImplementationOnce(async () => {
+      throw Object.assign(new Error("Insufficient balance to refund."), {
+        type: "StripeInvalidRequestError",
+        code: "balance_insufficient",
+        statusCode: 400
+      });
+    });
+    await refundEveryReviewedPayment(payment);
+
+    await refundEveryReviewedPayment(payment);
+
+    const [firstKey, retryKey] = refundIdempotencyKeys();
+    expect(retryKey).not.toBe(firstKey);
+    expect(store.payments.get("unraced")).toEqual({ status: "refunded" });
+    warnSpy.mockRestore();
+  });
+
+  it("retries a refund whose request never reached Stripe with the same idempotency key", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const store = makeStore();
+    seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    const payment = newPayment(store);
+    stripeMock.refunds.create.mockImplementationOnce(async () => {
+      throw Object.assign(new Error("An error occurred with our connection to Stripe."), {
+        type: "StripeConnectionError"
+      });
+    });
+    await refundEveryReviewedPayment(payment);
+
+    await refundEveryReviewedPayment(payment);
+
+    const [firstKey, retryKey] = refundIdempotencyKeys();
+    expect(retryKey).toBe(firstKey);
+    warnSpy.mockRestore();
+  });
+
+  it("records a payment Stripe says is already refunded as refunded", async () => {
+    const store = makeStore();
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    stripeMock.refunds.create.mockImplementationOnce(async () => {
+      throw Object.assign(new Error("Charge ch_1 has already been refunded."), {
+        type: "StripeInvalidRequestError",
+        code: "charge_already_refunded",
+        statusCode: 400
+      });
+    });
+
+    const { outcomes } = await refundEveryReviewedPayment(newPayment(store));
+
+    expect(outcomes).toEqual([expect.objectContaining({ paymentId, status: "refunded" })]);
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({ status: "refunded" });
+    expect(store.payments.get("unraced")).toEqual({ status: "refunded" });
+  });
+
+  it("sends the host to the Stripe Dashboard when a payment has no Stripe payment reference", async () => {
+    const store = makeStore();
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer", null);
+
+    const { outcomes } = await refundEveryReviewedPayment(newPayment(store));
+
+    expect(stripeMock.refunds.create).not.toHaveBeenCalled();
+    expect(outcomes).toEqual([
+      expect.objectContaining({
+        paymentId,
+        status: "refund_failed",
+        message: expect.stringContaining("Stripe Dashboard") as unknown
+      })
+    ]);
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({
+      status: "refund_failed",
+      failureCode: "missing_payment_intent"
+    });
+  });
+
+  it("holds a refund Stripe has not settled as pending, without offering it again", async () => {
+    const store = makeStore();
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    stripeMock.refunds.create = vi.fn(async () => ({ id: "re_pending", status: "pending" }));
+
+    const { outcomes } = await refundEveryReviewedPayment(newPayment(store));
+
+    expect(outcomes).toEqual([expect.objectContaining({ paymentId, status: "refund_pending" })]);
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({
+      status: "refund_pending",
+      stripeRefundId: "re_pending"
+    });
+    expect(store.payments.get("unraced")).toEqual({ status: "paid" });
+    expect((await newPayment(store).previewUnracedRefunds()).candidates).toEqual([]);
+  });
+
+  it("settles a pending refund from Stripe when the host reviews refunds and its webhook never came", async () => {
+    const store = makeStore();
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    const payment = newPayment(store);
+    stripeMock.refunds.create.mockImplementationOnce(async () => ({
+      id: "re_pending",
+      status: "pending"
+    }));
+    await refundEveryReviewedPayment(payment);
+    stripeMock.refunds.retrieve = vi.fn(async () => ({
+      id: "re_pending",
+      status: "succeeded",
+      metadata: { paymentId }
+    }));
+
+    await payment.previewUnracedRefunds();
+
+    expect(stripeMock.refunds.retrieve).toHaveBeenCalledWith("re_pending");
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({ status: "refunded" });
+    expect(store.payments.get("unraced")).toEqual({ status: "refunded" });
+  });
+
+  it("refunds only the payments the host reviewed, not ones that became eligible since", async () => {
+    const store = makeStore();
+    const reviewedPaymentId = seedStripePaidRacer(store, "reviewed", "Reviewed Racer");
+    const payment = newPayment(store);
+    const { candidates } = await payment.previewUnracedRefunds();
+    seedStripePaidRacer(store, "late", "Late Racer");
+
+    const { outcomes } = await payment.refundUnracedPayments(
+      candidates.map((candidate) => candidate.paymentId)
+    );
+
+    expect(outcomes.map((outcome) => outcome.paymentId)).toEqual([reviewedPaymentId]);
+    expect(store.payments.get("late")).toEqual({ status: "paid" });
+  });
+
+  it("refuses a second refund run while one is still in progress", async () => {
+    const store = makeStore();
+    seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    const payment = newPayment(store);
+
+    const firstRun = payment.refundUnracedPayments(["payment-1"]);
+    await expect(payment.refundUnracedPayments(["payment-1"])).rejects.toMatchObject({
+      statusCode: 409,
+      code: "refunds_in_progress"
+    });
+    await firstRun;
+    expect(stripeMock.refunds.create).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("RollerRumbleApp payment orchestration", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -275,6 +576,12 @@ describe("RollerRumbleApp payment orchestration", () => {
       url: "https://checkout.stripe.test/session"
     }));
     stripeMock.balance.retrieve = vi.fn(async () => ({}));
+    stripeMock.refunds.create = settledRefund();
+    stripeMock.refunds.retrieve = vi.fn(async (id: string) => ({
+      id,
+      status: "pending",
+      metadata: {}
+    }));
     stripeMock.webhooks.constructEvent = vi.fn();
   });
 
@@ -505,6 +812,79 @@ describe("RollerRumbleApp payment orchestration", () => {
     expect(store.payments.get("racer-1")).toEqual({ status: "paid" });
     expect(store.paymentRecords.get(paymentId)).toMatchObject({ status: "paid" });
     expect(target.signUpQueue).not.toHaveBeenCalled();
+  });
+
+  it("marks a pending refund refunded once Stripe reports it succeeded", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    stripeMock.refunds.create = vi.fn(async () => ({ id: "re_pending", status: "pending" }));
+    await refundEveryReviewedPayment(target.payment);
+    stripeMock.webhooks.constructEvent = vi.fn(() => ({
+      id: "evt_refund_settled",
+      type: "refund.updated",
+      data: { object: { id: "re_pending", status: "succeeded", metadata: { paymentId } } }
+    }));
+
+    handleStripeWebhook.call(target, Buffer.from("{}"), "signature");
+
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({ status: "refunded" });
+    expect(store.payments.get("unraced")).toEqual({ status: "refunded" });
+    expect(target.emitSnapshot).toHaveBeenCalled();
+  });
+
+  it("flags a refund Stripe later fails and keeps the racer paid so the host can retry", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    await refundEveryReviewedPayment(target.payment);
+    stripeMock.webhooks.constructEvent = vi.fn(() => ({
+      id: "evt_refund_failed",
+      type: "refund.failed",
+      data: {
+        object: {
+          id: `re_${paymentId}`,
+          status: "failed",
+          failure_reason: "expired_or_canceled_card",
+          metadata: { paymentId }
+        }
+      }
+    }));
+
+    handleStripeWebhook.call(target, Buffer.from("{}"), "signature");
+
+    expect(store.paymentRecords.get(paymentId)).toMatchObject({
+      status: "refund_failed",
+      failureCode: "expired_or_canceled_card"
+    });
+    expect(store.payments.get("unraced")).toEqual({ status: "paid" });
+    expect((await target.payment.previewUnracedRefunds()).candidates).toEqual([
+      expect.objectContaining({ paymentId, status: "refund_failed" })
+    ]);
+  });
+
+  it("retries a refund Stripe failed as a new refund rather than replaying the failed one", async () => {
+    const store = makeStore();
+    const target = makeTarget(store);
+    const paymentId = seedStripePaidRacer(store, "unraced", "Unraced Racer");
+    await refundEveryReviewedPayment(target.payment);
+    stripeMock.webhooks.constructEvent = vi.fn(() => ({
+      id: "evt_refund_failed",
+      type: "refund.failed",
+      data: { object: { id: `re_${paymentId}`, status: "failed", metadata: { paymentId } } }
+    }));
+    handleStripeWebhook.call(target, Buffer.from("{}"), "signature");
+    stripeMock.refunds.create = vi.fn(async () => ({ id: "re_retry", status: "succeeded" }));
+
+    const { outcomes } = await refundEveryReviewedPayment(target.payment);
+
+    expect(outcomes).toEqual([expect.objectContaining({ paymentId, status: "refunded" })]);
+    const [, retryOptions] = stripeMock.refunds.create.mock.lastCall as unknown as [
+      unknown,
+      { idempotencyKey: string }
+    ];
+    expect(retryOptions.idempotencyKey).not.toBe(`refund-${paymentId}`);
+    expect(store.payments.get("unraced")).toEqual({ status: "refunded" });
   });
 
   it("ignores duplicate Stripe webhook deliveries", () => {

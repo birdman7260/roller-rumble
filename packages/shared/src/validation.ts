@@ -1,6 +1,6 @@
 import { z } from "zod";
 import {
-  EVENT_PAYMENT_STATUSES,
+  HOST_SET_EVENT_PAYMENT_STATUSES,
   QUEUE_ENTRY_REQUESTED_TYPES,
   RACER_NOTIFICATION_TYPES,
   STRIPE_MIN_PAYMENT_AMOUNT_CENTS,
@@ -104,9 +104,13 @@ export const racerQueueSignupSchema = z.object({
 });
 
 export const updateRacerPaymentSchema = z.object({
-  status: z.enum(EVENT_PAYMENT_STATUSES),
+  status: z.enum(HOST_SET_EVENT_PAYMENT_STATUSES),
   note: z.string().trim().max(240).optional(),
   providerReference: z.string().trim().max(120).optional()
+});
+
+export const refundUnracedPaymentsSchema = z.object({
+  paymentIds: z.array(z.string().trim().min(1)).max(1000)
 });
 
 export const updateEventPaymentConfigSchema = z.object({

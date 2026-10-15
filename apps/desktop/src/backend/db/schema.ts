@@ -96,6 +96,9 @@ export const payments = sqliteTable(
     failureCode: text("failure_code"),
     failureMessage: text("failure_message"),
     completedAt: text("completed_at"),
+    stripeRefundId: text("stripe_refund_id"),
+    refundIssuedAt: text("refund_issued_at"),
+    refundAttempt: integer("refund_attempt").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull()
   },

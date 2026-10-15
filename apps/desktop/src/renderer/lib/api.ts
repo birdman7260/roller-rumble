@@ -22,6 +22,9 @@ import type {
   RacerRegistrationInput,
   Racer,
   StripeConnectionTestResult,
+  RefundUnracedPaymentsInput,
+  UnracedRefundPreview,
+  UnracedRefundResult,
   StartTournamentInput,
   TournamentOptOutResponse,
   TournamentByeFillOptionsResponse,
@@ -350,6 +353,24 @@ export async function testStripeConnection(): Promise<StripeConnectionTestResult
   return parseJson(
     await fetch(buildUrl("/api/stripe/test-connection"), {
       method: "POST"
+    })
+  );
+}
+
+/** Lists the Stripe entrance fees paid by racers with no finished race in the active event. */
+export async function previewUnracedRefunds(): Promise<UnracedRefundPreview> {
+  return parseJson(await fetch(buildUrl("/api/admin/events/current/refunds/unraced")));
+}
+
+/** Refunds, through Stripe, the payments the host reviewed from `previewUnracedRefunds`. */
+export async function refundUnracedPayments(
+  input: RefundUnracedPaymentsInput
+): Promise<UnracedRefundResult> {
+  return parseJson(
+    await fetch(buildUrl("/api/admin/events/current/refunds/unraced"), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input)
     })
   );
 }
