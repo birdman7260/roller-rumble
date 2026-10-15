@@ -686,6 +686,18 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(racerSnapshot(service.leaveQueueEntryForSessionRacer(req.params.entryId, racer.id)));
   });
 
+  // Answering a `challenge request`. As with leave, the answering racer always comes from the
+  // session, so only the racer the request waits on can answer it.
+  app.post(`${API_PREFIX}/racer/queue/:entryId/accept`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(racerSnapshot(service.acceptChallengeRequestForRacer(req.params.entryId, racer.id)));
+  });
+
+  app.post(`${API_PREFIX}/racer/queue/:entryId/decline`, (req, res) => {
+    const racer = requireRacerSession(req, service);
+    res.json(racerSnapshot(service.declineChallengeRequestForRacer(req.params.entryId, racer.id)));
+  });
+
   app.post(`${API_PREFIX}/racer/payments/checkout`, async (req, res, next) => {
     try {
       const racer = requireRacerSession(req, service);

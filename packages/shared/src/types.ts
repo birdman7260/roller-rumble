@@ -216,6 +216,12 @@ export interface QueueEntry {
   racerIds: string[];
   occurrenceIds: string[];
   priorityScore: number;
+  /**
+   * The racer whose answer this `challenge request` is waiting on, or `null`
+   * when the entry needs no answer. An awaiting entry holds its place in the
+   * queue but is never staged until it is accepted.
+   */
+  awaitingRacerId: string | null;
   status: QueueEntryStatus;
   createdAt: string;
   updatedAt: string;
@@ -235,6 +241,12 @@ export interface QueueOccurrence {
    */
   priorIntent: QueueOccurrenceIntent | null;
   lockGroupId: string | null;
+  /**
+   * True on the challenged racer's occurrence while their `challenge request`
+   * is unanswered. Accepting clears it; declining resolves both racers the way
+   * a challenge abandonment would (ADR-0015).
+   */
+  awaitingChallengeResponse: boolean;
   signupSequence: number;
   bumpCount: number;
   raceCountAtJoin: number;
@@ -653,6 +665,11 @@ export interface AdminSettings {
   queueOpen: boolean;
   /** Whether racers may queue a solo run themselves. When false, the racer's Solo Run button is hidden. */
   allowSoloQueue: boolean;
+  /**
+   * Whether a racer's challenge is sent as a `challenge request` the opponent must accept before
+   * it can be raced. When false, a challenge locks the opponent in immediately.
+   */
+  challengeRequiresAcceptance: boolean;
   /** Operator message shown to racers while the queue is closed. Blank falls back to the default. */
   queueClosedMessage: string;
   /** Minutes each queued race takes, used to estimate when racers further back will ride. */
@@ -769,6 +786,9 @@ export interface RacerQueueSignupInput {
   requestedType?: "solo" | "auto-match";
   replaceQueueEntryId?: string;
 }
+
+/** How the challenged racer answers a `challenge request`. */
+export type ChallengeAnswer = "accept" | "decline";
 
 export interface ChallengeReplacementOption {
   queueEntryId: string;

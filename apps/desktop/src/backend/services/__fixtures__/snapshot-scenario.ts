@@ -105,6 +105,7 @@ const QUEUE: QueueEntry[] = [
     racerIds: ["racer-1", "racer-2"],
     occurrenceIds: ["occ-1", "occ-2"],
     priorityScore: 0,
+    awaitingRacerId: null,
     status: "queued",
     createdAt: "2026-06-24T11:00:00.000Z",
     updatedAt: "2026-06-24T11:00:00.000Z"
@@ -119,6 +120,7 @@ const QUEUE: QueueEntry[] = [
     racerIds: ["racer-1"],
     occurrenceIds: ["occ-3"],
     priorityScore: 0,
+    awaitingRacerId: null,
     status: "staging",
     createdAt: "2026-06-24T11:05:00.000Z",
     updatedAt: "2026-06-24T11:05:00.000Z"
@@ -199,6 +201,7 @@ function makeSettings(includeAllRaceData: boolean): AdminSettings {
     serverPort: 3187,
     queueOpen: true,
     allowSoloQueue: true,
+    challengeRequiresAcceptance: false,
     queueClosedMessage: "",
     queueMinutesPerRace: 2,
     raceDisplayTopRacersRows: 5

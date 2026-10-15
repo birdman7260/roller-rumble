@@ -28,6 +28,11 @@ interface QueueSignupInput {
   opponentRaceCountAtJoin?: number;
   maxActiveOccurrencesPerRacer: number;
   racerStatsById?: Map<string, QueueRacerStats>;
+  /**
+   * Send a challenge as a `challenge request`: it claims its queue spot now, but the opponent must
+   * accept before it can be staged.
+   */
+  challengeNeedsAcceptance?: boolean;
 }
 
 interface QueueSlot {
@@ -46,6 +51,7 @@ interface DerivedQueueBlock {
   racerIds: string[];
   slotIndexes: number[];
   signupSequence: number;
+  awaitingRacerId: string | null;
 }
 
 const ACTIVE_OCCURRENCE_STATUSES = new Set<QueueOccurrence["status"]>([
@@ -67,6 +73,12 @@ export class ChallengeTargetUnavailableError extends Error {
   }
 }
 
+export class ChallengeRequestNotFoundError extends Error {
+  constructor() {
+    super("That challenge is no longer waiting on your answer.");
+  }
+}
+
 export class InvalidChallengeReplacementError extends Error {
   constructor() {
     super("Choose a valid queued challenge match to replace.");
@@ -83,6 +95,10 @@ export function reindexQueue(entries: QueueEntry[]): QueueEntry[] {
 }
 
 export function isQueueEntryReady(entry: QueueEntry): boolean {
+  // An unanswered challenge request holds its place but is never staged until it is accepted.
+  if (entry.awaitingRacerId) {
+    return false;
+  }
   // Auto-match signups stay in the queue until a second rider completes the matchup.
   return !(entry.requestedType === "auto-match" && entry.racerIds.length < 2);
 }
@@ -170,6 +186,7 @@ function createOccurrence(input: {
     // the challenge, so abandoning it removes them (ADR-0015).
     priorIntent: null,
     lockGroupId: input.lockGroupId,
+    awaitingChallengeResponse: false,
     signupSequence: input.signupSequence,
     bumpCount: 0,
     raceCountAtJoin: input.raceCountAtJoin,
@@ -285,25 +302,38 @@ function releaseOrphanedChallengeOccurrences(
       return occurrence;
     }
 
-    const updatedAt = timestamp ?? occurrence.updatedAt;
-    if (occurrence.priorIntent === "solo" || occurrence.priorIntent === "auto-match") {
-      return {
-        ...occurrence,
-        intent: occurrence.priorIntent,
-        priorIntent: null,
-        lockGroupId: null,
-        updatedAt
-      };
-    }
+    return resolveBrokenChallengeOccurrence(occurrence, timestamp ?? occurrence.updatedAt);
+  });
+}
 
+/**
+ * One racer's side of a challenge that will not be raced, resolved by its remembered
+ * `priorIntent` (ADR-0015): a spot the challenge upgraded returns to what it was, and a spot the
+ * challenge created is removed, since that racer never opted into the open queue on their own.
+ */
+function resolveBrokenChallengeOccurrence(
+  occurrence: QueueOccurrence,
+  updatedAt: string
+): QueueOccurrence {
+  if (occurrence.priorIntent === "solo" || occurrence.priorIntent === "auto-match") {
     return {
       ...occurrence,
-      status: "removed",
+      intent: occurrence.priorIntent,
       priorIntent: null,
       lockGroupId: null,
+      awaitingChallengeResponse: false,
       updatedAt
     };
-  });
+  }
+
+  return {
+    ...occurrence,
+    status: "removed",
+    priorIntent: null,
+    lockGroupId: null,
+    awaitingChallengeResponse: false,
+    updatedAt
+  };
 }
 
 function buildQueueSlots(
@@ -375,7 +405,10 @@ function deriveQueueBlocks(slots: QueueSlot[]): DerivedQueueBlock[] {
         priorityScore: slot.priorityScore,
         racerIds: slot.occurrences.map((occurrence) => occurrence.racerId),
         slotIndexes: [index],
-        signupSequence: slot.signupSequence
+        signupSequence: slot.signupSequence,
+        awaitingRacerId:
+          slot.occurrences.find((occurrence) => occurrence.awaitingChallengeResponse)?.racerId ??
+          null
       });
       return;
     }
@@ -389,7 +422,8 @@ function deriveQueueBlocks(slots: QueueSlot[]): DerivedQueueBlock[] {
         priorityScore: slot.priorityScore,
         racerIds: slot.occurrences.map((occurrence) => occurrence.racerId),
         slotIndexes: [index],
-        signupSequence: slot.signupSequence
+        signupSequence: slot.signupSequence,
+        awaitingRacerId: null
       });
       return;
     }
@@ -412,7 +446,8 @@ function deriveQueueBlocks(slots: QueueSlot[]): DerivedQueueBlock[] {
         priorityScore: slot.priorityScore,
         racerIds: [racerId],
         slotIndexes: [index],
-        signupSequence: slot.signupSequence
+        signupSequence: slot.signupSequence,
+        awaitingRacerId: null
       });
       return;
     }
@@ -430,7 +465,8 @@ function deriveQueueBlocks(slots: QueueSlot[]): DerivedQueueBlock[] {
       priorityScore: average([slot.priorityScore, pairedSlot.priorityScore]),
       racerIds: [racerId, pairedSlot.occurrences[0].racerId],
       slotIndexes: [index, pairedSlotIndex],
-      signupSequence: Math.min(slot.signupSequence, pairedSlot.signupSequence)
+      signupSequence: Math.min(slot.signupSequence, pairedSlot.signupSequence),
+      awaitingRacerId: null
     });
   });
 
@@ -551,25 +587,50 @@ function findChallengeReplacementAnchor(
   return null;
 }
 
+/**
+ * What is left of a challenge after one racer reuses their side of it for a new challenge. A
+ * partner in an accepted challenge stays queued as an auto-match. If the `challenge request` was
+ * still unanswered, nobody agreed to race, so the partner is resolved as if it had been declined,
+ * and any spot that resolves to removed comes back in `dropped`.
+ */
 function releaseReplacementSlotRemainder(
   slot: QueueSlot,
   replacedOccurrenceId: string,
   timestamp: string,
   racerStatsById: Map<string, QueueRacerStats>
-): QueueSlot | null {
-  const remainingOccurrences = slot.occurrences
+): { slot: QueueSlot | null; dropped: QueueOccurrence[] } {
+  // A racer moving on from a request that was waiting on them has declined it.
+  const replacedWasAwaiting = slot.occurrences.some(
+    (occurrence) => occurrence.id === replacedOccurrenceId && occurrence.awaitingChallengeResponse
+  );
+  const releasedOccurrences = slot.occurrences
     .filter((occurrence) => occurrence.id !== replacedOccurrenceId)
-    .map((occurrence) => ({
-      ...occurrence,
-      intent: "auto-match" as const,
-      priorIntent: null,
-      lockGroupId: null,
-      updatedAt: timestamp
-    }));
+    .map((occurrence) =>
+      occurrence.awaitingChallengeResponse || replacedWasAwaiting
+        ? resolveBrokenChallengeOccurrence(occurrence, timestamp)
+        : {
+            ...occurrence,
+            intent: "auto-match" as const,
+            priorIntent: null,
+            lockGroupId: null,
+            updatedAt: timestamp
+          }
+    );
+  const remainingOccurrences = releasedOccurrences.filter(
+    (occurrence) => occurrence.status === "queued"
+  );
 
-  return remainingOccurrences.length > 0
-    ? createQueueSlot("auto-match", remainingOccurrences, racerStatsById)
-    : null;
+  return {
+    slot:
+      remainingOccurrences.length > 0
+        ? createQueueSlot(
+            remainingOccurrences[0].intent === "solo" ? "solo" : "auto-match",
+            remainingOccurrences,
+            racerStatsById
+          )
+        : null,
+    dropped: releasedOccurrences.filter((occurrence) => occurrence.status !== "queued")
+  };
 }
 
 export function addQueueSignup(
@@ -652,6 +713,8 @@ export function addQueueSignup(
           // abandonment restores it rather than stranding the racer (ADR-0015).
           priorIntent: challengeFallbackIntent(challengerAnchor.occurrence.intent),
           lockGroupId,
+          // A racer reusing a spot they were challenged into answers that request by moving on.
+          awaitingChallengeResponse: false,
           updatedAt: input.timestamp
         }
       : createOccurrence({
@@ -664,24 +727,27 @@ export function addQueueSignup(
           signupSequence: input.signupSequence,
           raceCountAtJoin: input.raceCountAtJoin
         }),
-    opponentAnchor
-      ? {
-          ...opponentAnchor.occurrence,
-          intent: "challenge",
-          priorIntent: challengeFallbackIntent(opponentAnchor.occurrence.intent),
-          lockGroupId,
-          updatedAt: input.timestamp
-        }
-      : createOccurrence({
-          eventId: input.eventId,
-          racerId: input.opponentRacerId,
-          id: input.opponentOccurrenceId ?? `${input.occurrenceId}-opponent`,
-          intent: "challenge",
-          lockGroupId,
-          timestamp: input.timestamp,
-          signupSequence: input.signupSequence + 1,
-          raceCountAtJoin: input.opponentRaceCountAtJoin ?? 0
-        })
+    {
+      ...(opponentAnchor
+        ? {
+            ...opponentAnchor.occurrence,
+            intent: "challenge" as const,
+            priorIntent: challengeFallbackIntent(opponentAnchor.occurrence.intent),
+            lockGroupId,
+            updatedAt: input.timestamp
+          }
+        : createOccurrence({
+            eventId: input.eventId,
+            racerId: input.opponentRacerId,
+            id: input.opponentOccurrenceId ?? `${input.occurrenceId}-opponent`,
+            intent: "challenge",
+            lockGroupId,
+            timestamp: input.timestamp,
+            signupSequence: input.signupSequence + 1,
+            raceCountAtJoin: input.opponentRaceCountAtJoin ?? 0
+          })),
+      awaitingChallengeResponse: input.challengeNeedsAcceptance ?? false
+    }
   ];
   const challengeSlot = createQueueSlot("challenge", challengeOccurrences, racerStatsById);
   const anchorSlotIndexes = [challengerAnchor?.slotIndex, opponentAnchor?.slotIndex].filter(
@@ -691,6 +757,7 @@ export function addQueueSignup(
   if (anchorSlotIndexes.length > 0) {
     const anchorIndex = Math.min(...anchorSlotIndexes);
     const anchorIndexSet = new Set(anchorSlotIndexes);
+    let droppedOccurrences: QueueOccurrence[] = [];
     const remainingSlots = slots.flatMap((slot, index) => {
       if (index === replacementAnchor?.slotIndex) {
         const remainder = releaseReplacementSlotRemainder(
@@ -699,14 +766,18 @@ export function addQueueSignup(
           input.timestamp,
           racerStatsById
         );
-        return remainder ? [remainder] : [];
+        droppedOccurrences = remainder.dropped;
+        return remainder.slot ? [remainder.slot] : [];
       }
 
       return anchorIndexSet.has(index) ? [] : [slot];
     });
 
     remainingSlots.splice(anchorIndex, 0, challengeSlot);
-    return mergeOccurrencesWithSlots(normalizedOccurrences, remainingSlots, input.timestamp);
+    return [
+      ...mergeOccurrencesWithSlots(normalizedOccurrences, remainingSlots, input.timestamp),
+      ...droppedOccurrences
+    ];
   }
 
   const nextSlots = insertSlotByPriority(slots, challengeSlot, input.timestamp);
@@ -834,6 +905,7 @@ export function projectQueueEntries(input: QueueProjectionInput): {
       racerIds: block.racerIds,
       occurrenceIds: block.occurrenceIds,
       priorityScore: block.priorityScore,
+      awaitingRacerId: block.awaitingRacerId,
       status: "queued",
       createdAt: existing?.createdAt ?? input.timestamp,
       updatedAt: input.timestamp
@@ -851,5 +923,59 @@ export function findNextQueuedEntry(entries: QueueEntry[]): QueueEntry | null {
     [...entries]
       .filter((entry) => entry.status === "queued" && isQueueEntryReady(entry))
       .sort((left, right) => left.position - right.position)[0] ?? null
+  );
+}
+
+/**
+ * The queued occurrences of the `challenge request` in `entryId` that is waiting on `racerId`'s
+ * answer. Throws when the entry is gone, already answered, or waiting on someone else, so only the
+ * challenged racer can ever answer.
+ */
+function findChallengeRequestOccurrenceIds(
+  entries: QueueEntry[],
+  entryId: string,
+  racerId: string
+): Set<string> {
+  const entry = entries.find((candidate) => candidate.id === entryId);
+  if (entry?.status !== "queued" || entry.awaitingRacerId !== racerId) {
+    throw new ChallengeRequestNotFoundError();
+  }
+
+  return new Set(entry.occurrenceIds);
+}
+
+/** The challenged racer agrees: the challenge keeps its spot and becomes a race like any other. */
+export function acceptChallengeRequest(
+  entries: QueueEntry[],
+  occurrences: QueueOccurrence[],
+  entryId: string,
+  racerId: string
+): QueueOccurrence[] {
+  const occurrenceIds = findChallengeRequestOccurrenceIds(entries, entryId, racerId);
+  const timestamp = new Date().toISOString();
+  return occurrences.map((occurrence) =>
+    occurrenceIds.has(occurrence.id) && occurrence.awaitingChallengeResponse
+      ? { ...occurrence, awaitingChallengeResponse: false, updatedAt: timestamp }
+      : occurrence
+  );
+}
+
+/**
+ * The challenged racer says no: neither side races. Each racer's spot is resolved the way a
+ * `challenge abandonment` resolves a stranded partner, so a spot the challenge created goes away
+ * and a spot it upgraded keeps its place under its prior intent.
+ */
+export function declineChallengeRequest(
+  entries: QueueEntry[],
+  occurrences: QueueOccurrence[],
+  entryId: string,
+  racerId: string
+): QueueOccurrence[] {
+  const occurrenceIds = findChallengeRequestOccurrenceIds(entries, entryId, racerId);
+  const timestamp = new Date().toISOString();
+  return occurrences.map((occurrence) =>
+    occurrenceIds.has(occurrence.id) && occurrence.status === "queued"
+      ? resolveBrokenChallengeOccurrence(occurrence, timestamp)
+      : occurrence
   );
 }

@@ -380,6 +380,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     themeId: theme.id,
     queueOpen: true,
     allowSoloQueue: false,
+    challengeRequiresAcceptance: false,
     queueClosedMessage: "",
     queueMinutesPerRace: 2,
     raceDisplayTopRacersRows: 5

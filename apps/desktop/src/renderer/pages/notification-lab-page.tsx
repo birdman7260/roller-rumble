@@ -79,6 +79,9 @@ const notificationTypeLabels: Record<RacerNotificationType, string> = {
   queue_you_are_up: "Queue You're Up",
   queue_hang_tight: "Queue Hang Tight",
   queue_status_update: "Queue Status Update",
+  challenge_request: "Challenge Request",
+  challenge_answered: "Challenge Answered",
+  challenge_closed: "Challenge Closed",
   tournament_started: "Tournament Started",
   tournament_update: "Tournament Update"
 };
@@ -103,6 +106,18 @@ const notificationTemplates: Record<RacerNotificationType, NotificationTemplate>
   queue_status_update: {
     title: "Nice work!",
     body: "Solid effort! Your results are on your phone."
+  },
+  challenge_request: {
+    title: "You've been challenged!",
+    body: "Open the app to accept or decline."
+  },
+  challenge_answered: {
+    title: "Challenge accepted",
+    body: "Your challenge is on. Watch the queue for your race."
+  },
+  challenge_closed: {
+    title: "Challenge called off",
+    body: "That challenge is no longer waiting on your answer."
   },
   tournament_started: {
     title: "Tournament Check-In",

@@ -139,8 +139,11 @@ function getQueueEntryLabel(snapshot: AppSnapshot, entry: QueueEntry, index: num
 }
 
 function buildTickerItems(snapshot: AppSnapshot): string[] {
+  // An unanswered challenge request is never staged, so it is never "up next".
   const upcomingRaces = snapshot.queue
-    .filter((entry) => entry.status === "queued" || entry.status === "staging")
+    .filter(
+      (entry) => (entry.status === "queued" || entry.status === "staging") && !entry.awaitingRacerId
+    )
     .slice(0, 3)
     .map((entry, index) => getQueueEntryLabel(snapshot, entry, index));
   const messages = snapshot.settings.raceDisplayTickerMessages;

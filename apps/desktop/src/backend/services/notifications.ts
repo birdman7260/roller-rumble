@@ -80,6 +80,16 @@ const NOTIFICATION_PRESENTATION: Record<RacerNotificationType, NotificationPrese
   },
   queue_hang_tight: SILENT_UPDATE,
   queue_status_update: SILENT_UPDATE,
+  // Someone is waiting on this racer's answer, so it buzzes and stays up until they act.
+  challenge_request: {
+    renotify: true,
+    silent: false,
+    requireInteraction: true,
+    urgency: "high"
+  },
+  challenge_answered: { renotify: true, silent: false, requireInteraction: false, urgency: "high" },
+  // Retires an answered or withdrawn request in place (ADR-0013).
+  challenge_closed: SILENT_UPDATE,
   tournament_started: {
     renotify: true,
     silent: false,

@@ -20,7 +20,10 @@ import {
 } from "../../lib/snapshot-display";
 import { fireAndForget } from "../../lib/ui-actions";
 import type { RacerTabId } from "../racer-page";
-import { getNextRaceTimingLabel } from "../../lib/queue-position-label";
+import {
+  getNextRaceEntryTimingLabel,
+  getNextRaceTimingLabel
+} from "../../lib/queue-position-label";
 import { RumbleQueuePanel, TournamentQueuePanel } from "./rumble-queue";
 import { InlineTabLink } from "./inline-tab-link";
 
@@ -117,8 +120,8 @@ function NextRaceCard({
   selectedRacerId: string;
   upcoming: QueueEntry[];
 }) {
-  const racesAhead = upcoming.findIndex((entry) => entry.racerIds.includes(selectedRacerId));
-  const nextEntry = racesAhead === -1 ? null : upcoming[racesAhead];
+  const nextIndex = upcoming.findIndex((entry) => entry.racerIds.includes(selectedRacerId));
+  const nextEntry = nextIndex === -1 ? null : upcoming[nextIndex];
   // Leaving stays available under a closed queue, unlike joining (issue #28).
   const hasQueuedSpot = upcoming.some((entry) => isLeavableByRacer(entry, selectedRacerId));
 
@@ -136,7 +139,11 @@ function NextRaceCard({
         selectedRacerId
       )}
       position={nextEntry.position}
-      timing={getNextRaceTimingLabel(racesAhead, liveSnapshot.settings.queueMinutesPerRace)}
+      timing={getNextRaceEntryTimingLabel(
+        upcoming,
+        nextIndex,
+        liveSnapshot.settings.queueMinutesPerRace
+      )}
     >
       {hasQueuedSpot ? (
         <div className="racer-queue-leave-all">

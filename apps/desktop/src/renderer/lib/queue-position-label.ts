@@ -1,3 +1,5 @@
+import type { QueueEntry } from "@roller-rumble/shared/types";
+
 /** Hype lines the next race card leads with a few spots back from the front. */
 const HYPE_LINES: Record<number, string> = {
   3: "Get the mind right",
@@ -27,4 +29,37 @@ export function getNextRaceTimingLabel(racesAhead: number, minutesPerRace: numbe
   return hypeLine
     ? `${hypeLine} (${formatEstimate(racesAhead, minutesPerRace)})`
     : getQueuePositionLabel(racesAhead, minutesPerRace);
+}
+
+/** What a queue shows for an unanswered `challenge request` in place of a time. */
+export const AWAITING_ANSWER_LABEL = "Waiting on an answer";
+
+/**
+ * How many races run before the entry at `index`. An unanswered `challenge request` is skipped when
+ * the next race is staged, so it holds its spot without holding up anyone behind it.
+ */
+export function countRacesAhead(queue: QueueEntry[], index: number): number {
+  return queue.slice(0, index).filter((entry) => !entry.awaitingRacerId).length;
+}
+
+/** Like {@link getQueueEntryTimingLabel}, for the next race card: with its hype lines. */
+export function getNextRaceEntryTimingLabel(
+  queue: QueueEntry[],
+  index: number,
+  minutesPerRace: number
+): string {
+  return queue[index]?.awaitingRacerId
+    ? AWAITING_ANSWER_LABEL
+    : getNextRaceTimingLabel(countRacesAhead(queue, index), minutesPerRace);
+}
+
+/** The queue list's label for the entry at `index`: its estimated time, or that it waits on an answer. */
+export function getQueueEntryTimingLabel(
+  queue: QueueEntry[],
+  index: number,
+  minutesPerRace: number
+): string {
+  return queue[index]?.awaitingRacerId
+    ? AWAITING_ANSWER_LABEL
+    : getQueuePositionLabel(countRacesAhead(queue, index), minutesPerRace);
 }

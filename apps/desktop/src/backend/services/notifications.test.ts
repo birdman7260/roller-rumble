@@ -24,6 +24,7 @@ function queueEntry(id: string, position: number, racerIds: string[]): QueueEntr
     racerIds,
     occurrenceIds: racerIds.map((racerId) => `${id}-${racerId}`),
     priorityScore: 0,
+    awaitingRacerId: null,
     status: "queued",
     createdAt: timestamp,
     updatedAt: timestamp

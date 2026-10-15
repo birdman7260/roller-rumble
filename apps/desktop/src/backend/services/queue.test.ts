@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import type { QueueEntry, QueueOccurrence } from "@roller-rumble/shared/types";
 import {
+  acceptChallengeRequest,
   addQueueSignup,
+  declineChallengeRequest,
   ChallengeReplacementRequiredError,
+  ChallengeRequestNotFoundError,
   ChallengeTargetUnavailableError,
   findNextQueuedEntry,
   leaveQueueEntryForRacer,
@@ -27,6 +30,7 @@ function occurrence(
     intent: "auto-match",
     priorIntent: null,
     lockGroupId: null,
+    awaitingChallengeResponse: false,
     signupSequence: Number(id.replace(/\D/gu, "")) || 1,
     bumpCount: 0,
     raceCountAtJoin: 0,
@@ -53,6 +57,7 @@ function entry(
     racerIds,
     occurrenceIds,
     priorityScore: 0,
+    awaitingRacerId: null,
     status: "queued",
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -884,5 +889,205 @@ describe("queue service", () => {
       { position: 1, racerIds: ["r1"] },
       { position: 2, racerIds: ["r3"] }
     ]);
+  });
+
+  describe("challenge requests", () => {
+    function challenge(
+      occurrences: QueueOccurrence[],
+      overrides: Partial<Parameters<typeof addQueueSignup>[1]> = {}
+    ) {
+      return addQueueSignup(occurrences, {
+        eventId: "e1",
+        racerId: "r1",
+        opponentRacerId: "r2",
+        occurrenceId: "c1",
+        opponentOccurrenceId: "c2",
+        lockGroupId: "g1",
+        timestamp,
+        signupSequence: 10,
+        raceCountAtJoin: 0,
+        maxActiveOccurrencesPerRacer: 3,
+        challengeNeedsAcceptance: true,
+        ...overrides
+      });
+    }
+
+    it("claims a queue spot that waits on the challenged racer and is never staged", () => {
+      const result = project(challenge([occurrence("o3", "r3"), occurrence("o4", "r4")]));
+
+      const pending = result.entries.find((candidate) => candidate.lockType === "challenge");
+      expect(pending).toMatchObject({ racerIds: ["r1", "r2"], awaitingRacerId: "r2" });
+      expect(findNextQueuedEntry(result.entries)?.racerIds).toEqual(["r3", "r4"]);
+    });
+
+    it("becomes stageable in place once the challenged racer accepts", () => {
+      const requested = project(challenge([]));
+      const pending = requested.entries[0];
+
+      const accepted = project(
+        acceptChallengeRequest(requested.entries, requested.occurrences, pending.id, "r2"),
+        requested.entries
+      );
+
+      expect(accepted.entries[0]).toMatchObject({
+        id: pending.id,
+        racerIds: ["r1", "r2"],
+        awaitingRacerId: null
+      });
+      expect(findNextQueuedEntry(accepted.entries)?.id).toBe(pending.id);
+    });
+
+    it("only lets the challenged racer answer", () => {
+      const requested = project(challenge([]));
+      const pendingId = requested.entries[0].id;
+
+      expect(() =>
+        acceptChallengeRequest(requested.entries, requested.occurrences, pendingId, "r1")
+      ).toThrow(ChallengeRequestNotFoundError);
+    });
+
+    it("removes both racers when declined and the challenge created both spots", () => {
+      const requested = project(challenge([]));
+
+      const declined = project(
+        declineChallengeRequest(
+          requested.entries,
+          requested.occurrences,
+          requested.entries[0].id,
+          "r2"
+        ),
+        requested.entries
+      );
+
+      expect(declined.entries).toEqual([]);
+      expect(declined.occurrences.map((candidate) => candidate.status)).toEqual([
+        "removed",
+        "removed"
+      ]);
+    });
+
+    it("returns upgraded spots to their prior intent when declined", () => {
+      const requested = project(
+        challenge([
+          occurrence("o1", "r1", { intent: "solo" }),
+          occurrence("o2", "r2"),
+          occurrence("o3", "r3")
+        ])
+      );
+      const pending = requested.entries.find((candidate) => candidate.awaitingRacerId === "r2");
+
+      const declined = project(
+        declineChallengeRequest(requested.entries, requested.occurrences, pending!.id, "r2"),
+        requested.entries
+      );
+
+      expect(declined.occurrences.find((candidate) => candidate.id === "o1")).toMatchObject({
+        status: "queued",
+        intent: "solo",
+        lockGroupId: null,
+        awaitingChallengeResponse: false
+      });
+      expect(declined.occurrences.find((candidate) => candidate.id === "o2")).toMatchObject({
+        status: "queued",
+        intent: "auto-match",
+        lockGroupId: null,
+        awaitingChallengeResponse: false
+      });
+      expect(declined.entries.map((candidate) => candidate.racerIds)).toEqual([
+        ["r1"],
+        ["r2", "r3"]
+      ]);
+    });
+
+    it("puts an unanswered opponent back where they were when the challenger leaves", () => {
+      const requested = project(challenge([occurrence("o2", "r2")]));
+      const pending = requested.entries.find((candidate) => candidate.awaitingRacerId === "r2");
+
+      const withdrawn = project(
+        leaveQueueEntryForRacer(requested.entries, requested.occurrences, pending!.id, "r1"),
+        requested.entries
+      );
+
+      expect(withdrawn.occurrences.find((candidate) => candidate.id === "o2")).toMatchObject({
+        status: "queued",
+        intent: "auto-match",
+        awaitingChallengeResponse: false
+      });
+    });
+
+    it("drops an unanswered opponent the challenge pulled in when the challenger replaces it", () => {
+      const lockedChallenges = [
+        occurrence("o1", "r1", {
+          intent: "challenge",
+          lockGroupId: "lock-1",
+          projectedPosition: 1
+        }),
+        occurrence("o2", "r3", {
+          intent: "challenge",
+          lockGroupId: "lock-1",
+          projectedPosition: 1
+        }),
+        occurrence("o3", "r1", {
+          intent: "challenge",
+          lockGroupId: "lock-2",
+          projectedPosition: 2
+        }),
+        occurrence("o4", "r4", {
+          intent: "challenge",
+          lockGroupId: "lock-2",
+          projectedPosition: 2,
+          awaitingChallengeResponse: true
+        })
+      ];
+
+      const replaced = project(
+        challenge(lockedChallenges, {
+          opponentRacerId: "r5",
+          replaceOccurrenceId: "o3",
+          maxActiveOccurrencesPerRacer: 2
+        })
+      );
+
+      expect(replaced.occurrences.find((candidate) => candidate.id === "o4")?.status).toBe(
+        "removed"
+      );
+      expect(replaced.entries.map((candidate) => candidate.racerIds)).toEqual([
+        ["r1", "r3"],
+        ["r1", "r5"]
+      ]);
+    });
+
+    it("clears a racer's own pending answer when they reuse that spot for a challenge of their own", () => {
+      const lockedChallenges = [
+        occurrence("o1", "r3", {
+          intent: "challenge",
+          lockGroupId: "lock-1",
+          projectedPosition: 1
+        }),
+        occurrence("o2", "r1", {
+          intent: "challenge",
+          lockGroupId: "lock-1",
+          projectedPosition: 1,
+          awaitingChallengeResponse: true
+        })
+      ];
+
+      const replaced = project(
+        challenge(lockedChallenges, {
+          replaceOccurrenceId: "o2",
+          maxActiveOccurrencesPerRacer: 1,
+          challengeNeedsAcceptance: false
+        })
+      );
+
+      expect(replaced.entries).toEqual([
+        expect.objectContaining({ racerIds: ["r1", "r2"], awaitingRacerId: null })
+      ]);
+      // Moving on from the request declines it, so the challenger it pulled in is not left behind
+      // in an auto-match they never asked for.
+      expect(replaced.occurrences.find((candidate) => candidate.id === "o1")?.status).toBe(
+        "removed"
+      );
+    });
   });
 });

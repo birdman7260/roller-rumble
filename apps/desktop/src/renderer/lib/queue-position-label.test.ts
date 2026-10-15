@@ -1,5 +1,10 @@
+import type { QueueEntry } from "@roller-rumble/shared/types";
 import { describe, expect, it } from "vitest";
-import { getNextRaceTimingLabel, getQueuePositionLabel } from "./queue-position-label";
+import {
+  getNextRaceTimingLabel,
+  getQueueEntryTimingLabel,
+  getQueuePositionLabel
+} from "./queue-position-label";
 
 describe("getQueuePositionLabel", () => {
   it("estimates the wait from the minutes each race takes", () => {
@@ -30,5 +35,19 @@ describe("getNextRaceTimingLabel", () => {
   it("appends the estimate to a hype line", () => {
     expect(getNextRaceTimingLabel(3, 2)).toBe("Get the mind right (in 6 minutes)");
     expect(getNextRaceTimingLabel(4, 5)).toBe("Start stretching (in 20 minutes)");
+  });
+});
+
+describe("getQueueEntryTimingLabel", () => {
+  const ready = { awaitingRacerId: null } as QueueEntry;
+  const request = { awaitingRacerId: "racer-2" } as QueueEntry;
+
+  it("shows an unanswered challenge request as waiting instead of a time", () => {
+    expect(getQueueEntryTimingLabel([request, ready], 0, 2)).toBe("Waiting on an answer");
+  });
+
+  it("does not count an unanswered request as a race ahead, since it is skipped", () => {
+    expect(getQueueEntryTimingLabel([request, ready], 1, 2)).toBe("NOW!");
+    expect(getQueueEntryTimingLabel([ready, request, ready], 2, 2)).toBe("In 2 minutes");
   });
 });

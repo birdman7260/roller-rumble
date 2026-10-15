@@ -15,6 +15,7 @@ import { COUNTDOWN_DURATION_MS } from "@roller-rumble/shared/constants";
 import { createRacerSchema } from "@roller-rumble/shared/validation";
 import type { SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { RollerRumbleApp } from "./app";
+import { projectQueueEntries } from "./queue";
 import { TournamentService } from "./tournaments";
 
 type LifecycleInvoker = (this: unknown, event: SensorLifecycleEvent) => void;
@@ -1157,7 +1158,8 @@ describe("app service queue-status reconciler", () => {
       notifications: { createNotificationAndDispatch },
       queueStatusChannelKey: getQueueStatusChannelKeyMethod(),
       queueStatusChannelPrefix: getQueueStatusChannelPrefixMethod(),
-      reconcileQueueStatusNotification: getReconcileQueueStatusMethod()
+      reconcileQueueStatusNotification: getReconcileQueueStatusMethod(),
+      reconcileChallengeRequestNotifications: vi.fn()
     };
     getRunQueueTriggersInvoker().call(target, "event-1");
     return createNotificationAndDispatch;
@@ -1221,6 +1223,32 @@ describe("app service queue-status reconciler", () => {
         type: "queue_status_update",
         channelKey: "queue-status:event-1:r1"
       })
+    );
+  });
+
+  it("never tells racers in an unanswered challenge request that they're up", () => {
+    const dispatch = runReconcile(
+      [
+        { ...makeEntry(1, "queued", "r1"), racerIds: ["r1", "r2"], awaitingRacerId: "r2" },
+        makeEntry(2, "queued", "r3")
+      ],
+      []
+    );
+
+    const byChannel = new Map(dispatch.mock.calls.map(([arg]) => [arg.channelKey, arg.type]));
+    expect(byChannel.has("queue-status:event-1:r1")).toBe(false);
+    expect(byChannel.has("queue-status:event-1:r2")).toBe(false);
+    expect(byChannel.get("queue-status:event-1:r3")).toBe("queue_you_are_up");
+  });
+
+  it("quietly downgrades a racer whose race became an unanswered challenge request", () => {
+    const dispatch = runReconcile(
+      [{ ...makeEntry(1, "queued", "r1"), racerIds: ["r1", "r2"], awaitingRacerId: "r2" }],
+      [{ channelKey: "queue-status:event-1:r1", type: "queue_you_are_up" }]
+    );
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "queue_hang_tight", channelKey: "queue-status:event-1:r1" })
     );
   });
 
@@ -1323,6 +1351,7 @@ describe("app service racer leave", () => {
       status: "queued",
       intent: "auto-match",
       priorIntent: null,
+      awaitingChallengeResponse: false,
       lockGroupId: null,
       signupSequence: Number(id.replace(/\D/gu, "")) || 1,
       bumpCount: 0,
@@ -1491,6 +1520,7 @@ describe("app service lane swap", () => {
     return {
       createdAt: "now",
       eventId: "event-1",
+      awaitingRacerId: null,
       id: "queue-1",
       lockType: "flex",
       occurrenceIds: racerIds.map((racerId) => `occ-${racerId}`),
@@ -1911,5 +1941,278 @@ describe("app service tournament queue", () => {
     harness.app.stageNextRace();
     harness.app.unstageCurrentTournamentRace();
     expect(harness.autoStage()).toBe(false);
+  });
+});
+
+describe("app service challenge requests", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  interface NotificationInput {
+    type: string;
+    title: string;
+    body: string;
+    channelKey?: string | null;
+    racerIds: string[];
+  }
+  type SignUpInvoker = (
+    this: unknown,
+    racerId: string,
+    input: { opponentRacerId?: string; replaceQueueEntryId?: string }
+  ) => Promise<unknown>;
+  type AnswerInvoker = (this: unknown, entryId: string, racerId: string) => AppSnapshot;
+
+  const realMethods = [
+    "signUpQueue",
+    "signUpQueueForRacer",
+    "acceptChallengeRequestForRacer",
+    "declineChallengeRequestForRacer",
+    "leaveQueueEntryForSessionRacer",
+    "leaveQueueForSessionRacer",
+    "assertLeaveAllowed",
+    "notifyChallengeAbandonmentRemovals",
+    "queueStatusChannelKey",
+    "challengeRequestChannelKey",
+    "resolveChallengeReplacementOccurrenceId",
+    "challengeRequestChannelPrefix",
+    "answerChallengeRequest",
+    "notifyChallengeAnswered"
+  ];
+
+  /**
+   * A service whose queue is the real queue module over an in-memory store, so each call goes
+   * through signup, projection, and answering exactly as it would against SQLite.
+   */
+  function makeService(settings: Partial<AdminSettings> = {}) {
+    let occurrences: QueueOccurrence[] = [];
+    let entries: QueueEntry[] = [];
+    let nextId = 1;
+    const createNotificationAndDispatch = vi.fn<(input: NotificationInput) => number>(() => 1);
+    const target: Record<string, unknown> = {
+      db: {
+        getActiveEvent: () => ({ id: "event-1", paymentRequiredForQueue: false }),
+        getAdminSettings: () => ({
+          queueOpen: true,
+          allowSoloQueue: true,
+          maxActiveQueueEntriesPerRacer: 3,
+          challengeRequiresAcceptance: true,
+          ...settings
+        }),
+        ensureEventRegistration: () => undefined,
+        getRacer: (racerId: string) => ({ id: racerId, displayName: `Name ${racerId}` }),
+        listQueueOccurrences: () =>
+          occurrences.filter((occurrence) => occurrence.status !== "removed"),
+        listQueueEntries: () => entries,
+        getNextQueueSignupSequence: () => nextId++
+      },
+      notifications: { createNotificationAndDispatch },
+      getQueueRacerStatsById: () => new Map(),
+      getActiveTournamentBundle: () => null,
+      saveProjectedQueue: (_eventId: string, next: QueueOccurrence[], timestamp: string) => {
+        const projection = projectQueueEntries({
+          entries,
+          occurrences: next,
+          eventId: "event-1",
+          timestamp,
+          getEntryId: () => `entry-${String(nextId++)}`
+        });
+        occurrences = projection.occurrences;
+        entries = projection.entries;
+      },
+      maybeAutoStageNextRace: () => false,
+      runQueueNotificationTriggers: vi.fn(),
+      emitSnapshot: vi.fn(),
+      getSnapshot: () => ({}) as AppSnapshot
+    };
+    for (const name of realMethods) {
+      target[name] = getAppMethod(name);
+    }
+
+    const sentTo = (racerId: string, type: string) =>
+      createNotificationAndDispatch.mock.calls
+        .map(([input]) => input)
+        .filter((input) => input.type === type && input.racerIds.includes(racerId));
+
+    return {
+      challenge: (racerId: string, opponentRacerId: string, replaceQueueEntryId?: string) =>
+        (getAppMethod("signUpQueueForRacer") as unknown as SignUpInvoker).call(target, racerId, {
+          opponentRacerId,
+          replaceQueueEntryId
+        }),
+      accept: (entryId: string, racerId: string) =>
+        (getAppMethod("acceptChallengeRequestForRacer") as unknown as AnswerInvoker).call(
+          target,
+          entryId,
+          racerId
+        ),
+      decline: (entryId: string, racerId: string) =>
+        (getAppMethod("declineChallengeRequestForRacer") as unknown as AnswerInvoker).call(
+          target,
+          entryId,
+          racerId
+        ),
+      leaveEntry: (entryId: string, racerId: string) =>
+        (getAppMethod("leaveQueueEntryForSessionRacer") as unknown as AnswerInvoker).call(
+          target,
+          entryId,
+          racerId
+        ),
+      queue: () => entries,
+      sentTo,
+      createNotificationAndDispatch
+    };
+  }
+
+  it("sends a racer's challenge as a request that holds a spot until the opponent answers", async () => {
+    const service = makeService();
+
+    await service.challenge("r1", "r2");
+
+    expect(service.queue()).toEqual([
+      expect.objectContaining({ racerIds: ["r1", "r2"], awaitingRacerId: "r2" })
+    ]);
+    const requests = service.sentTo("r2", "challenge_request");
+    expect(requests).toHaveLength(1);
+    expect(requests[0].body).toContain("Name r1");
+  });
+
+  it("locks the opponent in straight away while the setting is off", async () => {
+    const service = makeService({ challengeRequiresAcceptance: false });
+
+    await service.challenge("r1", "r2");
+
+    expect(service.queue()[0]).toMatchObject({ racerIds: ["r1", "r2"], awaitingRacerId: null });
+    expect(service.sentTo("r2", "challenge_request")).toEqual([]);
+  });
+
+  it("readies the race in place once the opponent accepts, and tells the challenger", async () => {
+    const service = makeService();
+    await service.challenge("r1", "r2");
+    const requestId = service.queue()[0].id;
+
+    service.accept(requestId, "r2");
+
+    expect(service.queue()).toEqual([
+      expect.objectContaining({ id: requestId, racerIds: ["r1", "r2"], awaitingRacerId: null })
+    ]);
+    expect(service.sentTo("r1", "challenge_answered")).toEqual([
+      expect.objectContaining({ title: "Challenge accepted!" })
+    ]);
+    // The request on the opponent's phone is replaced in place, never left buzzing.
+    const [request] = service.sentTo("r2", "challenge_request");
+    expect(service.sentTo("r2", "challenge_closed")).toEqual([
+      expect.objectContaining({ channelKey: request.channelKey })
+    ]);
+  });
+
+  it("frees both spots the challenge created when the opponent declines", async () => {
+    const service = makeService();
+    await service.challenge("r1", "r2");
+
+    service.decline(service.queue()[0].id, "r2");
+
+    expect(service.queue()).toEqual([]);
+    const answers = service.sentTo("r1", "challenge_answered");
+    expect(answers).toHaveLength(1);
+    expect(answers[0].title).toBe("Challenge declined");
+    expect(answers[0].body).toContain("You're out of the race queue");
+  });
+
+  it("only lets the challenged racer answer", async () => {
+    const service = makeService();
+    await service.challenge("r1", "r2");
+
+    expect(() => service.accept(service.queue()[0].id, "r1")).toThrow(
+      "That challenge is no longer waiting on your answer."
+    );
+  });
+
+  it("treats the opponent leaving an unanswered request as declining it", async () => {
+    const service = makeService();
+    await service.challenge("r1", "r2");
+
+    service.leaveEntry(service.queue()[0].id, "r2");
+
+    expect(service.queue()).toEqual([]);
+    expect(service.sentTo("r1", "challenge_answered")).toEqual([
+      expect.objectContaining({ title: "Challenge declined" })
+    ]);
+    expect(service.sentTo("r1", "queue_status_update")).toEqual([]);
+  });
+
+  it("treats replacing a request that waits on you as declining it", async () => {
+    const service = makeService({ maxActiveQueueEntriesPerRacer: 1 });
+    await service.challenge("r1", "r2");
+    const requestId = service.queue()[0].id;
+
+    await service.challenge("r2", "r3", requestId);
+
+    expect(service.queue().map((entry) => entry.racerIds)).toEqual([["r2", "r3"]]);
+    expect(service.sentTo("r1", "challenge_answered")).toEqual([
+      expect.objectContaining({ title: "Challenge declined" })
+    ]);
+  });
+
+  it("does not tell an opponent who never answered that they are out of the queue", async () => {
+    const service = makeService();
+    await service.challenge("r1", "r2");
+
+    service.leaveEntry(service.queue()[0].id, "r1");
+
+    expect(service.queue()).toEqual([]);
+    expect(service.sentTo("r2", "queue_status_update")).toEqual([]);
+  });
+});
+
+describe("app service challenge request notifications", () => {
+  function runReconcile(
+    occurrences: Partial<QueueOccurrence>[],
+    live: { channelKey: string; type: RacerNotificationType }[]
+  ) {
+    const createNotificationAndDispatch =
+      vi.fn<(input: { channelKey?: string; type: string; racerIds: string[] }) => number>();
+    const target = {
+      db: {
+        listQueueOccurrences: () => occurrences,
+        listLiveChannelNotifications: (prefix: string) =>
+          live.filter((notification) => notification.channelKey.startsWith(prefix))
+      },
+      notifications: { createNotificationAndDispatch },
+      challengeRequestChannelPrefix: getAppMethod("challengeRequestChannelPrefix")
+    };
+    getAppMethod("reconcileChallengeRequestNotifications").call(target, "event-1" as never);
+    return createNotificationAndDispatch;
+  }
+
+  it("retires a request that is no longer waiting on an answer", () => {
+    const dispatch = runReconcile(
+      [],
+      [{ channelKey: "challenge-request:event-1:lock-1:r2", type: "challenge_request" }]
+    );
+
+    expect(dispatch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: "challenge_closed",
+        channelKey: "challenge-request:event-1:lock-1:r2",
+        racerIds: ["r2"]
+      })
+    );
+  });
+
+  it("leaves a request alone while it still waits on the racer", () => {
+    const dispatch = runReconcile(
+      [
+        {
+          status: "queued",
+          racerId: "r2",
+          lockGroupId: "lock-1",
+          awaitingChallengeResponse: true
+        }
+      ],
+      [{ channelKey: "challenge-request:event-1:lock-1:r2", type: "challenge_request" }]
+    );
+
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

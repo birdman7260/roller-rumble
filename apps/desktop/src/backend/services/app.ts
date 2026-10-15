@@ -19,6 +19,7 @@ import type {
   AdminTournamentByeFillResponse,
   AdminTournamentRacerRemovalInput,
   AdminTournamentRacerRemovalResponse,
+  ChallengeAnswer,
   ChallengeReplacementOption,
   CreateRacerInput,
   NotificationConfig,
@@ -75,9 +76,12 @@ import {
   computeRoundRobinStandings
 } from "./competition";
 import {
+  acceptChallengeRequest,
   addQueueSignup,
   ChallengeReplacementRequiredError,
+  ChallengeRequestNotFoundError,
   ChallengeTargetUnavailableError,
+  declineChallengeRequest,
   findNextQueuedEntry,
   InvalidChallengeReplacementError,
   leaveQueueEntryForRacer,
@@ -157,6 +161,35 @@ const QUEUE_WAITING_MESSAGES: Record<QueueWaitingState, QueueWaitingMessage> = {
     type: "queue_hang_tight",
     title: "You're in the queue",
     body: (name) => `${name}, hang tight — we'll buzz you when you're close.`
+  }
+};
+
+/** What each side of a `challenge request` is told once the challenged racer answers it. */
+const CHALLENGE_ANSWER_MESSAGES: Record<
+  ChallengeAnswer,
+  {
+    answeringTitle: string;
+    answeringBody: (challengerName: string) => string;
+    challengerTitle: string;
+    challengerBody: (answeringName: string, challengerKeepsSpot: boolean) => string;
+  }
+> = {
+  accept: {
+    answeringTitle: "Challenge accepted",
+    answeringBody: (challengerName) =>
+      `You're racing ${challengerName}. Watch the queue for your race.`,
+    challengerTitle: "Challenge accepted!",
+    challengerBody: (answeringName) =>
+      `${answeringName} accepted your challenge. Watch the queue for your race.`
+  },
+  decline: {
+    answeringTitle: "Challenge declined",
+    answeringBody: (challengerName) => `You turned down ${challengerName}'s challenge.`,
+    challengerTitle: "Challenge declined",
+    challengerBody: (answeringName, challengerKeepsSpot) =>
+      `${answeringName} declined your challenge. ${
+        challengerKeepsSpot ? "You keep your spot in the queue." : "You're out of the race queue."
+      }`
   }
 };
 
@@ -416,6 +449,54 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   /**
+   * One `challenge request` as seen by the racer it waits on. The racer id is part of the key
+   * because a live channel record does not carry its recipients, and the reconciler needs them.
+   */
+  private challengeRequestChannelKey(
+    eventId: string,
+    lockGroupId: string,
+    racerId: string
+  ): string {
+    return `${this.challengeRequestChannelPrefix(eventId)}${lockGroupId}:${racerId}`;
+  }
+
+  private challengeRequestChannelPrefix(eventId: string): string {
+    return `challenge-request:${eventId}:`;
+  }
+
+  /**
+   * Retire every live `challenge request` notification whose request is no longer waiting on an
+   * answer: the challenger left or replaced it, or the host removed it. Accepting and declining
+   * supersede their own request with specific copy first, so this only catches the rest.
+   */
+  private reconcileChallengeRequestNotifications(eventId: string): void {
+    const pendingLockGroupIds = new Set(
+      this.db
+        .listQueueOccurrences(eventId)
+        .filter(
+          (occurrence) => occurrence.status === "queued" && occurrence.awaitingChallengeResponse
+        )
+        .map((occurrence) => occurrence.lockGroupId)
+    );
+    const prefix = this.challengeRequestChannelPrefix(eventId);
+    for (const live of this.db.listLiveChannelNotifications(prefix)) {
+      const [lockGroupId, racerId] = live.channelKey.slice(prefix.length).split(":");
+      if (live.type !== "challenge_request" || !racerId || pendingLockGroupIds.has(lockGroupId)) {
+        continue;
+      }
+      this.notifications.createNotificationAndDispatch({
+        eventId,
+        type: "challenge_closed",
+        title: "Challenge called off",
+        body: "That challenge is no longer waiting on your answer.",
+        url: "/racer",
+        channelKey: live.channelKey,
+        racerIds: [racerId]
+      });
+    }
+  }
+
+  /**
    * Reconciles every waiting racer's single live queue-status notification to
    * their current standing (ADR-0013). Level-triggered, not edge-triggered: it
    * derives each racer's desired state from their queue position and only sends
@@ -425,9 +506,12 @@ export class RollerRumbleApp extends EventEmitter {
    * it is safe to call after any queue mutation.
    */
   private runQueueNotificationTriggers(eventId: string): void {
+    this.reconcileChallengeRequestNotifications(eventId);
     const queue = reindexQueue(this.db.listQueueEntries(eventId));
+    // An unanswered `challenge request` is never staged, so it is no one's turn and nobody is
+    // behind it.
     const upcoming = queue.filter(
-      (entry) => entry.status === "queued" || entry.status === "staging"
+      (entry) => (entry.status === "queued" || entry.status === "staging") && !entry.awaitingRacerId
     );
     // Racers still in play (including the one currently racing) must not be
     // treated as "removed"; a racing racer keeps their status until they finish.
@@ -448,6 +532,18 @@ export class RollerRumbleApp extends EventEmitter {
         }
       }
     });
+    // A racer whose only spot is an unanswered request is still waiting, just not on anyone's turn,
+    // so a "you're up" they were already showing drifts back to a quiet "hang tight".
+    for (const entry of queue) {
+      if (entry.status !== "queued" || !entry.awaitingRacerId) {
+        continue;
+      }
+      for (const racerId of entry.racerIds) {
+        if (!desiredByRacer.has(racerId)) {
+          desiredByRacer.set(racerId, "hang_tight");
+        }
+      }
+    }
 
     const liveTypeByRacer = new Map<string, RacerNotificationType>();
     for (const live of this.db.listLiveChannelNotifications(
@@ -1959,7 +2055,8 @@ export class RollerRumbleApp extends EventEmitter {
           racerId,
           opponentRacerId: input.opponentRacerId,
           requestedType: input.requestedType,
-          replaceQueueEntryId: input.replaceQueueEntryId
+          replaceQueueEntryId: input.replaceQueueEntryId,
+          requestAcceptance: settings.challengeRequiresAcceptance
         })
       };
     } catch (error) {
@@ -2024,7 +2121,8 @@ export class RollerRumbleApp extends EventEmitter {
       racerId: payment.racerId,
       opponentRacerId: queueIntent.opponentRacerId,
       requestedType: queueIntent.requestedType,
-      replaceQueueEntryId: queueIntent.replaceQueueEntryId
+      replaceQueueEntryId: queueIntent.replaceQueueEntryId,
+      requestAcceptance: this.db.getAdminSettings().challengeRequiresAcceptance
     });
   }
 
@@ -2071,6 +2169,11 @@ export class RollerRumbleApp extends EventEmitter {
     opponentRacerId?: string;
     requestedType?: "solo" | "auto-match";
     replaceQueueEntryId?: string;
+    /**
+     * Send a challenge as a `challenge request` the opponent must accept. Racer self-service sets
+     * it from the admin setting; the host composing a match at the desk never does.
+     */
+    requestAcceptance?: boolean;
   }): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     const settings = this.db.getAdminSettings();
@@ -2088,6 +2191,18 @@ export class RollerRumbleApp extends EventEmitter {
       );
     }
 
+    const replacedEntry = input.replaceQueueEntryId
+      ? this.db
+          .listQueueEntries(activeEvent.id)
+          .find((entry) => entry.id === input.replaceQueueEntryId)
+      : undefined;
+    if (replacedEntry?.status === "queued" && replacedEntry.awaitingRacerId === input.racerId) {
+      // Giving up a request still waiting on this racer is declining it: the challenger is told,
+      // and their spot resolves by prior intent instead of becoming an auto-match they never chose.
+      this.answerChallengeRequest(replacedEntry.id, input.racerId, "decline");
+      return this.signUpQueue({ ...input, replaceQueueEntryId: undefined });
+    }
+
     const replaceOccurrenceId = input.replaceQueueEntryId
       ? this.resolveChallengeReplacementOccurrenceId(
           activeEvent.id,
@@ -2095,6 +2210,8 @@ export class RollerRumbleApp extends EventEmitter {
           input.replaceQueueEntryId
         )
       : undefined;
+    const lockGroupId = input.opponentRacerId ? nanoid() : undefined;
+    const challengeNeedsAcceptance = Boolean(input.opponentRacerId && input.requestAcceptance);
     let updated: ReturnType<typeof addQueueSignup>;
     try {
       updated = addQueueSignup(this.db.listQueueOccurrences(activeEvent.id), {
@@ -2105,7 +2222,7 @@ export class RollerRumbleApp extends EventEmitter {
         replaceOccurrenceId,
         occurrenceId: nanoid(),
         opponentOccurrenceId: input.opponentRacerId ? nanoid() : undefined,
-        lockGroupId: input.opponentRacerId ? nanoid() : undefined,
+        lockGroupId,
         timestamp,
         signupSequence: this.db.getNextQueueSignupSequence(activeEvent.id),
         raceCountAtJoin: racerStatsById.get(input.racerId)?.raceCount ?? 0,
@@ -2113,7 +2230,8 @@ export class RollerRumbleApp extends EventEmitter {
           ? (racerStatsById.get(input.opponentRacerId)?.raceCount ?? 0)
           : undefined,
         maxActiveOccurrencesPerRacer: settings.maxActiveQueueEntriesPerRacer,
-        racerStatsById
+        racerStatsById,
+        challengeNeedsAcceptance
       });
     } catch (error) {
       if (error instanceof ChallengeReplacementRequiredError) {
@@ -2135,11 +2253,133 @@ export class RollerRumbleApp extends EventEmitter {
       throw error;
     }
     this.saveProjectedQueue(activeEvent.id, updated, timestamp);
+    if (challengeNeedsAcceptance && lockGroupId && input.opponentRacerId) {
+      const challengerName = this.db.getRacer(input.racerId)?.displayName ?? "A racer";
+      this.notifications.createNotificationAndDispatch({
+        eventId: activeEvent.id,
+        type: "challenge_request",
+        title: "You've been challenged!",
+        body: `${challengerName} wants to race you. Open Roller Rumble to accept or decline.`,
+        url: "/racer",
+        channelKey: this.challengeRequestChannelKey(
+          activeEvent.id,
+          lockGroupId,
+          input.opponentRacerId
+        ),
+        racerIds: [input.opponentRacerId]
+      });
+    }
     if (!this.maybeAutoStageNextRace()) {
       this.runQueueNotificationTriggers(activeEvent.id);
       this.emitSnapshot();
     }
     return this.getSnapshot();
+  }
+
+  /** The challenged racer agrees to a `challenge request`, which then races from the spot it holds. */
+  acceptChallengeRequestForRacer(entryId: string, racerId: string): AppSnapshot {
+    return this.answerChallengeRequest(entryId, racerId, "accept");
+  }
+
+  /**
+   * The challenged racer turns a `challenge request` down. Neither racer races it; each spot is
+   * resolved by its prior intent, as a `challenge abandonment` would be (ADR-0015).
+   */
+  declineChallengeRequestForRacer(entryId: string, racerId: string): AppSnapshot {
+    return this.answerChallengeRequest(entryId, racerId, "decline");
+  }
+
+  private answerChallengeRequest(
+    entryId: string,
+    racerId: string,
+    answer: ChallengeAnswer
+  ): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent()!;
+    const entries = this.db.listQueueEntries(activeEvent.id);
+    const before = this.db.listQueueOccurrences(activeEvent.id);
+    const answerRequest = answer === "accept" ? acceptChallengeRequest : declineChallengeRequest;
+    let updated: QueueOccurrence[];
+    try {
+      updated = answerRequest(entries, before, entryId, racerId);
+    } catch (error) {
+      if (error instanceof ChallengeRequestNotFoundError) {
+        throw new AppHttpError(error.message, 409, "challenge_request_not_found");
+      }
+      throw error;
+    }
+
+    this.saveProjectedQueue(activeEvent.id, updated, nowIso());
+    const entryOccurrenceIds = new Set(
+      entries.find((candidate) => candidate.id === entryId)?.occurrenceIds
+    );
+    this.notifyChallengeAnswered(activeEvent.id, {
+      answer,
+      answeringRacerId: racerId,
+      // Declining clears the lock group, so read it from before the answer.
+      lockGroupId:
+        before.find((occurrence) => entryOccurrenceIds.has(occurrence.id))?.lockGroupId ?? null,
+      challengerOccurrence:
+        updated.find(
+          (occurrence) => entryOccurrenceIds.has(occurrence.id) && occurrence.racerId !== racerId
+        ) ?? null
+    });
+    if (!this.maybeAutoStageNextRace()) {
+      this.runQueueNotificationTriggers(activeEvent.id);
+      this.emitSnapshot();
+    }
+    return this.getSnapshot();
+  }
+
+  /**
+   * Retire the `challenge request` on the answering racer's phone with a silent replacement
+   * (ADR-0013), so it never lingers in the tray, and tell the challenger how it was answered on
+   * their own channel for the same request.
+   */
+  private notifyChallengeAnswered(
+    eventId: string,
+    input: {
+      answer: ChallengeAnswer;
+      answeringRacerId: string;
+      lockGroupId: string | null;
+      challengerOccurrence: QueueOccurrence | null;
+    }
+  ): void {
+    const { answeringRacerId, challengerOccurrence, lockGroupId } = input;
+    if (!lockGroupId) {
+      return;
+    }
+
+    const messages = CHALLENGE_ANSWER_MESSAGES[input.answer];
+    const challengerName = challengerOccurrence
+      ? (this.db.getRacer(challengerOccurrence.racerId)?.displayName ?? "your challenger")
+      : "your challenger";
+    this.notifications.createNotificationAndDispatch({
+      eventId,
+      type: "challenge_closed",
+      title: messages.answeringTitle,
+      body: messages.answeringBody(challengerName),
+      url: "/racer",
+      channelKey: this.challengeRequestChannelKey(eventId, lockGroupId, answeringRacerId),
+      racerIds: [answeringRacerId]
+    });
+    if (!challengerOccurrence) {
+      return;
+    }
+
+    const answeringName = this.db.getRacer(answeringRacerId)?.displayName ?? "Your opponent";
+    this.notifications.createNotificationAndDispatch({
+      eventId,
+      type: "challenge_answered",
+      title: messages.challengerTitle,
+      body: messages.challengerBody(answeringName, challengerOccurrence.status === "queued"),
+      url: "/racer",
+      channelKey: this.challengeRequestChannelKey(
+        eventId,
+        lockGroupId,
+        challengerOccurrence.racerId
+      ),
+      racerIds: [challengerOccurrence.racerId]
+    });
   }
 
   removeRacerFromAllUpcomingRaces(racerId: string): AppSnapshot {
@@ -2195,6 +2435,13 @@ export class RollerRumbleApp extends EventEmitter {
   leaveQueueForSessionRacer(racerId: string): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     this.assertLeaveAllowed(activeEvent.id);
+    // Walking away from a request still waiting on this racer is declining it, so the challenger
+    // hears "declined" rather than that their opponent left a race they never agreed to.
+    for (const entry of this.db.listQueueEntries(activeEvent.id)) {
+      if (entry.status === "queued" && entry.awaitingRacerId === racerId) {
+        this.answerChallengeRequest(entry.id, racerId, "decline");
+      }
+    }
     const timestamp = nowIso();
     const before = this.db.listQueueOccurrences(activeEvent.id);
     const updated = leaveQueueForRacer(before, racerId);
@@ -2210,6 +2457,10 @@ export class RollerRumbleApp extends EventEmitter {
   leaveQueueEntryForSessionRacer(entryId: string, racerId: string): AppSnapshot {
     const activeEvent = this.db.getActiveEvent()!;
     this.assertLeaveAllowed(activeEvent.id);
+    const entry = this.db.listQueueEntries(activeEvent.id).find((item) => item.id === entryId);
+    if (entry?.status === "queued" && entry.awaitingRacerId === racerId) {
+      return this.answerChallengeRequest(entryId, racerId, "decline");
+    }
     const timestamp = nowIso();
     const before = this.db.listQueueOccurrences(activeEvent.id);
     const updated = leaveQueueEntryForRacer(
@@ -2240,9 +2491,13 @@ export class RollerRumbleApp extends EventEmitter {
     updated: QueueOccurrence[],
     leavingRacerId: string
   ): void {
+    // An opponent who never answered a `challenge request` never joined the queue, so there is
+    // nothing to tell them here; their request notification is retired on its own channel.
     const wasQueued = new Set(
       before
-        .filter((occurrence) => occurrence.status === "queued")
+        .filter(
+          (occurrence) => occurrence.status === "queued" && !occurrence.awaitingChallengeResponse
+        )
         .map((occurrence) => occurrence.id)
     );
     const stillQueuedRacerIds = new Set(

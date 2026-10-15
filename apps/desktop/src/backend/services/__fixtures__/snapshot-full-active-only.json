@@ -23,6 +23,7 @@
     "serverPort": 3187,
     "queueOpen": true,
     "allowSoloQueue": true,
+    "challengeRequiresAcceptance": false,
     "queueClosedMessage": "",
     "queueMinutesPerRace": 2,
     "raceDisplayTopRacersRows": 5
@@ -119,6 +120,7 @@
         "occ-2"
       ],
       "priorityScore": 0,
+      "awaitingRacerId": null,
       "status": "queued",
       "createdAt": "2026-06-24T11:00:00.000Z",
       "updatedAt": "2026-06-24T11:00:00.000Z"
@@ -137,6 +139,7 @@
         "occ-3"
       ],
       "priorityScore": 0,
+      "awaitingRacerId": null,
       "status": "staging",
       "createdAt": "2026-06-24T11:05:00.000Z",
       "updatedAt": "2026-06-24T11:05:00.000Z"
@@ -703,6 +706,7 @@
         "occ-2"
       ],
       "priorityScore": 0,
+      "awaitingRacerId": null,
       "status": "queued",
       "createdAt": "2026-06-24T11:00:00.000Z",
       "updatedAt": "2026-06-24T11:00:00.000Z"

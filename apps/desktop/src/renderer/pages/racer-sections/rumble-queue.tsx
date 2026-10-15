@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { RacerNamesByBike } from "../../components/racer-names-by-bike";
 import { queueEntryBikeColors, tournamentEntryBikeColors } from "../../lib/bike-colors";
 import { isLeavableByRacer } from "../../lib/snapshot-display";
-import { getQueuePositionLabel } from "../../lib/queue-position-label";
+import { getQueueEntryTimingLabel, getQueuePositionLabel } from "../../lib/queue-position-label";
 
 /** How many races a queue shows before the racer taps Show more. */
 const QUEUE_PREVIEW_LIMIT = 6;
@@ -26,18 +26,20 @@ function QueueRowTitle({
 }
 
 function QueueRow({
-  entry,
   index,
   liveSnapshot,
   onRequestLeaveEntry,
+  queue,
   selectedRacerId
 }: {
-  entry: QueueEntry;
   index: number;
   liveSnapshot: AppSnapshot;
   onRequestLeaveEntry: (entry: QueueEntry) => void;
+  /** The whole list the row sits in, so its timing can skip unanswered challenge requests ahead. */
+  queue: QueueEntry[];
   selectedRacerId: string;
 }) {
+  const entry = queue[index];
   const isMine = Boolean(selectedRacerId) && entry.racerIds.includes(selectedRacerId);
   return (
     <li className={`racer-queue-row${isMine ? " racer-queue-row--mine" : ""}`}>
@@ -54,7 +56,7 @@ function QueueRow({
           position={entry.position}
         />
         <span className="racer-queue-row__eta">
-          {getQueuePositionLabel(index, liveSnapshot.settings.queueMinutesPerRace)}
+          {getQueueEntryTimingLabel(queue, index, liveSnapshot.settings.queueMinutesPerRace)}
         </span>
         {isLeavableByRacer(entry, selectedRacerId) ? (
           <Button
@@ -167,10 +169,10 @@ export function RumbleQueuePanel({
             rows={upcoming.map((entry, index) => (
               <QueueRow
                 key={entry.id}
-                entry={entry}
                 index={index}
                 liveSnapshot={liveSnapshot}
                 onRequestLeaveEntry={onRequestLeaveEntry}
+                queue={upcoming}
                 selectedRacerId={selectedRacerId}
               />
             ))}

@@ -5,6 +5,7 @@ import type {
   AdminTournamentRacerRemovalResponse,
   AdminNotificationInput,
   AppSnapshot,
+  ChallengeAnswer,
   PhotoBoothAdminStatus,
   PhotoBoothTokenResponse,
   CreateRacerInput,
@@ -437,6 +438,19 @@ export async function leaveRacerQueueEntry(entryId: string): Promise<AppSnapshot
   return parseJson(
     await fetch(buildUrl(`/api/racer/queue/${encodeURIComponent(entryId)}`), {
       method: "DELETE",
+      headers: getRacerSessionHeaders()
+    })
+  );
+}
+
+/** Answer a `challenge request` waiting on the signed-in racer. */
+export async function answerChallengeRequest(
+  entryId: string,
+  answer: ChallengeAnswer
+): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl(`/api/racer/queue/${encodeURIComponent(entryId)}/${answer}`), {
+      method: "POST",
       headers: getRacerSessionHeaders()
     })
   );

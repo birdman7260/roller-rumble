@@ -4,7 +4,7 @@ import { m } from "framer-motion";
 import type { ReactNode } from "react";
 import { queueEntryBikeColors } from "../lib/bike-colors";
 import type { ProjectorIdleView } from "../lib/projector-idle-view";
-import { getQueuePositionLabel } from "../lib/queue-position-label";
+import { getQueueEntryTimingLabel } from "../lib/queue-position-label";
 import { formatRaceTime } from "../lib/race-time";
 import { SIGNUP_PROMPT_DEFAULTS } from "../lib/signup-prompt-copy";
 import {
@@ -135,7 +135,11 @@ function ProjectorQueueCard({ snapshot }: { snapshot: AppSnapshot }) {
               snapshot={snapshot}
             />
           ),
-          detail: getQueuePositionLabel(index, snapshot.settings.queueMinutesPerRace)
+          detail: getQueueEntryTimingLabel(
+            snapshot.queue,
+            index,
+            snapshot.settings.queueMinutesPerRace
+          )
         }))}
       />
     </Panel>

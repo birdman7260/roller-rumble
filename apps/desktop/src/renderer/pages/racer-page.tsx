@@ -5,6 +5,7 @@ import type { Dispatch, ReactNode, RefObject, SetStateAction } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import type {
   AppSnapshot,
+  ChallengeAnswer,
   NotificationConfig,
   RacerAuthSuccessResponse,
   RacerNotification,
@@ -22,6 +23,7 @@ import {
   fetchRacerAuthSession,
   fetchNotificationConfig,
   forgetRacerSessionToken,
+  answerChallengeRequest,
   leaveRacerQueue,
   leaveRacerQueueEntry,
   markRacerNotificationRead,
@@ -44,6 +46,7 @@ import {
   useSnapshotQuery
 } from "../lib/query";
 import { ChallengeModal } from "./racer-sections/challenge-modal";
+import { IncomingChallengeModal } from "./racer-sections/incoming-challenge-modal";
 import { MeTab } from "./racer-sections/me";
 import {
   ChallengeReplacementModal,
@@ -79,6 +82,14 @@ const racerTabs: { id: RacerTabId; label: string }[] = [
 
 function normalizeRacerTab(tab: string | undefined): RacerTabId {
   return racerTabs.some((entry) => entry.id === tab) ? (tab as RacerTabId) : "rumble";
+}
+
+/**
+ * Whether a notification takes its turn in the generic notification modal. A `challenge request`
+ * has its own Accept/Decline modal, driven by the queue itself, so it never doubles up here.
+ */
+function opensNotificationModal(notification: RacerNotification): boolean {
+  return notification.type !== "challenge_request";
 }
 
 function isPushSupported(): boolean {
@@ -281,6 +292,7 @@ interface RacerPageViewProps {
   expandedBracketTournamentId: string | null;
   flags: RacerPageViewFlags;
   handleAvatarUpload: (file: File) => Promise<void>;
+  handleChallengeAnswer: (entryId: string, answer: ChallengeAnswer) => Promise<void>;
   handleChallengeRacer: (opponentRacerId: string) => void;
   handleEnableNotifications: () => Promise<void>;
   handleQueueSignup: (input: {
@@ -543,7 +555,9 @@ function useRacerPageViewModel({
       const launchedNotification = launchedNotificationId
         ? notifications.find(
             (notification) =>
-              notification.notificationId === launchedNotificationId && !notification.readAt
+              notification.notificationId === launchedNotificationId &&
+              !notification.readAt &&
+              opensNotificationModal(notification)
           )
         : null;
       if (launchedNotification) {
@@ -559,7 +573,9 @@ function useRacerPageViewModel({
 
     const newUnreadNotifications = notifications.filter(
       (notification) =>
-        !notification.readAt && !knownNotificationIdsRef.current?.has(notification.notificationId)
+        !notification.readAt &&
+        opensNotificationModal(notification) &&
+        !knownNotificationIdsRef.current?.has(notification.notificationId)
     );
     notifications.forEach((notification) => {
       knownNotificationIdsRef.current?.add(notification.notificationId);
@@ -769,8 +785,11 @@ function useRacerPageViewModel({
     }
     if (input.opponentRacerId) {
       const opponentName = snapshot ? resolveRacerName(snapshot, input.opponentRacerId, "") : "";
+      const sent = opponentName ? `Challenge sent to ${opponentName}.` : "Challenge sent.";
       showToast({
-        message: opponentName ? `Challenge sent to ${opponentName}.` : "Challenge sent."
+        message: snapshot?.settings.challengeRequiresAcceptance
+          ? `${sent} Your race is on once they accept.`
+          : sent
       });
       return;
     }
@@ -1076,6 +1095,25 @@ function useRacerPageViewModel({
     window.history.replaceState(window.history.state, "", url);
   }
 
+  async function handleChallengeAnswer(entryId: string, answer: ChallengeAnswer): Promise<void> {
+    try {
+      queryClient.setQueryData(
+        racerSnapshotQueryKey,
+        await answerChallengeRequest(entryId, answer)
+      );
+      showToast({
+        message:
+          answer === "accept" ? "Challenge accepted. See you on the bikes!" : "Challenge declined."
+      });
+    } catch (error) {
+      if (error instanceof ApiError && error.code === "challenge_request_not_found") {
+        showToast({ message: error.message, variant: "error" });
+        return;
+      }
+      throw error;
+    }
+  }
+
   function handleChallengeRacer(opponentRacerId: string): void {
     fireAndForget(handleQueueSignup({ opponentRacerId }), "challenge racer");
   }
@@ -1157,6 +1195,7 @@ function useRacerPageViewModel({
     cancelTournamentOptOut,
     confirmQueueLeave,
     handleAvatarUpload,
+    handleChallengeAnswer,
     handleChallengeRacer,
     handleEnableNotifications,
     handleQueueSignup,
@@ -1231,6 +1270,7 @@ function RacerPageModals({
   confirmSignOut,
   dismissNotificationModal,
   flags,
+  handleChallengeAnswer,
   handleChallengeRacer,
   handleQueueSignup,
   handleTabChange,
@@ -1291,6 +1331,11 @@ function RacerPageModals({
         busy={tournamentOptOutBusy}
         onCancel={cancelTournamentOptOut}
         onConfirm={handleTournamentOptOut}
+      />
+      <IncomingChallengeModal
+        liveSnapshot={liveSnapshot}
+        onAnswer={handleChallengeAnswer}
+        selectedRacerId={selectedRacerId}
       />
       <QueueLeaveConfirmModal
         request={queueLeaveRequest}

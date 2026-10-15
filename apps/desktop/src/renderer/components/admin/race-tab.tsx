@@ -84,6 +84,18 @@ export function RaceTab({
             />
             Let racers queue a solo run
           </label>
+          <label className="toggle">
+            <input
+              type="checkbox"
+              checked={snapshot.settings.challengeRequiresAcceptance}
+              onChange={(event) => {
+                fireAndForget(
+                  updateSettings({ challengeRequiresAcceptance: event.target.checked })
+                );
+              }}
+            />
+            Challenged racers must accept before the race is on
+          </label>
           <label htmlFor="admin-queue-closed-message">
             Closed message
             <input

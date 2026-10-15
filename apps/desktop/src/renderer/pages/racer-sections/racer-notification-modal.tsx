@@ -17,6 +17,11 @@ function getNotificationModalLabel(notification: RacerNotification): string {
       return "Queue Update";
     case "queue_status_update":
       return "Race Update";
+    case "challenge_request":
+      return "Challenge!";
+    case "challenge_answered":
+    case "challenge_closed":
+      return "Challenge Update";
     case "admin_message":
       return "Host Message";
   }

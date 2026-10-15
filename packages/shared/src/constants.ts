@@ -111,6 +111,9 @@ export const RACER_NOTIFICATION_TYPES = [
   "queue_you_are_up",
   "queue_hang_tight",
   "queue_status_update",
+  "challenge_request",
+  "challenge_answered",
+  "challenge_closed",
   "tournament_started",
   "tournament_update"
 ] as const;

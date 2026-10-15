@@ -189,6 +189,7 @@ export const queueEntries = sqliteTable("queue_entries", {
   racerIdsJson: text("racer_ids_json", { mode: "json" }).$type<string[]>().notNull(),
   occurrenceIdsJson: text("occurrence_ids_json", { mode: "json" }).$type<string[]>().notNull(),
   priorityScore: real("priority_score").notNull(),
+  awaitingRacerId: text("awaiting_racer_id"),
   status: text("status").$type<QueueEntry["status"]>().notNull(),
   createdAt: text("created_at").notNull(),
   updatedAt: text("updated_at").notNull()
@@ -206,6 +207,9 @@ export const queueOccurrences = sqliteTable("queue_occurrences", {
   intent: text("intent").$type<QueueOccurrence["intent"]>().notNull(),
   priorIntent: text("prior_intent").$type<QueueOccurrence["intent"]>(),
   lockGroupId: text("lock_group_id"),
+  awaitingChallengeResponse: integer("awaiting_challenge_response", { mode: "boolean" })
+    .notNull()
+    .default(false),
   signupSequence: integer("signup_sequence").notNull(),
   bumpCount: integer("bump_count").notNull(),
   raceCountAtJoin: integer("race_count_at_join").notNull(),

@@ -49,6 +49,10 @@ export function formatRacerNames(snapshot: AppSnapshot, racerIds: (string | null
 }
 
 export function describeQueueEntry(entry: QueueEntry): string {
+  if (entry.awaitingRacerId) {
+    return "Challenge request";
+  }
+
   if (entry.lockType === "challenge") {
     return "Challenge match";
   }

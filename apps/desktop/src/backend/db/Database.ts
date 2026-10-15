@@ -181,6 +181,7 @@ function getDefaultAdminSettings(): AdminSettings {
     serverPort: DEFAULT_SERVER_PORT,
     queueOpen: true,
     allowSoloQueue: false,
+    challengeRequiresAcceptance: false,
     queueClosedMessage: "",
     queueMinutesPerRace: 2
   };
@@ -302,6 +303,7 @@ function mapQueueEntry(row: QueueEntryRow): QueueEntry {
     racerIds: row.racerIdsJson,
     occurrenceIds: row.occurrenceIdsJson,
     priorityScore: row.priorityScore,
+    awaitingRacerId: row.awaitingRacerId,
     status: row.status,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt
@@ -317,6 +319,7 @@ function mapQueueOccurrence(row: QueueOccurrenceRow): QueueOccurrence {
     intent: row.intent,
     priorIntent: row.priorIntent,
     lockGroupId: row.lockGroupId,
+    awaitingChallengeResponse: row.awaitingChallengeResponse,
     signupSequence: row.signupSequence,
     bumpCount: row.bumpCount,
     raceCountAtJoin: row.raceCountAtJoin,
@@ -1434,6 +1437,7 @@ export class AppDatabase {
       racerIds,
       occurrenceIds: [],
       priorityScore: 0,
+      awaitingRacerId: null,
       status: "queued",
       createdAt: timestamp,
       updatedAt: timestamp
@@ -1452,7 +1456,7 @@ export class AppDatabase {
     // this keeps one prepared statement hot while the rest of the database surface
     // moves through Drizzle's typed query layer.
     const statement = this.db.prepare(
-      "INSERT INTO queue_entries (id, event_id, type, requested_type, lock_type, position, racer_ids_json, occurrence_ids_json, priority_score, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, lock_type = excluded.lock_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, occurrence_ids_json = excluded.occurrence_ids_json, priority_score = excluded.priority_score, status = excluded.status, updated_at = excluded.updated_at"
+      "INSERT INTO queue_entries (id, event_id, type, requested_type, lock_type, position, racer_ids_json, occurrence_ids_json, priority_score, awaiting_racer_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, lock_type = excluded.lock_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, occurrence_ids_json = excluded.occurrence_ids_json, priority_score = excluded.priority_score, awaiting_racer_id = excluded.awaiting_racer_id, status = excluded.status, updated_at = excluded.updated_at"
     );
     const transaction = this.db.transaction((rows: QueueEntry[]) => {
       for (const entry of rows) {
@@ -1466,6 +1470,7 @@ export class AppDatabase {
           encodeJson(entry.racerIds),
           encodeJson(entry.occurrenceIds),
           entry.priorityScore,
+          entry.awaitingRacerId,
           entry.status,
           entry.createdAt,
           entry.updatedAt
@@ -1499,7 +1504,7 @@ export class AppDatabase {
     }
 
     const statement = this.db.prepare(
-      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, prior_intent, lock_group_id, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, intent = excluded.intent, prior_intent = excluded.prior_intent, lock_group_id = excluded.lock_group_id, bump_count = excluded.bump_count, race_count_at_join = excluded.race_count_at_join, projected_position = excluded.projected_position, updated_at = excluded.updated_at"
+      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, prior_intent, lock_group_id, awaiting_challenge_response, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, intent = excluded.intent, prior_intent = excluded.prior_intent, lock_group_id = excluded.lock_group_id, awaiting_challenge_response = excluded.awaiting_challenge_response, bump_count = excluded.bump_count, race_count_at_join = excluded.race_count_at_join, projected_position = excluded.projected_position, updated_at = excluded.updated_at"
     );
     const transaction = this.db.transaction((rows: QueueOccurrence[]) => {
       for (const occurrence of rows) {
@@ -1511,6 +1516,7 @@ export class AppDatabase {
           occurrence.intent,
           occurrence.priorIntent,
           occurrence.lockGroupId,
+          occurrence.awaitingChallengeResponse ? 1 : 0,
           occurrence.signupSequence,
           occurrence.bumpCount,
           occurrence.raceCountAtJoin,
@@ -1529,10 +1535,10 @@ export class AppDatabase {
     queuedEntries: QueueEntry[]
   ): void {
     const occurrenceStatement = this.db.prepare(
-      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, prior_intent, lock_group_id, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, intent = excluded.intent, prior_intent = excluded.prior_intent, lock_group_id = excluded.lock_group_id, bump_count = excluded.bump_count, race_count_at_join = excluded.race_count_at_join, projected_position = excluded.projected_position, updated_at = excluded.updated_at"
+      "INSERT INTO queue_occurrences (id, event_id, racer_id, status, intent, prior_intent, lock_group_id, awaiting_challenge_response, signup_sequence, bump_count, race_count_at_join, projected_position, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET status = excluded.status, intent = excluded.intent, prior_intent = excluded.prior_intent, lock_group_id = excluded.lock_group_id, awaiting_challenge_response = excluded.awaiting_challenge_response, bump_count = excluded.bump_count, race_count_at_join = excluded.race_count_at_join, projected_position = excluded.projected_position, updated_at = excluded.updated_at"
     );
     const entryStatement = this.db.prepare(
-      "INSERT INTO queue_entries (id, event_id, type, requested_type, lock_type, position, racer_ids_json, occurrence_ids_json, priority_score, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, lock_type = excluded.lock_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, occurrence_ids_json = excluded.occurrence_ids_json, priority_score = excluded.priority_score, status = excluded.status, updated_at = excluded.updated_at"
+      "INSERT INTO queue_entries (id, event_id, type, requested_type, lock_type, position, racer_ids_json, occurrence_ids_json, priority_score, awaiting_racer_id, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(id) DO UPDATE SET type = excluded.type, requested_type = excluded.requested_type, lock_type = excluded.lock_type, position = excluded.position, racer_ids_json = excluded.racer_ids_json, occurrence_ids_json = excluded.occurrence_ids_json, priority_score = excluded.priority_score, awaiting_racer_id = excluded.awaiting_racer_id, status = excluded.status, updated_at = excluded.updated_at"
     );
     const transaction = this.db.transaction(() => {
       for (const occurrence of occurrences) {
@@ -1544,6 +1550,7 @@ export class AppDatabase {
           occurrence.intent,
           occurrence.priorIntent,
           occurrence.lockGroupId,
+          occurrence.awaitingChallengeResponse ? 1 : 0,
           occurrence.signupSequence,
           occurrence.bumpCount,
           occurrence.raceCountAtJoin,
@@ -1568,6 +1575,7 @@ export class AppDatabase {
           encodeJson(entry.racerIds),
           encodeJson(entry.occurrenceIds),
           entry.priorityScore,
+          entry.awaitingRacerId,
           entry.status,
           entry.createdAt,
           entry.updatedAt
