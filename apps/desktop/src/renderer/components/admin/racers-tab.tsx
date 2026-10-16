@@ -54,7 +54,7 @@ export function RacersTab({
               <div className="button-row">
                 {paymentRequiredForQueue ? (
                   <>
-                    {entry.payment.status === "unpaid" ? (
+                    {entry.payment.status === "unpaid" || entry.payment.status === "refunded" ? (
                       <>
                         <Button
                           variant="ghost"

@@ -280,6 +280,13 @@ function PaymentReturnNotice({
   paymentReturnState: string | null;
   selectedRacer: RacerSummary;
 }) {
+  // Checked first: the phone may still carry `?payment=success` from the Checkout now refunded.
+  if (selectedRacer.payment.status === "refunded") {
+    return (
+      <p>Your entry fee was refunded. If you join the queue again, you'll be asked to pay again.</p>
+    );
+  }
+
   if (paymentReturnState === "success") {
     return (
       <p className="form-success">
