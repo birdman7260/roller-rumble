@@ -96,8 +96,8 @@ export function completedRegistrationSteps(racer: RegisteredRacerState): Registr
   if (racer.hasPhoto) {
     completed.push("photo");
   }
-  // A refunded racer already went through registration; joining the queue asks them to pay again.
-  const settled = racer.paymentStatus !== "unpaid";
+  // A refunded racer is back to owing the fee, so the payment step reopens for them.
+  const settled = racer.paymentStatus === "paid" || racer.paymentStatus === "waived";
   if (settled || (!racer.onlinePaymentAvailable && racer.payAtDeskAcknowledged)) {
     completed.push("payment");
   }

@@ -306,6 +306,21 @@ describe("RegistrationWizard after the racer is created", () => {
     expect(screen.getByText("Race page")).toBeInTheDocument();
   });
 
+  it("brings a refunded racer back to pay again, even with their old Checkout still in the address", () => {
+    render(
+      <SignedInRacerPage
+        racer={makeRacer({ avatarUrl: "/avatars/racer-1.jpg", paymentStatus: "refunded" })}
+        event={paidEvent}
+        onlinePaymentAvailable
+        paymentReturnState="success"
+      />
+    );
+
+    expect(screen.getByText(/entry fee was refunded/i)).toBeInTheDocument();
+    expect(screen.queryByText(/confirming your payment/i)).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pay $10.00" })).toBeEnabled();
+  });
+
   it("stays on the payment step after a cancelled checkout", () => {
     render(
       <SignedInRacerPage

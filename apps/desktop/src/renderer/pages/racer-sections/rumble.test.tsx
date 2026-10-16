@@ -23,8 +23,7 @@ const racerNames: Record<string, string> = {
 };
 
 const racers = Object.entries(racerNames).map(([id, displayName]) => ({
-  racer: { id, displayName, avatarUrl: null },
-  payment: { status: "unpaid" }
+  racer: { id, displayName, avatarUrl: null }
 })) as unknown as RacerSummary[];
 
 const liveSnapshot = {
@@ -224,18 +223,6 @@ describe("RumbleTab", () => {
       "In 18 minutes",
       "In 21 minutes"
     ]);
-  });
-
-  it("tells a refunded racer their fee was refunded, even back from an old Checkout", () => {
-    const refundedRacer = {
-      ...racers[0],
-      payment: { status: "refunded" }
-    } as unknown as RacerSummary;
-
-    renderRumble({ selectedRacer: refundedRacer, paymentReturnState: "success" });
-
-    expect(screen.getByText(/entry fee was refunded/i)).toBeInTheDocument();
-    expect(screen.queryByText(/payment is processing/i)).not.toBeInTheDocument();
   });
 
   it("leaves the next race card out when the racer isn't in the queue", () => {

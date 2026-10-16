@@ -168,6 +168,7 @@ export function RegistrationWizard({
             event={event}
             onlinePaymentAvailable={signedIn.onlinePaymentAvailable}
             paymentReturnState={signedIn.paymentReturnState}
+            refunded={signedIn.racer.payment.status === "refunded"}
             onAcknowledgePayAtDesk={signedIn.steps.acknowledgePayAtDesk}
             onBack={() => {
               signedIn.steps.revisitStep("photo");

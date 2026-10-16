@@ -120,8 +120,8 @@ describe("completedRegistrationSteps", () => {
     );
   });
 
-  it("keeps registration finished for a racer whose entry fee was refunded", () => {
-    expect(completedRegistrationSteps({ ...freshRacer, paymentStatus: "refunded" })).toContain(
+  it("sends a racer whose entry fee was refunded back to the payment step", () => {
+    expect(completedRegistrationSteps({ ...freshRacer, paymentStatus: "refunded" })).not.toContain(
       "payment"
     );
   });

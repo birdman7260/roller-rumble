@@ -16,17 +16,20 @@ function entryFeeLabel(event: PaymentEvent): string | null {
 /**
  * Step 4, "Payment", for events with an entry fee. With Stripe set up it opens Checkout and
  * completes when the server says the fee is paid; without it, it tells the racer to pay the host.
+ * A racer whose fee was refunded comes back here to pay again.
  */
 export function PaymentStep({
   event,
   onlinePaymentAvailable,
   paymentReturnState,
+  refunded,
   onAcknowledgePayAtDesk,
   onBack
 }: {
   event: PaymentEvent;
   onlinePaymentAvailable: boolean;
   paymentReturnState: string | null;
+  refunded: boolean;
   onAcknowledgePayAtDesk: () => void;
   onBack: () => void;
 }) {
@@ -53,16 +56,26 @@ export function PaymentStep({
     );
   }
 
-  return <OnlinePaymentStep fee={fee} paymentReturnState={paymentReturnState} onBack={onBack} />;
+  return (
+    <OnlinePaymentStep
+      fee={fee}
+      // The address may still say `?payment=success` from the Checkout that was refunded.
+      paymentReturnState={refunded ? null : paymentReturnState}
+      refunded={refunded}
+      onBack={onBack}
+    />
+  );
 }
 
 function OnlinePaymentStep({
   fee,
   paymentReturnState,
+  refunded,
   onBack
 }: {
   fee: string | null;
   paymentReturnState: string | null;
+  refunded: boolean;
   onBack: () => void;
 }) {
   const [busy, setBusy] = useState(false);
@@ -96,6 +109,11 @@ function OnlinePaymentStep({
   return (
     <div className="form-grid">
       <div className="racer-section-heading">
+        {refunded ? (
+          <p className="form-success">
+            Your entry fee was refunded. To race, pay the entry fee again.
+          </p>
+        ) : null}
         <p>
           {fee ? `Racing here costs ${fee}. ` : ""}You'll pay securely with Stripe and come straight
           back here.

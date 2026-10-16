@@ -293,8 +293,8 @@ Things to know:
   LAN, so nobody else can send them.
 - **Stripe keeps its processing fee** on every refund, so you pay that fee for each racer.
 - A refunded racer's fee status on the **Racers** tab reads **refunded**, with **Mark Paid** and
-  **Waive** buttons in case you want to let them race after all. Their phone says the entry fee was
-  refunded, and if they join the queue again they're asked to pay again. Stripe shows the refund on
+  **Waive** buttons in case you want to let them race after all. Their phone goes back to the
+  registration **Payment** step, which says the entry fee was refunded and offers to pay again. Stripe shows the refund on
   the payment in the Dashboard, and the money usually reaches the racer's card within 5–10
   business days.
 - Most card refunds settle at once. If Stripe reports one as still settling, the app records it
