@@ -17,6 +17,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Race times now show to the hundredth of a second (for example 28.43s) on the projector's race clock, the results screen, and the top racers board, instead of to the tenth.
 - Live speed, cadence, top speed, and watts are now averaged over the last second by default, so they no longer jump about 5 km/h with each quarter-second sample from the race box, and top speed is no longer inflated by a single lucky sample.
 - Live speed now drops to zero when a rider stops pedaling, instead of freezing at their last speed.
 - Finish times now mark the moment a rider actually reached the line, not the end of the quarter-second sample that carried them over it. When both riders cross in the same quarter-second, the faster rider wins, not always the left bike.
@@ -30,6 +31,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Fixed
 
+- Searching for the race box no longer tries the Mac's built-in Bluetooth and debug ports, which added five seconds per port to every search. If the box isn't showing up as a USB device at all, the log now says so and suggests checking its power and cable.
 - Changing **Race box countdown** now takes effect on the next race instead of needing an app restart.
 - Resetting a race, or stopping a sensor test, during the race box's silent countdown no longer leaves the box streaming afterward.
 

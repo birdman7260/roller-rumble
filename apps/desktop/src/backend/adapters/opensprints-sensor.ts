@@ -8,7 +8,9 @@
  * - The box is a dumb tick streamer; the app owns the race. We send GO only to start streaming.
  * - Port detection is probe-and-confirm: open a candidate, send `v`, accept only a real `V:` reply.
  *   VID/PID only prioritizes probe order — it never hard-filters, so a board revision can't lock us
- *   out. A manual port override bypasses discovery entirely as the live-event escape hatch.
+ *   out. Ports with no USB vendor ID at all (macOS Bluetooth and debug ports) are skipped, since the
+ *   box is always USB. A manual port override bypasses discovery entirely as the live-event escape
+ *   hatch.
  * - The box zeroes its tick counters on every GO, so a mid-race reconnect can't cleanly resume; a
  *   disconnect is surfaced as a status change (the app interrupts the race) plus a lifecycle abort
  *   (so a countdown waiting on GO bails out promptly instead of stranding).
@@ -642,8 +644,19 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       return { connection, portPath: override, ...probed };
     }
 
-    const ports = this.prioritize(await transport.list());
-    const verbose = this.noteScan(ports);
+    const listed = this.prioritize(await transport.list());
+    const verbose = this.noteScan(listed);
+    const ports = listed.filter((port) => port.vendorId);
+    if (verbose && listed.length > 0 && ports.length === 0) {
+      console.warn(
+        "[sensor] none of these is a USB serial port, so the box isn't showing up as a USB device. " +
+          "Check it has power and is on a data (not charge-only) USB cable."
+      );
+    } else if (verbose && ports.length < listed.length) {
+      console.info(
+        `[sensor] skipping ${listed.length - ports.length} port(s) with no USB vendor ID (not the box).`
+      );
+    }
     for (const port of ports) {
       let connection: SerialConnection;
       try {
@@ -669,7 +682,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       connection.close();
     }
     if (verbose && ports.length > 0) {
-      console.warn(`[sensor] scanned ${ports.length} port(s); none answered as the race box.`);
+      console.warn(`[sensor] scanned ${ports.length} USB port(s); none answered as the race box.`);
     }
     return null;
   }

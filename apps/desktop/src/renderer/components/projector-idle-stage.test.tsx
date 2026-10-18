@@ -109,9 +109,9 @@ describe("ProjectorIdleStage", () => {
     expect(boardRows).toHaveLength(2);
     expect(boardRows[0]).toHaveTextContent("1");
     expect(boardRows[0]).toHaveTextContent("Cy");
-    expect(boardRows[0]).toHaveTextContent("28.4s");
+    expect(boardRows[0]).toHaveTextContent("28.43s");
     expect(boardRows[1]).toHaveTextContent("Ana");
-    expect(boardRows[1]).toHaveTextContent("1:01.3");
+    expect(boardRows[1]).toHaveTextContent("1:01.34");
     expect(screen.getByText("Best times · 250 m")).toBeInTheDocument();
     expect(screen.queryByAltText("QR code for racer page")).not.toBeInTheDocument();
   });

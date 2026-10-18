@@ -25,11 +25,11 @@ Each step depends on the one before it. Don't tune speed until the distance is r
 2. The **Status** card's _Bike sensor_ row should go **Ready** and read `Connected to COM3 (basic-1)`
    or similar. The monitor's **Firmware** should say `basic`.
 
-| Symptom                                   | Fix                                                                                                                                         |
-| ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
-| "No race box found yet — still searching" | Check the USB cable and the FTDI driver. Close any other app that has the port open (another Roller Rumble, Arduino IDE, a serial monitor). |
-| Binds to the wrong device                 | Set **Sensor serial port** to the box's port (`COM3`, `/dev/tty.usbserial-…`), then unplug and replug the box.                              |
-| Connected, but **Firmware** isn't `basic` | Our box is `basic-1`. Set **Sensor protocol** to **OpenSprints basic**, then unplug and replug the box.                                     |
+| Symptom                                   | Fix                                                                                                                                                                          |
+| ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| "No race box found yet — still searching" | Check the USB cable (a charge-only cable won't work) and the FTDI driver. Close any other app that has the port open (another Roller Rumble, Arduino IDE, a serial monitor). |
+| Binds to the wrong device                 | Set **Sensor serial port** to the box's port (`COM3`, `/dev/tty.usbserial-…`), then unplug and replug the box.                                                               |
+| Connected, but **Firmware** isn't `basic` | Our box is `basic-1`. Set **Sensor protocol** to **OpenSprints basic**, then unplug and replug the box.                                                                      |
 
 ### 2. Check each bike lands on the right lane
 

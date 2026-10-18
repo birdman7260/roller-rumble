@@ -56,7 +56,8 @@ class FakeConnection implements SerialConnection {
 
 interface PortSpec {
   path: string;
-  vendorId?: string;
+  /** USB vendor ID; defaults to FTDI. `null` is a non-USB port (Bluetooth, debug console). */
+  vendorId?: string | null;
   /** Firmware the port reports to a `v` probe, or null to never answer (a non-box device). */
   firmware: string | null;
   failOpen?: boolean;
@@ -71,16 +72,21 @@ interface PortSpec {
 
 class FakeTransport implements SerialTransport {
   readonly opened: FakeConnection[] = [];
+  readonly openedPaths: string[] = [];
 
   constructor(private readonly ports: PortSpec[]) {}
 
   list(): Promise<SerialPortInfo[]> {
     return Promise.resolve(
-      this.ports.map((port) => ({ path: port.path, vendorId: port.vendorId }))
+      this.ports.map((port) => ({
+        path: port.path,
+        vendorId: port.vendorId === undefined ? "0403" : (port.vendorId ?? undefined)
+      }))
     );
   }
 
   open(path: string): Promise<SerialConnection> {
+    this.openedPaths.push(path);
     const spec = this.ports.find((port) => port.path === path);
     if (!spec || spec.failOpen) {
       return Promise.reject(new Error(`cannot open ${path}`));
@@ -228,8 +234,22 @@ describe("OpenSprintsSensorAdapter", () => {
     expect(harness.adapter.getStatus().portPath).toBe("/dev/ttyUSB0");
   });
 
+  it("skips ports with no USB vendor ID instead of probing them", async () => {
+    // macOS lists built-in Bluetooth and debug ports; the box is always USB, so they're never opened.
+    const harness = makeAdapter([
+      { path: "/dev/tty.Bluetooth-Incoming-Port", vendorId: null, firmware: null },
+      { path: "/dev/tty.usbserial-A1", vendorId: "abcd", firmware: "basic-1" }
+    ]);
+    active = harness.adapter;
+
+    await waitFor(() => harness.adapter.getStatus().connected);
+    expect(harness.adapter.getStatus().portPath).toBe("/dev/tty.usbserial-A1");
+    expect(harness.transport.openedPaths).not.toContain("/dev/tty.Bluetooth-Incoming-Port");
+  });
+
   it("binds a manual port override directly even without a version reply", async () => {
-    const harness = makeAdapter([{ path: "/dev/ttyForced", firmware: null }], {
+    // The override is the escape hatch, so it binds even a port with no USB vendor ID.
+    const harness = makeAdapter([{ path: "/dev/ttyForced", vendorId: null, firmware: null }], {
       ROLLER_RUMBLE_SENSOR_PORT: "/dev/ttyForced"
     });
     active = harness.adapter;

@@ -169,10 +169,11 @@ function formatRaceDistance(targetDistanceMeters: number): string {
 }
 
 function formatElapsedTime(elapsedMs: number): string {
-  const totalSeconds = Math.max(0, elapsedMs) / 1000;
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
-  return `${minutes}:${seconds.toFixed(1).padStart(4, "0")}`;
+  // Round to whole hundredths before splitting, so 59.996s carries to "1:00.00" rather than "0:60.00".
+  const totalCentiseconds = Math.round(Math.max(0, elapsedMs) / 10);
+  const minutes = Math.floor(totalCentiseconds / 6000);
+  const seconds = ((totalCentiseconds % 6000) / 100).toFixed(2);
+  return `${minutes}:${seconds.padStart(5, "0")}`;
 }
 
 /**
@@ -198,11 +199,13 @@ function RaceElapsedClock({
     if (!isLive) {
       return;
     }
-    const intervalId = window.setInterval(() => {
+    // Every frame, not on a timer: the clock shows hundredths, which a slower tick would visibly skip.
+    let frameId = window.requestAnimationFrame(function advance() {
       setNowMs(Date.now());
-    }, 100);
+      frameId = window.requestAnimationFrame(advance);
+    });
     return () => {
-      window.clearInterval(intervalId);
+      window.cancelAnimationFrame(frameId);
     };
   }, [isLive]);
 

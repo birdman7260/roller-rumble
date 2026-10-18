@@ -1,10 +1,11 @@
-/** A finishing time as the projector shows it, to the tenth: "28.4s", or "1:02.5" past a minute. */
+/** A finishing time as the projector shows it, to the hundredth: "28.43s", or "1:02.57" past a minute. */
 export function formatRaceTime(ms: number | undefined): string {
-  const totalMs = ms ?? 0;
-  const minutes = Math.floor(totalMs / 60000);
-  const seconds = (totalMs % 60000) / 1000;
+  // Round to whole hundredths before splitting, so 59.996s carries to "1:00.00" rather than "60.00s".
+  const totalCentiseconds = Math.round(Math.max(0, ms ?? 0) / 10);
+  const minutes = Math.floor(totalCentiseconds / 6000);
+  const seconds = ((totalCentiseconds % 6000) / 100).toFixed(2);
   if (minutes === 0) {
-    return `${seconds.toFixed(1)}s`;
+    return `${seconds}s`;
   }
-  return `${minutes}:${seconds < 10 ? "0" : ""}${seconds.toFixed(1)}`;
+  return `${minutes}:${seconds.padStart(5, "0")}`;
 }
