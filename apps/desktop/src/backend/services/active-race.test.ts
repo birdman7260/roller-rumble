@@ -74,10 +74,82 @@ describe("ActiveRace", () => {
     race = makeRace();
     db = makeDb(race);
     sensor = makeSensor();
+    // The finish-budget tests below reason in whole-sample finish times (a crossing at the 90s
+    // sample finishes at 90s); the interpolation tests opt back in explicitly.
+    vi.stubEnv("ROLLER_RUMBLE_FINISH_INTERPOLATION", "off");
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+    vi.unstubAllEnvs();
+  });
+
+  describe("finish-time interpolation", () => {
+    beforeEach(() => {
+      vi.stubEnv("ROLLER_RUMBLE_FINISH_INTERPOLATION", "on");
+      race = makeRace({ startedAt: STARTED_AT });
+      db = makeDb(race);
+    });
+
+    function finishedAtMsFor(racerId: string): number | null | undefined {
+      const calls = db.updateRace.mock.calls;
+      const metrics = calls[calls.length - 1][1].metrics as {
+        racerId: string;
+        finishedAtMs: number | null;
+      }[];
+      return metrics.find((metric) => metric.racerId === racerId)?.finishedAtMs;
+    }
+
+    it("places the finish where the rider reached the line within the crossing sample", () => {
+      const activeRace = ActiveRace.start(race, asAppDatabase(db), sensor, vi.fn());
+
+      activeRace.tick("r1", START_MS + 1_000, 100); // 210m
+      activeRace.tick("r1", START_MS + 2_000, 40); // 294m: the line is 40 of those 84m in
+
+      expect(finishedAtMsFor("r1")).toBe(1_000 + Math.round((40 / 84) * 1_000));
+      activeRace.dispose();
+    });
+
+    it("snaps the finish to the crossing sample when interpolation is off", () => {
+      vi.stubEnv("ROLLER_RUMBLE_FINISH_INTERPOLATION", "off");
+      const activeRace = ActiveRace.start(race, asAppDatabase(db), sensor, vi.fn());
+
+      activeRace.tick("r1", START_MS + 1_000, 100);
+      activeRace.tick("r1", START_MS + 2_000, 40);
+
+      expect(finishedAtMsFor("r1")).toBe(2_000);
+      activeRace.dispose();
+    });
+
+    it("crowns the rider who reached the line first when both cross in the same sample", () => {
+      vi.useFakeTimers();
+      try {
+        const onFinalized = vi.fn();
+        const activeRace = ActiveRace.start(race, asAppDatabase(db), sensor, onFinalized);
+
+        activeRace.tick("r1", START_MS + 1_000, 100); // 210m
+        activeRace.tick("r2", START_MS + 1_000, 110); // 231m — closer to the line
+        // Both cross in the 2s sample; r1 is processed first but r2 got there sooner.
+        activeRace.tick("r1", START_MS + 2_000, 40);
+        activeRace.tick("r2", START_MS + 2_000, 40);
+
+        vi.advanceTimersByTime(RACE_CLEAN_FINISH_BEAT_MS);
+        const finalResult = onFinalized.mock.calls[0][0] as { winnerRacerId: string | null };
+        expect(finalResult.winnerRacerId).toBe("r2");
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it("tick() measures with the rotation's own meters-per-rotation when the sensor gives one", () => {
+    const activeRace = ActiveRace.start(race, asAppDatabase(db), sensor, vi.fn());
+    db.updateRace.mockClear();
+
+    activeRace.tick("r1", 1000, 10, 0.5);
+
+    const metrics = db.updateRace.mock.calls[0][1].metrics as { distanceMeters: number }[];
+    expect(metrics[0].distanceMeters).toBe(5);
   });
 
   it("start() transitions the race to active in the DB with startedAt", () => {

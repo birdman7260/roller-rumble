@@ -453,7 +453,8 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
       loadedFiles: [],
       managedSettings: []
     },
-    subsystemHealth: []
+    subsystemHealth: [],
+    sensorMonitor: null
   };
 }
 

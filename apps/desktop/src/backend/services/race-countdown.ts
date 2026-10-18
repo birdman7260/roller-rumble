@@ -1,3 +1,4 @@
+import { COUNTDOWN_DURATION_MS } from "@roller-rumble/shared/constants";
 import type { RaceRecord } from "@roller-rumble/shared/types";
 import type { SensorAdapter } from "../adapters/sensor";
 
@@ -17,8 +18,9 @@ export interface RaceCountdownOptions {
   /**
    * The box's silent countdown length. The pre-roll delays the box's `g` by
    * `max(0, N − boxCountdownMs)` so the silence becomes the tail of the app countdown (ADR 0010).
+   * Read at each countdown's start, so an operator re-tuning it takes effect on the next race.
    */
-  boxCountdownMs: number;
+  readBoxCountdownMs: () => number;
   /** Fired on the 250ms cadence so the coordinator re-broadcasts the ticking countdown clock. */
   onTick: () => void;
   /**
@@ -38,6 +40,18 @@ export interface RaceCountdownTiming {
 const TICK_INTERVAL_MS = 250;
 
 /**
+ * The countdown length used when the trigger doesn't carry its own (the admin Start button, an
+ * OS2L cue with no time), from the `ROLLER_RUMBLE_COUNTDOWN_MS` managed setting. Falls back to
+ * {@link COUNTDOWN_DURATION_MS} when unset or not a positive number. It has to outlast the box
+ * countdown for the pre-roll to have any room: at or below it, `g` goes out immediately and a slow
+ * box can only start late.
+ */
+export function readCountdownDurationMs(env: NodeJS.ProcessEnv = process.env): number {
+  const parsed = Number.parseFloat((env.ROLLER_RUMBLE_COUNTDOWN_MS ?? "").trim());
+  return Number.isFinite(parsed) && parsed > 0 ? Math.round(parsed) : COUNTDOWN_DURATION_MS;
+}
+
+/**
  * The live, in-process owner of a single race's countdown, from the start trigger through `GO`
  * (see CONTEXT.md `RaceCountdown`, ADR 0010, ADR 0017). Owns the app-owned visible countdown: the
  * 250ms re-broadcast cadence, the music-locked GO timer that fires at `N` on its own clock, and —
@@ -51,7 +65,7 @@ const TICK_INTERVAL_MS = 250;
  */
 export class RaceCountdown {
   private readonly armingPort: CountdownArmingPort;
-  private readonly boxCountdownMs: number;
+  private readonly readBoxCountdownMs: () => number;
   private readonly onTick: () => void;
   private readonly onGo: (raceId: string) => void;
 
@@ -67,7 +81,7 @@ export class RaceCountdown {
 
   constructor(options: RaceCountdownOptions) {
     this.armingPort = options.armingPort;
-    this.boxCountdownMs = options.boxCountdownMs;
+    this.readBoxCountdownMs = options.readBoxCountdownMs;
     this.onTick = options.onTick;
     this.onGo = options.onGo;
   }
@@ -108,7 +122,7 @@ export class RaceCountdown {
       // clamps to zero (send `g` now) and the box's ticks simply arrive a beat late — the
       // unavoidable hardware floor.
       this.hardwareCountdown = true;
-      const preRollMs = Math.max(0, durationMs - this.boxCountdownMs);
+      const preRollMs = Math.max(0, durationMs - this.readBoxCountdownMs());
       if (preRollMs === 0) {
         this.armingPort.armCountdown?.(race.participants);
       } else {

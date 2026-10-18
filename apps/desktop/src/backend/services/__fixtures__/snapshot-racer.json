@@ -194,6 +194,7 @@
     "managedSettings": []
   },
   "subsystemHealth": [],
+  "sensorMonitor": null,
   "themes": [],
   "raceProjection": {
     "race": {

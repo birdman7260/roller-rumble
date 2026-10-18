@@ -7,8 +7,11 @@ import {
   readSensorBoxCountdownMs,
   readSensorLaneAssignments,
   readSensorMode,
+  readSensorMaxSpeedKph,
   readSensorPortOverride,
+  readSensorPortRollouts,
   readSensorProtocol,
+  readSensorRawLogging,
   readSensorRolloutMeters
 } from "./sensor-config";
 
@@ -71,5 +74,46 @@ describe("sensor-config", () => {
     expect(readSensorBoxCountdownMs({ ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS: "3500.4" })).toBe(
       3500
     );
+  });
+
+  it("resolves a per-port rollout, falling back to the shared rollout for blank slots", () => {
+    expect(readSensorPortRollouts({}, 4)).toEqual(Array(4).fill(OPENSPRINTS_ROLLER_ROLLOUT_METERS));
+    expect(
+      readSensorPortRollouts(
+        {
+          ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS: "0.4",
+          ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS: " , 0.18"
+        },
+        3
+      )
+    ).toEqual([0.4, 0.18, 0.4]);
+  });
+
+  it("ignores the whole per-port list when any slot is not a positive number", () => {
+    expect(
+      readSensorPortRollouts(
+        {
+          ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS: "0.4",
+          ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS: "0.3,banana"
+        },
+        2
+      )
+    ).toEqual([0.4, 0.4]);
+    expect(
+      readSensorPortRollouts({ ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS: "0.3,0" }, 2)
+    ).toEqual([OPENSPRINTS_ROLLER_ROLLOUT_METERS, OPENSPRINTS_ROLLER_ROLLOUT_METERS]);
+  });
+
+  it("reads the plausible-speed ceiling, or null (no ceiling) when blank or invalid", () => {
+    expect(readSensorMaxSpeedKph({})).toBeNull();
+    expect(readSensorMaxSpeedKph({ ROLLER_RUMBLE_SENSOR_MAX_SPEED_KPH: "0" })).toBeNull();
+    expect(readSensorMaxSpeedKph({ ROLLER_RUMBLE_SENSOR_MAX_SPEED_KPH: "nope" })).toBeNull();
+    expect(readSensorMaxSpeedKph({ ROLLER_RUMBLE_SENSOR_MAX_SPEED_KPH: "80" })).toBe(80);
+  });
+
+  it("turns raw sensor logging on only when asked", () => {
+    expect(readSensorRawLogging({})).toBe(false);
+    expect(readSensorRawLogging({ ROLLER_RUMBLE_SENSOR_RAW_LOGGING: "off" })).toBe(false);
+    expect(readSensorRawLogging({ ROLLER_RUMBLE_SENSOR_RAW_LOGGING: "on" })).toBe(true);
   });
 });

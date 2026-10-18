@@ -31,11 +31,11 @@ const SUBSYSTEM_GROUP_LABELS: Partial<Record<SubsystemId, string>> = {
   tunnel: "Cloudflare tunnel",
   stripe: "Stripe payments",
   network: "Network",
-  webPush: "Racer notifications",
-  sensor: "Bike sensor"
+  webPush: "Racer notifications"
 };
 
-const MANAGED_GROUP_ORDER: SubsystemId[] = ["tunnel", "stripe", "network", "webPush", "sensor"];
+// The bike sensor's settings live beside its live monitor (`SensorTuningPanel`), not here.
+const MANAGED_GROUP_ORDER: SubsystemId[] = ["tunnel", "stripe", "network", "webPush"];
 
 function statusModifier(status: SubsystemHealthStatus): string {
   return `subsystem-status--${status}`;
@@ -201,6 +201,27 @@ function ManagedField({
   );
 }
 
+/** An editable field for each managed setting, showing its saved state from the snapshot. */
+export function ManagedSettingFields({
+  snapshot,
+  definitions
+}: {
+  snapshot: AppSnapshot;
+  definitions: readonly ManagedSettingDefinition[];
+}) {
+  return (
+    <>
+      {definitions.map((definition) => (
+        <ManagedField
+          key={definition.id}
+          definition={definition}
+          state={currentStateFor(snapshot, definition.id)}
+        />
+      ))}
+    </>
+  );
+}
+
 /**
  * The managed settings the app reads and writes back into the runtime env file on the operator's
  * behalf, grouped by subsystem. Saving applies live (the backend re-applies the affected
@@ -223,13 +244,7 @@ export function ManagedSettingsPanel({ snapshot }: { snapshot: AppSnapshot }) {
         {groups.map((group) => (
           <section key={group.subsystem} className="managed-group">
             <h4 className="managed-group__title">{group.label}</h4>
-            {group.settings.map((definition) => (
-              <ManagedField
-                key={definition.id}
-                definition={definition}
-                state={currentStateFor(snapshot, definition.id)}
-              />
-            ))}
+            <ManagedSettingFields snapshot={snapshot} definitions={group.settings} />
           </section>
         ))}
       </div>

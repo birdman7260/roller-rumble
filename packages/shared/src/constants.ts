@@ -29,6 +29,14 @@ export const COUNTDOWN_DURATION_MS = COUNTDOWN_SECONDS * 1000;
 export const BOX_COUNTDOWN_MS = 4000;
 export const DEFAULT_WHEEL_CIRCUMFERENCE_METERS = 2.1;
 /**
+ * The trailing window live speed and cadence are averaged over. A sensor that reports in coarse
+ * samples (the OpenSprints box: one sample per 250ms, one tick ≈ 0.36m) makes a single sample's
+ * speed jump by ~5 km/h per tick, which also inflates top speed; averaging over a second smooths
+ * that to ~1.3 km/h. Overridable via the `ROLLER_RUMBLE_SPEED_WINDOW_MS` managed setting; 0 means
+ * each sample alone.
+ */
+export const DEFAULT_SPEED_WINDOW_MS = 1000;
+/**
  * The short beat between a clean finish (both racers cross the line, or the lone rider in a solo
  * race) and the results overlay, so the audience gets a moment on the finish line before the modal.
  * The finish-budget expiry path skips this beat — it already spent its drama waiting for the

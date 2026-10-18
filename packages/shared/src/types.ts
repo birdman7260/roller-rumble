@@ -730,6 +730,64 @@ export interface RuntimeEnvInfo {
 
 export type SubsystemHealthStatus = "ready" | "degraded" | "failed" | "disabled";
 
+/** One sensor port's live readout on the admin sensor monitor. */
+export interface SensorMonitorPort {
+  /** The box's sensor port (0-3). */
+  index: number;
+  /** The race lane the lane map routes this port to, or null when it feeds nobody. */
+  lane: RaceParticipant["lane"] | null;
+  /** The distance one tick on this port counts for, after any per-port override. */
+  metersPerTick: number;
+  /** Cumulative ticks since the box was last armed (the box zeroes its counters on GO). */
+  ticks: number;
+  /** Ticks in the most recent sample. */
+  lastSampleTicks: number;
+  /** `ticks × metersPerTick`. */
+  distanceMeters: number;
+  /** Speed averaged over the configured speed window, as a race would show it. */
+  speedKph: number;
+  /** The fastest single sample since arming — a bouncing switch shows up here first. */
+  peakSampleSpeedKph: number;
+  /** Samples faster than the plausible-speed ceiling (always 0 when no ceiling is set). */
+  samplesOverCeiling: number;
+}
+
+/**
+ * What the race box is actually sending, for dialing in the sensor at the hardware (admin only). Null
+ * for an adapter with no raw stream to show (the simulator).
+ */
+export interface SensorMonitor {
+  adapterId: string;
+  /** Whether the box can be armed outside a race to watch its raw stream. */
+  canTest: boolean;
+  /** `testing` = armed by the sensor test, `racing` = armed for a race, `idle` = not armed. */
+  mode: "idle" | "testing" | "racing";
+  /** True when a progress sample arrived in the last ~1.5s. */
+  streaming: boolean;
+  /** The firmware dialect commands are built for (`basic`, `ss-basic`, `advanced`). */
+  variant: string | null;
+  sampleCount: number;
+  /** The box's own clock (ms since its GO) on the latest sample. */
+  lastSampleElapsedMs: number | null;
+  /** Box time between the last two samples (the basic box: ~250ms). */
+  lastSampleIntervalMs: number | null;
+  lastSampleAt: string | null;
+  /** Measured gap between sending GO and the box's stream starting, for the last arm. */
+  measuredBoxCountdownMs: number | null;
+  /** The `Race box countdown` setting the app currently plans with. */
+  configuredBoxCountdownMs: number;
+  /**
+   * For the last race: when the box started counting relative to the app's GO. Positive means the
+   * box started late (riders' first pedal strokes were lost), negative means early.
+   */
+  lastGoOffsetMs: number | null;
+  maxSpeedKph: number | null;
+  speedWindowMs: number;
+  ports: SensorMonitorPort[];
+  /** The most recent raw lines from the box, newest last. */
+  recentLines: string[];
+}
+
 /** The readiness of one configurable subsystem, for the Settings status surface. */
 export interface SubsystemHealth {
   id: SubsystemId;
@@ -760,6 +818,8 @@ export interface AppSnapshot {
   paymentProvider: PaymentProviderStatus;
   runtimeEnv: RuntimeEnvInfo;
   subsystemHealth: SubsystemHealth[];
+  /** Admin-only live sensor readout; always null on racer phones. */
+  sensorMonitor: SensorMonitor | null;
 }
 
 export interface CreateRacerInput {

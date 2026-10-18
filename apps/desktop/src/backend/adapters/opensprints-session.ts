@@ -17,7 +17,7 @@ import type { RaceParticipant } from "@roller-rumble/shared/types";
 import type { RotationEvent, SensorLifecycleEvent } from "./sensor";
 import type { OpenSprintsMessage } from "./opensprints-protocol";
 import type { SensorLaneAssignment } from "./sensor-config";
-import { DEFAULT_SENSOR_LANE_ASSIGNMENTS } from "./sensor-config";
+import { ceilingTicks, DEFAULT_SENSOR_LANE_ASSIGNMENTS } from "./sensor-config";
 import { toBikeLane } from "@roller-rumble/shared/race-lanes";
 
 export interface OpenSprintsSessionOptions {
@@ -29,14 +29,43 @@ export interface OpenSprintsSessionOptions {
    * omitted, `begin` assumes the conventional wiring ({@link DEFAULT_SENSOR_LANE_ASSIGNMENTS}).
    */
   laneAssignments?: SensorLaneAssignment[];
+  /**
+   * Meters per tick for each sensor port (by index), stamped onto every rotation so `ActiveRace`
+   * measures each bike with its own roller. Omitted means rotations carry no per-port distance.
+   */
+  portRolloutMeters?: number[];
+  /**
+   * The fastest plausible rider, in km/h. A sample implying more is clamped to it and reported via
+   * `onClamp` — the signature of a bouncing reed switch. Needs `portRolloutMeters`; null/omitted
+   * means no ceiling.
+   */
+  maxSpeedKph?: number | null;
+  onClamp?: (clamp: SensorSampleClamp) => void;
   /** Injectable wall clock (defaults to Date.now) so tests are deterministic. */
   now?: () => number;
 }
+
+/** A progress sample whose tick jump was cut down to the plausible-speed ceiling. */
+export interface SensorSampleClamp {
+  portIndex: number;
+  rawTicks: number;
+  keptTicks: number;
+}
+
+/**
+ * The least box time between two zero-rotation samples for one lane. A still bike still needs a
+ * sample now and then so live speed falls to zero, but `ss_basic` streams every 10ms and one zero
+ * event per stream line would flood the app with snapshots.
+ */
+const ZERO_SAMPLE_INTERVAL_MS = 200;
 
 export class OpenSprintsSession {
   private readonly onRotation: (event: RotationEvent) => void;
   private readonly onLifecycle: (event: SensorLifecycleEvent) => void;
   private readonly laneAssignments: SensorLaneAssignment[] | null;
+  private readonly portRolloutMeters: number[] | null;
+  private readonly maxSpeedKph: number | null;
+  private readonly onClamp: ((clamp: SensorSampleClamp) => void) | null;
   private readonly now: () => number;
 
   // Sensor position index (0-3) → participant, resolved by lane so a `lane swap`
@@ -45,6 +74,9 @@ export class OpenSprintsSession {
   private laneMap: (RaceParticipant | null)[] = [];
   // Last cumulative tick count seen per sensor, for per-sample deltas.
   private lastTicks: number[] = [];
+  // Box elapsed time of the last sample seen, and of the last rotation emitted, per sensor.
+  private lastElapsedMs: number[] = [];
+  private lastEmittedElapsedMs: number[] = [];
   // Wall clock captured at GO; the box's elapsedMs is relative to this, and the
   // app's ActiveRace starts at the same moment, so timestamps line up.
   private goWallClockMs: number | null = null;
@@ -53,6 +85,9 @@ export class OpenSprintsSession {
     this.onRotation = options.onRotation;
     this.onLifecycle = options.onLifecycle;
     this.laneAssignments = options.laneAssignments ?? null;
+    this.portRolloutMeters = options.portRolloutMeters ?? null;
+    this.maxSpeedKph = options.maxSpeedKph ?? null;
+    this.onClamp = options.onClamp ?? null;
     this.now = options.now ?? Date.now;
   }
 
@@ -62,7 +97,7 @@ export class OpenSprintsSession {
    */
   begin(participants: RaceParticipant[]): void {
     this.laneMap = this.buildLaneMap(participants);
-    this.lastTicks = [];
+    this.resetBaselines();
     this.goWallClockMs = null;
   }
 
@@ -93,8 +128,14 @@ export class OpenSprintsSession {
   /** End a race: reset translation state. The transport sends the stop command itself. */
   end(): void {
     this.laneMap = [];
-    this.lastTicks = [];
+    this.resetBaselines();
     this.goWallClockMs = null;
+  }
+
+  private resetBaselines(): void {
+    this.lastTicks = [];
+    this.lastElapsedMs = [];
+    this.lastEmittedElapsedMs = [];
   }
 
   /** Feed one parsed message; emits rotation/lifecycle events as a side effect. */
@@ -111,8 +152,8 @@ export class OpenSprintsSession {
       }
       case "progress": {
         // Progress only streams after the box's countdown, so the first one
-        // confirms GO even if we never saw CD:0.
-        this.emitGo();
+        // confirms GO even if we never saw CD:0. Its elapsed time says how long ago that was.
+        this.emitGo(message.elapsedMs);
         this.handleProgress(message.ticks, message.elapsedMs);
         break;
       }
@@ -126,11 +167,12 @@ export class OpenSprintsSession {
     }
   }
 
-  private emitGo(): void {
+  /** Record GO, `elapsedSinceGoMs` before now when inferred from a progress sample. */
+  private emitGo(elapsedSinceGoMs = 0): void {
     if (this.goWallClockMs != null) {
       return;
     }
-    this.goWallClockMs = this.now();
+    this.goWallClockMs = this.now() - elapsedSinceGoMs;
     this.onLifecycle({ type: "go" });
   }
 
@@ -143,18 +185,42 @@ export class OpenSprintsSession {
       }
       const current = ticks[index];
       const previous = this.lastTicks[index] ?? 0;
+      const previousElapsedMs = this.lastElapsedMs[index] ?? 0;
       this.lastTicks[index] = current;
+      this.lastElapsedMs[index] = elapsedMs;
       // The box zeroes its counters at GO, so a lower value than last time means
       // a reset, not negative progress — treat the new value as the delta.
-      const delta = current >= previous ? current - previous : current;
-      if (delta > 0) {
-        this.onRotation({
-          racerId: participant.racerId,
-          lane: participant.lane,
-          timestampMs,
-          deltaRotations: delta
-        });
+      const rawDelta = current >= previous ? current - previous : current;
+      const delta = this.clampToCeiling(index, rawDelta, elapsedMs - previousElapsedMs);
+      if (
+        delta === 0 &&
+        elapsedMs - (this.lastEmittedElapsedMs[index] ?? 0) < ZERO_SAMPLE_INTERVAL_MS
+      ) {
+        continue;
       }
+      this.lastEmittedElapsedMs[index] = elapsedMs;
+      const metersPerRotation = this.portRolloutMeters?.[index];
+      this.onRotation({
+        racerId: participant.racerId,
+        lane: participant.lane,
+        timestampMs,
+        deltaRotations: delta,
+        ...(metersPerRotation === undefined ? {} : { metersPerRotation })
+      });
     }
+  }
+
+  /** Cut a tick jump down to what the plausible-speed ceiling allows across `intervalMs`. */
+  private clampToCeiling(portIndex: number, rawTicks: number, intervalMs: number): number {
+    const rollout = this.portRolloutMeters?.[portIndex];
+    if (this.maxSpeedKph == null || rollout === undefined || intervalMs <= 0) {
+      return rawTicks;
+    }
+    const keptTicks = ceilingTicks(this.maxSpeedKph, intervalMs, rollout);
+    if (rawTicks <= keptTicks) {
+      return rawTicks;
+    }
+    this.onClamp?.({ portIndex, rawTicks, keptTicks });
+    return keptTicks;
   }
 }

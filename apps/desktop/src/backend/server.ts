@@ -945,6 +945,18 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     }
   });
 
+  app.post(`${API_PREFIX}/sensor/test/start`, (_req, res, next) => {
+    try {
+      res.json(service.startSensorTest());
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/sensor/test/stop`, (_req, res) => {
+    res.json(service.stopSensorTest());
+  });
+
   app.post(`${API_PREFIX}/tunnel/restart`, (_req, res) => {
     res.json(service.restartTunnel());
   });

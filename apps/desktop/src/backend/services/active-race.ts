@@ -10,9 +10,11 @@ import {
   createLaneTelemetryState,
   applyRotationSample,
   finishLaneTelemetryState,
-  type LaneTelemetryState
+  type LaneTelemetryState,
+  type MetricsTuning
 } from "./metrics";
 import { finishBudgetDeadlineMs, readFinishBudgetPercent } from "./finish-budget";
+import { readFinishInterpolation, readSpeedWindowMs, readWattageModel } from "./metrics-tuning";
 import { hasReachedFinishLine } from "./finish-line";
 
 export interface FinalizedRaceResult {
@@ -31,6 +33,8 @@ export class ActiveRace {
   private startedAtMs: number;
   private wheelCircumferenceMeters: number;
   private finishBudgetPercent: number;
+  private metricsTuning: MetricsTuning;
+  private interpolateFinish: boolean;
   private db: AppDatabase;
   private sensor: SensorAdapter;
   private onFinalized: (result: FinalizedRaceResult) => void;
@@ -55,6 +59,9 @@ export class ActiveRace {
     // The finish budget percentage is likewise fixed for the life of a race: capture it once so an
     // operator edit only affects the next race, not one already underway.
     this.finishBudgetPercent = readFinishBudgetPercent();
+    // Speed smoothing, wattage, and finish interpolation are the same: fixed at start.
+    this.metricsTuning = { speedWindowMs: readSpeedWindowMs(), wattage: readWattageModel() };
+    this.interpolateFinish = readFinishInterpolation();
     this.startedAtMs = race.startedAt ? new Date(race.startedAt).getTime() : Date.now();
 
     // Initialize lane states
@@ -137,7 +144,16 @@ export class ActiveRace {
     return activeRace;
   }
 
-  tick(racerId: string, timestampMs: number, deltaRotations: number): void {
+  /**
+   * Apply one rotation sample. `metersPerRotation` is the sensor port's own distance per tick when
+   * the sensor resolves one per port; otherwise the race-wide rollout captured at start applies.
+   */
+  tick(
+    racerId: string,
+    timestampMs: number,
+    deltaRotations: number,
+    metersPerRotation?: number
+  ): void {
     if (this.finished) {
       return;
     }
@@ -160,7 +176,8 @@ export class ActiveRace {
         timestampMs,
         deltaRotations
       },
-      this.wheelCircumferenceMeters
+      metersPerRotation ?? this.wheelCircumferenceMeters,
+      this.metricsTuning
     );
 
     this.laneStates.set(racerId, next);
@@ -171,9 +188,12 @@ export class ActiveRace {
       hasReachedFinishLine(next.snapshot.distanceMeters, this.targetDistanceMeters);
 
     if (justFinished) {
-      const finishedState = finishLaneTelemetryState(next, timestampMs);
+      const finishedState = finishLaneTelemetryState(
+        next,
+        this.finishInstantMs(laneState, next, timestampMs)
+      );
       this.laneStates.set(racerId, finishedState);
-      this.winnerRacerId ??= racerId;
+      this.crownIfFirst(racerId);
       this.scheduleFinalizeAfterFinish();
     }
 
@@ -183,6 +203,44 @@ export class ActiveRace {
       metrics,
       winnerRacerId: this.winnerRacerId
     });
+  }
+
+  /**
+   * The wall-clock instant a lane reached the line. A sensor reports in samples (the box: every
+   * 250ms), so the crossing sample usually carries the rider past the line; interpolating within it
+   * — assuming a steady pace across the sample — recovers the moment they actually got there.
+   * Snapped to the sample's own timestamp when interpolation is off.
+   */
+  private finishInstantMs(
+    before: LaneTelemetryState,
+    after: LaneTelemetryState,
+    timestampMs: number
+  ): number {
+    const covered = after.snapshot.distanceMeters - before.snapshot.distanceMeters;
+    if (!this.interpolateFinish || covered <= 0) {
+      return timestampMs;
+    }
+    const fraction = Math.min(
+      1,
+      Math.max(0, (this.targetDistanceMeters - before.snapshot.distanceMeters) / covered)
+    );
+    return Math.round(before.lastSampleAtMs + fraction * (timestampMs - before.lastSampleAtMs));
+  }
+
+  /**
+   * Make `racerId` the winner if nobody has finished sooner. Lanes in one sensor sample are applied
+   * one after another, so a lane processed second can still have reached the line first; comparing
+   * finish times (not arrival order) keeps the box's port order from deciding a photo finish.
+   */
+  private crownIfFirst(racerId: string): void {
+    const finishedAtMs = this.laneStates.get(racerId)?.snapshot.finishedAtMs ?? null;
+    const current = this.winnerRacerId ? this.laneStates.get(this.winnerRacerId) : null;
+    const currentFinishMs = current?.snapshot.finishedAtMs ?? null;
+    // A resumed race may carry a provisional leader who has not actually finished; any finisher
+    // outranks them.
+    if (currentFinishMs == null || (finishedAtMs != null && finishedAtMs < currentFinishMs)) {
+      this.winnerRacerId = racerId;
+    }
   }
 
   /**

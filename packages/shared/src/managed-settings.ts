@@ -201,7 +201,7 @@ export const MANAGED_SETTINGS: readonly ManagedSettingDefinition[] = [
     envKey: "ROLLER_RUMBLE_SENSOR_LANE_MAP",
     label: "Sensor lane map",
     description:
-      "Which race lane each sensor port feeds, in order, comma-separated. Use left, right, solo, or unused. Example: left,right. Leave blank to map sensors to racers in order. A flipped map crowns the wrong winner, so confirm it against the real wiring.",
+      "Which race lane each sensor port feeds, in order, comma-separated. Use left, right, solo, or unused. Example: left,right. Leave blank to assume port 0 is the left bike and port 1 the right. A flipped map crowns the wrong winner, so confirm it with the sensor test.",
     kind: "text",
     secret: false,
     subsystem: "sensor"
@@ -209,9 +209,97 @@ export const MANAGED_SETTINGS: readonly ManagedSettingDefinition[] = [
   {
     id: "sensorRolloutMeters",
     envKey: "ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS",
-    label: "Roller rollout (meters)",
+    label: "Distance per sensor tick (meters)",
     description:
-      "Distance a bike travels per one roller revolution, measured from your hardware. Feeds race distance and speed. Leave blank to use the default. Wrong values make distances and speeds wrong.",
+      "How far a rider travels for each tick the box counts: the roller's circumference (π × diameter) divided by the number of magnets on it. Feeds race distance and speed. Leave blank for the standard 4.5 in roller with one magnet (0.3591).",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "sensorPortRolloutMeters",
+    envKey: "ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS",
+    label: "Per-port distance per tick (meters)",
+    description:
+      "Override the distance per tick for individual sensor ports, in port order, comma-separated. Leave a slot blank to keep the value above. Example: ,0.1795 corrects only port 1 (a roller with two magnets). Leave blank to use the value above for every port.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "sensorMaxSpeedKph",
+    envKey: "ROLLER_RUMBLE_SENSOR_MAX_SPEED_KPH",
+    label: "Plausible speed ceiling (km/h)",
+    description:
+      "Any sample faster than this is cut down to it during a race — the fix for a bouncing sensor that double-counts. The sensor monitor counts every sample over it. Leave blank for no ceiling (nothing is ever discarded). Roller sprints can genuinely pass 80 km/h, so set it well above the fastest real rider you see in the sensor test.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "speedWindowMs",
+    envKey: "ROLLER_RUMBLE_SPEED_WINDOW_MS",
+    label: "Speed smoothing window (ms)",
+    description:
+      "Live speed, cadence, top speed, and wattage are averaged over this many milliseconds. The box only reports every 250 ms, so a single sample swings about 5 km/h per tick. Leave blank for the default (1000). Use 0 for raw per-sample speed. Takes effect on the next race.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "finishInterpolation",
+    envKey: "ROLLER_RUMBLE_FINISH_INTERPOLATION",
+    label: "Finish-time interpolation",
+    description:
+      "On works out the moment each rider reached the line inside the 250 ms sample that carried them over it, so close finishes are decided fairly. Off snaps finish times to the sample — and two riders crossing in the same sample tie, with port 0 winning. Takes effect on the next race.",
+    kind: "select",
+    secret: false,
+    subsystem: "sensor",
+    options: [
+      { value: "on", label: "On (recommended)" },
+      { value: "off", label: "Off (snap to samples)" }
+    ]
+  },
+  {
+    id: "wattageModel",
+    envKey: "ROLLER_RUMBLE_WATTAGE_MODEL",
+    label: "Wattage estimate",
+    description:
+      "Watts are estimated from speed as base + linear × v + cubic × v³ (v in meters per second). Enter the three numbers comma-separated. Leave blank for the default (12,18,1.8). Takes effect on the next race.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "sensorRawLogging",
+    envKey: "ROLLER_RUMBLE_SENSOR_RAW_LOGGING",
+    label: "Log raw sensor data",
+    description:
+      "On writes every line the box sends into the app log, so a saved diagnostics bundle shows exactly what it reported. Busy — turn it off once things work.",
+    kind: "select",
+    secret: false,
+    subsystem: "sensor",
+    options: [
+      { value: "off", label: "Off" },
+      { value: "on", label: "On" }
+    ]
+  },
+  {
+    id: "countdownMs",
+    envKey: "ROLLER_RUMBLE_COUNTDOWN_MS",
+    label: "Race countdown length (ms)",
+    description:
+      "How long the on-screen countdown runs when you start a race from the admin page (a VirtualDJ cue that carries its own time still uses that). Leave blank for the default (4000). It must be longer than the race box's countdown, or the box can only start late. Takes effect on the next countdown.",
+    kind: "text",
+    secret: false,
+    subsystem: "sensor"
+  },
+  {
+    id: "finishBudgetPercent",
+    envKey: "ROLLER_RUMBLE_FINISH_BUDGET_PERCENT",
+    label: "Trailing rider's finish budget (%)",
+    description:
+      "Once the winner crosses, the other rider has until this percentage of the winner's time to finish (at least 5 more seconds) before the race ends without them. Leave blank for the default (120). Must be 100 or more. Takes effect on the next race.",
     kind: "text",
     secret: false,
     subsystem: "sensor"
@@ -221,7 +309,7 @@ export const MANAGED_SETTINGS: readonly ManagedSettingDefinition[] = [
     envKey: "ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS",
     label: "Race box countdown (ms)",
     description:
-      "How long the OpenSprints box stays silent between GO and its first tick, in milliseconds. Roller Rumble delays the box's GO so this silent stretch lands exactly at the end of the on-screen countdown. Leave blank to use the default (4000). Raise or lower it only if the countdown reaching zero doesn't match when your box actually goes.",
+      "How long the OpenSprints box stays silent between GO and its first tick, in milliseconds. Roller Rumble delays the box's GO so this silent stretch lands exactly at the end of the on-screen countdown. Leave blank to use the default (4000). The sensor monitor shows the box's measured countdown — copy that number here. Takes effect on the next countdown.",
     kind: "text",
     secret: false,
     subsystem: "sensor"

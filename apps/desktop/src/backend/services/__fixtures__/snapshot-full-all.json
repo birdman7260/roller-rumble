@@ -333,6 +333,70 @@
         "last4": null
       },
       {
+        "id": "sensorPortRolloutMeters",
+        "envKey": "ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "sensorMaxSpeedKph",
+        "envKey": "ROLLER_RUMBLE_SENSOR_MAX_SPEED_KPH",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "speedWindowMs",
+        "envKey": "ROLLER_RUMBLE_SPEED_WINDOW_MS",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "finishInterpolation",
+        "envKey": "ROLLER_RUMBLE_FINISH_INTERPOLATION",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "wattageModel",
+        "envKey": "ROLLER_RUMBLE_WATTAGE_MODEL",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "sensorRawLogging",
+        "envKey": "ROLLER_RUMBLE_SENSOR_RAW_LOGGING",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "countdownMs",
+        "envKey": "ROLLER_RUMBLE_COUNTDOWN_MS",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
+        "id": "finishBudgetPercent",
+        "envKey": "ROLLER_RUMBLE_FINISH_BUDGET_PERCENT",
+        "secret": false,
+        "set": false,
+        "value": "",
+        "last4": null
+      },
+      {
         "id": "sensorBoxCountdownMs",
         "envKey": "ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS",
         "secret": false,
@@ -400,6 +464,7 @@
       "guidance": null
     }
   ],
+  "sensorMonitor": null,
   "themes": [
     {
       "id": "neon-night",

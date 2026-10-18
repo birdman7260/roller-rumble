@@ -194,10 +194,10 @@ _Avoid_: filtered snapshot, mobile snapshot
 
 ### Hardware sensing
 
-**tick**: The atomic unit of progress the race hardware reports — one revolution of a bike's roller, sensed as one reed-switch pulse. The OpenSprints box streams a cumulative tick count per sensor position; the app turns each new tick into one rotation of distance. Distance per tick is the roller's **rollout**, not a bike-wheel circumference.
+**tick**: The atomic unit of progress the race hardware reports — one reed-switch pulse, which is one revolution of a bike's roller when the roller carries a single magnet (ours do). The OpenSprints box streams a cumulative tick count per sensor position; the app turns each new tick into one rotation of distance. Distance per tick is the roller's **rollout**, not a bike-wheel circumference.
 _Avoid_: pulse, count, rotation (when the hardware unit is meant)
 
-**rollout**: The real-world distance a bike travels per one roller revolution — the calibration constant that converts ticks into meters. Hardware-specific; measured, not assumed.
+**rollout**: The real-world distance a bike travels per tick — the roller's circumference divided by its magnet count — the calibration constant that converts ticks into meters. Hardware-specific; measured, not assumed, and overridable per sensor port.
 _Avoid_: wheel circumference, roller diameter
 
 **lane map**: The operator-configured mapping from a hardware sensor position (the box reports four, positionally) to a race lane. Not derivable from the protocol — it depends purely on which bike's cable is in which jack. When none is configured the app assumes the conventional wiring (port 0 is the left bike, port 1 the right) rather than mapping ports to racers in lineup order, so a `lane swap` reroutes the ticks with it.
@@ -206,11 +206,13 @@ _Avoid_: sensor mapping, channel assignment
 **lane swap**: The host's correction to which physical bike each racer in a staged race is on — one keystroke (`S`) or a button in the race tray. Head-to-head exchanges the two racers; solo moves the lone rider to the other bike. Nobody is assigned a bike, riders mount whichever they like, and rotation ticks alone can never say who is who, so this is how the app learns who is where. Allowed while the race is `scheduled` or `staging` and refused once the countdown starts — past that the box may be armed against the old `lane map` and an active race has ticks banked per lane, so the host resets the race to staged first. Available in every `event kind`, not just a `walk-up event`. See ADR 0019.
 _Avoid_: lane flip (that is `raceDisplayLaneColorsFlipped`, a display setting), bike assignment, rebind
 
-**box countdown**: The fixed, **silent** interval the OpenSprints box runs after the `g` (GO) command before it starts streaming ticks — roughly four seconds on the `basic_msg` firmware, emitting no countdown steps. Not configurable and not observable mid-way, so the app treats it as a tuned constant rather than something it can mirror.
+**box countdown**: The fixed, **silent** interval the OpenSprints box runs after the `g` (GO) command before it starts streaming ticks — roughly four seconds on the `basic_msg` firmware, emitting no countdown steps. Not configurable and silent mid-way, so the app can't mirror it; it is a tuned setting instead. Its length can be measured after the fact (GO sent → first sample, minus that sample's elapsed time), which the `sensor monitor` shows so the setting can be copied from it.
 _Avoid_: hardware countdown, box timer
 
 **GO**: The instant a race becomes live and pedaling starts counting — the zero of the countdown. On the cue path it is **music-locked**: it fires on the app's own clock at the end of the countdown duration, not on the box's first tick.
 _Avoid_: start, race start (when the exact live instant is meant)
+
+**sensor monitor**: The admin-only live readout of what the race box is sending — per-port ticks, distance, speed, the measured `box countdown`, and how far the box's start landed from `GO` — plus the **sensor test**, which arms the box outside any race so each roller can be checked. Feeds no racer.
 
 **pre-roll**: The app-owned wait at the head of a countdown before the `g` command is sent to the box, sized so the `box countdown` lands its stream on `GO`. Zero when the countdown duration is at or below the `box countdown`; on the simulator there is no pre-roll at all.
 _Avoid_: lead-in, warm-up

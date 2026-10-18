@@ -8,6 +8,8 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- A new **Bike sensor & measurement** card in **Settings** shows what the race box is sending, live: each sensor port's lane, ticks, distance, smoothed speed, and fastest single sample, plus the box's raw lines. **Start sensor test** arms the box outside a race so you can spin each roller and watch its numbers. The card also shows how long the box's silent countdown really took, and how far the box's start landed from the on-screen GO in the last race. Every bike sensor and measurement setting has moved into this card. See `docs/sensor-calibration.md` for a step-by-step guide to dialing in the hardware.
+- New measurement settings: **Per-port distance per tick** corrects one bike's roller without touching the other. **Plausible speed ceiling** caps samples from a bouncing sensor. **Speed smoothing window** sets how long live speed is averaged over. **Finish-time interpolation** can be turned off. **Wattage estimate** changes the watts formula. **Log raw sensor data** writes everything the box sends into the app log, so it shows up in a saved diagnostics bundle. **Race countdown length** and **Trailing rider's finish budget**, which could only be changed in the settings file before, now have fields in the card too.
 - A new **Challenged racers must accept before the race is on** setting under **Race Desk → Racer Queue Signups** turns challenges into requests. The challenge takes its place in the queue right away. The challenged racer gets a notification and an Accept/Decline prompt on their phone, and the race only runs once they accept. If the request reaches the front of the queue before they answer, it holds its spot while the races behind it keep going. The challenged racer has to answer before they can join the queue or challenge anyone themselves. The challenger is told whether it was accepted or declined. A declined challenge comes out of the queue along with the challenger's spot.
 - When the race countdown finishes, the projector now shows "RUMBLE!" for one beat, in time with the countdown numbers, as the race starts.
 - A new **Refunds** card on the **Event** tab refunds the entrance fee, through Stripe, to every racer who paid but never finished a race. Review the list of names and the total, then confirm to send the refunds. A refund Stripe couldn't send shows its reason and can be retried. Refunded racers show as "refunded" on the Racers tab, where they can still be marked paid or waived. Their phone returns to the registration Payment step, which says the fee was refunded and lets them pay again. Refunds can only be sent from the host laptop's admin window.
@@ -15,6 +17,10 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Live speed, cadence, top speed, and watts are now averaged over the last second by default, so they no longer jump about 5 km/h with each quarter-second sample from the race box, and top speed is no longer inflated by a single lucky sample.
+- Live speed now drops to zero when a rider stops pedaling, instead of freezing at their last speed.
+- Finish times now mark the moment a rider actually reached the line, not the end of the quarter-second sample that carried them over it. When both riders cross in the same quarter-second, the faster rider wins, not always the left bike.
+- The **Roller rollout** setting is now called **Distance per sensor tick**, and its help text explains how to work it out from the roller's diameter and magnet count.
 - The projector display now shows the Roller Rumble logo in place of the "Roller Rumble" title text. Turning off "Show event name under the logo on the projector" in Settings now also gives that space back to the race results card.
 - The racer page header is now the Roller Rumble logo, pinned to the top of the page as you scroll. The event name, event description, and race status line no longer appear there.
 - The staging controls on the admin page now use larger text, and the "Race Controls Live" label above a staged race is gone. Tournament races still show their "Tournament Race Ready" label.
@@ -23,6 +29,9 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The racer registration steps are trimmed down. Each step's card is titled for the step: "Register", "Racer Name", "Mean Muggin'", and "Entry Fee". The intro text under the step headings is gone, and the phone field example now reads 555-555-5555.
 
 ### Fixed
+
+- Changing **Race box countdown** now takes effect on the next race instead of needing an app restart.
+- Resetting a race, or stopping a sensor test, during the race box's silent countdown no longer leaves the box streaming afterward.
 
 ## 0.1.25 - 2026-10-09
 

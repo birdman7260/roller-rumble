@@ -81,7 +81,10 @@ supplies it, defaulting to `OPENSPRINTS_ROLLER_ROLLOUT_METERS`.
 Confirmed on hardware 2026-07-01: the roller is **4.5 in / 114.3 mm** in diameter with a **single
 magnet**, so one tick = one revolution and the rollout = π × 0.1143 m ≈ **0.359 m**. This matches
 the `114.3 * PI` constant baked into SilverSprint's firmware, so 114.3 mm is the standard roller.
-Override `ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS` only for a box with a non-standard roller.
+Override `ROLLER_RUMBLE_SENSOR_ROLLOUT_METERS` only for a box with a non-standard roller, or
+`ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS` for a single odd bike. Each rotation event carries its
+port's meters per tick, so `ActiveRace` measures every bike with its own roller. The field procedure
+for confirming all of this on real hardware is `docs/sensor-calibration.md`.
 
 Sensor-port → lane wiring was confirmed by a pedal test on the same date: **port 0 = left, port 1 =
 right** (ports 2/3 unused, only two bikes wired). Set `ROLLER_RUMBLE_SENSOR_LANE_MAP=left,right` to

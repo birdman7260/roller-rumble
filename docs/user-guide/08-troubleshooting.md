@@ -121,16 +121,16 @@ files were loaded at startup — useful for confirming the app is reading the fi
 
 ### Running a race
 
-| Problem                                    | Cause                                                  | Fix                                                                                 |
-| ------------------------------------------ | ------------------------------------------------------ | ----------------------------------------------------------------------------------- |
-| Bottom tray is empty                       | Nothing staged or queued                               | Add racers to the queue (Race Desk)                                                 |
-| No **Stage Next Race** button              | A race/tournament is already active                    | Finish or unstage the current race first                                            |
-| Countdown won't start                      | Nothing staged                                         | **Stage Next Race**, then **Start Countdown**                                       |
-| Rider quit mid-race                        | Race can't reach the finish                            | **Finalize Current** to record the result                                           |
-| False start                                | Need to redo                                           | **Reset To Staged**, then **Start Countdown**                                       |
-| Winner modal stuck on projector            | It's on its ~15-second timer                           | Wait, or click **Move On**                                                          |
-| App closed mid-race, race is "interrupted" | Crash/close during a live race                         | **Resume Interrupted**, **Restart Race**, or **Finalize As-Is**                     |
-| No riders move during a race               | (Simulator) fine; (real hardware) sensor not connected | Real-hardware sensor support is still being finished; use the simulator to practice |
+| Problem                                    | Cause                                                  | Fix                                                             |
+| ------------------------------------------ | ------------------------------------------------------ | --------------------------------------------------------------- |
+| Bottom tray is empty                       | Nothing staged or queued                               | Add racers to the queue (Race Desk)                             |
+| No **Stage Next Race** button              | A race/tournament is already active                    | Finish or unstage the current race first                        |
+| Countdown won't start                      | Nothing staged                                         | **Stage Next Race**, then **Start Countdown**                   |
+| Rider quit mid-race                        | Race can't reach the finish                            | **Finalize Current** to record the result                       |
+| False start                                | Need to redo                                           | **Reset To Staged**, then **Start Countdown**                   |
+| Winner modal stuck on projector            | It's on its ~15-second timer                           | Wait, or click **Move On**                                      |
+| App closed mid-race, race is "interrupted" | Crash/close during a live race                         | **Resume Interrupted**, **Restart Race**, or **Finalize As-Is** |
+| No riders move during a race               | (Simulator) fine; (real hardware) sensor not connected | Follow [Dialing in the bike sensors](../sensor-calibration.md)  |
 
 ### The queue
 

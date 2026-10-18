@@ -36,6 +36,7 @@ import {
 import { fireAndForget } from "../../lib/ui-actions";
 import { useMasonryGrid } from "../../lib/use-masonry-grid";
 import { DiagnosticsPanel, ManagedSettingsPanel, SubsystemStatusPanel } from "./operator-settings";
+import { SensorTuningPanel } from "./sensor-tuning";
 
 const boothHardwareLabels = {
   scanner: "QR Scanner",
@@ -939,6 +940,8 @@ export function SettingsTab({
   return (
     <div ref={masonryGridRef} className="page-grid settings-page-grid">
       <SubsystemStatusPanel health={snapshot.subsystemHealth} />
+
+      <SensorTuningPanel snapshot={snapshot} />
 
       <GeneralSettingsPanel snapshot={snapshot} />
 

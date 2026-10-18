@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { SensorMonitor } from "@roller-rumble/shared/types";
 import { SnapshotAssembler, type SnapshotContext } from "./snapshot-assembler";
 import {
   CURRENT_RACE,
@@ -21,6 +22,7 @@ function makeContext(overrides: Partial<SnapshotContext> = {}): SnapshotContext 
     photoBooth: SCENARIO_PHOTO_BOOTH,
     stripe: SCENARIO_STRIPE,
     sensor: SCENARIO_SENSOR,
+    sensorMonitor: null,
     runtimeEnv: SCENARIO_RUNTIME_ENV,
     countdown: null,
     now: () => FIXED_NOW_MS,
@@ -191,6 +193,31 @@ describe("SnapshotAssembler.forSurface", () => {
     await expect(JSON.stringify(racer, null, 2)).toMatchFileSnapshot(
       "./__fixtures__/snapshot-racer.json"
     );
+  });
+
+  it("never sends the admin sensor monitor to a racer phone", () => {
+    const monitor: SensorMonitor = {
+      adapterId: "opensprints",
+      canTest: true,
+      mode: "testing",
+      streaming: true,
+      variant: "basic",
+      sampleCount: 3,
+      lastSampleElapsedMs: 753,
+      lastSampleIntervalMs: 251,
+      lastSampleAt: null,
+      measuredBoxCountdownMs: 4012,
+      configuredBoxCountdownMs: 4000,
+      lastGoOffsetMs: null,
+      maxSpeedKph: null,
+      speedWindowMs: 1000,
+      ports: [],
+      recentLines: ["t: 753"]
+    };
+    const full = assembler.assemble(makeContext({ sensorMonitor: monitor }));
+
+    expect(full.sensorMonitor?.measuredBoxCountdownMs).toBe(4012);
+    expect(assembler.forSurface(full, "racer").sensorMonitor).toBeNull();
   });
 
   it("returns the full snapshot unchanged for admin and projector", () => {

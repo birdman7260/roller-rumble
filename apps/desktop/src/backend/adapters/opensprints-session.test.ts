@@ -3,7 +3,7 @@ import type { RaceParticipant } from "@roller-rumble/shared/types";
 import type { RotationEvent, SensorLifecycleEvent } from "./sensor";
 import type { SensorLaneAssignment } from "./sensor-config";
 import { parseOpenSprintsLine } from "./opensprints-protocol";
-import { OpenSprintsSession } from "./opensprints-session";
+import { OpenSprintsSession, type OpenSprintsSessionOptions } from "./opensprints-session";
 import { swapParticipantLanes } from "@roller-rumble/shared/race-lanes";
 
 const PARTICIPANTS: RaceParticipant[] = [
@@ -19,7 +19,8 @@ interface Recorder {
 
 function makeSession(
   now: () => number = () => 1_000,
-  laneAssignments?: SensorLaneAssignment[]
+  laneAssignments?: SensorLaneAssignment[],
+  extra: Partial<OpenSprintsSessionOptions> = {}
 ): Recorder {
   const rotations: RotationEvent[] = [];
   const lifecycle: SensorLifecycleEvent[] = [];
@@ -27,7 +28,8 @@ function makeSession(
     onRotation: (event) => rotations.push(event),
     onLifecycle: (event) => lifecycle.push(event),
     laneAssignments,
-    now
+    now,
+    ...extra
   });
   return { rotations, lifecycle, session };
 }
@@ -93,7 +95,8 @@ describe("OpenSprintsSession", () => {
 
     expect(lifecycle).toEqual([{ type: "go" }]);
     expect(rotations).toHaveLength(2);
-    expect(rotations[0].timestampMs).toBe(2_050);
+    // The sample arrived at 2_000 and was taken 50ms after the box's GO, so GO was at 1_950.
+    expect(rotations[0].timestampMs).toBe(2_000);
   });
 
   it("ignores sensor positions with no mapped participant", () => {
@@ -117,7 +120,7 @@ describe("OpenSprintsSession", () => {
     // A drop below the last value means a reset; the new value is the delta.
     feed(session, "R:3,0,0,0,200");
 
-    expect(rotations).toEqual([
+    expect(rotations.filter((event) => event.racerId === "r-left")).toEqual([
       { racerId: "r-left", lane: "left", timestampMs: 200, deltaRotations: 3 }
     ]);
   });
@@ -161,6 +164,62 @@ describe("OpenSprintsSession", () => {
       { racerId: "r-right", lane: "right", timestampMs: 100, deltaRotations: 6 },
       { racerId: "r-left", lane: "left", timestampMs: 100, deltaRotations: 2 }
     ]);
+  });
+
+  it("reports a still bike as a zero-rotation sample so live speed can fall to zero", () => {
+    const { session, rotations } = makeSession(() => 0);
+    session.begin(PARTICIPANTS);
+    feed(session, "CD:0");
+
+    feed(session, "R:4,0,0,0,250");
+    feed(session, "R:4,0,0,0,500");
+
+    expect(rotations.filter((event) => event.racerId === "r-left")).toEqual([
+      { racerId: "r-left", lane: "left", timestampMs: 250, deltaRotations: 4 },
+      { racerId: "r-left", lane: "left", timestampMs: 500, deltaRotations: 0 }
+    ]);
+  });
+
+  it("thins out zero-rotation samples from a fast-streaming box to one per 200ms", () => {
+    // ss_basic streams every 10ms; a zero sample per stream line would flood the app.
+    const { session, rotations } = makeSession(() => 0);
+    session.begin([{ racerId: "r-left", lane: "left" }]);
+    feed(session, "CD:0");
+
+    for (let elapsed = 10; elapsed <= 500; elapsed += 10) {
+      feed(session, `R:0,0,0,0,${elapsed}`);
+    }
+
+    expect(rotations.map((event) => event.timestampMs)).toEqual([200, 400]);
+  });
+
+  it("stamps each rotation with its own port's meters per tick", () => {
+    const { session, rotations } = makeSession(() => 0, undefined, {
+      portRolloutMeters: [0.36, 0.18, 0.36, 0.36]
+    });
+    session.begin(PARTICIPANTS);
+    feed(session, "CD:0");
+
+    feed(session, "R:2,2,0,0,250");
+
+    expect(rotations.map((event) => event.metersPerRotation)).toEqual([0.36, 0.18]);
+  });
+
+  it("clamps a sample faster than the plausible-speed ceiling and reports it", () => {
+    const clamps: { portIndex: number; rawTicks: number; keptTicks: number }[] = [];
+    const { session, rotations } = makeSession(() => 0, undefined, {
+      portRolloutMeters: [0.5, 0.5, 0.5, 0.5],
+      maxSpeedKph: 36, // 10 m/s → at most 5 ticks of 0.5m in 250ms
+      onClamp: (clamp) => clamps.push(clamp)
+    });
+    session.begin([{ racerId: "r-left", lane: "left" }]);
+    feed(session, "CD:0");
+
+    feed(session, "R:4,0,0,0,250"); // 8 m/s: fine
+    feed(session, "R:14,0,0,0,500"); // 10 ticks in 250ms = 20 m/s: a bounce
+
+    expect(rotations.map((event) => event.deltaRotations)).toEqual([4, 5]);
+    expect(clamps).toEqual([{ portIndex: 0, rawTicks: 10, keptTicks: 5 }]);
   });
 
   it("ignores version, finish, false-start, and length-ack chatter", () => {

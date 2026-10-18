@@ -108,3 +108,64 @@ export function readSensorBoxCountdownMs(env: NodeJS.ProcessEnv = process.env): 
   const parsed = Number.parseFloat(raw);
   return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : BOX_COUNTDOWN_MS;
 }
+
+/**
+ * The meters-per-tick for each of the box's `portCount` sensor ports. A comma-separated
+ * `ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS` overrides individual ports (a blank slot keeps the
+ * shared {@link readSensorRolloutMeters} value), so one bike with a different roller — or a second
+ * magnet — can be corrected without touching the other. One bad slot makes the whole list
+ * untrustworthy, so it is ignored rather than half-applied.
+ */
+export function readSensorPortRollouts(
+  env: NodeJS.ProcessEnv = process.env,
+  portCount = 4
+): number[] {
+  const shared = readSensorRolloutMeters(env);
+  const resolved: number[] = Array.from({ length: portCount }, () => shared);
+  const raw = read(env, "ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS");
+  if (raw.length === 0) {
+    return resolved;
+  }
+
+  const overrides: (number | null)[] = [];
+  for (const token of raw.split(",").map((entry) => entry.trim())) {
+    if (token.length === 0) {
+      overrides.push(null);
+      continue;
+    }
+    const parsed = Number(token);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return resolved;
+    }
+    overrides.push(parsed);
+  }
+  return resolved.map((value, index) => overrides[index] ?? value);
+}
+
+/**
+ * The fastest a rider can plausibly go, in km/h. A sample implying more than this is clamped to it
+ * — the signature of a bouncing reed switch or electrical noise double-counting ticks. `null` (the
+ * default: blank, zero, or not a number) means no ceiling, so nothing is ever thrown away silently.
+ */
+export function readSensorMaxSpeedKph(env: NodeJS.ProcessEnv = process.env): number | null {
+  const parsed = Number.parseFloat(read(env, "ROLLER_RUMBLE_SENSOR_MAX_SPEED_KPH"));
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+/**
+ * The most ticks a port may plausibly add across `intervalMs` under a `maxSpeedKph` ceiling,
+ * rounded up so a rider exactly at the ceiling is never cut. The session clamps to it and the
+ * sensor monitor counts samples over it, so the two always agree on what "over" means.
+ */
+export function ceilingTicks(
+  maxSpeedKph: number,
+  intervalMs: number,
+  metersPerTick: number
+): number {
+  return Math.ceil(((maxSpeedKph / 3.6) * (intervalMs / 1000)) / metersPerTick);
+}
+
+/** Whether every raw serial line from the box is written to the app log, for post-mortems. */
+export function readSensorRawLogging(env: NodeJS.ProcessEnv = process.env): boolean {
+  return read(env, "ROLLER_RUMBLE_SENSOR_RAW_LOGGING") === "on";
+}

@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { OPENSPRINTS_ROLLER_ROLLOUT_METERS } from "@roller-rumble/shared/constants";
 import type { RaceParticipant } from "@roller-rumble/shared/types";
 import type { RotationEvent, SensorLifecycleEvent, SensorStatus } from "./sensor";
 import type { SerialCommand } from "./opensprints-protocol";
@@ -8,6 +9,9 @@ import {
   type SerialPortInfo,
   type SerialTransport
 } from "./opensprints-sensor";
+
+/** Every relayed rotation carries its port's meters per tick; unconfigured ports use the default. */
+const ROLLOUT = OPENSPRINTS_ROLLER_ROLLOUT_METERS;
 
 const PARTICIPANTS: RaceParticipant[] = [
   { racerId: "r-left", lane: "left" },
@@ -250,8 +254,20 @@ describe("OpenSprintsSensorAdapter", () => {
 
     expect(harness.lifecycle).toContainEqual({ type: "go" });
     expect(harness.rotations).toEqual([
-      { racerId: "r-left", lane: "left", timestampMs: 10_100, deltaRotations: 2 },
-      { racerId: "r-right", lane: "right", timestampMs: 10_100, deltaRotations: 1 }
+      {
+        racerId: "r-left",
+        lane: "left",
+        timestampMs: 10_100,
+        deltaRotations: 2,
+        metersPerRotation: ROLLOUT
+      },
+      {
+        racerId: "r-right",
+        lane: "right",
+        timestampMs: 10_100,
+        deltaRotations: 1,
+        metersPerRotation: ROLLOUT
+      }
     ]);
   });
 
@@ -269,7 +285,13 @@ describe("OpenSprintsSensorAdapter", () => {
 
     // Sensor port 0 is wired to the right lane, so its ticks go to the right racer.
     expect(harness.rotations).toEqual([
-      { racerId: "r-right", lane: "right", timestampMs: 10_100, deltaRotations: 5 }
+      {
+        racerId: "r-right",
+        lane: "right",
+        timestampMs: 10_100,
+        deltaRotations: 5,
+        metersPerRotation: ROLLOUT
+      }
     ]);
   });
 
@@ -290,8 +312,21 @@ describe("OpenSprintsSensorAdapter", () => {
 
     expect(harness.lifecycle).toContainEqual({ type: "go" });
     expect(harness.rotations).toEqual([
-      { racerId: "r-left", lane: "left", timestampMs: 10_100, deltaRotations: 4 },
-      { racerId: "r-right", lane: "right", timestampMs: 10_100, deltaRotations: 2 }
+      // No CD: on this variant: the first sample, 100ms after the box's GO, arrived at 10_000.
+      {
+        racerId: "r-left",
+        lane: "left",
+        timestampMs: 10_000,
+        deltaRotations: 4,
+        metersPerRotation: ROLLOUT
+      },
+      {
+        racerId: "r-right",
+        lane: "right",
+        timestampMs: 10_000,
+        deltaRotations: 2,
+        metersPerRotation: ROLLOUT
+      }
     ]);
   });
 
@@ -313,8 +348,20 @@ describe("OpenSprintsSensorAdapter", () => {
     box.emit("!50@bcd#");
 
     expect(harness.rotations).toEqual([
-      { racerId: "r-left", lane: "left", timestampMs: 10_050, deltaRotations: 2 },
-      { racerId: "r-right", lane: "right", timestampMs: 10_050, deltaRotations: 2 }
+      {
+        racerId: "r-left",
+        lane: "left",
+        timestampMs: 10_000,
+        deltaRotations: 2,
+        metersPerRotation: ROLLOUT
+      },
+      {
+        racerId: "r-right",
+        lane: "right",
+        timestampMs: 10_000,
+        deltaRotations: 2,
+        metersPerRotation: ROLLOUT
+      }
     ]);
   });
 
@@ -368,5 +415,104 @@ describe("OpenSprintsSensorAdapter", () => {
     });
     active = harness.adapter;
     expect(harness.adapter.wheelCircumferenceMeters).toBe(0.36);
+  });
+
+  it("measures each port with its own per-port rollout", async () => {
+    const harness = makeAdapter([{ path: "/dev/ttyBox", firmware: "SS_v0.1.7" }], {
+      ROLLER_RUMBLE_SENSOR_PORT_ROLLOUT_METERS: ",0.2"
+    });
+    active = harness.adapter;
+    await waitFor(() => harness.adapter.getStatus().connected);
+
+    harness.adapter.armCountdown(PARTICIPANTS);
+    const box = harness.transport.liveConnection();
+    box.emit("CD:0\r\n");
+    box.emit("R:1,1,0,0,100\r\n");
+
+    expect(harness.rotations.map((event) => event.metersPerRotation)).toEqual([ROLLOUT, 0.2]);
+  });
+
+  describe("sensor test", () => {
+    it("arms the box outside a race and shows its raw ticks without feeding any racer", async () => {
+      const harness = makeAdapter([{ path: "/dev/ttyB", firmware: "basic-1" }]);
+      active = harness.adapter;
+      await waitFor(() => harness.adapter.getStatus().connected);
+      const notified = vi.fn();
+      harness.adapter.onMonitorChange(notified);
+
+      harness.adapter.startSensorTest();
+      const box = harness.transport.liveConnection();
+      expect(box.writes.slice(1)).toEqual([Uint8Array.of(0x6c, 0xff, 0x7f, 0x0d), "g\n"]);
+
+      box.emit("0: 3\r\n1: 7\r\n2: 0\r\n3: 0\r\nt: 251\r\n");
+
+      const monitor = harness.adapter.getMonitor();
+      expect(monitor.mode).toBe("testing");
+      expect(monitor.ports.map((port) => port.ticks)).toEqual([3, 7, 0, 0]);
+      expect(monitor.recentLines).toEqual(["0: 3", "1: 7", "2: 0", "3: 0", "t: 251"]);
+      expect(harness.rotations).toEqual([]);
+      expect(notified).toHaveBeenCalled();
+    });
+
+    it("refuses to start while a race has the box", async () => {
+      const harness = makeAdapter([{ path: "/dev/ttyBox", firmware: "SS_v0.1.7" }]);
+      active = harness.adapter;
+      await waitFor(() => harness.adapter.getStatus().connected);
+
+      harness.adapter.armCountdown(PARTICIPANTS);
+      expect(() => harness.adapter.startSensorTest()).toThrow(/race/i);
+    });
+
+    it("refuses to start with no box connected", () => {
+      const harness = makeAdapter([]);
+      active = harness.adapter;
+      expect(() => harness.adapter.startSensorTest()).toThrow(/not connected/i);
+    });
+
+    it("stops the box again once its countdown ends if stopped during it", async () => {
+      // basic_msg ignores STOP during its silent countdown, then streams anyway.
+      const harness = makeAdapter([{ path: "/dev/ttyB", firmware: "basic-1" }], {
+        ROLLER_RUMBLE_SENSOR_BOX_COUNTDOWN_MS: "10"
+      });
+      active = harness.adapter;
+      await waitFor(() => harness.adapter.getStatus().connected);
+
+      harness.adapter.startSensorTest();
+      const box = harness.transport.liveConnection();
+      box.writes.length = 0;
+      harness.adapter.stopSensorTest();
+      expect(box.writes).toEqual(["s\n"]);
+      expect(harness.adapter.getMonitor().mode).toBe("idle");
+
+      await waitFor(() => box.writes.length === 2);
+      expect(box.writes).toEqual(["s\n", "s\n"]);
+    });
+
+    it("hands the box to a race that arms mid-test", async () => {
+      const harness = makeAdapter([{ path: "/dev/ttyBox", firmware: "SS_v0.1.7" }]);
+      active = harness.adapter;
+      await waitFor(() => harness.adapter.getStatus().connected);
+
+      harness.adapter.startSensorTest();
+      harness.adapter.armCountdown(PARTICIPANTS);
+      expect(harness.adapter.getMonitor().mode).toBe("racing");
+    });
+  });
+
+  it("logs every raw line when raw logging is on", async () => {
+    const info = vi.spyOn(console, "info");
+    try {
+      const harness = makeAdapter([{ path: "/dev/ttyB", firmware: "basic-1" }], {
+        ROLLER_RUMBLE_SENSOR_RAW_LOGGING: "on"
+      });
+      active = harness.adapter;
+      await waitFor(() => harness.adapter.getStatus().connected);
+
+      harness.transport.liveConnection().emit("t: 251\r\n");
+
+      expect(info).toHaveBeenCalledWith('[sensor] raw: "t: 251"');
+    } finally {
+      info.mockRestore();
+    }
   });
 });

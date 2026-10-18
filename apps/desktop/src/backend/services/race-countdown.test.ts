@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { COUNTDOWN_DURATION_MS } from "@roller-rumble/shared/constants";
 import type { RaceRecord } from "@roller-rumble/shared/types";
-import { RaceCountdown, type CountdownArmingPort } from "./race-countdown";
+import { RaceCountdown, readCountdownDurationMs, type CountdownArmingPort } from "./race-countdown";
 
 function buildRaceRecord(patch: Partial<RaceRecord> = {}): RaceRecord {
   return {
@@ -47,6 +48,7 @@ function buildArmingPort(patch: Partial<CountdownArmingPort> = {}): {
 function buildCountdown(
   opts: {
     boxCountdownMs?: number;
+    readBoxCountdownMs?: () => number;
     drivesCountdown?: boolean;
     onTick?: () => void;
     onGo?: (raceId: string) => void;
@@ -59,7 +61,7 @@ function buildCountdown(
   const onGo = opts.onGo ?? vi.fn();
   const countdown = new RaceCountdown({
     armingPort: port,
-    boxCountdownMs: opts.boxCountdownMs ?? 4_000,
+    readBoxCountdownMs: opts.readBoxCountdownMs ?? (() => opts.boxCountdownMs ?? 4_000),
     onTick,
     onGo
   });
@@ -106,6 +108,25 @@ describe("RaceCountdown", () => {
     expect(onGo).not.toHaveBeenCalled();
     vi.advanceTimersByTime(4_000);
     expect(onGo).toHaveBeenCalledWith("race-1");
+  });
+
+  it("plans each countdown with the box countdown setting as it stands at that start", () => {
+    vi.useFakeTimers();
+    const race = buildRaceRecord();
+    let boxCountdownMs = 4_000;
+    const { countdown, armCountdown } = buildCountdown({
+      drivesCountdown: true,
+      readBoxCountdownMs: () => boxCountdownMs
+    });
+
+    // The operator re-tunes the box countdown between races; no restart needed.
+    boxCountdownMs = 3_000;
+    countdown.start({ race, durationMs: 10_000 });
+
+    vi.advanceTimersByTime(6_999);
+    expect(armCountdown).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(armCountdown).toHaveBeenCalledWith(race.participants);
   });
 
   it("sends the box GO immediately when the countdown is at or below the box floor", () => {
@@ -211,5 +232,15 @@ describe("RaceCountdown", () => {
     vi.advanceTimersByTime(2_000);
     expect(onGo).toHaveBeenCalledWith("race-2");
     expect(onGo).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("readCountdownDurationMs", () => {
+  it("falls back to the shared default for blank or non-positive values", () => {
+    expect(readCountdownDurationMs({})).toBe(COUNTDOWN_DURATION_MS);
+    expect(readCountdownDurationMs({ ROLLER_RUMBLE_COUNTDOWN_MS: "0" })).toBe(
+      COUNTDOWN_DURATION_MS
+    );
+    expect(readCountdownDurationMs({ ROLLER_RUMBLE_COUNTDOWN_MS: "5000" })).toBe(5000);
   });
 });

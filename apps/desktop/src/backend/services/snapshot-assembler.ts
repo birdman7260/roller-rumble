@@ -7,6 +7,7 @@ import type {
   RacerStats,
   RacerSummary,
   RuntimeEnvInfo,
+  SensorMonitor,
   StripeSetupStatus,
   TunnelState
 } from "@roller-rumble/shared/types";
@@ -33,6 +34,7 @@ export interface SnapshotContext {
   photoBooth: PhotoBoothStatus;
   stripe: StripeSetupStatus;
   sensor: SensorStatus;
+  sensorMonitor: SensorMonitor | null;
   runtimeEnv: RuntimeEnvInfo;
   /** The live countdown timing owned by RaceCountdown (in-memory, never persisted — ADR 0017), or
    * null when no countdown is running. The projector's remaining-seconds clock derives from this. */
@@ -125,6 +127,7 @@ export class SnapshotAssembler {
         runtimeEnv: ctx.runtimeEnv,
         sensor: ctx.sensor
       }),
+      sensorMonitor: ctx.sensorMonitor,
       themes,
       raceProjection: {
         race: currentRace,
@@ -224,7 +227,8 @@ export class SnapshotAssembler {
         loadedFiles: [],
         managedSettings: []
       },
-      subsystemHealth: []
+      subsystemHealth: [],
+      sensorMonitor: null
     };
   }
 

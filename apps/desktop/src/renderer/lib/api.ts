@@ -702,6 +702,14 @@ export async function installCloudflared(): Promise<TunnelDiagnostics> {
   return parseJson(await fetch(buildUrl("/api/tunnel/install-cloudflared"), { method: "POST" }));
 }
 
+export async function startSensorTest(): Promise<AppSnapshot> {
+  return parseJson(await fetch(buildUrl("/api/sensor/test/start"), { method: "POST" }));
+}
+
+export async function stopSensorTest(): Promise<AppSnapshot> {
+  return parseJson(await fetch(buildUrl("/api/sensor/test/stop"), { method: "POST" }));
+}
+
 export async function restartTunnel(): Promise<AppSnapshot> {
   return parseJson(await fetch(buildUrl("/api/tunnel/restart"), { method: "POST" }));
 }

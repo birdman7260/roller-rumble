@@ -5016,3 +5016,42 @@ button.tournament-match-node:active {
   color: var(--theme-text-muted);
   font-size: 0.85rem;
 }
+
+/* Bike sensor & measurement: the live race-box readout */
+.sensor-monitor__table-wrap {
+  overflow-x: auto;
+}
+
+.sensor-monitor__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.sensor-monitor__table th,
+.sensor-monitor__table td {
+  padding: 0.3rem 0.5rem;
+  border-bottom: 1px solid var(--theme-accent-soft);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.sensor-monitor__table thead th {
+  color: var(--theme-text-muted);
+  font-weight: 600;
+}
+
+.sensor-monitor__row--unused {
+  color: var(--theme-text-muted);
+}
+
+.sensor-monitor__raw {
+  max-height: 14rem;
+  margin: 0.4rem 0 0;
+  padding: 0.5rem 0.75rem;
+  overflow: auto;
+  border-radius: 0.5rem;
+  background: var(--theme-surface-raised);
+  font-size: 0.8rem;
+}

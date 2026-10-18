@@ -6,7 +6,6 @@ import QRCode from "qrcode";
 import { nanoid } from "nanoid";
 import type Stripe from "stripe";
 import {
-  COUNTDOWN_DURATION_MS,
   DEFAULT_OS2L_PORT,
   DEFAULT_QUEUE_CLOSED_MESSAGE,
   DEFAULT_SERVER_PORT
@@ -65,7 +64,7 @@ import { OpenSprintsSensorAdapter } from "../adapters/opensprints-sensor";
 import { readSensorBoxCountdownMs, readSensorMode } from "../adapters/sensor-config";
 import type { SensorAdapter, SensorLifecycleEvent, SensorStatus } from "../adapters/sensor";
 import { ActiveRace, type FinalizedRaceResult } from "./active-race";
-import { RaceCountdown } from "./race-countdown";
+import { RaceCountdown, readCountdownDurationMs } from "./race-countdown";
 import {
   SnapshotAssembler,
   type SnapshotContext,
@@ -355,7 +354,7 @@ export class RollerRumbleApp extends EventEmitter {
     this.tunnelManager = new CloudflaredTunnelManager({ dataDir: options.dataDir });
     this.raceCountdown = new RaceCountdown({
       armingPort: this.sensorAdapter,
-      boxCountdownMs: readSensorBoxCountdownMs(),
+      readBoxCountdownMs: () => readSensorBoxCountdownMs(),
       onTick: () => this.emitSnapshot(),
       onGo: (raceId) => this.activateRace(raceId)
     });
@@ -370,9 +369,19 @@ export class RollerRumbleApp extends EventEmitter {
     this.os2lTrigger.start((source, options) => this.startCountdown(source, options));
     this.os2lTrigger.setEnabled(settings.os2lEnabled);
     void this.sensorAdapter.connect((event) => {
-      this.currentActiveRace?.tick(event.racerId, event.timestampMs, event.deltaRotations);
+      // The box streams through a countdown's tail and a sensor test too; only a live race counts.
+      if (!this.currentActiveRace) {
+        return;
+      }
+      this.currentActiveRace.tick(
+        event.racerId,
+        event.timestampMs,
+        event.deltaRotations,
+        event.metersPerRotation
+      );
       this.emitSnapshot();
     });
+    this.sensorAdapter.onMonitorChange?.(() => this.emitSnapshot());
     this.sensorAdapter.onLifecycle?.((event) => this.handleSensorLifecycle(event));
     this.sensorAdapter.onStatusChange?.((status) => this.handleSensorStatusChange(status));
     if (!this.maybeAutoStageNextRace()) {
@@ -814,6 +823,7 @@ export class RollerRumbleApp extends EventEmitter {
       photoBooth: this.getPhotoBoothStatus(),
       stripe: this.payment.getStripeSetupStatus(),
       sensor: this.getSensorStatus(),
+      sensorMonitor: this.sensorAdapter.getMonitor?.() ?? null,
       runtimeEnv: getRuntimeEnvInfo(this.runtimeEnvFilePath ?? "", this.loadedDotenvFiles),
       countdown: this.raceCountdown.getTiming()
     };
@@ -2748,7 +2758,7 @@ export class RollerRumbleApp extends EventEmitter {
       Number.isFinite(options.countdownDurationMs) &&
       options.countdownDurationMs >= 0
         ? Math.round(options.countdownDurationMs)
-        : COUNTDOWN_DURATION_MS;
+        : readCountdownDurationMs();
 
     // Persist the coarse lifecycle flag; RaceCountdown owns the timing (in-memory, ADR 0017).
     this.db.updateRace(currentRace.id, { state: "countdown" });
@@ -3340,6 +3350,45 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   /**
+   * Arm the race box outside any race so the operator can spin each roller and watch the raw
+   * stream on the sensor monitor. Refused while a race is counting down or running — the box can
+   * only stream for one of them, and a race always wins it.
+   */
+  startSensorTest(): AppSnapshot {
+    if (!this.sensorAdapter.startSensorTest) {
+      throw new AppHttpError(
+        "The simulator has no hardware to test. Switch the bike sensor to OpenSprints first.",
+        400,
+        "sensor_test_unsupported"
+      );
+    }
+    if (this.currentActiveRace || this.raceCountdown.getTiming()) {
+      throw new AppHttpError(
+        "Finish or reset the current race before testing the sensor.",
+        409,
+        "sensor_busy"
+      );
+    }
+    try {
+      this.sensorAdapter.startSensorTest();
+    } catch (error) {
+      throw new AppHttpError(
+        error instanceof Error ? error.message : "Could not start the sensor test.",
+        409,
+        "sensor_test_refused"
+      );
+    }
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  stopSensorTest(): AppSnapshot {
+    this.sensorAdapter.stopSensorTest?.();
+    this.emitSnapshot();
+    return this.getSnapshot();
+  }
+
+  /**
    * Stop the tunnel, pick up the latest tunnel config from the environment, then start again.
    * Used after a tunnel-key managed-setting change, and only when the operator has confirmed the
    * restart (it drops every racer's connection while it reconnects).
@@ -3447,6 +3496,7 @@ export class RollerRumbleApp extends EventEmitter {
       tunnel: snapshot.tunnel,
       tunnelDiagnostics: diagnostics,
       tunnelChecks,
+      sensorMonitor: snapshot.sensorMonitor,
       logs: this.logFilePath ? this.getLogLines() : [],
       secretValues
     });

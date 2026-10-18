@@ -1,10 +1,16 @@
-import type { RaceParticipant } from "@roller-rumble/shared/types";
+import type { RaceParticipant, SensorMonitor } from "@roller-rumble/shared/types";
 
 export interface RotationEvent {
   lane: RaceParticipant["lane"];
   racerId: string;
   timestampMs: number;
+  /** Rotations since this lane's previous event; 0 reports a still bike so live speed can fall. */
   deltaRotations: number;
+  /**
+   * Meters per rotation for the sensor port this came from, when the adapter calibrates ports
+   * individually. Absent means the race-wide `wheelCircumferenceMeters` applies.
+   */
+  metersPerRotation?: number;
 }
 
 export type RotationListener = (event: RotationEvent) => void;
@@ -89,6 +95,16 @@ export interface SensorAdapter {
   onStatusChange?(listener: SensorStatusListener): void;
   /** Current connection state, when the adapter tracks one. */
   getStatus?(): SensorStatus;
+  /**
+   * The live readout of what the hardware is sending, for the admin sensor monitor. Only an adapter
+   * with a raw stream implements it; the simulator omits it.
+   */
+  getMonitor?(): SensorMonitor;
+  /** Subscribe to monitor changes that no race is already re-broadcasting (e.g. a sensor test). */
+  onMonitorChange?(listener: () => void): void;
+  /** Arm the hardware outside a race so the operator can watch its raw stream. Throws if it can't. */
+  startSensorTest?(): void;
+  stopSensorTest?(): void;
   disconnect(): Promise<void> | void;
   beginRace(participants: RaceParticipant[]): void;
   endRace(): void;

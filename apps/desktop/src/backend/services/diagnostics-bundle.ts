@@ -1,5 +1,6 @@
 import type {
   RuntimeEnvInfo,
+  SensorMonitor,
   SubsystemHealth,
   TunnelDiagnostics,
   TunnelState
@@ -31,6 +32,8 @@ export interface DiagnosticsBundleInput {
   tunnel: TunnelState;
   tunnelDiagnostics: TunnelDiagnostics | null;
   tunnelChecks: TunnelHealthCheck[];
+  /** What the race box was last sending, for remote sensor troubleshooting; absent on the simulator. */
+  sensorMonitor?: SensorMonitor | null;
   /** Recent log lines (already captured by the always-on logger). */
   logs: string[];
   /**
@@ -143,7 +146,8 @@ function buildStatusJson(input: DiagnosticsBundleInput): string {
     subsystemHealth: input.subsystemHealth,
     tunnel: input.tunnel,
     tunnelDiagnostics: input.tunnelDiagnostics,
-    tunnelChecks: input.tunnelChecks
+    tunnelChecks: input.tunnelChecks,
+    sensorMonitor: input.sensorMonitor ?? null
   };
   return redactSecrets(JSON.stringify(status, null, 2), input.secretValues);
 }

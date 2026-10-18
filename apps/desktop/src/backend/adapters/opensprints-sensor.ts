@@ -27,11 +27,17 @@ import {
 } from "./opensprints-protocol";
 import { OpenSprintsSession } from "./opensprints-session";
 import {
+  readSensorBoxCountdownMs,
   readSensorLaneAssignments,
+  readSensorMaxSpeedKph,
   readSensorPortOverride,
+  readSensorPortRollouts,
   readSensorProtocol,
+  readSensorRawLogging,
   readSensorRolloutMeters
 } from "./sensor-config";
+import { SensorMonitorTracker, type SensorMonitorConfig } from "./sensor-monitor";
+import { readSpeedWindowMs } from "../services/metrics-tuning";
 import type {
   RotationListener,
   SensorAdapter,
@@ -40,7 +46,7 @@ import type {
   SensorStatus,
   SensorStatusListener
 } from "./sensor";
-import type { RaceParticipant } from "@roller-rumble/shared/types";
+import type { RaceParticipant, SensorMonitor } from "@roller-rumble/shared/types";
 
 /** OpenSprints / SilverSprint serial settings. */
 const BAUD_RATE = 115200;
@@ -55,6 +61,15 @@ const RECONNECT_INTERVAL_MS = 1000;
 const PROBE_TIMEOUT_MS = 5000;
 /** How often to re-send the version query within the probe window, so at least one lands post-boot. */
 const PROBE_QUERY_INTERVAL_MS = 400;
+/**
+ * `basic_msg` ignores STOP during its silent countdown and starts streaming anyway once it ends.
+ * A stop sent that early is repeated this long after the countdown should have finished.
+ */
+const STOP_FOLLOW_UP_MARGIN_MS = 750;
+/** A partial raw line longer than this (e.g. Variant C packets, which have no newline) is shown as is. */
+const RAW_LINE_LIMIT = 256;
+/** The least time between monitor-change notifications, so a 100Hz stream can't flood snapshots. */
+const MONITOR_NOTIFY_INTERVAL_MS = 200;
 
 /**
  * USB-serial vendor IDs (lowercase hex) known to front OpenSprints-class Arduinos. Used only to
@@ -239,6 +254,17 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   private rotationListener: RotationListener | null = null;
   private readonly lifecycleListeners: SensorLifecycleListener[] = [];
   private readonly statusListeners: SensorStatusListener[] = [];
+  private readonly monitorListeners: (() => void)[] = [];
+
+  // The admin sensor monitor: raw lines and per-port tallies, kept whether or not a race is running.
+  private readonly monitor: SensorMonitorTracker;
+  private rawLineBuffer = "";
+  private lastMonitorNotifyMs = Number.NEGATIVE_INFINITY;
+  // True while the operator's sensor test has the box armed outside any race.
+  private testing = false;
+  // When GO was last sent, so a STOP during the box's silent countdown can be repeated after it.
+  private armedAtMs: number | null = null;
+  private followUpStopTimer: NodeJS.Timeout | null = null;
 
   private session: OpenSprintsSession;
   private decoder = createOpenSprintsDecoder();
@@ -268,6 +294,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     this.probeTimeoutMs = options.probeTimeoutMs ?? PROBE_TIMEOUT_MS;
     this.probeQueryIntervalMs = options.probeQueryIntervalMs ?? PROBE_QUERY_INTERVAL_MS;
     this.reconnectIntervalMs = options.reconnectIntervalMs ?? RECONNECT_INTERVAL_MS;
+    this.monitor = new SensorMonitorTracker({ now: this.now });
     this.session = this.createSession();
   }
 
@@ -298,6 +325,45 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
     return this.status;
   }
 
+  onMonitorChange(listener: () => void): void {
+    this.monitorListeners.push(listener);
+  }
+
+  getMonitor(): SensorMonitor {
+    return this.monitor.snapshot(
+      { adapterId: this.id, canTest: true, variant: this.connection ? this.variant : null },
+      this.monitorConfig()
+    );
+  }
+
+  /**
+   * Arm the box outside any race so the operator can spin each roller and watch its raw ticks on the
+   * sensor monitor. No racer is fed. Refused while a race has the box, or with no box connected.
+   */
+  startSensorTest(): void {
+    if (!this.connection) {
+      throw new Error("The race box is not connected.");
+    }
+    if (this.raceActive) {
+      throw new Error("A race is using the race box right now.");
+    }
+    this.session.end();
+    this.testing = true;
+    console.info("[sensor] sensor test started: arming the box outside a race.");
+    this.arm("testing");
+    this.notifyMonitor(true);
+  }
+
+  stopSensorTest(): void {
+    if (!this.testing) {
+      return;
+    }
+    this.testing = false;
+    console.info("[sensor] sensor test stopped.");
+    this.stopBox();
+    this.notifyMonitor(true);
+  }
+
   armCountdown(participants: RaceParticipant[]): void {
     // Rebuild the session so an edited lane map applies to this race without a reconnect.
     this.session = this.createSession();
@@ -306,20 +372,31 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       this.emitLifecycle({ type: "abort", reason: "The race box is not connected." });
       return;
     }
+    // A race always wins the box: stop a running sensor test's stream before re-arming for the race.
+    if (this.testing) {
+      this.testing = false;
+      this.writeCommands(buildStopCommands());
+    }
     this.raceActive = true;
-    this.writeCommands(buildArmCommands(this.variant));
+    this.arm("racing");
   }
 
   beginRace(): void {
     // The box is already streaming from the GO sent in armCountdown; there is nothing to send. We
-    // only note that a race is live so a disconnect knows to interrupt it.
+    // only note that a race is live so a disconnect knows to interrupt it, and mark the app's GO so
+    // the monitor can say how far from it the box really started.
     this.raceActive = true;
+    this.monitor.noteRaceGo();
   }
 
   endRace(): void {
+    // Only a race arms through armCountdown; a stray endRace must not cut a sensor test short.
+    if (this.testing) {
+      return;
+    }
     this.session.end();
     if (this.connection) {
-      this.writeCommands(buildStopCommands());
+      this.stopBox();
     }
     this.raceActive = false;
   }
@@ -327,13 +404,99 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   disconnect(): void {
     this.disposed = true;
     this.raceActive = false;
+    this.testing = false;
     if (this.reconnectTimer) {
       clearInterval(this.reconnectTimer);
       this.reconnectTimer = null;
     }
+    this.clearFollowUpStop();
     this.closeConnection();
     this.rotationListener = null;
     this.updateStatus({ connected: false, portPath: null, detail: "Sensor stopped." });
+  }
+
+  /** Send GO (with the variant's length preamble) and start the monitor's count over. */
+  private arm(mode: "testing" | "racing"): void {
+    this.clearFollowUpStop();
+    this.armedAtMs = this.now();
+    this.monitor.noteArmed(mode);
+    this.writeCommands(buildArmCommands(this.variant));
+  }
+
+  /**
+   * Send STOP. `basic_msg` ignores a STOP that lands inside its silent countdown and then streams
+   * anyway, so a stop sent that early is repeated once the countdown should be over.
+   */
+  private stopBox(): void {
+    this.clearFollowUpStop();
+    this.writeCommands(buildStopCommands());
+    this.monitor.noteStopped();
+    if (this.armedAtMs != null) {
+      const followUpAtMs =
+        this.armedAtMs + readSensorBoxCountdownMs(this.env) + STOP_FOLLOW_UP_MARGIN_MS;
+      const delayMs = followUpAtMs - this.now();
+      if (delayMs > STOP_FOLLOW_UP_MARGIN_MS) {
+        this.followUpStopTimer = setTimeout(() => {
+          this.followUpStopTimer = null;
+          this.writeCommands(buildStopCommands());
+        }, delayMs);
+        this.followUpStopTimer.unref();
+      }
+    }
+    this.armedAtMs = null;
+  }
+
+  private clearFollowUpStop(): void {
+    if (this.followUpStopTimer) {
+      clearTimeout(this.followUpStopTimer);
+      this.followUpStopTimer = null;
+    }
+  }
+
+  private monitorConfig(): SensorMonitorConfig {
+    return {
+      laneAssignments: readSensorLaneAssignments(this.env),
+      portRolloutMeters: readSensorPortRollouts(this.env),
+      speedWindowMs: readSpeedWindowMs(this.env),
+      maxSpeedKph: readSensorMaxSpeedKph(this.env),
+      boxCountdownMs: readSensorBoxCountdownMs(this.env)
+    };
+  }
+
+  /** Tell the app the monitor changed — throttled, and only when no race is already re-broadcasting. */
+  private notifyMonitor(force = false): void {
+    const nowMs = this.now();
+    if (
+      !force &&
+      (this.raceActive || nowMs - this.lastMonitorNotifyMs < MONITOR_NOTIFY_INTERVAL_MS)
+    ) {
+      return;
+    }
+    this.lastMonitorNotifyMs = nowMs;
+    for (const listener of this.monitorListeners) {
+      listener();
+    }
+  }
+
+  /** Split raw bytes into lines for the monitor (and the log, when raw logging is on). */
+  private noteRawLines(chunk: string): void {
+    const parts = (this.rawLineBuffer + chunk).split(/\r\n|\r|\n/);
+    this.rawLineBuffer = parts.pop() ?? "";
+    if (this.rawLineBuffer.length > RAW_LINE_LIMIT) {
+      parts.push(this.rawLineBuffer);
+      this.rawLineBuffer = "";
+    }
+    const logRaw = readSensorRawLogging(this.env);
+    for (const part of parts) {
+      const line = part.trim();
+      if (line.length === 0) {
+        continue;
+      }
+      this.monitor.noteLine(line);
+      if (logRaw) {
+        console.info(`[sensor] raw: ${JSON.stringify(line)}`);
+      }
+    }
   }
 
   private createSession(): OpenSprintsSession {
@@ -341,6 +504,12 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       onRotation: (event) => this.rotationListener?.(event),
       onLifecycle: (event) => this.emitLifecycle(event),
       laneAssignments: readSensorLaneAssignments(this.env) ?? undefined,
+      portRolloutMeters: readSensorPortRollouts(this.env),
+      maxSpeedKph: readSensorMaxSpeedKph(this.env),
+      onClamp: (clamp) =>
+        console.warn(
+          `[sensor] port ${clamp.portIndex} jumped ${clamp.rawTicks} ticks in one sample — faster than the plausible-speed ceiling; counted ${clamp.keptTicks}.`
+        ),
       now: this.now
     });
   }
@@ -573,6 +742,7 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   private attachConnection(opened: OpenedPort, override: string | null): void {
     this.connection = opened.connection;
     this.decoder = createOpenSprintsDecoder();
+    this.rawLineBuffer = "";
     this.variant = this.resolveVariant(opened.variant);
     opened.connection.onData((chunk) => this.handleChunk(chunk));
     opened.connection.onClose((error) => this.handleDisconnect(error));
@@ -592,11 +762,19 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
   }
 
   private handleChunk(chunk: string): void {
+    this.noteRawLines(chunk);
     for (const message of this.decoder.push(chunk)) {
       if (message.type === "version") {
         this.updateStatus({ firmware: message.firmware });
       }
-      this.session.handleMessage(message);
+      if (message.type === "progress") {
+        this.monitor.noteProgress(message.ticks, message.elapsedMs, this.monitorConfig());
+        this.notifyMonitor();
+      }
+      // A sensor test feeds no racer, so its stream never reaches the race session.
+      if (!this.testing) {
+        this.session.handleMessage(message);
+      }
     }
   }
 
@@ -605,6 +783,10 @@ export class OpenSprintsSensorAdapter implements SensorAdapter {
       return;
     }
     this.connection = null;
+    this.testing = false;
+    this.armedAtMs = null;
+    this.clearFollowUpStop();
+    this.monitor.noteStopped();
     console.warn(
       `[sensor] lost connection to ${this.status.portPath ?? "the race box"}${error ? `: ${errorMessage(error)}` : ""}. Reconnecting…`
     );
