@@ -148,7 +148,7 @@ function SensorMonitorView({ monitor }: { monitor: SensorMonitor }) {
 export function SensorTuningPanel({ snapshot }: { snapshot: AppSnapshot }) {
   const monitor = snapshot.sensorMonitor;
   return (
-    <Panel className="settings-panel" title="Bike sensor & measurement" collapsible>
+    <Panel className="settings-panel" title="Bike sensor & measurement">
       <div className="stack-md">
         {monitor ? (
           <SensorMonitorView monitor={monitor} />

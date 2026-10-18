@@ -730,6 +730,15 @@ export interface RuntimeEnvInfo {
 
 export type SubsystemHealthStatus = "ready" | "degraded" | "failed" | "disabled";
 
+/** One line of the app log, as the admin `Live log` panel shows it. */
+export interface LiveLogEntry {
+  /** Rises with every line, and keeps rising across a clear. */
+  id: number;
+  at: string;
+  level: string;
+  text: string;
+}
+
 /** One sensor port's live readout on the admin sensor monitor. */
 export interface SensorMonitorPort {
   /** The box's sensor port (0-3). */

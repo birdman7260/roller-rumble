@@ -5017,6 +5017,49 @@ button.tournament-match-node:active {
   font-size: 0.85rem;
 }
 
+/* Bike Sensor tab: the race-box panel and the live log side by side when there's room */
+.sensor-page-grid {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 480px), 1fr));
+}
+
+.live-log {
+  display: flex;
+  /* Newest line first in the DOM, shown at the bottom: the box stays pinned to the newest line. */
+  flex-direction: column-reverse;
+  height: 32rem;
+  max-height: 60vh;
+  padding: 0.5rem 0.75rem;
+  overflow: auto;
+  border-radius: 0.5rem;
+  background: var(--theme-surface-raised);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.live-log__line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.live-log__line--warn {
+  color: var(--theme-warning);
+}
+
+.live-log__line--error {
+  color: var(--theme-danger);
+}
+
+.live-log__time {
+  color: var(--theme-text-muted);
+}
+
+.live-log__filter {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
 /* Bike sensor & measurement: the live race-box readout */
 .sensor-monitor__table-wrap {
   overflow-x: auto;

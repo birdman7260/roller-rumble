@@ -6,6 +6,7 @@ import type {
   AdminNotificationInput,
   AppSnapshot,
   ChallengeAnswer,
+  LiveLogEntry,
   PhotoBoothAdminStatus,
   PhotoBoothTokenResponse,
   CreateRacerInput,
@@ -700,6 +701,14 @@ export async function fetchTunnelDiagnostics(): Promise<TunnelDiagnostics> {
 
 export async function installCloudflared(): Promise<TunnelDiagnostics> {
   return parseJson(await fetch(buildUrl("/api/tunnel/install-cloudflared"), { method: "POST" }));
+}
+
+export async function fetchLiveLog(): Promise<{ entries: LiveLogEntry[] }> {
+  return parseJson(await fetch(buildUrl("/api/logs")));
+}
+
+export async function clearLiveLog(): Promise<{ entries: LiveLogEntry[] }> {
+  return parseJson(await fetch(buildUrl("/api/logs/clear"), { method: "POST" }));
 }
 
 export async function startSensorTest(): Promise<AppSnapshot> {

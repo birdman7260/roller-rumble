@@ -1,4 +1,4 @@
-export type AdminTabId = "event" | "race" | "racers" | "tournaments" | "settings";
+export type AdminTabId = "event" | "race" | "racers" | "tournaments" | "settings" | "sensor";
 
 export const adminTabs: {
   id: AdminTabId;
@@ -29,5 +29,10 @@ export const adminTabs: {
     id: "settings",
     label: "Settings",
     description: "Theme, cue triggers, data scope, and public tunnel controls."
+  },
+  {
+    id: "sensor",
+    label: "Bike Sensor",
+    description: "Watch the race box live, dial in how riders are measured, and follow the app log."
   }
 ];

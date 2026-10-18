@@ -6,7 +6,13 @@ import AdmZip from "adm-zip";
 import { loadDotenvFiles } from "../backend/env";
 import { createBackendServer, type BackendServer } from "../backend/server";
 import { handleStartupFailure } from "./startup-failure";
-import { getLogFilePath, getRecentLogLines, initLogging } from "./logging";
+import {
+  clearLog,
+  getLiveLogEntries,
+  getLogFilePath,
+  getRecentLogLines,
+  initLogging
+} from "./logging";
 import type {
   ProjectorWindowResizeResult,
   ProjectorWindowSizePreset
@@ -241,6 +247,7 @@ async function bootstrap(): Promise<void> {
     appVersion: app.getVersion(),
     getLogLines: () => getRecentLogLines(),
     logFilePath: getLogFilePath(),
+    liveLog: { entries: getLiveLogEntries, clear: clearLog },
     saveDiagnosticsBundle: (files) => saveDiagnosticsBundle(files)
   });
 

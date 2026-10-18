@@ -10,6 +10,7 @@ import { EventTab } from "../components/admin/event-tab";
 import { AdminRaceTray } from "../components/admin/race-tray";
 import { RaceTab } from "../components/admin/race-tab";
 import { RacersTab } from "../components/admin/racers-tab";
+import { SensorTab } from "../components/admin/sensor-tab";
 import { SettingsTab } from "../components/admin/settings-tab";
 import { AdminTabRail } from "../components/admin/tab-rail";
 import { TournamentsTab } from "../components/admin/tournaments-tab";
@@ -282,6 +283,9 @@ export function AdminPage() {
       break;
     case "settings":
       activeTabContent = <SettingsTab snapshot={snapshot} meta={metaQuery.data} />;
+      break;
+    case "sensor":
+      activeTabContent = <SensorTab snapshot={snapshot} />;
       break;
   }
 

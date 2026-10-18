@@ -1,9 +1,14 @@
 import fs from "node:fs";
 import log from "electron-log/main";
 import { SECRET_ENV_KEYS } from "@roller-rumble/shared/managed-settings";
+import type { LiveLogEntry } from "@roller-rumble/shared/types";
+import { LiveLog, type LiveLogMessage } from "../backend/services/live-log";
 
 const MAX_LOG_FILE_BYTES = 5 * 1024 * 1024;
 const DEFAULT_LOG_TAIL_LINES = 800;
+
+// The newest lines in memory, for the admin Live log panel (see `LiveLog`).
+const liveLog = new LiveLog();
 
 function collectSecretValues(): string[] {
   return SECRET_ENV_KEYS.map((key) => process.env[key]?.trim()).filter(
@@ -35,6 +40,13 @@ export function initLogging(): void {
     return message;
   });
 
+  // A transport rather than a hook: hooks run once per transport, a transport runs once per message,
+  // and it sees the message after the scrubbing hook above.
+  log.transports.live = Object.assign((message: LiveLogMessage) => liveLog.push(message), {
+    level: "info" as const,
+    transforms: []
+  });
+
   // Route existing console.* through electron-log so all current logging is captured to file.
   Object.assign(console, log.functions);
 }
@@ -54,4 +66,16 @@ export function getRecentLogLines(limit = DEFAULT_LOG_TAIL_LINES): string[] {
   } catch {
     return [];
   }
+}
+
+/** The newest log lines, oldest first, for the admin Live log panel. */
+export function getLiveLogEntries(): LiveLogEntry[] {
+  return liveLog.entries();
+}
+
+/** Empty the log: both the live view and the log file the diagnostics bundle reads. */
+export function clearLog(): void {
+  log.transports.file.getFile().clear();
+  liveLog.clear();
+  console.info("[log] cleared from the admin Live log panel.");
 }

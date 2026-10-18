@@ -5,6 +5,7 @@ import {
   createWebSocketUrl,
   type SnapshotStreamSurface,
   fetchRuntimeEnvInfo,
+  fetchLiveLog,
   fetchMeta,
   fetchNotificationConfig,
   fetchPhotoBoothStatus,
@@ -24,6 +25,9 @@ export const runtimeEnvQueryKey = ["runtime-env"];
 export const photoBoothStatusQueryKey = ["photo-booth-status"];
 export const notificationConfigQueryKey = ["notification-config"];
 export const racerNotificationsQueryKey = ["racer-notifications"];
+export const liveLogQueryKey = ["live-log"];
+/** How often the admin Live log panel re-reads the log while it is following. */
+const LIVE_LOG_POLL_MS = 1000;
 const snapshotQueryOptions = (surface: SnapshotStreamSurface) =>
   queryOptions({
     queryKey: snapshotQueryKey(surface),
@@ -50,6 +54,13 @@ const racerNotificationsQueryOptions = (enabled: boolean) =>
     queryKey: racerNotificationsQueryKey,
     queryFn: fetchRacerNotifications,
     enabled
+  });
+
+const liveLogQueryOptions = (following: boolean) =>
+  queryOptions({
+    queryKey: liveLogQueryKey,
+    queryFn: fetchLiveLog,
+    refetchInterval: following ? LIVE_LOG_POLL_MS : false
   });
 
 export const queryClient = new QueryClient({
@@ -79,6 +90,11 @@ export function usePhotoBoothStatusQuery() {
 
 export function useNotificationConfigQuery() {
   return useQuery(notificationConfigQueryOptions);
+}
+
+/** The app log's newest lines, re-polled every second while `following` (paused otherwise). */
+export function useLiveLogQuery(following: boolean) {
+  return useQuery(liveLogQueryOptions(following));
 }
 
 export function useRacerNotificationsQuery(enabled: boolean) {

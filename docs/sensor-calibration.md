@@ -1,9 +1,11 @@
 # Dialing in the bike sensors
 
 Use this when you're at the real bikes and the race numbers look wrong, or before the first event on
-new hardware. Everything lives in **Settings → Bike sensor & measurement**: a live readout of
-what the race box is sending, a **Start sensor test** button, and every setting that affects how
-riders are measured.
+new hardware. Everything lives in the admin's **Bike Sensor** tab. The **Bike sensor &
+measurement** panel has a live readout of what the race box is sending, a **Start sensor test**
+button, and every setting that affects how riders are measured. Beside it, the **Live log** panel
+shows the app log as it's written. Tick **Only sensor lines** to see just the box. **Clear log**
+gives you a clean start before each check.
 
 Every setting saves straight away and applies to the **next** race or test, with three exceptions.
 **Bike sensor** (Simulator vs OpenSprints) needs a full quit and reopen. **Sensor serial port** and
@@ -118,8 +120,9 @@ anything a person could do, the switch is double-counting:
 
 ## When you need help
 
-Turn **Log raw sensor data** on, reproduce the problem, then **straight away** use **Diagnostics →
-Save diagnostics bundle**. The bundle holds the most recent log lines, which with raw logging on is
+Turn **Log raw sensor data** on to see every line the box sends in the **Live log**. To hand it to
+someone else, **Clear log**, reproduce the problem, then **straight away** use **Settings →
+Diagnostics → Save diagnostics bundle**. The bundle holds the most recent log lines, which with raw logging on is
 only about the last 40 seconds of box data, plus the monitor's last readout. Turn raw logging off
 afterwards.
 

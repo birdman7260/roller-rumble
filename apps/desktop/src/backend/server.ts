@@ -11,7 +11,7 @@ import webpush from "web-push";
 import { WebSocketServer } from "ws";
 import type { WebSocket } from "ws";
 import { API_PREFIX, DEFAULT_SERVER_PORT, WS_PATH } from "@roller-rumble/shared/constants";
-import type { AppSnapshot } from "@roller-rumble/shared/types";
+import type { AppSnapshot, LiveLogEntry } from "@roller-rumble/shared/types";
 import {
   adminTournamentByeFillSchema,
   adminNotificationSchema,
@@ -62,6 +62,8 @@ interface BackendServerOptions {
   appVersion?: string;
   getLogLines?: () => string[];
   logFilePath?: string;
+  /** The app log's newest lines and a way to clear it, for the admin Live log panel. */
+  liveLog?: { entries(): LiveLogEntry[]; clear(): void };
   saveDiagnosticsBundle?: (files: { name: string; content: string }[]) => Promise<string | null>;
 }
 
@@ -148,6 +150,8 @@ function requireHostAdminWindow(req: express.Request, refusal: string): void {
 }
 
 const REFUNDS_HOST_ONLY = "Refunds are only available from the host laptop's admin window.";
+// The log can carry racer names and setup details, so it never leaves the host machine either.
+const LOGS_HOST_ONLY = "The app log is only available from the host laptop's admin window.";
 
 async function proxyDevRequest(
   rendererDevUrl: string,
@@ -978,6 +982,25 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     try {
       const bundle = await service.getDiagnosticsBundle();
       res.json({ summary: bundle.summary });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.get(`${API_PREFIX}/logs`, (req, res, next) => {
+    try {
+      requireHostAdminWindow(req, LOGS_HOST_ONLY);
+      res.json({ entries: options.liveLog?.entries() ?? [] });
+    } catch (error) {
+      next(error);
+    }
+  });
+
+  app.post(`${API_PREFIX}/logs/clear`, (req, res, next) => {
+    try {
+      requireHostAdminWindow(req, LOGS_HOST_ONLY);
+      options.liveLog?.clear();
+      res.json({ entries: options.liveLog?.entries() ?? [] });
     } catch (error) {
       next(error);
     }
