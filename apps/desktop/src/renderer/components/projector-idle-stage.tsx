@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { queueEntryBikeColors } from "../lib/bike-colors";
 import type { ProjectorIdleView } from "../lib/projector-idle-view";
 import { getQueueEntryTimingLabel } from "../lib/queue-position-label";
-import { formatRaceTime } from "../lib/race-time";
+import { formatRaceTime } from "../lib/race-format";
 import { SIGNUP_PROMPT_DEFAULTS } from "../lib/signup-prompt-copy";
 import {
   PROJECTOR_NAME_MAX_LENGTH,

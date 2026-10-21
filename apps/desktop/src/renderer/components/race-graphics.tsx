@@ -20,6 +20,7 @@ import { resolveBackendAssetUrl } from "../lib/assets";
 import { bikeColorForLane } from "../lib/bike-colors";
 import type { ProjectorParticipantEntry } from "../lib/snapshot-display";
 import { getMonogram } from "../lib/monogram";
+import { formatRaceClock } from "../lib/race-format";
 import { SKELETON_RIDER_BOX_SCALE } from "../lib/skeleton-riders";
 import { useLaneGlow } from "../lib/use-lane-glow";
 import { useLeadChangeFlash } from "../lib/use-lead-change-flash";
@@ -168,14 +169,6 @@ function formatRaceDistance(targetDistanceMeters: number): string {
   return `${Math.round(targetDistanceMeters)} m`;
 }
 
-function formatElapsedTime(elapsedMs: number): string {
-  // Round to whole hundredths before splitting, so 59.996s carries to "1:00.00" rather than "0:60.00".
-  const totalCentiseconds = Math.round(Math.max(0, elapsedMs) / 10);
-  const minutes = Math.floor(totalCentiseconds / 6000);
-  const seconds = ((totalCentiseconds % 6000) / 100).toFixed(2);
-  return `${minutes}:${seconds.padStart(5, "0")}`;
-}
-
 /**
  * The live race clock. It reads zero until the race is `active`, ticks up from
  * `startedAt` while active, and freezes at the final elapsed time once the race
@@ -216,7 +209,7 @@ function RaceElapsedClock({
     elapsedMs = frozenElapsedMs;
   }
 
-  return <strong className="race-graphic__meta-value">{formatElapsedTime(elapsedMs)}</strong>;
+  return <strong className="race-graphic__meta-value">{formatRaceClock(elapsedMs)}</strong>;
 }
 
 /**

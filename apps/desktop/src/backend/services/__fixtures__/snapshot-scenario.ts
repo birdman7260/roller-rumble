@@ -23,7 +23,7 @@ import type { AppDatabase } from "../../db/Database";
 export const FIXED_NOW_MS = Date.UTC(2026, 5, 24, 12, 0, 0);
 export const FIXED_NOW_ISO = new Date(FIXED_NOW_MS).toISOString();
 
-const ACTIVE_EVENT_ID = "event-1";
+export const ACTIVE_EVENT_ID = "event-1";
 const OTHER_EVENT_ID = "event-0";
 
 function makeRacer(
@@ -334,7 +334,8 @@ export const SCENARIO_RUNTIME_ENV: RuntimeEnvInfo = {
  */
 export function makeSnapshotDb(
   includeAllRaceData: boolean,
-  currentRace: RaceRecord = CURRENT_RACE
+  currentRace: RaceRecord = CURRENT_RACE,
+  extraResults: RaceResult[] = []
 ): AppDatabase {
   const settings = makeSettings(includeAllRaceData);
   const event = makeEvent(includeAllRaceData);
@@ -343,7 +344,7 @@ export function makeSnapshotDb(
     getActiveEvent: () => event,
     getAdminSettings: () => settings,
     getNotificationRevision: () => "revision-1",
-    listResults: () => ALL_RESULTS.map((result) => ({ ...result })),
+    listResults: () => [...ALL_RESULTS, ...extraResults].map((result) => ({ ...result })),
     listQueueEntries: () => QUEUE.map((entry) => ({ ...entry })),
     getCurrentRace: () => ({ ...currentRace }),
     listRaceTargetDistances: () => new Map([["race-history", 250]]),

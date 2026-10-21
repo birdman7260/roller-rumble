@@ -21,7 +21,7 @@ export const racerSortOptions: {
   { key: "wins", label: "Wins", defaultDirection: "desc" }
 ];
 
-/** The value a key sorts on; `null` means the racer has none and sinks to the bottom. */
+/** The value a key sorts on, always from the active event; `null` means the racer has none and sinks to the bottom. */
 const sortValues: Record<RacerSortKey, (entry: RacerSummary) => string | number | null> = {
   displayName: (entry) => entry.racer.displayName,
   realName: (entry) => {
@@ -29,9 +29,9 @@ const sortValues: Record<RacerSortKey, (entry: RacerSummary) => string | number 
     const realName = entry.racer.realName?.trim() ?? "";
     return realName === "" ? null : realName;
   },
-  fastestTime: (entry) => entry.stats.bestFinishTimeMs ?? null,
-  races: (entry) => entry.stats.races,
-  wins: (entry) => entry.stats.wins
+  fastestTime: (entry) => entry.stats.eventBestFinishTimeMs,
+  races: (entry) => entry.stats.eventRaces,
+  wins: (entry) => entry.stats.eventWins
 };
 
 function compareText(left: string, right: string): number {

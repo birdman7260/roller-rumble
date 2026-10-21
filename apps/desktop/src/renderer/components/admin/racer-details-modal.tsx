@@ -2,7 +2,8 @@ import type { RacerSummary } from "@roller-rumble/shared/types";
 import { Button, Modal } from "@roller-rumble/shared-ui";
 import { removeRacerFromUpcoming, signUpQueue, updateRacerPayment } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
-import { formatFastestTime, formatSpeed, paymentStatusLabels } from "./racer-format";
+import { formatBestFinish, formatPower, formatSpeed } from "../../lib/race-format";
+import { paymentStatusLabels } from "./payment-status-labels";
 
 function DetailStat({ label, value }: { label: string; value: string }) {
   return (
@@ -106,14 +107,20 @@ export function RacerDetailsModal({
           <ContactField label="Email" value={racer.email} />
         </dl>
 
-        <div className="racer-detail-stat-grid">
-          <DetailStat label="Races" value={String(stats.races)} />
-          <DetailStat label="Wins" value={String(stats.wins)} />
-          <DetailStat label="Fastest Time" value={formatFastestTime(stats.bestFinishTimeMs)} />
-          <DetailStat label="Top Speed" value={formatSpeed(stats.topSpeedKph)} />
-          <DetailStat label="Average Speed" value={formatSpeed(stats.averageSpeedKph)} />
-          <DetailStat label="Max Power" value={`${Math.round(stats.maxWattage)} W`} />
-        </div>
+        <section className="racer-profile__section">
+          <h3>This event</h3>
+          <div className="racer-detail-stat-grid">
+            <DetailStat label="Races" value={String(stats.eventRaces)} />
+            <DetailStat label="Wins" value={String(stats.eventWins)} />
+            <DetailStat
+              label="Fastest Time"
+              value={formatBestFinish(stats.eventBestFinishTimeMs)}
+            />
+            <DetailStat label="Top Speed" value={formatSpeed(stats.eventTopSpeedKph)} />
+            <DetailStat label="Average Speed" value={formatSpeed(stats.eventAverageSpeedKph)} />
+            <DetailStat label="Max Power" value={formatPower(stats.eventMaxWattage)} />
+          </div>
+        </section>
         <p className="muted">
           Career: {stats.careerRaces} races across {stats.careerEventCount} events
         </p>

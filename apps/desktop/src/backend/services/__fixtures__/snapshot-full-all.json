@@ -61,7 +61,11 @@
         "bestFinishTimeMs": 58000,
         "topSpeedKph": 42,
         "averageSpeedKph": 35.5,
-        "maxWattage": 320
+        "maxWattage": 320,
+        "eventBestFinishTimeMs": 60000,
+        "eventTopSpeedKph": 40,
+        "eventAverageSpeedKph": 35,
+        "eventMaxWattage": 300
       },
       "payment": {
         "status": "paid",
@@ -92,7 +96,11 @@
         "bestFinishTimeMs": 65000,
         "topSpeedKph": 38,
         "averageSpeedKph": 33,
-        "maxWattage": 280
+        "maxWattage": 280,
+        "eventBestFinishTimeMs": 65000,
+        "eventTopSpeedKph": 38,
+        "eventAverageSpeedKph": 33,
+        "eventMaxWattage": 280
       },
       "payment": {
         "status": "paid",

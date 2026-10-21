@@ -7,6 +7,7 @@ import type {
 import { Button, Panel } from "@roller-rumble/shared-ui";
 import { AnimatePresence, m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../../lib/assets";
+import { formatSpeed } from "../../lib/race-format";
 import { ExpandedRacerStats } from "./stats";
 import type { SectionMotionProps } from "./shared";
 
@@ -79,7 +80,7 @@ export function RacersTab({
                       <strong>{entry.racer.displayName}</strong>
                       {!isExpanded ? (
                         <p>
-                          {entry.stats.races} races - {entry.stats.topSpeedKph.toFixed(1)} km/h top
+                          {entry.stats.races} races - {formatSpeed(entry.stats.topSpeedKph)} top
                           speed
                         </p>
                       ) : null}

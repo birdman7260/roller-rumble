@@ -8,14 +8,18 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
-- The **Registered Racers** list on the admin **Racers** tab can now be sorted by display name, real name, fastest time, number of races, or number of wins, in either direction. Racers without a real name or a finish yet stay at the bottom. The sort is kept while you switch tabs.
-- Each racer on the **Racers** tab now shows their top speed and fastest time.
+- The **Registered Racers** list on the admin **Racers** tab can now be sorted by display name, real name, or this event's fastest time, number of races, or number of wins, in either direction. Racers without a real name or a finish yet stay at the bottom. The sort is kept while you switch tabs.
+- Each racer on the **Racers** tab now shows their top speed and fastest time for this event. As on the top racers board, the fastest time only counts races run at the event's race distance where the rider reached the finish line.
 
 ### Changed
 
 - Racer rows on the **Racers** tab now have just two buttons: **Queue** (formerly **Add To Queue**) and a **⋮** menu. The menu opens a racer card with their contact details, race stats, and every other action: **Solo Run**, **Remove from Upcoming**, and, when an entrance fee is required, **Mark Paid**, **Waive**, or **Unpaid**.
+- The race counts and stats on the **Racers** tab and its racer card now always cover this event only, even when **Seed from all-time race data** is on.
+- The projector's results screen shows "—" instead of "0.0 km/h" when a rider has no speed reading.
 
 ### Fixed
+
+- A racer's best finish on their phone is now rounded the same way as on the projector, so a time like 59.996s shows as 1:00.00 everywhere instead of 60.00s on the phone.
 
 ## 0.1.26 - 2026-10-18
 

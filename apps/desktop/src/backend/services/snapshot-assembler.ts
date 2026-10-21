@@ -9,6 +9,7 @@ import type {
   RuntimeEnvInfo,
   SensorMonitor,
   StripeSetupStatus,
+  TopRacersEntry,
   TunnelState
 } from "@roller-rumble/shared/types";
 import { getTheme, themes } from "@roller-rumble/shared/themes";
@@ -43,6 +44,26 @@ export interface SnapshotContext {
   now?: () => number;
 }
 
+type RaceResults = ReturnType<AppDatabase["listResults"]>;
+
+/** A racer's top speed, average speed, power, and quickest time across `results`; null when there are none. */
+function summarizePerformance(results: RaceResults) {
+  if (results.length === 0) {
+    return { bestFinishTimeMs: null, topSpeedKph: null, averageSpeedKph: null, maxWattage: null };
+  }
+  const finishTimes = results
+    .map((result) => result.finishTimeMs)
+    .filter((value): value is number => typeof value === "number");
+  return {
+    bestFinishTimeMs: finishTimes.length > 0 ? Math.min(...finishTimes) : null,
+    topSpeedKph: Math.max(...results.map((result) => result.topSpeedKph)),
+    averageSpeedKph: Number(
+      (results.reduce((sum, result) => sum + result.avgSpeedKph, 0) / results.length).toFixed(2)
+    ),
+    maxWattage: Math.max(...results.map((result) => result.maxWattage))
+  };
+}
+
 /**
  * Owns the full `AppSnapshot` shape end-to-end: assembling it from the database plus the
  * injected runtime context, and projecting it per streaming surface. The server no longer
@@ -63,21 +84,24 @@ export class SnapshotAssembler {
     const results = settings.includeAllRaceData
       ? allResults
       : allResults.filter((result) => result.eventId === activeEvent.id);
-    const racers = this.buildRacerSummaries(activeEvent.id, results, allResults);
+    // Every racer's best qualifying run this event, fastest first. It feeds both the top racers
+    // board and each racer's event fastest time, and ranks the active event alone, whatever
+    // `includeAllRaceData` says (ADR 0022).
+    const eventBestRuns = rankTopRacers({
+      eventId: activeEvent.id,
+      raceDistanceMeters: settings.targetDistanceMeters,
+      raceTargetDistanceById: this.db.listRaceTargetDistances(activeEvent.id),
+      results: allResults,
+      rows: Number.POSITIVE_INFINITY
+    });
+    const racers = this.buildRacerSummaries(activeEvent.id, results, allResults, eventBestRuns);
     const queue = reindexQueue(
       this.db
         .listQueueEntries(activeEvent.id)
         .filter((entry) => ["queued", "staging"].includes(entry.status))
     );
     const currentRace = this.db.getCurrentRace(activeEvent.id);
-    // The board ranks the active event alone, whatever `includeAllRaceData` says (ADR 0022).
-    const topRacers = rankTopRacers({
-      eventId: activeEvent.id,
-      raceDistanceMeters: settings.targetDistanceMeters,
-      raceTargetDistanceById: this.db.listRaceTargetDistances(activeEvent.id),
-      results: allResults,
-      rows: settings.raceDisplayTopRacersRows
-    });
+    const topRacers = eventBestRuns.slice(0, settings.raceDisplayTopRacersRows);
     const nextQueueEntry = findNextQueuedEntry(queue);
     // Snapshot tournament state is intentionally scoped to the active event so the racer page and
     // admin surfaces do not have to untangle cross-event tournament history on the client.
@@ -234,10 +258,14 @@ export class SnapshotAssembler {
 
   private buildRacerSummaries(
     eventId: string,
-    results: ReturnType<AppDatabase["listResults"]>,
-    allResults: ReturnType<AppDatabase["listResults"]>
+    results: RaceResults,
+    allResults: RaceResults,
+    eventBestRuns: TopRacersEntry[]
   ): RacerSummary[] {
     const racers = this.db.listEventRacers(eventId);
+    const eventBestTimeByRacerId = new Map(
+      eventBestRuns.map((run) => [run.racerId, run.finishTimeMs])
+    );
 
     return racers.map((racer) => {
       const racerResults = results.filter((result) => result.racerId === racer.id);
@@ -245,6 +273,8 @@ export class SnapshotAssembler {
         (result) => result.racerId === racer.id && result.eventId === eventId
       );
       const careerResults = allResults.filter((result) => result.racerId === racer.id);
+      const performance = summarizePerformance(racerResults);
+      const eventPerformance = summarizePerformance(eventResults);
       const stats: RacerStats = {
         races: racerResults.length,
         wins: racerResults.filter((result) => result.placement === 1).length,
@@ -252,22 +282,15 @@ export class SnapshotAssembler {
         eventWins: eventResults.filter((result) => result.placement === 1).length,
         careerRaces: careerResults.length,
         careerEventCount: new Set(careerResults.map((result) => result.eventId)).size,
-        bestFinishTimeMs:
-          racerResults
-            .map((result) => result.finishTimeMs)
-            .filter((value): value is number => typeof value === "number")
-            .sort((left, right) => left - right)[0] ?? null,
-        topSpeedKph: racerResults.reduce((max, result) => Math.max(max, result.topSpeedKph), 0),
-        averageSpeedKph:
-          racerResults.length === 0
-            ? 0
-            : Number(
-                (
-                  racerResults.reduce((sum, result) => sum + result.avgSpeedKph, 0) /
-                  racerResults.length
-                ).toFixed(2)
-              ),
-        maxWattage: racerResults.reduce((max, result) => Math.max(max, result.maxWattage), 0)
+        bestFinishTimeMs: performance.bestFinishTimeMs,
+        topSpeedKph: performance.topSpeedKph ?? 0,
+        averageSpeedKph: performance.averageSpeedKph ?? 0,
+        maxWattage: performance.maxWattage ?? 0,
+        // Only a qualifying run counts, so this matches the racer's top racers board time.
+        eventBestFinishTimeMs: eventBestTimeByRacerId.get(racer.id) ?? null,
+        eventTopSpeedKph: eventPerformance.topSpeedKph,
+        eventAverageSpeedKph: eventPerformance.averageSpeedKph,
+        eventMaxWattage: eventPerformance.maxWattage
       };
       return {
         racer,

@@ -44,18 +44,3 @@ export function formatPaymentAmount(
 
   return `${normalizedCurrency} ${(amountCents / 100).toFixed(2)}`;
 }
-
-export function formatFinishTime(milliseconds: number | null | undefined): string {
-  if (typeof milliseconds !== "number") {
-    return "No finish yet";
-  }
-
-  const totalSeconds = milliseconds / 1000;
-  if (totalSeconds < 60) {
-    return `${totalSeconds.toFixed(2)}s`;
-  }
-
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds - minutes * 60;
-  return `${String(minutes)}:${seconds.toFixed(2).padStart(5, "0")}`;
-}

@@ -23,17 +23,22 @@ const speedy: RacerSummary = {
     createdAt: "2026-10-01T00:00:00.000Z",
     updatedAt: "2026-10-01T00:00:00.000Z"
   },
+  // All-time figures differ from this event's, so the tests show which ones the tab reads.
   stats: {
-    races: 4,
-    wins: 3,
+    races: 9,
+    wins: 7,
     eventRaces: 4,
     eventWins: 3,
     careerRaces: 9,
     careerEventCount: 2,
-    bestFinishTimeMs: 28_430,
-    topSpeedKph: 52.36,
-    averageSpeedKph: 41.2,
-    maxWattage: 812
+    bestFinishTimeMs: 25_000,
+    topSpeedKph: 60,
+    averageSpeedKph: 45,
+    maxWattage: 900,
+    eventBestFinishTimeMs: 28_430,
+    eventTopSpeedKph: 52.36,
+    eventAverageSpeedKph: 41.2,
+    eventMaxWattage: 812
   },
   payment: { status: "unpaid" }
 };
@@ -97,10 +102,11 @@ describe("RacersTab", () => {
     vi.mocked(updateRacerPayment).mockClear();
   });
 
-  it("shows each racer's top speed and fastest time with just Queue and a menu button", () => {
+  it("shows each racer's event races, wins, top speed and fastest time with just Queue and a menu button", () => {
     renderTab();
     const row = within(racerRow("Speedy"));
 
+    expect(row.getByText(/4 races · 3 wins/)).toBeInTheDocument();
     expect(row.getByText(/52\.4 km\/h/)).toBeInTheDocument();
     expect(row.getByText(/28\.43s/)).toBeInTheDocument();
     expect(row.getByRole("button", { name: "Queue" })).toBeInTheDocument();
@@ -160,9 +166,9 @@ describe("RacersTab", () => {
 
   it("sorts the list by the chosen field and flips direction", () => {
     renderTab([
-      racer("Bolt", { races: 2, wins: 1, bestFinishTimeMs: 31_000 }, "Zoe Quinn"),
-      racer("Apex", { races: 5, wins: 0, bestFinishTimeMs: null }, "Mia Long"),
-      racer("Comet", { races: 3, wins: 3, bestFinishTimeMs: 27_500 }, "Ada Byron")
+      racer("Bolt", { eventRaces: 2, eventWins: 1, eventBestFinishTimeMs: 31_000 }, "Zoe Quinn"),
+      racer("Apex", { eventRaces: 5, eventWins: 0, eventBestFinishTimeMs: null }, "Mia Long"),
+      racer("Comet", { eventRaces: 3, eventWins: 3, eventBestFinishTimeMs: 27_500 }, "Ada Byron")
     ]);
 
     expect(rowNames()).toEqual(["Apex", "Bolt", "Comet"]);
@@ -181,9 +187,9 @@ describe("RacersTab", () => {
 
   it("starts count sorts with the most races or wins first", () => {
     renderTab([
-      racer("Bolt", { races: 2, wins: 1 }),
-      racer("Apex", { races: 5, wins: 0 }),
-      racer("Comet", { races: 3, wins: 3 })
+      racer("Bolt", { eventRaces: 2, eventWins: 1 }),
+      racer("Apex", { eventRaces: 5, eventWins: 0 }),
+      racer("Comet", { eventRaces: 3, eventWins: 3 })
     ]);
     const sortBy = screen.getByLabelText("Sort by");
 

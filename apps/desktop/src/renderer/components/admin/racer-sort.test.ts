@@ -6,9 +6,9 @@ function racer(
   displayName: string,
   overrides: {
     realName?: string | null;
-    races?: number;
-    wins?: number;
-    bestFinishTimeMs?: number | null;
+    eventRaces?: number;
+    eventWins?: number;
+    eventBestFinishTimeMs?: number | null;
   } = {}
 ): RacerSummary {
   return {
@@ -21,17 +21,22 @@ function racer(
       createdAt: "2026-10-01T00:00:00.000Z",
       updatedAt: "2026-10-01T00:00:00.000Z"
     },
+    // The all-time figures are the same for everyone, so only the event figures can order the list.
     stats: {
-      races: overrides.races ?? 0,
-      wins: overrides.wins ?? 0,
-      eventRaces: overrides.races ?? 0,
-      eventWins: overrides.wins ?? 0,
-      careerRaces: overrides.races ?? 0,
-      careerEventCount: 1,
-      bestFinishTimeMs: overrides.bestFinishTimeMs ?? null,
-      topSpeedKph: 0,
-      averageSpeedKph: 0,
-      maxWattage: 0
+      races: 50,
+      wins: 50,
+      eventRaces: overrides.eventRaces ?? 0,
+      eventWins: overrides.eventWins ?? 0,
+      careerRaces: 50,
+      careerEventCount: 3,
+      bestFinishTimeMs: 1_000,
+      topSpeedKph: 80,
+      averageSpeedKph: 60,
+      maxWattage: 1_500,
+      eventBestFinishTimeMs: overrides.eventBestFinishTimeMs ?? null,
+      eventTopSpeedKph: null,
+      eventAverageSpeedKph: null,
+      eventMaxWattage: null
     },
     payment: { status: "unpaid" }
   };
@@ -79,11 +84,11 @@ describe("sortRacers", () => {
     ]);
   });
 
-  it("orders by fastest time, quickest first when ascending, unfinished racers last", () => {
+  it("orders by fastest time this event, quickest first when ascending, unfinished racers last", () => {
     const racers = [
       racer("Unfinished"),
-      racer("Slow", { bestFinishTimeMs: 61_250 }),
-      racer("Quick", { bestFinishTimeMs: 28_430 })
+      racer("Slow", { eventBestFinishTimeMs: 61_250 }),
+      racer("Quick", { eventBestFinishTimeMs: 28_430 })
     ];
 
     expect(names(sortRacers(racers, { key: "fastestTime", direction: "asc" }))).toEqual([
@@ -98,12 +103,12 @@ describe("sortRacers", () => {
     ]);
   });
 
-  it("orders by number of races, breaking ties by display name", () => {
+  it("orders by number of races this event, breaking ties by display name", () => {
     const racers = [
-      racer("Cobra", { races: 2 }),
-      racer("Rookie", { races: 0 }),
-      racer("Veteran", { races: 7 }),
-      racer("Ace", { races: 2 })
+      racer("Cobra", { eventRaces: 2 }),
+      racer("Rookie", { eventRaces: 0 }),
+      racer("Veteran", { eventRaces: 7 }),
+      racer("Ace", { eventRaces: 2 })
     ];
 
     expect(names(sortRacers(racers, { key: "races", direction: "desc" }))).toEqual([
@@ -120,11 +125,11 @@ describe("sortRacers", () => {
     ]);
   });
 
-  it("orders by number of wins", () => {
+  it("orders by number of wins this event", () => {
     const racers = [
-      racer("Winless", { races: 5, wins: 0 }),
-      racer("Champ", { races: 5, wins: 4 }),
-      racer("Decent", { races: 5, wins: 2 })
+      racer("Winless", { eventRaces: 5, eventWins: 0 }),
+      racer("Champ", { eventRaces: 5, eventWins: 4 }),
+      racer("Decent", { eventRaces: 5, eventWins: 2 })
     ];
 
     expect(names(sortRacers(racers, { key: "wins", direction: "desc" }))).toEqual([

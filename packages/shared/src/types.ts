@@ -550,6 +550,10 @@ export interface RacerSummary {
   payment: EventRacerPayment;
 }
 
+/**
+ * The unprefixed figures follow the host's "Seed from all-time race data" setting; the `event*`
+ * figures always cover the active event alone, and are null until the racer has raced it.
+ */
 export interface RacerStats {
   races: number;
   wins: number;
@@ -561,6 +565,10 @@ export interface RacerStats {
   topSpeedKph: number;
   averageSpeedKph: number;
   maxWattage: number;
+  eventBestFinishTimeMs: number | null;
+  eventTopSpeedKph: number | null;
+  eventAverageSpeedKph: number | null;
+  eventMaxWattage: number | null;
 }
 
 /**

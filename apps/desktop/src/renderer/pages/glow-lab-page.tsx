@@ -168,7 +168,11 @@ function makeRacerSummary(
       careerEventCount: 0,
       topSpeedKph: 0,
       averageSpeedKph: 0,
-      maxWattage: 0
+      maxWattage: 0,
+      eventBestFinishTimeMs: null,
+      eventTopSpeedKph: null,
+      eventAverageSpeedKph: null,
+      eventMaxWattage: null
     },
     payment: { status: "paid" }
   };

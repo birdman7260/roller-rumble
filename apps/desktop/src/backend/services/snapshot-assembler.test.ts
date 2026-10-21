@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { SensorMonitor } from "@roller-rumble/shared/types";
+import type { RaceResult, SensorMonitor } from "@roller-rumble/shared/types";
 import { SnapshotAssembler, type SnapshotContext } from "./snapshot-assembler";
 import {
+  ACTIVE_EVENT_ID,
   CURRENT_RACE,
   FIXED_NOW_MS,
   makeSnapshotDb,
@@ -94,6 +95,51 @@ describe("SnapshotAssembler.assemble", () => {
       { racerId: "racer-1", raceId: "race-history", finishTimeMs: 60_000 },
       { racerId: "racer-2", raceId: "race-history", finishTimeMs: 65_000 }
     ]);
+  });
+
+  it("keeps a racer's event stats to the active event even with all race data included", () => {
+    const assembler = new SnapshotAssembler(makeSnapshotDb(true));
+
+    const ada = assembler
+      .assemble(makeContext())
+      .racers.find((entry) => entry.racer.id === "racer-1");
+
+    // Ada's 58s, 42 km/h, 320 W run belongs to another event; this event has only her 60s run.
+    expect(ada?.stats).toMatchObject({
+      races: 2,
+      bestFinishTimeMs: 58_000,
+      eventRaces: 1,
+      eventWins: 1,
+      eventBestFinishTimeMs: 60_000,
+      eventTopSpeedKph: 40,
+      eventAverageSpeedKph: 35,
+      eventMaxWattage: 300
+    });
+  });
+
+  it("only counts a run that reached the finish line as a racer's event fastest time", () => {
+    // Grace's race was force-finished 120 m into the 250 m race, so its 20s time is not a finish.
+    const partialRun: RaceResult = {
+      id: "result-partial",
+      racerId: "racer-2",
+      eventId: ACTIVE_EVENT_ID,
+      raceId: "race-history",
+      lane: "right",
+      placement: 1,
+      finishTimeMs: 20_000,
+      distanceMeters: 120,
+      avgSpeedKph: 30,
+      topSpeedKph: 36,
+      maxWattage: 250,
+      createdAt: "2026-01-03T00:00:00.000Z"
+    };
+    const assembler = new SnapshotAssembler(makeSnapshotDb(false, CURRENT_RACE, [partialRun]));
+
+    const grace = assembler
+      .assemble(makeContext())
+      .racers.find((entry) => entry.racer.id === "racer-2");
+
+    expect(grace?.stats).toMatchObject({ eventRaces: 2, eventBestFinishTimeMs: 65_000 });
   });
 });
 

@@ -9,11 +9,7 @@ import { Panel } from "@roller-rumble/shared-ui";
 import { m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../lib/assets";
 import { bikeColorForLane } from "../lib/bike-colors";
-import { formatRaceTime } from "../lib/race-time";
-
-function formatSpeed(value: number | undefined): string {
-  return `${(value ?? 0).toFixed(1)} km/h`;
-}
+import { formatRaceTime, formatSpeed } from "../lib/race-format";
 
 function getMetricForRacer(
   metrics: RaceMetricsSnapshot[],
