@@ -9,7 +9,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 ### Added
 
 - The **Registered Racers** list on the admin **Racers** tab can now be sorted by display name, real name, or this event's fastest time, number of races, or number of wins, in either direction. Racers without a real name or a finish yet stay at the bottom. The sort is kept while you switch tabs.
-- Each racer on the **Racers** tab now shows their top speed and fastest time for this event. As on the top racers board, the fastest time only counts races run at the event's race distance where the rider reached the finish line.
+- Each racer on the **Racers** tab now shows their fastest time for this event, and their racer card also shows top speed, average speed, and max power. As on the top racers board, the fastest time only counts races run at the event's race distance where the rider reached the finish line.
 
 ### Changed
 

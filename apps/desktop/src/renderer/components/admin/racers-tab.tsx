@@ -7,7 +7,7 @@ import { fireAndForget } from "../../lib/ui-actions";
 import { useMasonryGrid } from "../../lib/use-masonry-grid";
 import { QuickAddRacerPanel } from "./quick-add-racer";
 import { RacerDetailsModal } from "./racer-details-modal";
-import { formatBestFinish, formatSpeed } from "../../lib/race-format";
+import { formatBestFinish } from "../../lib/race-format";
 import { paymentStatusLabels } from "./payment-status-labels";
 import { racerSortOptions, sortRacers, type RacerSort, type RacerSortKey } from "./racer-sort";
 
@@ -43,8 +43,7 @@ function RacerRow({
         <strong>{entry.racer.displayName}</strong>
         <RacerContactDetails racer={entry.racer} />
         <p>
-          {entry.stats.eventRaces} races · {entry.stats.eventWins} wins · Top{" "}
-          {formatSpeed(entry.stats.eventTopSpeedKph)} · Fastest{" "}
+          {entry.stats.eventRaces} races · {entry.stats.eventWins} wins · Fastest{" "}
           {formatBestFinish(entry.stats.eventBestFinishTimeMs)}
         </p>
         {paymentRequiredForQueue ? (

@@ -102,13 +102,12 @@ describe("RacersTab", () => {
     vi.mocked(updateRacerPayment).mockClear();
   });
 
-  it("shows each racer's event races, wins, top speed and fastest time with just Queue and a menu button", () => {
+  it("shows each racer's event races, wins and fastest time with just Queue and a menu button", () => {
     renderTab();
     const row = within(racerRow("Speedy"));
 
-    expect(row.getByText(/4 races · 3 wins/)).toBeInTheDocument();
-    expect(row.getByText(/52\.4 km\/h/)).toBeInTheDocument();
-    expect(row.getByText(/28\.43s/)).toBeInTheDocument();
+    expect(row.getByText("4 races · 3 wins · Fastest 28.43s")).toBeInTheDocument();
+    expect(row.queryByText(/km\/h/)).not.toBeInTheDocument();
     expect(row.getByRole("button", { name: "Queue" })).toBeInTheDocument();
     expect(row.getByRole("button", { name: "More for Speedy" })).toBeInTheDocument();
     expect(row.getAllByRole("button")).toHaveLength(2);
