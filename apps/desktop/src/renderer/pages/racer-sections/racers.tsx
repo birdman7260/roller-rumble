@@ -80,8 +80,10 @@ export function RacersTab({
                       <strong>{entry.racer.displayName}</strong>
                       {!isExpanded ? (
                         <p>
-                          {entry.stats.races} races - {formatSpeed(entry.stats.topSpeedKph)} top
-                          speed
+                          {entry.stats.eventRaces} races
+                          {entry.stats.eventTopSpeedKph === null
+                            ? null
+                            : ` - ${formatSpeed(entry.stats.eventTopSpeedKph)} top speed`}
                         </p>
                       ) : null}
                     </span>

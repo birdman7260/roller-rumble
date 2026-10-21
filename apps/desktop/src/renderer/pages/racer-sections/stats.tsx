@@ -37,10 +37,10 @@ export function ExpandedRacerStats({
         />
         <RacerStat
           label="Best Finish"
-          value={formatBestFinish(entry.stats.bestFinishTimeMs, "No finish yet")}
+          value={formatBestFinish(entry.stats.eventBestFinishTimeMs, "No finish yet")}
         />
-        <RacerStat label="Top Speed" value={formatSpeed(entry.stats.topSpeedKph)} />
-        <RacerStat label="Average Speed" value={formatSpeed(entry.stats.averageSpeedKph)} />
+        <RacerStat label="Top Speed" value={formatSpeed(entry.stats.eventTopSpeedKph)} />
+        <RacerStat label="Average Speed" value={formatSpeed(entry.stats.eventAverageSpeedKph)} />
       </div>
 
       {racerQueueEntries.length > 0 ? (

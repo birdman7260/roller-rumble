@@ -15,6 +15,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 - Racer rows on the **Racers** tab now have just two buttons: **Queue** (formerly **Add To Queue**) and a **⋮** menu. The menu opens a racer card with their contact details, race stats, and every other action: **Solo Run**, **Remove from Upcoming**, and, when an entrance fee is required, **Mark Paid**, **Waive**, or **Unpaid**.
 - The race counts and stats on the **Racers** tab and its racer card now always cover this event only, even when **Seed from all-time race data** is on.
+- Racer stats on phones (best finish, top speed, average speed, and race count in the racer list) now cover this event only, like the win-loss record already did, even when **Seed from all-time race data** is on. A racer who hasn't raced yet this event shows no top speed in the list.
 - The projector's results screen shows "—" instead of "0.0 km/h" when a rider has no speed reading.
 
 ### Fixed
