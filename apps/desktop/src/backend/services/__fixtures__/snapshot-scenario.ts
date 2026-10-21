@@ -216,6 +216,9 @@ function makeEvent(includeAllRaceData: boolean): EventRecord {
     paymentRequiredForQueue: false,
     paymentAmountCents: null,
     paymentCurrency: "usd",
+    registrationLimit: null,
+    tournamentStartsAt: null,
+    tournamentStartCheckDismissedAt: null,
     active: true,
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-24T11:00:00.000Z"
@@ -335,7 +338,8 @@ export const SCENARIO_RUNTIME_ENV: RuntimeEnvInfo = {
 export function makeSnapshotDb(
   includeAllRaceData: boolean,
   currentRace: RaceRecord = CURRENT_RACE,
-  extraResults: RaceResult[] = []
+  extraResults: RaceResult[] = [],
+  raceFinishTimesByEventId: Record<string, string[]> = {}
 ): AppDatabase {
   const settings = makeSettings(includeAllRaceData);
   const event = makeEvent(includeAllRaceData);
@@ -348,6 +352,7 @@ export function makeSnapshotDb(
     listQueueEntries: () => QUEUE.map((entry) => ({ ...entry })),
     getCurrentRace: () => ({ ...currentRace }),
     listRaceTargetDistances: () => new Map([["race-history", 250]]),
+    listRaceFinishTimes: (eventId: string) => [...(raceFinishTimesByEventId[eventId] ?? [])],
     listTournamentBundles: () => [],
     listEventRacers: () => RACERS.map((racer) => ({ ...racer })),
     getEventRacerPayment: () => ({ ...PAYMENT })

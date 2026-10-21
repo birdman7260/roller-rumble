@@ -132,14 +132,17 @@ export function TextInput({ className, ...props }: InputHTMLAttributes<HTMLInput
 export function StatPill({
   label,
   value,
+  tone,
   className
 }: {
   label: string;
   value: ReactNode;
+  /** Colors the value as good or bad news, e.g. a forecast that is on track or running over. */
+  tone?: "positive" | "negative";
   className?: string;
 }) {
   return (
-    <div className={cx("stat-pill", className)}>
+    <div className={cx("stat-pill", tone && `stat-pill--${tone}`, className)}>
       <span className="stat-pill__label">{label}</span>
       <strong className="stat-pill__value">{value}</strong>
     </div>

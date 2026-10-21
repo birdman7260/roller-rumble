@@ -192,6 +192,15 @@ export interface EventRecord {
   description?: string | null;
   signupEyebrow?: string | null;
   signupHeading?: string | null;
+  /** The most racers who may register for the event themselves; null means no limit. */
+  registrationLimit: number | null;
+  /** When the host plans to start the event's tournament (ISO); null when no start is planned. */
+  tournamentStartsAt: string | null;
+  /**
+   * When the host dismissed the `tournament start check` for the current planned start, or null.
+   * Changing the planned start clears it, so a new start gets its own check.
+   */
+  tournamentStartCheckDismissedAt: string | null;
   includeAllRaceData: boolean;
   paymentRequiredForQueue: boolean;
   paymentAmountCents?: number | null;
@@ -581,6 +590,18 @@ export interface TopRacersEntry {
   finishTimeMs: number;
 }
 
+/**
+ * The `race pace`: how long the event is taking per race, start to start. Measured from the gaps
+ * between the event's race finishes once there are any, and the operator's `queueMinutesPerRace`
+ * until then.
+ */
+export interface RacePace {
+  secondsPerRace: number;
+  source: "measured" | "default";
+  /** How many finish-to-finish gaps the measurement rests on; 0 while it is the default. */
+  sampleCount: number;
+}
+
 export interface RaceProjectionModel {
   race: RaceRecord | null;
   countdownSecondsRemaining: number | null;
@@ -826,6 +847,8 @@ export interface AppSnapshot {
   queue: QueueEntry[];
   raceProjection: RaceProjectionModel;
   tournaments: TournamentBundle[];
+  /** How long the event is taking per race, kept up to date through tournaments too. */
+  racePace: RacePace;
   /** The active tournament's `tournament queue`; empty while no tournament is running. */
   tournamentQueue: TournamentQueueEntry[];
   themes: ThemeDefinition[];

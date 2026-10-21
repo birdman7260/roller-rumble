@@ -432,6 +432,7 @@ export class RollerRumbleApp extends EventEmitter {
     subscription: WebPushSubscriptionInput,
     userAgent?: string | null
   ): NotificationConfig {
+    this.auth.admitToActiveEvent(racerId);
     return this.notifications.saveRacerPushSubscription(racerId, subscription, userAgent);
   }
 
@@ -1547,7 +1548,7 @@ export class RollerRumbleApp extends EventEmitter {
       throw new Error("Cannot create a photo booth QR for an unknown racer.");
     }
 
-    this.db.ensureEventRegistration(activeEvent.id, racer.id);
+    this.auth.admitToActiveEvent(racer.id);
     const issuedAtMs = Date.now();
     const payload: PhotoBoothTokenPayload = {
       version: 1,
@@ -1706,10 +1707,29 @@ export class RollerRumbleApp extends EventEmitter {
     description?: string | null;
     signupEyebrow?: string | null;
     signupHeading?: string | null;
+    registrationLimit?: number | null;
+    tournamentStartsAt?: string | null;
   }): AppSnapshot {
     const activeEvent = this.db.getActiveEvent();
     if (activeEvent) {
-      this.db.updateEvent(activeEvent.id, input);
+      const startMoved =
+        input.tournamentStartsAt !== undefined &&
+        input.tournamentStartsAt !== activeEvent.tournamentStartsAt;
+      // A new planned start gets its own `tournament start check`.
+      this.db.updateEvent(
+        activeEvent.id,
+        startMoved ? { ...input, tournamentStartCheckDismissedAt: null } : input
+      );
+      this.emitSnapshot();
+    }
+    return this.getSnapshot();
+  }
+
+  /** The host answered the `tournament start check`, so it stays closed for this planned start. */
+  dismissTournamentStartCheck(): AppSnapshot {
+    const activeEvent = this.db.getActiveEvent();
+    if (activeEvent?.tournamentStartsAt) {
+      this.db.updateEvent(activeEvent.id, { tournamentStartCheckDismissedAt: nowIso() });
       this.emitSnapshot();
     }
     return this.getSnapshot();
@@ -2045,7 +2065,7 @@ export class RollerRumbleApp extends EventEmitter {
 
     const activeEvent = this.db.getActiveEvent()!;
     this.assertNoUnansweredChallengeRequest(activeEvent.id, racerId);
-    this.db.ensureEventRegistration(activeEvent.id, racerId);
+    this.auth.admitToActiveEvent(racerId);
     const racer = this.db.getRacer(racerId);
     if (!racer) {
       throw new AppHttpError("Racer not found.", 404, "racer_not_found");
@@ -2111,7 +2131,7 @@ export class RollerRumbleApp extends EventEmitter {
       throw new AppHttpError("This event has no entry fee.", 400, "payment_not_required");
     }
 
-    this.db.ensureEventRegistration(activeEvent.id, racerId);
+    this.auth.admitToActiveEvent(racerId);
     const racer = this.db.getRacer(racerId);
     if (!racer) {
       throw new AppHttpError("Racer not found.", 404, "racer_not_found");

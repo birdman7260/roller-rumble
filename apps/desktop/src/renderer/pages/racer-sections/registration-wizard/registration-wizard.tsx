@@ -54,10 +54,13 @@ export interface SignedInRegistration {
  */
 export function RegistrationWizard({
   event,
+  registrationFull = false,
   onRegistered,
   signedIn
 }: {
   event: Pick<EventRecord, "paymentRequiredForQueue" | "paymentAmountCents" | "paymentCurrency">;
+  /** The event has reached its registration limit, so a new racer can't sign up. */
+  registrationFull?: boolean;
   onRegistered: (result: RacerAuthSuccessResponse) => void;
   signedIn?: SignedInRegistration;
 }) {
@@ -102,6 +105,20 @@ export function RegistrationWizard({
     } finally {
       setBusy(false);
     }
+  }
+
+  // A racer already signed up finishes their steps; only a newcomer is turned away.
+  if (registrationFull && !signedIn) {
+    return (
+      <div className="registration-wizard stack-md">
+        <Panel title="Registration Full">
+          <p>
+            This event has reached its registration limit, so signups are closed. Check in with the
+            host if you think you should be racing.
+          </p>
+        </Panel>
+      </div>
+    );
   }
 
   return (

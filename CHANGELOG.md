@@ -8,6 +8,9 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- A new **Event Plan** card on the **Event** tab sets a **Registration limit** and a **Tournament starts at** time. Once the limit is reached, new racers see "Registration Full" on their phone instead of the signup steps, and phones from an earlier event can't join. You can still add racers yourself at the desk. Leave the limit blank for no limit.
+- The admin header now always shows the **Race pace**, the time each race is actually taking from one finish to the next. It is the typical gap over the last ten races, so one long break doesn't skew it, and it keeps updating during a tournament. Until two races have finished it shows your minutes-per-race setting, marked "(est.)". Once a tournament start time is set, the header also shows the start time and how long is left, how many races are still to run and how long they will take, and whether the queue will clear in time (or how many races it will run over).
+- Twenty minutes before the planned tournament start, the admin shows a **Tournament start check**: the time left, races still to run, race pace, and whether the queue will clear in time, with a choice to **Close the Queue** so it stops growing or **Keep Queue Open**. It asks only once for each planned start time.
 - The **Registered Racers** list on the admin **Racers** tab can now be sorted by display name, real name, or this event's fastest time, number of races, or number of wins, in either direction. Racers without a real name or a finish yet stay at the bottom. The sort is kept while you switch tabs.
 - Each racer on the **Racers** tab now shows their fastest time for this event, and their racer card also shows top speed, average speed, and max power. As on the top racers board, the fastest time only counts races run at the event's race distance where the rider reached the finish line.
 

@@ -87,7 +87,10 @@ export const updateEventSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   description: optionalCopy(500),
   signupEyebrow: optionalCopy(80),
-  signupHeading: optionalCopy(80)
+  signupHeading: optionalCopy(80),
+  // null clears the cap or the planned start.
+  registrationLimit: z.number().int().min(1).max(10_000).nullable().optional(),
+  tournamentStartsAt: z.string().datetime({ offset: true }).nullable().optional()
 });
 
 export const queueSignupSchema = z.object({

@@ -6,6 +6,7 @@ import type {
   TournamentBracketSize,
   TournamentPreset
 } from "@roller-rumble/shared/types";
+import { EventPaceReadout, TournamentStartCheckModal } from "../components/admin/event-pace";
 import { EventTab } from "../components/admin/event-tab";
 import { AdminRaceTray } from "../components/admin/race-tray";
 import { RaceTab } from "../components/admin/race-tab";
@@ -29,6 +30,10 @@ import {
 import { signUpQueue, updateSettings } from "../lib/api";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
 import { fireAndForget } from "../lib/ui-actions";
+import { useNowMs } from "../lib/use-now-ms";
+
+/** How often the admin's tournament countdown re-reads the clock. */
+const EVENT_CLOCK_TICK_MS = 15_000;
 
 interface AdminPageState {
   activeTab: AdminTabId;
@@ -73,6 +78,7 @@ export function AdminPage() {
   const metaQuery = useMetaQuery();
   const snapshot = snapshotQuery.data;
   const [state, setState] = useReducer(adminPageReducer, initialAdminPageState);
+  const nowMs = useNowMs(EVENT_CLOCK_TICK_MS);
   const {
     activeTab,
     adminQueueOpponentId,
@@ -309,6 +315,11 @@ export function AdminPage() {
             <h1>{activeTabConfig.label}</h1>
           </div>
           <p className="admin-workspace__description">{activeTabConfig.description}</p>
+          <EventPaceReadout
+            snapshot={snapshot}
+            tournamentActive={Boolean(activeTournament)}
+            nowMs={nowMs}
+          />
         </header>
         <div className="admin-workspace__scroll">{activeTabContent}</div>
         <AdminRaceTray
@@ -318,6 +329,11 @@ export function AdminPage() {
           setActiveTab={setActiveTab}
         />
       </section>
+      <TournamentStartCheckModal
+        snapshot={snapshot}
+        tournamentActive={Boolean(activeTournament)}
+        nowMs={nowMs}
+      />
     </div>
   );
 }

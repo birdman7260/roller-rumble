@@ -85,6 +85,31 @@ describe("SnapshotAssembler.assemble", () => {
     expect(snapshot.raceProjection.countdownSecondsRemaining).toBeNull();
   });
 
+  it("measures the race pace from the gaps between the active event's race finishes", () => {
+    const assembler = new SnapshotAssembler(
+      makeSnapshotDb(false, CURRENT_RACE, [], {
+        [ACTIVE_EVENT_ID]: ["2026-06-24T11:50:00.000Z", "2026-06-24T11:52:30.000Z"]
+      })
+    );
+
+    expect(assembler.assemble(makeContext()).racePace).toEqual({
+      secondsPerRace: 150,
+      source: "measured",
+      sampleCount: 1
+    });
+  });
+
+  it("uses the operator's minutes per race as the race pace before any gap is measured", () => {
+    const assembler = new SnapshotAssembler(makeSnapshotDb(false));
+
+    // The scenario's queueMinutesPerRace is 2.
+    expect(assembler.assemble(makeContext()).racePace).toEqual({
+      secondsPerRace: 120,
+      source: "default",
+      sampleCount: 0
+    });
+  });
+
   it("ranks the active event's runs on the top racers board even with all race data included", () => {
     const assembler = new SnapshotAssembler(makeSnapshotDb(true));
 

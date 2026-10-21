@@ -801,6 +801,24 @@ a {
   overflow-wrap: anywhere;
 }
 
+/* The always-on race pace and tournament start forecast, on its own row under the header. */
+.admin-event-pace {
+  display: flex;
+  flex-basis: 100%;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  min-width: 0;
+}
+
+.admin-event-pace .stat-pill {
+  padding: 0.45rem 0.75rem;
+}
+
+.admin-event-pace__note {
+  color: var(--theme-text-muted);
+  font-size: 0.85rem;
+}
+
 .admin-workspace__scroll {
   min-height: 0;
   overflow-y: auto;

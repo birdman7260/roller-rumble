@@ -281,6 +281,14 @@ textarea,
 :root[data-theme-ui="pixel"] input,
 :root[data-theme-ui="pixel"] select,
 :root[data-theme-ui="pixel"] textarea,
+.stat-pill--positive .stat-pill__value {
+  color: var(--theme-accent);
+}
+
+.stat-pill--negative .stat-pill__value {
+  color: var(--theme-danger);
+}
+
 :root[data-theme-ui="pixel"] .stat-pill {
   border-radius: 0.35rem;
 }

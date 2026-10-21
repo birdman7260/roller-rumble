@@ -19,8 +19,6 @@ import {
  */
 export type NotificationStore = Pick<
   AppDatabase,
-  | "getActiveEvent"
-  | "ensureEventRegistration"
   | "getRacer"
   | "upsertPushSubscription"
   | "revokePushSubscription"
@@ -64,10 +62,6 @@ export class NotificationService {
     subscription: WebPushSubscriptionInput,
     userAgent?: string | null
   ): NotificationConfig {
-    const activeEvent = this.db.getActiveEvent();
-    if (activeEvent) {
-      this.db.ensureEventRegistration(activeEvent.id, racerId);
-    }
     this.db.upsertPushSubscription(racerId, subscription, userAgent);
     return this.getNotificationConfig();
   }

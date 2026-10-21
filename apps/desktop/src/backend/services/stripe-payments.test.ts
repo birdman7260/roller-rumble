@@ -14,6 +14,9 @@ const event: EventRecord = {
   paymentRequiredForQueue: true,
   paymentAmountCents: 1000,
   paymentCurrency: "usd",
+  registrationLimit: null,
+  tournamentStartsAt: null,
+  tournamentStartCheckDismissedAt: null,
   active: true,
   createdAt: "now",
   updatedAt: "now"

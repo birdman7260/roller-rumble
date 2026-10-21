@@ -6,6 +6,7 @@ import type {
   RacerEntryCheckoutResponse,
   RacerQueueSignupResponse
 } from "@roller-rumble/shared/types";
+import { AuthService, type AuthStore } from "./auth";
 import { AppHttpError } from "./http-error";
 import { PaymentService, type PaymentStore } from "./payment";
 import { RollerRumbleApp } from "./app";
@@ -68,6 +69,9 @@ function makeStore() {
     paymentRequiredForQueue: false,
     paymentAmountCents: null,
     paymentCurrency: "usd",
+    registrationLimit: null,
+    tournamentStartsAt: null,
+    tournamentStartCheckDismissedAt: null,
     active: true,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -82,6 +86,9 @@ function makeStore() {
     })),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
     ensureEventRegistration: vi.fn(),
+    // Every racer here counts as already in the event, so the registration limit never applies.
+    isRegisteredForEvent: vi.fn(() => true),
+    countEventRacers: vi.fn(() => 0),
     listQueueEntries: vi.fn(() => []),
     getEventRacerPayment: vi.fn(
       (_eventId: string, racerId: string) => payments.get(racerId) ?? { status: "unpaid" }
@@ -178,6 +185,7 @@ function seedStripePaidRacer(
 // prototype-rebind idiom used elsewhere for app-method tests.
 interface OrchestrationTarget {
   db: Store["db"];
+  auth: AuthService;
   payment: PaymentService;
   emitSnapshot: ReturnType<typeof vi.fn>;
   getSnapshot: ReturnType<typeof vi.fn>;
@@ -187,6 +195,7 @@ interface OrchestrationTarget {
 function makeTarget(store: Store): OrchestrationTarget {
   const target: OrchestrationTarget = {
     db: store.db,
+    auth: new AuthService(store.db as unknown as AuthStore),
     payment: newPayment(store),
     emitSnapshot: vi.fn(),
     getSnapshot: vi.fn(() => snapshot),

@@ -2007,6 +2007,7 @@ describe("app service challenge requests", () => {
         getNextQueueSignupSequence: () => nextId++
       },
       notifications: { createNotificationAndDispatch },
+      auth: { admitToActiveEvent: () => undefined },
       getQueueRacerStatsById: () => new Map(),
       getActiveTournamentBundle: () => null,
       saveProjectedQueue: (_eventId: string, next: QueueOccurrence[], timestamp: string) => {

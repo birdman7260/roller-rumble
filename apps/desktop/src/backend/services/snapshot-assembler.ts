@@ -17,6 +17,7 @@ import type { AppDatabase } from "../db/Database";
 import type { SensorStatus } from "../adapters/sensor";
 import type { RaceCountdownTiming } from "./race-countdown";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
+import { measureRacePace } from "./race-pace";
 import { assembleSubsystemHealth } from "./subsystem-health";
 import { rankTopRacers } from "./top-racers";
 import { buildTournamentQueue } from "./tournament-queue";
@@ -131,6 +132,10 @@ export class SnapshotAssembler {
       activeEvent,
       racers,
       queue,
+      racePace: measureRacePace({
+        finishTimes: this.db.listRaceFinishTimes(activeEvent.id),
+        defaultMinutesPerRace: settings.queueMinutesPerRace
+      }),
       tournaments: tournamentBundles,
       tournamentQueue: activeTournament
         ? buildTournamentQueue({ bundle: activeTournament, currentRace })

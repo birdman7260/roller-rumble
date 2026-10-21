@@ -31,10 +31,7 @@ function makeRacer(id: string): Racer {
 
 function makeStore() {
   const racers = new Map<string, Racer>([["racer-1", makeRacer("racer-1")]]);
-  const activeEvent = { id: "event-1" };
   const db = {
-    getActiveEvent: vi.fn(() => activeEvent),
-    ensureEventRegistration: vi.fn(),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
     upsertPushSubscription: vi.fn(),
     revokePushSubscription: vi.fn(),
@@ -49,7 +46,7 @@ function makeStore() {
     listNotificationDeliveries: vi.fn(() => [{ id: "delivery-1", racerId: "racer-1" }]),
     updateNotificationDeliveryPushStatus: vi.fn()
   };
-  return { db, racers, activeEvent };
+  return { db, racers };
 }
 
 type Store = ReturnType<typeof makeStore>;
@@ -82,7 +79,7 @@ describe("NotificationService", () => {
     });
   });
 
-  it("registers the racer for the active event when saving a subscription", () => {
+  it("saves the racer's push subscription", () => {
     const store = makeStore();
     const { service } = newService(store);
 
@@ -92,7 +89,6 @@ describe("NotificationService", () => {
       "test-agent"
     );
 
-    expect(store.db.ensureEventRegistration).toHaveBeenCalledWith("event-1", "racer-1");
     expect(store.db.upsertPushSubscription).toHaveBeenCalledWith(
       "racer-1",
       { endpoint: "https://push.example/abc" },

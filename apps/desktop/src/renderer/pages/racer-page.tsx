@@ -1149,6 +1149,10 @@ function useRacerPageViewModel({
   const registration = (
     <RegistrationWizard
       event={snapshot.activeEvent}
+      registrationFull={
+        snapshot.activeEvent.registrationLimit !== null &&
+        snapshot.racers.length >= snapshot.activeEvent.registrationLimit
+      }
       onRegistered={rememberRegisteredRacer}
       signedIn={
         registeredRacer && registrationInProgress

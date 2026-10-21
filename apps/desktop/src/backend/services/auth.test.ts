@@ -29,11 +29,23 @@ const registration = {
   displayName: "Countess Crank"
 };
 
+function errorThrownBy(action: () => unknown): unknown {
+  try {
+    action();
+  } catch (error) {
+    return error;
+  }
+  throw new Error("Expected the action to throw.");
+}
+
 function makeStore(): AuthStore & {
   racers: Map<string, Racer>;
   activeEvent: EventRecord;
+  eventRacerIds: Set<string>;
 } {
   const racers = new Map<string, Racer>();
+  // Who is entered in the active event.
+  const eventRacerIds = new Set<string>();
   const activeEvent: EventRecord = {
     id: "event-1",
     name: "Test Event",
@@ -41,6 +53,9 @@ function makeStore(): AuthStore & {
     paymentRequiredForQueue: false,
     paymentAmountCents: null,
     paymentCurrency: "usd",
+    registrationLimit: null,
+    tournamentStartsAt: null,
+    tournamentStartCheckDismissedAt: null,
     active: true,
     createdAt: timestamp,
     updatedAt: timestamp
@@ -50,6 +65,7 @@ function makeStore(): AuthStore & {
   return {
     racers,
     activeEvent,
+    eventRacerIds,
     createRacer: vi.fn((input: CreateRacerInput) => {
       const racer: Racer = {
         ...makeRacer(`racer-${racers.size + 1}`, input.displayName, input.email),
@@ -70,7 +86,11 @@ function makeStore(): AuthStore & {
     }),
     getRacer: vi.fn((racerId: string) => racers.get(racerId) ?? null),
     getActiveEvent: vi.fn(() => activeEvent),
-    ensureEventRegistration: vi.fn(),
+    ensureEventRegistration: vi.fn((_eventId: string, racerId: string) => {
+      eventRacerIds.add(racerId);
+    }),
+    countEventRacers: vi.fn(() => eventRacerIds.size),
+    isRegisteredForEvent: vi.fn((_eventId: string, racerId: string) => eventRacerIds.has(racerId)),
     getSetting: vi.fn((_key: string, fallback: string | null) => ({
       value: sessionSecret ?? fallback
     })),
@@ -80,6 +100,7 @@ function makeStore(): AuthStore & {
   } as unknown as AuthStore & {
     racers: Map<string, Racer>;
     activeEvent: EventRecord;
+    eventRacerIds: Set<string>;
   };
 }
 
@@ -167,6 +188,80 @@ describe("AuthService", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+
+  it("refuses a new registration once the event has reached its registration limit", () => {
+    const store = makeStore();
+    store.activeEvent.registrationLimit = 2;
+    const auth = new AuthService(store);
+    auth.registerRacer(registration);
+    auth.registerRacer({ ...registration, displayName: "Sibling Spinner" });
+
+    expect(
+      errorThrownBy(() => auth.registerRacer({ ...registration, displayName: "Third Wheel" }))
+    ).toMatchObject({ statusCode: 403, code: "registration_full" });
+    expect(store.racers.size).toBe(2);
+    expect(store.eventRacerIds.size).toBe(2);
+  });
+
+  it("keeps registering while the event is under its limit or has none", () => {
+    const store = makeStore();
+    store.activeEvent.registrationLimit = 3;
+    const auth = new AuthService(store);
+
+    auth.registerRacer(registration);
+    auth.registerRacer({ ...registration, displayName: "Sibling Spinner" });
+    store.activeEvent.registrationLimit = null;
+    auth.registerRacer({ ...registration, displayName: "Third Wheel" });
+    auth.registerRacer({ ...registration, displayName: "Fourth Gear" });
+
+    expect(store.eventRacerIds.size).toBe(4);
+  });
+
+  it("does not enter a returning phone's racer in an event that is already full", () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    const returning = makeRacer("racer-returning", "Last Year's Champ");
+    store.racers.set(returning.id, returning);
+    auth.registerRacer(registration);
+    store.activeEvent.registrationLimit = 1;
+
+    const session = auth.getRacerAuthSession(auth.createRacerSessionToken(returning.id));
+
+    // The device login still names the racer; they just aren't in this event.
+    expect(session?.id).toBe(returning.id);
+    expect(store.eventRacerIds.has(returning.id)).toBe(false);
+  });
+
+  it("keeps a racer already in a full event signed in and entered", () => {
+    const store = makeStore();
+    store.activeEvent.registrationLimit = 1;
+    const auth = new AuthService(store);
+    const racer = auth.registerRacer(registration);
+
+    const session = auth.getRacerAuthSession(auth.createRacerSessionToken(racer.id));
+
+    expect(session?.id).toBe(racer.id);
+    expect(store.eventRacerIds.has(racer.id)).toBe(true);
+  });
+
+  it("refuses to admit a racer outside a full event, and admits one already in it", () => {
+    const store = makeStore();
+    const auth = new AuthService(store);
+    const entered = auth.registerRacer(registration);
+    const outsider = makeRacer("racer-outsider", "Gate Crasher");
+    store.racers.set(outsider.id, outsider);
+    store.activeEvent.registrationLimit = 1;
+
+    expect(
+      errorThrownBy(() => {
+        auth.admitToActiveEvent(outsider.id);
+      })
+    ).toMatchObject({ code: "registration_full" });
+    expect(() => {
+      auth.admitToActiveEvent(entered.id);
+    }).not.toThrow();
+    expect([...store.eventRacerIds]).toEqual([entered.id]);
   });
 
   it("round-trips signed racer session tokens", () => {

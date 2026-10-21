@@ -665,6 +665,10 @@ export function createBackendServer(options: BackendServerOptions): BackendServe
     res.json(service.updateActiveEvent(input));
   });
 
+  app.post(`${API_PREFIX}/events/current/tournament-start-check/dismiss`, (_req, res) => {
+    res.json(service.dismissTournamentStartCheck());
+  });
+
   app.post(`${API_PREFIX}/events/current/payment`, (req, res) => {
     const input = updateEventPaymentConfigSchema.parse(req.body);
     res.json(service.updateActiveEventPaymentConfig(input));

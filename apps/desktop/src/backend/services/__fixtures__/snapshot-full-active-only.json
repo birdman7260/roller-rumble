@@ -35,6 +35,9 @@
     "paymentRequiredForQueue": false,
     "paymentAmountCents": null,
     "paymentCurrency": "usd",
+    "registrationLimit": null,
+    "tournamentStartsAt": null,
+    "tournamentStartCheckDismissedAt": null,
     "active": true,
     "createdAt": "2026-06-01T00:00:00.000Z",
     "updatedAt": "2026-06-24T11:00:00.000Z"
@@ -153,6 +156,11 @@
       "updatedAt": "2026-06-24T11:05:00.000Z"
     }
   ],
+  "racePace": {
+    "secondsPerRace": 120,
+    "source": "default",
+    "sampleCount": 0
+  },
   "tournaments": [],
   "tournamentQueue": [],
   "tunnel": {

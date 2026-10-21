@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
-import { and, asc, desc, eq, inArray, like, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNotNull, like, ne, or, sql } from "drizzle-orm";
 import { type BetterSQLite3Database, drizzle } from "drizzle-orm/better-sqlite3";
 import { nanoid } from "nanoid";
 import {
@@ -202,6 +202,9 @@ function mapEvent(row: EventRow): EventRecord {
     description: row.description,
     signupEyebrow: row.signupEyebrow,
     signupHeading: row.signupHeading,
+    registrationLimit: row.registrationLimit,
+    tournamentStartsAt: row.tournamentStartsAt,
+    tournamentStartCheckDismissedAt: row.tournamentStartCheckDismissedAt,
     includeAllRaceData: row.includeAllRaceData,
     paymentRequiredForQueue: row.paymentRequiredForQueue,
     paymentAmountCents: row.paymentAmountCents,
@@ -701,6 +704,9 @@ export class AppDatabase {
       description?: string | null;
       signupEyebrow?: string | null;
       signupHeading?: string | null;
+      registrationLimit?: number | null;
+      tournamentStartsAt?: string | null;
+      tournamentStartCheckDismissedAt?: string | null;
     }
   ): EventRecord {
     const changes: Partial<typeof events.$inferInsert> = {};
@@ -708,6 +714,13 @@ export class AppDatabase {
     if (input.description !== undefined) changes.description = input.description;
     if (input.signupEyebrow !== undefined) changes.signupEyebrow = input.signupEyebrow;
     if (input.signupHeading !== undefined) changes.signupHeading = input.signupHeading;
+    if (input.registrationLimit !== undefined) changes.registrationLimit = input.registrationLimit;
+    if (input.tournamentStartsAt !== undefined) {
+      changes.tournamentStartsAt = input.tournamentStartsAt;
+    }
+    if (input.tournamentStartCheckDismissedAt !== undefined) {
+      changes.tournamentStartCheckDismissedAt = input.tournamentStartCheckDismissedAt;
+    }
 
     if (Object.keys(changes).length > 0) {
       changes.updatedAt = nowIso();
@@ -846,6 +859,26 @@ export class AppDatabase {
       })
       .onConflictDoNothing()
       .run();
+  }
+
+  countEventRacers(eventId: string): number {
+    return (
+      this.orm
+        .select({ count: sql<number>`count(*)` })
+        .from(eventRacers)
+        .where(eq(eventRacers.eventId, eventId))
+        .get()?.count ?? 0
+    );
+  }
+
+  isRegisteredForEvent(eventId: string, racerId: string): boolean {
+    return Boolean(
+      this.orm
+        .select({ id: eventRacers.id })
+        .from(eventRacers)
+        .where(and(eq(eventRacers.eventId, eventId), eq(eventRacers.racerId, racerId)))
+        .get()
+    );
   }
 
   getEventRacerPayment(eventId: string, racerId: string): EventRacerPayment {
@@ -1702,6 +1735,19 @@ export class AppDatabase {
       .all();
 
     return new Map(rows.map((row) => [row.id, row.targetDistanceMeters]));
+  }
+
+  /** When each of the event's finished races finished, oldest first; feeds the `race pace`. */
+  listRaceFinishTimes(eventId: string): string[] {
+    return this.orm
+      .select({ finishedAt: races.finishedAt })
+      .from(races)
+      .where(
+        and(eq(races.eventId, eventId), eq(races.state, "finished"), isNotNull(races.finishedAt))
+      )
+      .orderBy(asc(races.finishedAt))
+      .all()
+      .flatMap((row) => (row.finishedAt ? [row.finishedAt] : []));
   }
 
   listRaces(eventId: string): RaceRecord[] {

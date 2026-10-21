@@ -116,6 +116,18 @@ _Avoid_: mode (that is competition format), event type, booth mode
 **race distance**: The distance an `Event`'s races are run to, chosen when the event is created; each race keeps its own copy, so a race run before a mid-event change still carries the distance it was run at. Adjustable mid-event only at a `standard` event — a `walk-up event` never changes it, so its `top racers board` only ever ranks runs over one distance. See ADR 0023.
 _Avoid_: target distance, walk-up distance, locked distance
 
+**registration limit**: The most racers an `Event` takes through self-service `registration` — the `registration wizard`, or a returning phone's `device login` entering a new event. Once reached, newcomers see a full card on the racer page instead of the wizard; racers already in the event are untouched, and the host's quick-add at the desk still adds past it. Blank means no limit.
+_Avoid_: capacity, max racers, registration cap (in UI copy)
+
+**planned tournament start**: The time the host plans to start the event's `Tournament`, set per event. It drives the admin header's forecast of whether the `Queue` clears in time, and the `tournament start check`. Purely advisory: nothing starts on its own at that time.
+_Avoid_: tournament time, cutoff
+
+**race pace**: How long the event is actually taking per race, measured start to start as the median of the latest finish-to-finish gaps across all of the event's races, tournament races included. A gap covers everything a race costs the host — staging, swapping riders, the countdown and the ride — and the median keeps one long break from dragging it out. Until two races have finished it is the operator's `queueMinutesPerRace`. Derived in the `SnapshotAssembler`.
+_Avoid_: race duration (that is only the ride), average race time
+
+**tournament start check**: The admin modal that opens twenty minutes before the `planned tournament start`, laying out the races still to run against the time left at the current `race pace`, and offering to close the queue (the `closed queue`) so it stops growing. It asks only while the queue is open and no tournament is running, and once answered — either way — it stays closed for that planned start; changing the start gives it a fresh check.
+_Avoid_: cutoff warning, queue reminder
+
 **walk-up event**: An `Event` whose `event kind` is `walk-up` — the stripped-down shape for a public stall, where riders arrive on the spot with no phone and no `Queue`, the host composes each race directly on the `walk-up desk`, riders pick whichever bike they like, the `race distance` never changes once the event exists, and the projector shows the `top racers board` between races.
 _Avoid_: booth event, booth mode (both collide with the `photo booth`), pop-up event
 

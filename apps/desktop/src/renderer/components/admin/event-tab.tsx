@@ -18,6 +18,7 @@ import {
 import { formatPaymentAmount } from "../../lib/payment-amount";
 import { SIGNUP_PROMPT_DEFAULTS } from "../../lib/signup-prompt-copy";
 import { formatRacerNames } from "../../lib/snapshot-display";
+import { resolvePlannedStart } from "../../lib/tournament-start-forecast";
 import { fireAndForget } from "../../lib/ui-actions";
 import { useMasonryGrid } from "../../lib/use-masonry-grid";
 import { EventRefundsPanel } from "./event-refunds-panel";
@@ -206,6 +207,139 @@ function EventPaymentsPanel({ snapshot }: { snapshot: AppSnapshot }) {
   );
 }
 
+/** A planned start as the time picker holds it: local "HH:MM", or blank when none is planned. */
+function formatTimeOfDayInput(iso: string | null): string {
+  if (!iso) {
+    return "";
+  }
+  const start = new Date(iso);
+  return `${String(start.getHours()).padStart(2, "0")}:${String(start.getMinutes()).padStart(2, "0")}`;
+}
+
+/** A registration limit as typed: blank means no limit, anything else must be a whole number ≥ 1. */
+function parseRegistrationLimit(value: string): number | null | undefined {
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  const parsed = Number(trimmed);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : undefined;
+}
+
+/** How many racers are registered, against the limit when there is one: "12 / 40". */
+function formatRegisteredCount(snapshot: AppSnapshot): string {
+  const limit = snapshot.activeEvent.registrationLimit;
+  const count = String(snapshot.racers.length);
+  return limit === null ? count : `${count} / ${String(limit)}`;
+}
+
+interface EventPlanState {
+  registrationLimit: string;
+  tournamentStartTime: string;
+  busy: boolean;
+  message: string | null;
+}
+
+function eventPlanReducer(state: EventPlanState, patch: Partial<EventPlanState>): EventPlanState {
+  return { ...state, ...patch };
+}
+
+/**
+ * The event's plan for a time-boxed night: how many racers may register, and when the tournament
+ * starts. The planned start drives the admin header's forecast and the `tournament start check`.
+ */
+function EventPlanPanel({ snapshot }: { snapshot: AppSnapshot }) {
+  const activeEvent = snapshot.activeEvent;
+  const [state, dispatch] = useReducer(eventPlanReducer, {
+    registrationLimit:
+      activeEvent.registrationLimit === null ? "" : String(activeEvent.registrationLimit),
+    tournamentStartTime: formatTimeOfDayInput(activeEvent.tournamentStartsAt),
+    busy: false,
+    message: null
+  });
+  const registrationLimitInputId = "event-plan-registration-limit";
+  const tournamentStartInputId = "event-plan-tournament-start";
+  const registrationLimit = parseRegistrationLimit(state.registrationLimit);
+  const registrationLimitIsValid = registrationLimit !== undefined;
+
+  async function handleSave(): Promise<void> {
+    if (registrationLimit === undefined) {
+      return;
+    }
+    // Only a changed time is re-planned: resolving an untouched one again later in the night could
+    // land it on another day and reset the start check the host already answered.
+    const startTimeChanged =
+      state.tournamentStartTime !== formatTimeOfDayInput(activeEvent.tournamentStartsAt);
+    dispatch({ busy: true, message: null });
+    try {
+      await updateActiveEvent({
+        registrationLimit,
+        ...(startTimeChanged
+          ? { tournamentStartsAt: resolvePlannedStart(state.tournamentStartTime, Date.now()) }
+          : {})
+      });
+      dispatch({ message: "Event plan saved." });
+    } finally {
+      dispatch({ busy: false });
+    }
+  }
+
+  return (
+    <Panel title="Event Plan">
+      <div className="form-grid">
+        <label htmlFor={registrationLimitInputId}>
+          Registration limit
+          <TextInput
+            id={registrationLimitInputId}
+            inputMode="numeric"
+            value={state.registrationLimit}
+            onChange={(event) => {
+              dispatch({ registrationLimit: event.target.value, message: null });
+            }}
+            placeholder="No limit"
+          />
+        </label>
+        <label htmlFor={tournamentStartInputId}>
+          Tournament starts at
+          <TextInput
+            id={tournamentStartInputId}
+            type="time"
+            value={state.tournamentStartTime}
+            onChange={(event) => {
+              dispatch({ tournamentStartTime: event.target.value, message: null });
+            }}
+          />
+        </label>
+        <p>
+          Racers can stop registering themselves once the limit is reached; you can still add racers
+          at the desk. Twenty minutes before the tournament starts, you will get a check on whether
+          the queue clears in time, with the option to close it.
+        </p>
+        <div className="stat-grid">
+          <StatPill label="Registered" value={formatRegisteredCount(snapshot)} />
+        </div>
+        {!registrationLimitIsValid ? (
+          <p className="form-error">
+            Use a whole number of racers, or leave it blank for no limit.
+          </p>
+        ) : state.message ? (
+          <p className="form-success">{state.message}</p>
+        ) : null}
+        <div className="panel-action-row">
+          <Button
+            disabled={!registrationLimitIsValid || state.busy}
+            onClick={() => {
+              fireAndForget(handleSave(), "save event plan");
+            }}
+          >
+            Save Event Plan
+          </Button>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 interface EventDetailsState {
   name: string;
   description: string;
@@ -346,7 +480,7 @@ function EventDetailsPanel({ snapshot }: { snapshot: AppSnapshot }) {
       </div>
       <div className="stat-grid">
         <StatPill label="Active Event" value={activeEvent.name} />
-        <StatPill label="Racers" value={snapshot.racers.length} />
+        <StatPill label="Racers" value={formatRegisteredCount(snapshot)} />
         <StatPill label="Upcoming" value={snapshot.queue.length} />
       </div>
       <ConfirmModal
@@ -384,6 +518,8 @@ export function EventTab({
   return (
     <div ref={gridRef} className="page-grid page-grid--masonry">
       <EventDetailsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
+
+      <EventPlanPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 
       <EventPaymentsPanel key={snapshot.activeEvent.id} snapshot={snapshot} />
 

@@ -304,6 +304,8 @@ export interface UpdateEventInput {
   description?: string | null;
   signupEyebrow?: string | null;
   signupHeading?: string | null;
+  registrationLimit?: number | null;
+  tournamentStartsAt?: string | null;
 }
 
 export async function updateActiveEvent(input: UpdateEventInput): Promise<AppSnapshot> {
@@ -313,6 +315,13 @@ export async function updateActiveEvent(input: UpdateEventInput): Promise<AppSna
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(input)
     })
+  );
+}
+
+/** The host answered the `tournament start check`, so it won't ask again for this planned start. */
+export async function dismissTournamentStartCheck(): Promise<AppSnapshot> {
+  return parseJson(
+    await fetch(buildUrl("/api/events/current/tournament-start-check/dismiss"), { method: "POST" })
   );
 }
 

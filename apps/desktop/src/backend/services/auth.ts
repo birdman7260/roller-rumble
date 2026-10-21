@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
-import type { Racer, RacerRegistrationInput } from "@roller-rumble/shared/types";
+import type { EventRecord, Racer, RacerRegistrationInput } from "@roller-rumble/shared/types";
 import type { AppDatabase } from "../db/Database";
+import { AppHttpError } from "./http-error";
 
 const RACER_SESSION_SECRET_SETTING_KEY = "racerSessionSecret";
 
@@ -16,6 +17,8 @@ export type AuthStore = Pick<
   | "getRacer"
   | "getActiveEvent"
   | "ensureEventRegistration"
+  | "countEventRacers"
+  | "isRegisteredForEvent"
   | "createRacer"
   | "updateRacerDetails"
 >;
@@ -98,13 +101,51 @@ export class AuthService {
     }
   }
 
+  /**
+   * A returning phone's racer is entered in the active event when it opens the racer page, unless
+   * the event is already full; they stay signed in either way, just outside a full event.
+   */
   getRacerAuthSession(token?: string | null): Racer | null {
     const racer = this.getRacerFromSessionToken(token);
     const activeEvent = this.db.getActiveEvent();
-    if (racer && activeEvent) {
+    if (
+      racer &&
+      activeEvent &&
+      (this.db.isRegisteredForEvent(activeEvent.id, racer.id) ||
+        this.hasRoomToRegister(activeEvent))
+    ) {
       this.db.ensureEventRegistration(activeEvent.id, racer.id);
     }
     return racer;
+  }
+
+  /**
+   * Enters a signed-in racer in the active event for a self-service action that needs them in it
+   * (queueing, paying the entry fee), refusing when they are outside an event that is full.
+   */
+  admitToActiveEvent(racerId: string): void {
+    const activeEvent = this.db.getActiveEvent();
+    if (!activeEvent) {
+      return;
+    }
+    if (!this.db.isRegisteredForEvent(activeEvent.id, racerId)) {
+      this.assertRoomToRegister(activeEvent);
+    }
+    this.db.ensureEventRegistration(activeEvent.id, racerId);
+  }
+
+  private assertRoomToRegister(event: EventRecord): void {
+    if (!this.hasRoomToRegister(event)) {
+      throw new AppHttpError("Registration for this event is full.", 403, "registration_full");
+    }
+  }
+
+  /** Whether the event's `registrationLimit` leaves room for one more racer. */
+  private hasRoomToRegister(event: EventRecord): boolean {
+    return (
+      event.registrationLimit === null ||
+      this.db.countEventRacers(event.id) < event.registrationLimit
+    );
   }
 
   /**
@@ -113,8 +154,11 @@ export class AuthService {
    * in as someone else can't have that account overwritten (ADR-0024).
    */
   registerRacer(input: RacerRegistrationInput): Racer {
-    const racer = this.db.createRacer(input);
     const activeEvent = this.db.getActiveEvent();
+    if (activeEvent) {
+      this.assertRoomToRegister(activeEvent);
+    }
+    const racer = this.db.createRacer(input);
     if (activeEvent) {
       this.db.ensureEventRegistration(activeEvent.id, racer.id);
     }

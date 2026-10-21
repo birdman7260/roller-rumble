@@ -39,6 +39,9 @@ export const events = sqliteTable("events", {
   description: text("description"),
   signupEyebrow: text("signup_eyebrow"),
   signupHeading: text("signup_heading"),
+  registrationLimit: integer("registration_limit"),
+  tournamentStartsAt: text("tournament_starts_at"),
+  tournamentStartCheckDismissedAt: text("tournament_start_check_dismissed_at"),
   includeAllRaceData: integer("include_all_race_data", { mode: "boolean" })
     .notNull()
     .default(false),

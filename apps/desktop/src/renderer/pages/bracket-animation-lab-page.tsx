@@ -363,6 +363,9 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     paymentAmountCents: null,
     paymentCurrency: "usd",
     paymentRequiredForQueue: false,
+    registrationLimit: null,
+    tournamentStartsAt: null,
+    tournamentStartCheckDismissedAt: null,
     updatedAt: labCreatedAt
   };
   const settings: AdminSettings = {
@@ -395,6 +398,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     generatedAt: labCreatedAt,
     notificationRevision: "lab",
     queue: [],
+    racePace: { secondsPerRace: 120, source: "default", sampleCount: 0 },
     raceProjection: {
       countdownSecondsRemaining: null,
       metricsByRacerId: {},
