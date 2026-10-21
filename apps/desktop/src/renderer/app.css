@@ -632,6 +632,73 @@ a {
   font-size: 1rem;
 }
 
+.racer-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.75rem;
+}
+
+.racer-sort label {
+  color: var(--theme-text-muted);
+  font-weight: 700;
+}
+
+.racer-profile {
+  display: grid;
+  gap: 1rem;
+  min-width: 0;
+}
+
+.racer-profile p {
+  margin: 0;
+}
+
+.racer-profile__contact {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.racer-profile__field {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.racer-profile__field dt {
+  color: var(--theme-text-muted);
+  font-size: 0.8rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.racer-profile__field dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-weight: 700;
+}
+
+.racer-profile__section {
+  display: grid;
+  gap: 0.5rem;
+  padding-top: 0.85rem;
+  border-top: 1px solid var(--theme-accent-soft);
+}
+
+.racer-profile__section h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.racer-profile__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
 .admin-layout {
   display: grid;
   grid-template-columns: 240px minmax(0, 1fr);

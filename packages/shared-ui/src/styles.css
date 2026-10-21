@@ -144,6 +144,17 @@ textarea {
   color: var(--theme-text);
 }
 
+/* A square button holding a single glyph; give it an aria-label since it has no text. */
+.button--icon {
+  flex: none;
+  padding: 0.8rem;
+}
+
+.button__icon {
+  width: 1.2rem;
+  height: 1.2rem;
+}
+
 .button:focus-visible,
 .file-button:has(input:focus-visible),
 .text-input:focus-visible,
@@ -336,6 +347,11 @@ textarea,
   background: transparent;
   color: var(--theme-text);
   animation: confirm-modal-rise 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.confirm-modal--wide {
+  width: min(40rem, calc(100vw - 3rem));
+  max-width: none;
 }
 
 .confirm-modal::backdrop {

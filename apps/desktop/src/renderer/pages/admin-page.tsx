@@ -9,6 +9,7 @@ import type {
 import { EventTab } from "../components/admin/event-tab";
 import { AdminRaceTray } from "../components/admin/race-tray";
 import { RaceTab } from "../components/admin/race-tab";
+import type { RacerSort } from "../components/admin/racer-sort";
 import { RacersTab } from "../components/admin/racers-tab";
 import { SensorTab } from "../components/admin/sensor-tab";
 import { SettingsTab } from "../components/admin/settings-tab";
@@ -35,6 +36,7 @@ interface AdminPageState {
   adminQueueRacerId: string;
   adminQueueRequestedType: "auto-match" | "solo";
   raceDistanceInput: string | null;
+  racerSort: RacerSort;
   search: string;
   tournamentBracketLayout: TournamentBracketLayoutMode;
   tournamentBracketSize: TournamentBracketSize;
@@ -49,6 +51,7 @@ const initialAdminPageState: AdminPageState = {
   adminQueueRacerId: "",
   adminQueueRequestedType: "auto-match",
   raceDistanceInput: null,
+  racerSort: { key: "displayName", direction: "asc" },
   search: "",
   tournamentBracketLayout: "auto",
   tournamentBracketSize: 8,
@@ -76,6 +79,7 @@ export function AdminPage() {
     adminQueueRacerId,
     adminQueueRequestedType,
     raceDistanceInput,
+    racerSort,
     search,
     tournamentBracketLayout,
     tournamentBracketSize,
@@ -102,6 +106,9 @@ export function AdminPage() {
   };
   const setSearch: Dispatch<SetStateAction<string>> = (action) => {
     setState({ search: resolveStateAction(action, search) });
+  };
+  const setRacerSort: Dispatch<SetStateAction<RacerSort>> = (action) => {
+    setState({ racerSort: resolveStateAction(action, racerSort) });
   };
   const setTournamentName: Dispatch<SetStateAction<string>> = (action) => {
     setState({ tournamentName: resolveStateAction(action, tournamentName) });
@@ -251,6 +258,8 @@ export function AdminPage() {
           filteredRacers={filteredRacers}
           search={search}
           setSearch={setSearch}
+          sort={racerSort}
+          setSort={setRacerSort}
           paymentRequiredForQueue={snapshot.activeEvent.paymentRequiredForQueue}
         />
       );

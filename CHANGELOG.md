@@ -8,7 +8,12 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- The **Registered Racers** list on the admin **Racers** tab can now be sorted by display name, real name, fastest time, number of races, or number of wins, in either direction. Racers without a real name or a finish yet stay at the bottom. The sort is kept while you switch tabs.
+- Each racer on the **Racers** tab now shows their top speed and fastest time.
+
 ### Changed
+
+- Racer rows on the **Racers** tab now have just two buttons: **Queue** (formerly **Add To Queue**) and a **⋮** menu. The menu opens a racer card with their contact details, race stats, and every other action: **Solo Run**, **Remove from Upcoming**, and, when an entrance fee is required, **Mark Paid**, **Waive**, or **Unpaid**.
 
 ### Fixed
 
