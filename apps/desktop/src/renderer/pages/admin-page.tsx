@@ -314,12 +314,14 @@ export function AdminPage() {
             <p className="eyebrow">Admin Console</p>
             <h1>{activeTabConfig.label}</h1>
           </div>
-          <p className="admin-workspace__description">{activeTabConfig.description}</p>
-          <EventPaceReadout
-            snapshot={snapshot}
-            tournamentActive={Boolean(activeTournament)}
-            nowMs={nowMs}
-          />
+          <div className="admin-workspace__aside">
+            <EventPaceReadout
+              snapshot={snapshot}
+              tournamentActive={Boolean(activeTournament)}
+              nowMs={nowMs}
+            />
+            <p className="admin-workspace__description">{activeTabConfig.description}</p>
+          </div>
         </header>
         <div className="admin-workspace__scroll">{activeTabContent}</div>
         <AdminRaceTray

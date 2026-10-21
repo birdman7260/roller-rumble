@@ -133,16 +133,26 @@ export function StatPill({
   label,
   value,
   tone,
+  compact = false,
   className
 }: {
   label: string;
   value: ReactNode;
   /** Colors the value as good or bad news, e.g. a forecast that is on track or running over. */
   tone?: "positive" | "negative";
+  /** Label and value on one short line, for a readout tucked into a header. */
+  compact?: boolean;
   className?: string;
 }) {
   return (
-    <div className={cx("stat-pill", tone && `stat-pill--${tone}`, className)}>
+    <div
+      className={cx(
+        "stat-pill",
+        tone && `stat-pill--${tone}`,
+        compact && "stat-pill--compact",
+        className
+      )}
+    >
       <span className="stat-pill__label">{label}</span>
       <strong className="stat-pill__value">{value}</strong>
     </div>

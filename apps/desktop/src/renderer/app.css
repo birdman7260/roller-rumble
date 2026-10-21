@@ -786,7 +786,7 @@ a {
 .admin-workspace__header {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: stretch;
   justify-content: space-between;
   gap: 1rem;
   min-width: 0;
@@ -801,17 +801,23 @@ a {
   overflow-wrap: anywhere;
 }
 
-/* The always-on race pace and tournament start forecast, on its own row under the header. */
-.admin-event-pace {
+/* The header's right side: the event pace readout in the top corner, the tab description below. */
+.admin-workspace__aside {
   display: flex;
-  flex-basis: 100%;
-  flex-wrap: wrap;
-  gap: 0.5rem;
+  flex-direction: column;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.4rem;
   min-width: 0;
 }
 
-.admin-event-pace .stat-pill {
-  padding: 0.45rem 0.75rem;
+/* The always-on race pace and tournament start forecast. */
+.admin-event-pace {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .admin-event-pace__note {
@@ -4840,6 +4846,14 @@ button.tournament-match-node:active {
   .admin-workspace__header {
     flex-direction: column;
     align-items: start;
+  }
+
+  .admin-workspace__aside {
+    align-items: start;
+  }
+
+  .admin-event-pace {
+    justify-content: start;
   }
 
   .admin-workspace__description {

@@ -281,6 +281,15 @@ textarea,
 :root[data-theme-ui="pixel"] input,
 :root[data-theme-ui="pixel"] select,
 :root[data-theme-ui="pixel"] textarea,
+.stat-pill--compact {
+  display: flex;
+  align-items: baseline;
+  gap: 0.4rem;
+  padding: 0.3rem 0.65rem;
+  border-radius: 0.7rem;
+  white-space: nowrap;
+}
+
 .stat-pill--positive .stat-pill__value {
   color: var(--theme-accent);
 }

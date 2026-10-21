@@ -99,6 +99,7 @@ export function EventPaceReadout({
   return (
     <div className="admin-event-pace">
       <StatPill
+        compact
         label="Race pace"
         value={
           <span title={describePaceSource(snapshot.racePace)}>
@@ -110,14 +111,17 @@ export function EventPaceReadout({
       {outlook ? (
         <>
           <StatPill
+            compact
             label="Tournament"
             value={`${formatClockTime(outlook.startsAt)} · ${describeTimeUntilStart(outlook.forecast)}`}
           />
           <StatPill
+            compact
             label="Queue"
             value={`${pluralRaces(outlook.racesToRun)} ≈ ${formatDuration(outlook.forecast.msToClearQueue)}`}
           />
           <StatPill
+            compact
             label="Forecast"
             tone={outlook.forecast.onTrack ? "positive" : "negative"}
             value={describeForecast(outlook.forecast)}
