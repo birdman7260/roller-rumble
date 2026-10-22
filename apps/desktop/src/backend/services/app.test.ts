@@ -333,7 +333,7 @@ describe("app service countdown flow", () => {
     expect(result).toBe(snapshot);
   });
 
-  it("builds the projector racer URL with active event context", () => {
+  it("builds the same racer URL regardless of the active event", () => {
     const target = withAppPrototype({
       db: {
         getActiveEvent: () => ({ id: "event-123" })
@@ -348,8 +348,7 @@ describe("app service countdown flow", () => {
 
     expect(url.origin).toBe("http://192.168.1.50:3187");
     expect(url.pathname).toBe("/racer");
-    expect(url.searchParams.get("eventId")).toBe("event-123");
-    expect(url.searchParams.get("source")).toBe("projector");
+    expect(url.search).toBe("");
   });
 
   it("auto-stages the next queued race only in open time trial when the setting is enabled", () => {

@@ -1397,6 +1397,8 @@ export class RollerRumbleApp extends EventEmitter {
     return getLocalNetworkBaseUrl(this.serverPort);
   }
 
+  // Event-agnostic so the QR code stays the same for a given host name and a
+  // printed copy keeps working across every event.
   async getQrCodeDataUrl(): Promise<string> {
     return QRCode.toDataURL(this.getRacerPageUrl(), {
       margin: 1,
@@ -1404,10 +1406,8 @@ export class RollerRumbleApp extends EventEmitter {
     });
   }
 
-  // Event-agnostic QR code (no eventId/source params) so the same SVG can be
-  // printed once and reused across every event.
   async getRacerPageQrCodeSvg(): Promise<string> {
-    return QRCode.toString(this.getRacerPageShareUrl(), {
+    return QRCode.toString(this.getRacerPageUrl(), {
       type: "svg",
       margin: 1,
       width: 220
@@ -1415,23 +1415,6 @@ export class RollerRumbleApp extends EventEmitter {
   }
 
   getRacerPageUrl(): string {
-    const url = this.buildRacerPageUrl();
-    const activeEvent = this.db.getActiveEvent();
-
-    if (activeEvent) {
-      url.searchParams.set("eventId", activeEvent.id);
-    }
-    url.searchParams.set("source", "projector");
-
-    return url.toString();
-  }
-
-  // Racer page URL without any event-specific query params.
-  getRacerPageShareUrl(): string {
-    return this.buildRacerPageUrl().toString();
-  }
-
-  private buildRacerPageUrl(): URL {
     const tunnel = this.tunnelManager.getState();
     const baseUrl = tunnel.publicUrl ?? `${this.getLocalBaseUrl()}/racer`;
     const url = new URL(baseUrl);
@@ -1440,7 +1423,7 @@ export class RollerRumbleApp extends EventEmitter {
       url.pathname = "/racer";
     }
 
-    return url;
+    return url.toString();
   }
 
   private getPhotoBoothPairing(): PhotoBoothPairing {
