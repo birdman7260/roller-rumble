@@ -3,6 +3,7 @@ import { createRacerSchema } from "@roller-rumble/shared/validation";
 import { Button, Panel, TextInput } from "@roller-rumble/shared-ui";
 import { addRacerAtDesk } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
+import { PhoneInput } from "../phone-input";
 
 interface QuickAddRacerState {
   displayName: string;
@@ -111,14 +112,13 @@ export function QuickAddRacerPanel() {
         </label>
         <label htmlFor={phoneId}>
           Phone (optional)
-          <TextInput
+          <PhoneInput
             id={phoneId}
-            type="tel"
             value={state.phone}
-            onChange={(event) => {
-              update({ phone: event.target.value });
+            onValueChange={(phone) => {
+              update({ phone });
             }}
-            placeholder="555-0100"
+            placeholder="555-555-5555"
             autoComplete="off"
           />
         </label>

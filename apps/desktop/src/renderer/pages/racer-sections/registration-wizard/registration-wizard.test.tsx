@@ -90,7 +90,7 @@ describe("RegistrationWizard", () => {
     expect(registerRacer).toHaveBeenCalledWith({
       realName: "Ada Lovelace",
       email: "ada@example.com",
-      phone: "(555) 010-0100",
+      phone: "555-010-0100",
       displayName: "Turbo Tortoise"
     });
   });

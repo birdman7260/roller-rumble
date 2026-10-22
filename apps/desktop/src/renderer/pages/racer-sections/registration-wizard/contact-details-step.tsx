@@ -1,6 +1,7 @@
 import { Fragment, useState } from "react";
 import type { HTMLInputAutoCompleteAttribute, HTMLInputTypeAttribute } from "react";
 import { Button, TextInput } from "@roller-rumble/shared-ui";
+import { PhoneInput } from "../../../components/phone-input";
 import { validateContactDetails } from "./registration-steps";
 import type { ContactDetails } from "./registration-steps";
 
@@ -67,25 +68,38 @@ export function ContactDetailsStep({
         const inputId = `registration-${field}`;
         const errorId = `${inputId}-error`;
         const error = touched[field] ? errors[field] : undefined;
+        const inputProps = {
+          id: inputId,
+          autoComplete,
+          placeholder,
+          "aria-invalid": error ? true : undefined,
+          "aria-describedby": error ? errorId : undefined,
+          onBlur: () => {
+            setTouched((current) => ({ ...current, [field]: true }));
+          }
+        };
         return (
           <Fragment key={field}>
             <label htmlFor={inputId}>
               {label}
-              <TextInput
-                id={inputId}
-                type={type}
-                autoComplete={autoComplete}
-                placeholder={placeholder}
-                value={details[field]}
-                aria-invalid={error ? true : undefined}
-                aria-describedby={error ? errorId : undefined}
-                onChange={(event) => {
-                  onChange({ [field]: event.target.value });
-                }}
-                onBlur={() => {
-                  setTouched((current) => ({ ...current, [field]: true }));
-                }}
-              />
+              {type === "tel" ? (
+                <PhoneInput
+                  {...inputProps}
+                  value={details[field]}
+                  onValueChange={(value) => {
+                    onChange({ [field]: value });
+                  }}
+                />
+              ) : (
+                <TextInput
+                  {...inputProps}
+                  type={type}
+                  value={details[field]}
+                  onChange={(event) => {
+                    onChange({ [field]: event.target.value });
+                  }}
+                />
+              )}
             </label>
             {error ? (
               <span id={errorId} className="form-error">
