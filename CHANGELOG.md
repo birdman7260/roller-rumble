@@ -8,6 +8,14 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+### Changed
+
+### Fixed
+
+## 0.1.27 - 2026-10-22
+
+### Added
+
 - The projector can now show racers the **time to beat** to make the tournament, in the top right next to the Roller Rumble logo. Pick a **Bracket size** on the **Tournaments** tab (or choose **Show on Projector** under it), and once that many racers have a time, the projector shows the slowest time still inside the bracket, for example "Time to beat · Top 16 make the bracket · 28.43s". It updates as racers post faster times and goes away while a tournament is running. **Hide from Projector** takes it down again. Your bracket size choice is now saved with the event.
 - A new **Event Plan** card on the **Event** tab sets a **Registration limit** and a **Tournament starts at** time. Once the limit is reached, new racers see "Registration Full" on their phone instead of the signup steps, and phones from an earlier event can't join. You can still add racers yourself at the desk. Leave the limit blank for no limit.
 - The admin header now always shows the **Race pace**, the time each race is actually taking from one finish to the next. It is the typical gap over the last ten races, so one long break doesn't skew it, and it keeps updating during a tournament. Until two races have finished it shows your minutes-per-race setting, marked "(est.)". Once a tournament start time is set, the header also shows the start time and how long is left, how many races are still to run and how long they will take, and whether the queue will clear in time (or how many races it will run over).
