@@ -8,6 +8,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Added
 
+- The projector can now show racers the **time to beat** to make the tournament, in the top right next to the Roller Rumble logo. Pick a **Bracket size** on the **Tournaments** tab (or choose **Show on Projector** under it), and once that many racers have a time, the projector shows the slowest time still inside the bracket, for example "Time to beat · Top 16 make the bracket · 28.43s". It updates as racers post faster times and goes away while a tournament is running. **Hide from Projector** takes it down again. Your bracket size choice is now saved with the event.
 - A new **Event Plan** card on the **Event** tab sets a **Registration limit** and a **Tournament starts at** time. Once the limit is reached, new racers see "Registration Full" on their phone instead of the signup steps, and phones from an earlier event can't join. You can still add racers yourself at the desk. Leave the limit blank for no limit.
 - The admin header now always shows the **Race pace**, the time each race is actually taking from one finish to the next. It is the typical gap over the last ten races, so one long break doesn't skew it, and it keeps updating during a tournament. Until two races have finished it shows your minutes-per-race setting, marked "(est.)". Once a tournament start time is set, the header also shows the start time and how long is left, how many races are still to run and how long they will take, and whether the queue will clear in time (or how many races it will run over).
 - Twenty minutes before the planned tournament start, the admin shows a **Tournament start check**: the time left, races still to run, race pace, and whether the queue will clear in time, with a choice to **Close the Queue** so it stops growing or **Keep Queue Open**. It asks only once for each planned start time.
@@ -16,6 +17,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 
 ### Changed
 
+- Tournaments now seed racers by their **fastest time** at the event, fastest first, instead of by wins and average speed. Only full-distance runs at the event's race distance count, the same as the top racers board. Racers without a time are seeded after everyone who has one. When someone drops out, the next-fastest racer takes their place.
 - Racer rows on the **Racers** tab now have just two buttons: **Queue** (formerly **Add To Queue**) and a **⋮** menu. The menu opens a racer card with their contact details, race stats, and every other action: **Solo Run**, **Remove from Upcoming**, and, when an entrance fee is required, **Mark Paid**, **Waive**, or **Unpaid**.
 - The race counts and stats on the **Racers** tab and its racer card now always cover this event only, even when **Seed from all-time race data** is on.
 - Racer stats on phones (best finish, top speed, average speed, and race count in the racer list) now cover this event only, like the win-loss record already did, even when **Seed from all-time race data** is on. A racer who hasn't raced yet this event shows no top speed in the list.

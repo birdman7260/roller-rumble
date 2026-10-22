@@ -1772,6 +1772,7 @@ describe("app service tournament queue", () => {
       event: { id: "event-1" } as EventRecord,
       racers,
       results: [],
+      eventBestRuns: [],
       name: "Bracket Night",
       preset: "single-elimination"
     });

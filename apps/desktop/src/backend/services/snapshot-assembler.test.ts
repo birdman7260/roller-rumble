@@ -110,6 +110,18 @@ describe("SnapshotAssembler.assemble", () => {
     });
   });
 
+  it("shows the planned bracket's cutoff: the slowest best run still inside the bracket", () => {
+    const assembler = new SnapshotAssembler(
+      makeSnapshotDb(false, CURRENT_RACE, [], {}, { plannedBracketSize: 2 })
+    );
+
+    // Ada's 60s and Grace's 65s are the event's only qualifying runs, so Grace holds the last slot.
+    expect(assembler.assemble(makeContext()).raceProjection.bracketCutoff).toEqual({
+      bracketSize: 2,
+      finishTimeMs: 65_000
+    });
+  });
+
   it("ranks the active event's runs on the top racers board even with all race data included", () => {
     const assembler = new SnapshotAssembler(makeSnapshotDb(true));
 

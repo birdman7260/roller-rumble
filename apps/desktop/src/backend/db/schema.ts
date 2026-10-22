@@ -11,6 +11,7 @@ import type {
   RaceParticipant,
   RaceRecord,
   RacerNotificationType,
+  TournamentBracketSize,
   TournamentParticipantSeed,
   TournamentRecord,
   TournamentStage,
@@ -42,6 +43,7 @@ export const events = sqliteTable("events", {
   registrationLimit: integer("registration_limit"),
   tournamentStartsAt: text("tournament_starts_at"),
   tournamentStartCheckDismissedAt: text("tournament_start_check_dismissed_at"),
+  plannedBracketSize: integer("planned_bracket_size").$type<TournamentBracketSize>(),
   includeAllRaceData: integer("include_all_race_data", { mode: "boolean" })
     .notNull()
     .default(false),

@@ -21,6 +21,7 @@ const event: EventRecord = {
   registrationLimit: null,
   tournamentStartsAt: null,
   tournamentStartCheckDismissedAt: null,
+  plannedBracketSize: null,
   active: true,
   createdAt: "x",
   updatedAt: "x"
@@ -158,6 +159,7 @@ describe("tournament service", () => {
       event,
       racers,
       results,
+      eventBestRuns: [],
       name: "Top Eight",
       preset: "single-elimination",
       bracketSize: 8
@@ -179,6 +181,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 5),
       results,
+      eventBestRuns: [],
       name: "Open Eight",
       preset: "single-elimination",
       bracketSize: 8
@@ -195,6 +198,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -225,6 +229,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -268,6 +273,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -329,6 +335,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -387,6 +394,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -421,6 +429,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -459,6 +468,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -499,6 +509,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 3),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -536,6 +547,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 3),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -575,6 +587,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Round Robin",
       preset: "round-robin"
     });
@@ -604,6 +617,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Round Robin",
       preset: "round-robin"
     });
@@ -627,6 +641,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Round Robin",
       preset: "round-robin"
     });
@@ -675,6 +690,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Round Robin",
       preset: "round-robin"
     });
@@ -728,6 +744,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4
@@ -773,6 +790,7 @@ describe("tournament service", () => {
       event,
       racers: racers.slice(0, 4),
       results,
+      eventBestRuns: [],
       name: "Top Four",
       preset: "single-elimination",
       bracketSize: 4

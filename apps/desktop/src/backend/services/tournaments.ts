@@ -3,6 +3,7 @@ import type {
   EventRecord,
   RaceResult,
   Racer,
+  TopRacersEntry,
   BracketNode,
   TournamentBracketLayoutMode,
   TournamentBracketSize,
@@ -573,6 +574,8 @@ export class TournamentService {
     event: EventRecord;
     racers: Racer[];
     results: RaceResult[];
+    /** Every racer's best qualifying run this event, fastest first; the field seeds in this order. */
+    eventBestRuns: readonly TopRacersEntry[];
     name: string;
     preset: TournamentPreset;
     bracketSize?: TournamentBracketSize;
@@ -581,7 +584,7 @@ export class TournamentService {
     const timestamp = nowIso();
     const tournamentId = nanoid();
     const baseStageId = `${tournamentId}-stage-1`;
-    const eligibleSeeds = buildSeeds(input.racers, input.results);
+    const eligibleSeeds = buildSeeds(input.racers, input.results, input.eventBestRuns);
     const seededField = resolveSeedField(eligibleSeeds, input.preset, input.bracketSize);
     const presetBundle = createPresetBundle(
       input.preset,

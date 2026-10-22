@@ -201,6 +201,11 @@ export interface EventRecord {
    * Changing the planned start clears it, so a new start gets its own check.
    */
   tournamentStartCheckDismissedAt: string | null;
+  /**
+   * The bracket size the host has chosen for tonight's tournament, or null before they choose.
+   * It sets the `bracket cutoff` the projector shows during open time trial.
+   */
+  plannedBracketSize: TournamentBracketSize | null;
   includeAllRaceData: boolean;
   paymentRequiredForQueue: boolean;
   paymentAmountCents?: number | null;
@@ -591,6 +596,15 @@ export interface TopRacersEntry {
 }
 
 /**
+ * The `bracket cutoff`: the slowest best qualifying run still inside the `planned bracket size`,
+ * which a racer must beat to seed into the bracket.
+ */
+export interface BracketCutoff {
+  bracketSize: TournamentBracketSize;
+  finishTimeMs: number;
+}
+
+/**
  * The `race pace`: how long the event is taking per race, start to start. Measured from the gaps
  * between the event's race finishes once there are any, and the operator's `queueMinutesPerRace`
  * until then.
@@ -611,6 +625,8 @@ export interface RaceProjectionModel {
   resultPresentation: RaceResultPresentation | null;
   /** The `top racers board`, fastest first and already cut to the operator's row count. */
   topRacers: TopRacersEntry[];
+  /** The `bracket cutoff`; null until the planned bracket is full of qualifying runs. */
+  bracketCutoff: BracketCutoff | null;
   theme: ThemeDefinition;
 }
 

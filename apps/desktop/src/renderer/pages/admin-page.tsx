@@ -1,11 +1,7 @@
 import { useReducer } from "react";
 import type { Dispatch, ReactElement, SetStateAction } from "react";
 import { competitionPresets } from "@roller-rumble/shared/presets";
-import type {
-  TournamentBracketLayoutMode,
-  TournamentBracketSize,
-  TournamentPreset
-} from "@roller-rumble/shared/types";
+import type { TournamentBracketLayoutMode, TournamentPreset } from "@roller-rumble/shared/types";
 import { EventPaceReadout, TournamentStartCheckModal } from "../components/admin/event-pace";
 import { EventTab } from "../components/admin/event-tab";
 import { AdminRaceTray } from "../components/admin/race-tray";
@@ -27,7 +23,7 @@ import {
   supportsBracketSizing,
   supportsCenterConvergingBracketLayout
 } from "../lib/admin-competition";
-import { signUpQueue, updateSettings } from "../lib/api";
+import { signUpQueue, updateActiveEvent, updateSettings } from "../lib/api";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
 import { fireAndForget } from "../lib/ui-actions";
 import { useNowMs } from "../lib/use-now-ms";
@@ -44,8 +40,6 @@ interface AdminPageState {
   racerSort: RacerSort;
   search: string;
   tournamentBracketLayout: TournamentBracketLayoutMode;
-  tournamentBracketSize: TournamentBracketSize;
-  tournamentBracketSizeTouched: boolean;
   tournamentName: string;
   tournamentPreset: TournamentPreset;
 }
@@ -59,8 +53,6 @@ const initialAdminPageState: AdminPageState = {
   racerSort: { key: "displayName", direction: "asc" },
   search: "",
   tournamentBracketLayout: "auto",
-  tournamentBracketSize: 8,
-  tournamentBracketSizeTouched: false,
   tournamentName: "Bracket Night",
   tournamentPreset: "single-elimination"
 };
@@ -88,8 +80,6 @@ export function AdminPage() {
     racerSort,
     search,
     tournamentBracketLayout,
-    tournamentBracketSize,
-    tournamentBracketSizeTouched,
     tournamentName,
     tournamentPreset
   } = state;
@@ -122,16 +112,6 @@ export function AdminPage() {
   const setTournamentPreset: Dispatch<SetStateAction<TournamentPreset>> = (action) => {
     setState({ tournamentPreset: resolveStateAction(action, tournamentPreset) });
   };
-  const setTournamentBracketSize: Dispatch<SetStateAction<TournamentBracketSize>> = (action) => {
-    setState({
-      tournamentBracketSize: resolveStateAction(action, tournamentBracketSize)
-    });
-  };
-  const setTournamentBracketSizeTouched: Dispatch<SetStateAction<boolean>> = (action) => {
-    setState({
-      tournamentBracketSizeTouched: resolveStateAction(action, tournamentBracketSizeTouched)
-    });
-  };
   const setTournamentBracketLayout: Dispatch<SetStateAction<TournamentBracketLayoutMode>> = (
     action
   ) => {
@@ -160,9 +140,12 @@ export function AdminPage() {
   const suggestedBracketSize =
     tournamentBracketSizeOptions.find((size) => size >= registeredRacerCount) ??
     tournamentBracketSizeOptions[tournamentBracketSizeOptions.length - 1];
+  // The size the host planned is saved on the event, so it survives a reload and drives the
+  // projector's bracket cutoff; until they plan one, the smallest bracket that fits everyone.
+  const plannedBracketSize = snapshot?.activeEvent.plannedBracketSize ?? null;
   const selectedBracketSize = tournamentPresetSupportsBracketSizing
-    ? tournamentBracketSizeTouched && tournamentBracketSizeOptions.includes(tournamentBracketSize)
-      ? tournamentBracketSize
+    ? plannedBracketSize != null && tournamentBracketSizeOptions.includes(plannedBracketSize)
+      ? plannedBracketSize
       : suggestedBracketSize
     : undefined;
 
@@ -287,9 +270,14 @@ export function AdminPage() {
           setTournamentName={setTournamentName}
           tournamentPreset={tournamentPreset}
           setTournamentPreset={setTournamentPreset}
-          setTournamentBracketSizeTouched={setTournamentBracketSizeTouched}
+          plannedBracketSize={plannedBracketSize}
           selectedBracketSize={selectedBracketSize}
-          setTournamentBracketSize={setTournamentBracketSize}
+          onPlanBracketSize={(size) => {
+            fireAndForget(
+              updateActiveEvent({ plannedBracketSize: size }),
+              size ? "plan bracket size" : "clear planned bracket size"
+            );
+          }}
           tournamentBracketLayout={tournamentBracketLayout}
           setTournamentBracketLayout={setTournamentBracketLayout}
           tournamentRaceLocked={tournamentRaceLocked}

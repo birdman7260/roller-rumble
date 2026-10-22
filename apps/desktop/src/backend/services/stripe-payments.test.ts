@@ -17,6 +17,7 @@ const event: EventRecord = {
   registrationLimit: null,
   tournamentStartsAt: null,
   tournamentStartCheckDismissedAt: null,
+  plannedBracketSize: null,
   active: true,
   createdAt: "now",
   updatedAt: "now"

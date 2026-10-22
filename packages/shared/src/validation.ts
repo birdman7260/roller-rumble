@@ -88,9 +88,10 @@ export const updateEventSchema = z.object({
   description: optionalCopy(500),
   signupEyebrow: optionalCopy(80),
   signupHeading: optionalCopy(80),
-  // null clears the cap or the planned start.
+  // null clears the cap, the planned start, or the planned bracket size.
   registrationLimit: z.number().int().min(1).max(10_000).nullable().optional(),
-  tournamentStartsAt: z.string().datetime({ offset: true }).nullable().optional()
+  tournamentStartsAt: z.string().datetime({ offset: true }).nullable().optional(),
+  plannedBracketSize: tournamentBracketSizeSchema.nullable().optional()
 });
 
 export const queueSignupSchema = z.object({

@@ -5,6 +5,7 @@ import type {
   Racer,
   RoundRobinMatch,
   RoundRobinStanding,
+  TopRacersEntry,
   TournamentParticipantSeed,
   TournamentPreset
 } from "@roller-rumble/shared/types";
@@ -45,13 +46,23 @@ function seedOrdering(size: number): number[] {
   return ordered;
 }
 
-export function buildSeeds(racers: Racer[], results: RaceResult[]): TournamentParticipantSeed[] {
+/**
+ * The tournament's seeding: racers with a qualifying run first, by their event fastest time, which
+ * is what the `bracket cutoff` promises. Racers without one follow, with wins dominating and speed
+ * and participation breaking ties.
+ */
+export function buildSeeds(
+  racers: Racer[],
+  results: RaceResult[],
+  /** Every racer's best qualifying run this event, fastest first (`rankTopRacers`). */
+  eventBestRuns: readonly TopRacersEntry[]
+): TournamentParticipantSeed[] {
+  const fastestRankByRacerId = new Map(eventBestRuns.map((run, index) => [run.racerId, index]));
   const byRacer = new Map<string, RaceResult[]>();
   for (const result of results) {
     byRacer.set(result.racerId, [...(byRacer.get(result.racerId) ?? []), result]);
   }
 
-  // Wins dominate seeding, with speed and participation breaking ties for racers in open time trial.
   const scored = racers.map((racer) => {
     const racerResults = byRacer.get(racer.id) ?? [];
     const wins = racerResults.filter((result) => result.placement === 1).length;
@@ -75,6 +86,11 @@ export function buildSeeds(racers: Racer[], results: RaceResult[]): TournamentPa
 
   return scored
     .sort((left, right) => {
+      const leftRank = fastestRankByRacerId.get(left.racerId) ?? Number.POSITIVE_INFINITY;
+      const rightRank = fastestRankByRacerId.get(right.racerId) ?? Number.POSITIVE_INFINITY;
+      if (leftRank !== rightRank) {
+        return leftRank - rightRank;
+      }
       if (right.score !== left.score) {
         return right.score - left.score;
       }

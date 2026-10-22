@@ -21,16 +21,74 @@ import {
 } from "../../lib/api";
 import { fireAndForget } from "../../lib/ui-actions";
 import { getBracketLayoutLabel, getPresetLabel } from "../../lib/admin-competition";
+import { formatRaceTime } from "../../lib/race-format";
 import { TournamentBracketBoard, TournamentGroupMatchBoard } from "./tournament-board";
+
+/**
+ * Whether the projector is showing racers the `bracket cutoff`, and the switch for it. Planning a
+ * bracket size puts the cutoff on the projector once enough racers have a time.
+ */
+function BracketCutoffPlan({
+  onPlanBracketSize,
+  plannedBracketSize,
+  selectedBracketSize,
+  snapshot
+}: {
+  onPlanBracketSize: (size: TournamentBracketSize | null) => void;
+  plannedBracketSize: TournamentBracketSize | null;
+  selectedBracketSize: TournamentBracketSize;
+  snapshot: AppSnapshot;
+}) {
+  if (plannedBracketSize == null) {
+    return (
+      <div className="tournament-cutoff-plan">
+        <span>
+          Show racers the time to beat for the top {selectedBracketSize} on the projector.
+        </span>
+        <Button
+          variant="ghost"
+          onClick={() => {
+            onPlanBracketSize(selectedBracketSize);
+          }}
+        >
+          Show on Projector
+        </Button>
+      </div>
+    );
+  }
+
+  const cutoff = snapshot.raceProjection.bracketCutoff;
+  const racersWithTime = snapshot.racers.filter(
+    (entry) => entry.stats.eventBestFinishTimeMs != null
+  ).length;
+
+  return (
+    <div className="tournament-cutoff-plan">
+      <span>
+        {cutoff
+          ? `The projector shows ${formatRaceTime(cutoff.finishTimeMs)} as the time to beat for the top ${cutoff.bracketSize}.`
+          : `The projector shows the time to beat once ${plannedBracketSize} racers have a time (${racersWithTime} so far).`}
+      </span>
+      <Button
+        variant="ghost"
+        onClick={() => {
+          onPlanBracketSize(null);
+        }}
+      >
+        Hide from Projector
+      </Button>
+    </div>
+  );
+}
 
 function TournamentSummaryPanel({
   activeTournament,
   activeTournamentBracketLayout,
   activeTournamentBracketSize,
+  onPlanBracketSize,
+  plannedBracketSize,
   selectedBracketSize,
   setTournamentBracketLayout,
-  setTournamentBracketSize,
-  setTournamentBracketSizeTouched,
   setTournamentName,
   setTournamentPreset,
   snapshot,
@@ -46,10 +104,10 @@ function TournamentSummaryPanel({
   activeTournament: TournamentBundle | null;
   activeTournamentBracketLayout: TournamentBracketLayoutMode;
   activeTournamentBracketSize: number | null;
+  onPlanBracketSize: (size: TournamentBracketSize | null) => void;
+  plannedBracketSize: TournamentBracketSize | null;
   selectedBracketSize: TournamentBracketSize | undefined;
   setTournamentBracketLayout: Dispatch<SetStateAction<TournamentBracketLayoutMode>>;
-  setTournamentBracketSize: Dispatch<SetStateAction<TournamentBracketSize>>;
-  setTournamentBracketSizeTouched: Dispatch<SetStateAction<boolean>>;
   setTournamentName: Dispatch<SetStateAction<string>>;
   setTournamentPreset: Dispatch<SetStateAction<TournamentPreset>>;
   snapshot: AppSnapshot;
@@ -128,7 +186,6 @@ function TournamentSummaryPanel({
               value={tournamentPreset}
               onChange={(event) => {
                 setTournamentPreset(event.target.value as TournamentPreset);
-                setTournamentBracketSizeTouched(false);
                 setTournamentBracketLayout("auto");
               }}
             >
@@ -145,8 +202,7 @@ function TournamentSummaryPanel({
               <select
                 value={selectedBracketSize ?? tournamentBracketSizeOptions[0]}
                 onChange={(event) => {
-                  setTournamentBracketSizeTouched(true);
-                  setTournamentBracketSize(Number(event.target.value) as TournamentBracketSize);
+                  onPlanBracketSize(Number(event.target.value) as TournamentBracketSize);
                 }}
               >
                 {tournamentBracketSizeOptions.map((size) => (
@@ -188,6 +244,14 @@ function TournamentSummaryPanel({
               </span>
             ) : null}
             {selectedPreset?.createsBracket ? <span>{selectedLayoutDescription}</span> : null}
+            {selectedBracketSize ? (
+              <BracketCutoffPlan
+                snapshot={snapshot}
+                plannedBracketSize={plannedBracketSize}
+                selectedBracketSize={selectedBracketSize}
+                onPlanBracketSize={onPlanBracketSize}
+              />
+            ) : null}
             {!tournamentPresetSupportsCenterConverging &&
             tournamentPreset === "double-elimination" ? (
               <span>Double elimination stays on a standard board layout for now.</span>
@@ -237,9 +301,9 @@ export function TournamentsTab({
   setTournamentName,
   tournamentPreset,
   setTournamentPreset,
-  setTournamentBracketSizeTouched,
+  plannedBracketSize,
   selectedBracketSize,
-  setTournamentBracketSize,
+  onPlanBracketSize,
   tournamentBracketLayout,
   setTournamentBracketLayout,
   tournamentRaceLocked
@@ -262,9 +326,9 @@ export function TournamentsTab({
   setTournamentName: Dispatch<SetStateAction<string>>;
   tournamentPreset: TournamentPreset;
   setTournamentPreset: Dispatch<SetStateAction<TournamentPreset>>;
-  setTournamentBracketSizeTouched: Dispatch<SetStateAction<boolean>>;
+  plannedBracketSize: TournamentBracketSize | null;
   selectedBracketSize: TournamentBracketSize | undefined;
-  setTournamentBracketSize: Dispatch<SetStateAction<TournamentBracketSize>>;
+  onPlanBracketSize: (size: TournamentBracketSize | null) => void;
   tournamentBracketLayout: TournamentBracketLayoutMode;
   setTournamentBracketLayout: Dispatch<SetStateAction<TournamentBracketLayoutMode>>;
   tournamentRaceLocked: boolean;
@@ -323,10 +387,10 @@ export function TournamentsTab({
                 activeTournament={activeTournament}
                 activeTournamentBracketLayout={activeTournamentBracketLayout}
                 activeTournamentBracketSize={activeTournamentBracketSize}
+                onPlanBracketSize={onPlanBracketSize}
+                plannedBracketSize={plannedBracketSize}
                 selectedBracketSize={selectedBracketSize}
                 setTournamentBracketLayout={setTournamentBracketLayout}
-                setTournamentBracketSize={setTournamentBracketSize}
-                setTournamentBracketSizeTouched={setTournamentBracketSizeTouched}
                 setTournamentName={setTournamentName}
                 setTournamentPreset={setTournamentPreset}
                 snapshot={snapshot}

@@ -35,6 +35,7 @@ import type {
   Racer,
   RacerRegistrationInput,
   RoundRobinMatch,
+  TournamentBracketSize,
   TournamentBundle,
   TournamentParticipantSeed,
   TournamentRecord,
@@ -205,6 +206,7 @@ function mapEvent(row: EventRow): EventRecord {
     registrationLimit: row.registrationLimit,
     tournamentStartsAt: row.tournamentStartsAt,
     tournamentStartCheckDismissedAt: row.tournamentStartCheckDismissedAt,
+    plannedBracketSize: row.plannedBracketSize,
     includeAllRaceData: row.includeAllRaceData,
     paymentRequiredForQueue: row.paymentRequiredForQueue,
     paymentAmountCents: row.paymentAmountCents,
@@ -707,6 +709,7 @@ export class AppDatabase {
       registrationLimit?: number | null;
       tournamentStartsAt?: string | null;
       tournamentStartCheckDismissedAt?: string | null;
+      plannedBracketSize?: TournamentBracketSize | null;
     }
   ): EventRecord {
     const changes: Partial<typeof events.$inferInsert> = {};
@@ -720,6 +723,9 @@ export class AppDatabase {
     }
     if (input.tournamentStartCheckDismissedAt !== undefined) {
       changes.tournamentStartCheckDismissedAt = input.tournamentStartCheckDismissedAt;
+    }
+    if (input.plannedBracketSize !== undefined) {
+      changes.plannedBracketSize = input.plannedBracketSize;
     }
 
     if (Object.keys(changes).length > 0) {

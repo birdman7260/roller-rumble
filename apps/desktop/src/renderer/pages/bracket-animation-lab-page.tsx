@@ -366,6 +366,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
     registrationLimit: null,
     tournamentStartsAt: null,
     tournamentStartCheckDismissedAt: null,
+    plannedBracketSize: null,
     updatedAt: labCreatedAt
   };
   const settings: AdminSettings = {
@@ -406,6 +407,7 @@ function buildLabSnapshot(theme: ThemeDefinition, bundle: TournamentBundle): App
       race: null,
       resultPresentation: null,
       topRacers: [],
+      bracketCutoff: null,
       theme
     },
     racers: labRacers,

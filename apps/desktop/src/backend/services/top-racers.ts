@@ -1,4 +1,5 @@
 import type { RaceResult, TopRacersEntry } from "@roller-rumble/shared/types";
+import type { AppDatabase } from "../db/Database";
 import { hasReachedFinishLine } from "./finish-line";
 
 interface QualifyingRun {
@@ -68,4 +69,26 @@ export function rankTopRacers({
     .sort(compareRuns)
     .slice(0, rows)
     .map(({ finishTimeMs, raceId, racerId }) => ({ racerId, raceId, finishTimeMs }));
+}
+
+/**
+ * Every racer's best qualifying run in the event, fastest first and uncut. The top racers board,
+ * the `bracket cutoff` and tournament seeding all read this one ranking, so the time the projector
+ * posts is exactly the time the bracket seeds by (ADR 0027).
+ */
+export function rankEventBestRuns(
+  db: Pick<AppDatabase, "listRaceTargetDistances">,
+  {
+    eventId,
+    raceDistanceMeters,
+    results
+  }: { eventId: string; raceDistanceMeters: number; results: readonly RaceResult[] }
+): TopRacersEntry[] {
+  return rankTopRacers({
+    eventId,
+    raceDistanceMeters,
+    raceTargetDistanceById: db.listRaceTargetDistances(eventId),
+    results,
+    rows: Number.POSITIVE_INFINITY
+  });
 }

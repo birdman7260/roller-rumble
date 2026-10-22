@@ -15,11 +15,12 @@ import type {
 import { getTheme, themes } from "@roller-rumble/shared/themes";
 import type { AppDatabase } from "../db/Database";
 import type { SensorStatus } from "../adapters/sensor";
+import { findBracketCutoff } from "./bracket-cutoff";
 import type { RaceCountdownTiming } from "./race-countdown";
 import { findNextQueuedEntry, reindexQueue } from "./queue";
 import { measureRacePace } from "./race-pace";
 import { assembleSubsystemHealth } from "./subsystem-health";
-import { rankTopRacers } from "./top-racers";
+import { rankEventBestRuns } from "./top-racers";
 import { buildTournamentQueue } from "./tournament-queue";
 
 export type SnapshotStreamSurface = "admin" | "projector" | "racer";
@@ -85,15 +86,13 @@ export class SnapshotAssembler {
     const results = settings.includeAllRaceData
       ? allResults
       : allResults.filter((result) => result.eventId === activeEvent.id);
-    // Every racer's best qualifying run this event, fastest first. It feeds both the top racers
-    // board and each racer's event fastest time, and ranks the active event alone, whatever
-    // `includeAllRaceData` says (ADR 0022).
-    const eventBestRuns = rankTopRacers({
+    // Every racer's best qualifying run this event, fastest first. It feeds the top racers board,
+    // the bracket cutoff, and each racer's event fastest time, and ranks the active event alone,
+    // whatever `includeAllRaceData` says (ADR 0022).
+    const eventBestRuns = rankEventBestRuns(this.db, {
       eventId: activeEvent.id,
       raceDistanceMeters: settings.targetDistanceMeters,
-      raceTargetDistanceById: this.db.listRaceTargetDistances(activeEvent.id),
-      results: allResults,
-      rows: Number.POSITIVE_INFINITY
+      results: allResults
     });
     const racers = this.buildRacerSummaries(activeEvent.id, results, allResults, eventBestRuns);
     const queue = reindexQueue(
@@ -166,6 +165,11 @@ export class SnapshotAssembler {
         nextQueueEntry,
         resultPresentation: ctx.resultPresentation,
         topRacers,
+        bracketCutoff: findBracketCutoff({
+          plannedBracketSize: activeEvent.plannedBracketSize,
+          eventBestRuns,
+          tournamentActive: activeTournament != null
+        }),
         theme: selectedTheme
       }
     };

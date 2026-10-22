@@ -27,6 +27,7 @@ import type {
   UnracedRefundPreview,
   UnracedRefundResult,
   StartTournamentInput,
+  TournamentBracketSize,
   TournamentOptOutResponse,
   TournamentByeFillOptionsResponse,
   TournamentRacerRemovalOptionsResponse,
@@ -306,6 +307,7 @@ export interface UpdateEventInput {
   signupHeading?: string | null;
   registrationLimit?: number | null;
   tournamentStartsAt?: string | null;
+  plannedBracketSize?: TournamentBracketSize | null;
 }
 
 export async function updateActiveEvent(input: UpdateEventInput): Promise<AppSnapshot> {

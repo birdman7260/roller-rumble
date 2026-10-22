@@ -1475,6 +1475,7 @@ p {
 :root[data-theme-ui="pixel"] .standing-row,
 :root[data-theme-ui="pixel"] .bracket-node,
 :root[data-theme-ui="pixel"] .race-graphic,
+:root[data-theme-ui="pixel"] .race-page__cutoff,
 :root[data-theme-ui="pixel"] .track-lane__bar,
 :root[data-theme-ui="pixel"] .climb-lane__track {
   border-radius: 0.35rem;
@@ -1576,6 +1577,60 @@ p {
   max-width: 100%;
   height: 0.82em;
   object-fit: contain;
+}
+
+/* The bracket cutoff shares the logo's grid cell, so it sits level with the logo at the right
+   edge and never changes the brand block's height the results overlay offset relies on. */
+.race-page--horizontal .race-page__brand h1,
+.race-page--horizontal .race-page__cutoff {
+  grid-area: 1 / 1;
+}
+
+.race-page__cutoff {
+  display: flex;
+  align-items: center;
+  gap: clamp(0.6rem, 1vw, 1.25rem);
+  padding: clamp(0.25rem, 0.4vw, 0.6rem) clamp(0.7rem, 1.1vw, 1.5rem);
+  border: 0.14rem solid color-mix(in srgb, var(--theme-accent) 60%, transparent);
+  border-radius: 1rem;
+  background: color-mix(in srgb, var(--theme-surface-alt) 72%, transparent);
+  box-shadow: 0 0 1.6rem color-mix(in srgb, var(--theme-accent) 22%, transparent);
+  text-align: right;
+}
+
+.race-page--horizontal .race-page__cutoff {
+  justify-self: end;
+  align-self: center;
+}
+
+/* A vertical theme keeps the Fiercely Local mark in the top right, so the cutoff sits under the
+   logo instead. */
+.race-page--vertical .race-page__cutoff {
+  justify-self: start;
+  margin-top: 0.4rem;
+}
+
+.race-page__cutoff-label {
+  display: grid;
+  gap: 0.15em;
+  color: var(--theme-text-muted);
+  font-size: clamp(0.72rem, 1.05vw, 1.3rem);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1.05;
+  text-transform: uppercase;
+}
+
+.race-page__cutoff-label span:first-child {
+  color: var(--theme-text);
+}
+
+.race-page__cutoff-time {
+  color: var(--theme-accent);
+  font-size: clamp(1.9rem, 3.2vw, 4.25rem);
+  font-variant-numeric: tabular-nums;
+  font-weight: 950;
+  line-height: 0.95;
 }
 
 .race-page__brand p {
@@ -3836,6 +3891,14 @@ p {
 .tournaments-tab__card {
   grid-column: 1 / -1;
   min-width: 0;
+}
+
+.tournament-cutoff-plan {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem 0.75rem;
 }
 
 .tournaments-tab--setup .tournaments-tab__card--supporting {

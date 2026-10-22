@@ -128,6 +128,12 @@ _Avoid_: race duration (that is only the ride), average race time
 **tournament start check**: The admin modal that opens twenty minutes before the `planned tournament start`, laying out the races still to run against the time left at the current `race pace`, and offering to close the queue (the `closed queue`) so it stops growing. It asks only while the queue is open and no tournament is running, and once answered — either way — it stays closed for that planned start; changing the start gives it a fresh check.
 _Avoid_: cutoff warning, queue reminder
 
+**planned bracket size**: The bracket size the host has chosen for the event's `Tournament`, set by the Tournaments tab's bracket size picker and kept on the event. Until the host picks one the picker suggests the smallest bracket that fits everyone registered, and nothing is planned. It sets the `bracket cutoff`.
+_Avoid_: slot count, tournament size
+
+**bracket cutoff**: The time a racer must beat to seed into the `planned bracket size` — the slowest best qualifying run still inside the bracket, where a run qualifies exactly as it does for the `top racers board`. The tournament seeds by event fastest time, so beating it is a real promise of a place. Shown in the projector's top right, level with the logo, from the moment there are enough qualifying runs to fill the bracket until a tournament starts. Derived in the `SnapshotAssembler`. See ADR 0027.
+_Avoid_: qualifying time, time to beat (UI copy only)
+
 **walk-up event**: An `Event` whose `event kind` is `walk-up` — the stripped-down shape for a public stall, where riders arrive on the spot with no phone and no `Queue`, the host composes each race directly on the `walk-up desk`, riders pick whichever bike they like, the `race distance` never changes once the event exists, and the projector shows the `top racers board` between races.
 _Avoid_: booth event, booth mode (both collide with the `photo booth`), pop-up event
 

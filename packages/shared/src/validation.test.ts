@@ -169,6 +169,20 @@ describe("update event validation", () => {
     expect(result.success && result.data).toEqual({ description: null });
   });
 
+  it("plans a bracket size, and clears the plan with null", () => {
+    expect(updateEventSchema.safeParse({ plannedBracketSize: 16 }).data).toEqual({
+      plannedBracketSize: 16
+    });
+    expect(updateEventSchema.safeParse({ plannedBracketSize: null }).data).toEqual({
+      plannedBracketSize: null
+    });
+  });
+
+  it("only plans a bracket size the tournament can be drawn at", () => {
+    expect(updateEventSchema.safeParse({ plannedBracketSize: 12 }).success).toBe(false);
+    expect(updateEventSchema.safeParse({ plannedBracketSize: "16" }).success).toBe(false);
+  });
+
   it("rejects a blank or whitespace-only name", () => {
     expect(updateEventSchema.safeParse({ name: "" }).success).toBe(false);
     expect(updateEventSchema.safeParse({ name: "   " }).success).toBe(false);

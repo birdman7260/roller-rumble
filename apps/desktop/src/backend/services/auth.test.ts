@@ -56,6 +56,7 @@ function makeStore(): AuthStore & {
     registrationLimit: null,
     tournamentStartsAt: null,
     tournamentStartCheckDismissedAt: null,
+    plannedBracketSize: null,
     active: true,
     createdAt: timestamp,
     updatedAt: timestamp

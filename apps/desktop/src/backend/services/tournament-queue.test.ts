@@ -20,6 +20,7 @@ const event: EventRecord = {
   registrationLimit: null,
   tournamentStartsAt: null,
   tournamentStartCheckDismissedAt: null,
+  plannedBracketSize: null,
   active: true,
   createdAt: "x",
   updatedAt: "x"
@@ -50,6 +51,7 @@ function createBundle(
     event,
     racers: makeRacers(racerCount),
     results: [],
+    eventBestRuns: [],
     name: "Bracket Night",
     preset,
     bracketSize

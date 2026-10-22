@@ -219,6 +219,7 @@ function makeEvent(includeAllRaceData: boolean): EventRecord {
     registrationLimit: null,
     tournamentStartsAt: null,
     tournamentStartCheckDismissedAt: null,
+    plannedBracketSize: null,
     active: true,
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-24T11:00:00.000Z"
@@ -339,10 +340,11 @@ export function makeSnapshotDb(
   includeAllRaceData: boolean,
   currentRace: RaceRecord = CURRENT_RACE,
   extraResults: RaceResult[] = [],
-  raceFinishTimesByEventId: Record<string, string[]> = {}
+  raceFinishTimesByEventId: Record<string, string[]> = {},
+  eventOverrides: Partial<EventRecord> = {}
 ): AppDatabase {
   const settings = makeSettings(includeAllRaceData);
-  const event = makeEvent(includeAllRaceData);
+  const event = { ...makeEvent(includeAllRaceData), ...eventOverrides };
 
   return {
     getActiveEvent: () => event,

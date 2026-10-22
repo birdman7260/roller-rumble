@@ -140,14 +140,29 @@ const results: RaceResult[] = [
 
 describe("competition service", () => {
   it("builds seeds from event results while preserving racers with no prior data", () => {
-    const seeds = buildSeeds(racers, results);
+    const seeds = buildSeeds(racers, results, []);
     expect(seeds[0].racerId).toBe("r1");
     expect(seeds).toHaveLength(4);
     expect(seeds.find((seed) => seed.racerId === "r3")?.score).toBe(0);
   });
 
+  it("seeds racers by their event fastest time, then the rest by results", () => {
+    // Drew has never won but holds the fastest qualifying run; Blake is second fastest.
+    const seeds = buildSeeds(racers, results, [
+      { racerId: "r4", raceId: "ra4", finishTimeMs: 19_000 },
+      { racerId: "r2", raceId: "ra2", finishTimeMs: 21_000 }
+    ]);
+
+    expect(seeds.map((seed) => [seed.seed, seed.racerId])).toEqual([
+      [1, "r4"],
+      [2, "r2"],
+      [3, "r1"],
+      [4, "r3"]
+    ]);
+  });
+
   it("advances winners in single elimination brackets", () => {
-    const seeds = buildSeeds(racers, results);
+    const seeds = buildSeeds(racers, results, []);
     const nodes = createSingleEliminationNodes("stage-1", "t1", seeds);
     const roundOne = nodes.find((node) => node.slotLabel === "W1.1");
     expect(roundOne).toBeTruthy();
@@ -157,7 +172,7 @@ describe("competition service", () => {
   });
 
   it("drops first-round losers into the losers bracket in double elimination", () => {
-    const seeds = buildSeeds(racers, results);
+    const seeds = buildSeeds(racers, results, []);
     const nodes = createDoubleEliminationNodes("stage-2", "t2", seeds);
     const roundOne = nodes.find((node) => node.slotLabel === "WB1.1");
     expect(roundOne?.racerAId).toBeTruthy();
@@ -170,7 +185,7 @@ describe("competition service", () => {
   });
 
   it("computes round robin standings from match winners", () => {
-    const seeds = buildSeeds(racers.slice(0, 3), results);
+    const seeds = buildSeeds(racers.slice(0, 3), results, []);
     const matches = createRoundRobinMatches(seeds);
     matches[0].winnerRacerId = matches[0].racerAId;
     matches[1].winnerRacerId = matches[1].racerAId;
@@ -180,7 +195,7 @@ describe("competition service", () => {
   });
 
   it("auto-advances byes without hanging in uneven single elimination brackets", () => {
-    const seeds = buildSeeds(extendedRacers, results);
+    const seeds = buildSeeds(extendedRacers, results, []);
     const nodes = createSingleEliminationNodes("stage-uneven", "t-uneven", seeds);
 
     expect(nodes).toHaveLength(15);
@@ -196,7 +211,7 @@ describe("competition service", () => {
   });
 
   it("does not pre-award a later-round winner while a sibling feeder match is still unresolved", () => {
-    const seeds = buildSeeds(extendedRacers.slice(0, 5), results);
+    const seeds = buildSeeds(extendedRacers.slice(0, 5), results, []);
     const nodes = createSingleEliminationNodes("stage-byes", "t-byes", seeds);
     const roundOneBye = nodes.find((node) => node.slotLabel === "W1.1");
     const roundOneMatch = nodes.find((node) => node.slotLabel === "W1.2");
@@ -231,7 +246,7 @@ describe("competition service", () => {
   });
 
   it("builds double elimination brackets for uneven fields", () => {
-    const seeds = buildSeeds(extendedRacers, results);
+    const seeds = buildSeeds(extendedRacers, results, []);
     const nodes = createDoubleEliminationNodes("stage-double-uneven", "t-double-uneven", seeds);
 
     expect(nodes.some((node) => node.slotLabel.startsWith("WB"))).toBe(true);

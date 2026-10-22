@@ -42,6 +42,7 @@ import type {
   UnracedRefundPreview,
   UnracedRefundResult,
   RoundRobinMatch,
+  TopRacersEntry,
   TournamentByeFillOptionsResponse,
   TournamentRacerRemovalOptionsResponse,
   TournamentBundle,
@@ -105,6 +106,7 @@ import {
   undoGroupMatchResult,
   TournamentService
 } from "./tournaments";
+import { rankEventBestRuns } from "./top-racers";
 import {
   buildTournamentQueue,
   getPinnedUpNextMatchId,
@@ -901,9 +903,20 @@ export class RollerRumbleApp extends EventEmitter {
       removedRacerId
     ]);
 
-    return buildSeeds(this.db.listEventRacers(activeEvent.id), results).filter(
-      (seed) => !participantIds.has(seed.racerId) && !unavailableIds.has(seed.racerId)
-    );
+    return buildSeeds(
+      this.db.listEventRacers(activeEvent.id),
+      results,
+      this.rankEventBestRuns(activeEvent.id)
+    ).filter((seed) => !participantIds.has(seed.racerId) && !unavailableIds.has(seed.racerId));
+  }
+
+  /** Every racer's best qualifying run this event, fastest first: the order the tournament seeds in. */
+  private rankEventBestRuns(eventId: string): TopRacersEntry[] {
+    return rankEventBestRuns(this.db, {
+      eventId,
+      raceDistanceMeters: this.db.getAdminSettings().targetDistanceMeters,
+      results: this.db.listResults()
+    });
   }
 
   private findNextTournamentReplacementSeed(bundle: TournamentBundle, removedRacerId: string) {
@@ -1709,6 +1722,7 @@ export class RollerRumbleApp extends EventEmitter {
     signupHeading?: string | null;
     registrationLimit?: number | null;
     tournamentStartsAt?: string | null;
+    plannedBracketSize?: TournamentBracketSize | null;
   }): AppSnapshot {
     const activeEvent = this.db.getActiveEvent();
     if (activeEvent) {
@@ -3185,6 +3199,7 @@ export class RollerRumbleApp extends EventEmitter {
       event: activeEvent,
       racers,
       results,
+      eventBestRuns: this.rankEventBestRuns(activeEvent.id),
       name: input.name,
       preset: input.preset,
       bracketSize: input.bracketSize,

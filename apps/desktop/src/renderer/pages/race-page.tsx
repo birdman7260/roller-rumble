@@ -1,6 +1,7 @@
 import { COUNTDOWN_DURATION_MS, COUNTDOWN_SECONDS } from "@roller-rumble/shared/constants";
 import type {
   AppSnapshot,
+  BracketCutoff,
   QueueEntry,
   RaceRecord,
   TournamentBundle
@@ -23,6 +24,7 @@ import { getActiveTournament } from "../lib/admin-competition";
 import { getConfettiEffectDurationMs } from "../lib/confetti-effects";
 import { useMetaQuery, useSnapshotQuery } from "../lib/query";
 import { getProjectorIdleView, type ProjectorIdleView } from "../lib/projector-idle-view";
+import { formatRaceTime } from "../lib/race-format";
 import { buildParticipantEntries, resolveRacerName } from "../lib/snapshot-display";
 
 const TOURNAMENT_PRE_RACE_STATES: RaceRecord["state"][] = ["scheduled", "staging", "interrupted"];
@@ -309,10 +311,32 @@ function getWinnerAdvance(postRaceSequence: PostRaceSequence | null): BracketWin
   };
 }
 
+/** The `bracket cutoff`, level with the logo: the time a racer must beat to seed into the bracket. */
+function BracketCutoffBadge({ cutoff }: { cutoff: BracketCutoff }) {
+  return (
+    <m.aside
+      className="race-page__cutoff"
+      aria-label="Time to beat to make the tournament"
+      initial={{ opacity: 0, x: 24 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 24 }}
+      transition={{ duration: 0.4, ease: [0.22, 0.84, 0.2, 1] }}
+    >
+      <span className="race-page__cutoff-label">
+        <span>Time to beat</span>
+        <span>Top {cutoff.bracketSize} make the bracket</span>
+      </span>
+      <strong className="race-page__cutoff-time">{formatRaceTime(cutoff.finishTimeMs)}</strong>
+    </m.aside>
+  );
+}
+
 function ProjectorBrand({
+  bracketCutoff,
   eventName,
   showEventName
 }: {
+  bracketCutoff: BracketCutoff | null;
   eventName: string;
   showEventName: boolean;
 }) {
@@ -322,6 +346,9 @@ function ProjectorBrand({
         <RollerRumbleLogo className="race-page__brand-logo" />
       </h1>
       {showEventName ? <p>{eventName}</p> : null}
+      <AnimatePresence>
+        {bracketCutoff ? <BracketCutoffBadge cutoff={bracketCutoff} /> : null}
+      </AnimatePresence>
     </header>
   );
 }
@@ -648,6 +675,7 @@ function RacePageView({ model }: { model: RacePageViewModel }) {
         ]}
       />
       <ProjectorBrand
+        bracketCutoff={model.projection.bracketCutoff}
         eventName={model.snapshot.activeEvent.name}
         showEventName={model.snapshot.settings.raceDisplayShowEventName}
       />
