@@ -67,20 +67,22 @@ export function IncomingChallengeModal({
               <Button
                 variant="ghost"
                 disabled={busyAnswer !== null}
+                busy={busyAnswer === "decline"}
                 onClick={() => {
                   fireAndForget(answer(request.id, "decline"), "decline challenge");
                 }}
               >
-                {busyAnswer === "decline" ? "Declining..." : "Decline"}
+                Decline
               </Button>
               <Button
                 variant="accent"
                 disabled={busyAnswer !== null}
+                busy={busyAnswer === "accept"}
                 onClick={() => {
                   fireAndForget(answer(request.id, "accept"), "accept challenge");
                 }}
               >
-                {busyAnswer === "accept" ? "Accepting..." : "Accept"}
+                Accept
               </Button>
             </div>
           </m.div>

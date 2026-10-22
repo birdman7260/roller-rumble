@@ -62,7 +62,11 @@ import { RegistrationWizard } from "./racer-sections/registration-wizard/registr
 import { clearRegistrationDraft } from "./racer-sections/registration-wizard/registration-draft";
 import { forgetPayAtDeskAcknowledged } from "./racer-sections/registration-wizard/pay-at-desk";
 import { useRegisteredRacerSteps } from "./racer-sections/registration-wizard/use-registered-racer-steps";
-import type { ChallengeReplacementRequest, QueueIssueModal } from "./racer-sections/shared";
+import type {
+  ChallengeReplacementRequest,
+  QueueIssueModal,
+  RacerQueueSignupInput
+} from "./racer-sections/shared";
 import { RacerBottomTabs } from "./racer-sections/tabs";
 import { TournamentTab } from "./racer-sections/tournament";
 import { TournamentOptOutConfirmModal } from "./racer-sections/tournament-opt-out-confirm-modal";
@@ -209,9 +213,12 @@ interface RacerPageState {
   modalNotifications: RacerNotification[];
   notificationMessage: string | null;
   notificationPromptVisible: boolean;
+  notificationsEnableBusy: boolean;
   queueIssueModal: QueueIssueModal | null;
   queueLeaveBusy: boolean;
   queueLeaveRequest: QueueLeaveRequest | null;
+  /** The queue signup waiting on the server; every queue action holds off until it answers. */
+  queueSignupPending: RacerQueueSignupInput | null;
   selectedRacerDetailId: string | null;
   selectedRacerId: string;
   /** The signed-in racer's real name; snapshots strip it, so it comes from the session. */
@@ -237,9 +244,11 @@ function createInitialRacerPageState(initialTab: string | undefined): RacerPageS
     modalNotifications: [],
     notificationMessage: null,
     notificationPromptVisible: false,
+    notificationsEnableBusy: false,
     queueIssueModal: null,
     queueLeaveBusy: false,
     queueLeaveRequest: null,
+    queueSignupPending: null,
     selectedRacerDetailId: null,
     selectedRacerId: localStorage.getItem("roller-rumble.racerId") ?? "",
     selectedRacerRealName: null,
@@ -295,11 +304,9 @@ interface RacerPageViewProps {
   handleChallengeAnswer: (entryId: string, answer: ChallengeAnswer) => Promise<void>;
   handleChallengeRacer: (opponentRacerId: string) => void;
   handleEnableNotifications: () => Promise<void>;
-  handleQueueSignup: (input: {
-    opponentRacerId?: string;
-    requestedType?: "solo" | "auto-match";
-    replaceQueueEntryId?: string;
-  }) => Promise<void>;
+  handleQueueSignup: (input: RacerQueueSignupInput) => Promise<void>;
+  challengeFromModal: (opponentRacerId: string) => Promise<void>;
+  replaceChallengeMatch: (input: RacerQueueSignupInput) => Promise<void>;
   cancelSignOut: () => void;
   confirmSignOut: () => Promise<void>;
   requestSignOut: () => void;
@@ -312,6 +319,7 @@ interface RacerPageViewProps {
   modalActionMessage: string | null;
   notificationConfigMessage: string | null | undefined;
   notificationMessage: string | null;
+  notificationsEnableBusy: boolean;
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
   openChallengeModal: () => void;
   paymentReturnState: string | null;
@@ -319,6 +327,7 @@ interface RacerPageViewProps {
   queueIssueModal: QueueIssueModal | null;
   queueLeaveBusy: boolean;
   queueLeaveRequest: QueueLeaveRequest | null;
+  queueSignupPending: RacerQueueSignupInput | null;
   racerContentRef: RefObject<HTMLDivElement | null>;
   racerNotifications: RacerNotification[];
   reduceMotion: boolean;
@@ -370,9 +379,11 @@ function useRacerPageViewModel({
     modalNotifications,
     notificationMessage,
     notificationPromptVisible,
+    notificationsEnableBusy,
     queueIssueModal,
     queueLeaveBusy,
     queueLeaveRequest,
+    queueSignupPending,
     selectedRacerDetailId,
     selectedRacerId,
     selectedRacerRealName,
@@ -729,6 +740,15 @@ function useRacerPageViewModel({
   }
 
   async function handleEnableNotifications(): Promise<void> {
+    setState({ notificationsEnableBusy: true });
+    try {
+      await enableNotifications();
+    } finally {
+      setState({ notificationsEnableBusy: false });
+    }
+  }
+
+  async function enableNotifications(): Promise<void> {
     setNotificationMessage(null);
     if (!isPushSupported()) {
       setNotificationMessage("This browser does not support Web Push notifications.");
@@ -800,11 +820,24 @@ function useRacerPageViewModel({
     showToast({ message: "You're in the queue for the next race." });
   }
 
-  async function handleQueueSignup(input: {
-    opponentRacerId?: string;
-    requestedType?: "solo" | "auto-match";
-    replaceQueueEntryId?: string;
-  }): Promise<void> {
+  async function handleQueueSignup(input: RacerQueueSignupInput): Promise<void> {
+    if (queueSignupPending) {
+      return;
+    }
+    setState({ queueSignupPending: input });
+    let leavingForCheckout = false;
+    try {
+      leavingForCheckout = await submitQueueSignup(input);
+    } finally {
+      // Heading off to Stripe keeps the buttons held so a second tap can't start another checkout.
+      if (!leavingForCheckout) {
+        setState({ queueSignupPending: null });
+      }
+    }
+  }
+
+  /** Resolves true when the page is navigating to Stripe Checkout. */
+  async function submitQueueSignup(input: RacerQueueSignupInput): Promise<boolean> {
     const maxActiveEntries = snapshot?.settings.maxActiveQueueEntriesPerRacer ?? 3;
     if (!input.opponentRacerId && selectedRacerQueueEntries.length >= maxActiveEntries) {
       setQueueIssueModal({
@@ -814,7 +847,7 @@ function useRacerPageViewModel({
           maxActiveEntries === 1 ? "" : "s"
         }. Finish or leave one of those races before joining again.`
       });
-      return;
+      return false;
     }
 
     try {
@@ -831,7 +864,7 @@ function useRacerPageViewModel({
       if (result.status === "checkout_required") {
         showToast({ message: "Opening secure Stripe Checkout...", variant: "info" });
         window.location.assign(result.checkoutUrl);
-        return;
+        return true;
       }
       if (result.status === "challenge_replacement_required") {
         setChallengeReplacementRequest({
@@ -840,15 +873,16 @@ function useRacerPageViewModel({
           replaceableMatches: result.replaceableMatches
         });
         queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
-        return;
+        return false;
       }
       queryClient.setQueryData(racerSnapshotQueryKey, result.snapshot);
       setNotificationPromptVisible(true);
       showQueueSignupToast(input);
+      return false;
     } catch (error) {
       if (error instanceof ApiError && error.code === "payment_required") {
         showToast({ message: error.message, variant: "error" });
-        return;
+        return false;
       }
       if (error instanceof ApiError && error.code === "max_active_queue_entries") {
         setQueueIssueModal({
@@ -856,7 +890,7 @@ function useRacerPageViewModel({
           title: "Already queued",
           message: error.message
         });
-        return;
+        return false;
       }
       if (error instanceof ApiError && error.code === "challenge_answer_required") {
         setQueueIssueModal({
@@ -864,7 +898,7 @@ function useRacerPageViewModel({
           title: "Answer your challenge first",
           message: error.message
         });
-        return;
+        return false;
       }
       if (error instanceof ApiError && error.code === "challenge_target_unavailable") {
         setQueueIssueModal({
@@ -872,7 +906,7 @@ function useRacerPageViewModel({
           title: "Challenge unavailable",
           message: error.message
         });
-        return;
+        return false;
       }
       throw error;
     }
@@ -1126,6 +1160,23 @@ function useRacerPageViewModel({
     fireAndForget(handleQueueSignup({ opponentRacerId }), "challenge racer");
   }
 
+  // The picker stays open, its Challenge button busy, until the server answers.
+  async function challengeFromModal(opponentRacerId: string): Promise<void> {
+    try {
+      await handleQueueSignup({ opponentRacerId });
+    } finally {
+      closeChallengeModal();
+    }
+  }
+
+  async function replaceChallengeMatch(input: RacerQueueSignupInput): Promise<void> {
+    try {
+      await handleQueueSignup(input);
+    } finally {
+      setChallengeReplacementRequest(null);
+    }
+  }
+
   function openChallengeModal(): void {
     setState({ challengeModalOpen: true });
   }
@@ -1182,6 +1233,7 @@ function useRacerPageViewModel({
     avatarUploadMessage,
     bracketPresentationRequest,
     cancelSignOut,
+    challengeFromModal,
     challengeModalOpen,
     challengeReplacementRequest,
     closeChallengeModal,
@@ -1218,6 +1270,7 @@ function useRacerPageViewModel({
     modalActionMessage,
     notificationConfigMessage: notificationConfigQuery.data?.message,
     notificationMessage,
+    notificationsEnableBusy,
     onMarkNotificationRead: async (notification) => {
       await closeTrayNotification(notification);
       const nextNotifications = await markRacerNotificationRead(notification.notificationId);
@@ -1229,10 +1282,12 @@ function useRacerPageViewModel({
     queueIssueModal,
     queueLeaveBusy,
     queueLeaveRequest,
+    queueSignupPending,
     racerContentRef,
     racerNotifications,
     reduceMotion,
     registration,
+    replaceChallengeMatch,
     requestLeaveQueue,
     requestLeaveQueueEntry,
     requestSignOut,
@@ -1275,6 +1330,7 @@ function RacerPageModals({
   cancelQueueLeave,
   cancelSignOut,
   cancelTournamentOptOut,
+  challengeFromModal,
   challengeModalOpen,
   challengeReplacementRequest,
   closeChallengeModal,
@@ -1283,8 +1339,6 @@ function RacerPageModals({
   dismissNotificationModal,
   flags,
   handleChallengeAnswer,
-  handleChallengeRacer,
-  handleQueueSignup,
   handleTabChange,
   handleTournamentOptOut,
   liveSnapshot,
@@ -1292,6 +1346,8 @@ function RacerPageModals({
   queueIssueModal,
   queueLeaveBusy,
   queueLeaveRequest,
+  queueSignupPending,
+  replaceChallengeMatch,
   selectedRacerId,
   setChallengeReplacementRequest,
   setQueueIssueModal,
@@ -1306,10 +1362,10 @@ function RacerPageModals({
         open={challengeModalOpen}
         racers={liveSnapshot.racers.map((entry) => entry.racer)}
         selectedRacerId={selectedRacerId}
+        pendingOpponentRacerId={queueSignupPending?.opponentRacerId ?? null}
         onCancel={closeChallengeModal}
         onChallenge={(opponentRacerId) => {
-          closeChallengeModal();
-          handleChallengeRacer(opponentRacerId);
+          fireAndForget(challengeFromModal(opponentRacerId), "challenge racer");
         }}
       />
       <ChallengeReplacementModal
@@ -1317,9 +1373,9 @@ function RacerPageModals({
           setChallengeReplacementRequest(null);
         }}
         onReplace={(input) => {
-          setChallengeReplacementRequest(null);
-          fireAndForget(handleQueueSignup(input), "replace challenge queue match");
+          fireAndForget(replaceChallengeMatch(input), "replace challenge queue match");
         }}
+        pendingQueueEntryId={queueSignupPending?.replaceQueueEntryId ?? null}
         request={challengeReplacementRequest}
       />
       <QueueIssueModalView
@@ -1362,7 +1418,7 @@ function RacerPageModals({
         title="This racer will be gone from this phone"
         body="There is no password or email sign-in, so once you sign out you can't get this racer back on this phone. Your races, queue spots, and photo stay behind. To race again you'll register as a brand new racer."
         cancelLabel="Stay signed in"
-        confirmLabel={signOutBusy ? "Signing out..." : "Sign out for good"}
+        confirmLabel="Sign out for good"
         onCancel={cancelSignOut}
         onConfirm={() => {
           fireAndForget(confirmSignOut(), "sign out racer");
@@ -1406,10 +1462,12 @@ function RacerPageView(props: RacerPageViewProps) {
     liveSnapshot,
     notificationConfigMessage,
     notificationMessage,
+    notificationsEnableBusy,
     onMarkNotificationRead,
     openChallengeModal,
     paymentReturnState,
     queueDockState,
+    queueSignupPending,
     racerContentRef,
     racerNotifications,
     reduceMotion,
@@ -1510,6 +1568,7 @@ function RacerPageView(props: RacerPageViewProps) {
                 notificationConfigured={notificationConfigured}
                 notificationConfigMessage={notificationConfigMessage}
                 notificationMessage={notificationMessage}
+                notificationsEnableBusy={notificationsEnableBusy}
                 onAvatarUpload={handleAvatarUpload}
                 onEnableNotifications={handleEnableNotifications}
                 onMarkNotificationRead={onMarkNotificationRead}
@@ -1533,6 +1592,7 @@ function RacerPageView(props: RacerPageViewProps) {
                 layoutTransition={layoutTransition}
                 liveSnapshot={liveSnapshot}
                 onChallengeRacer={handleChallengeRacer}
+                queueSignupPending={queueSignupPending}
                 reduceMotion={reduceMotion}
                 selectedRacer={selectedRacer}
                 selectedRacerId={selectedRacerId}
@@ -1575,6 +1635,7 @@ function RacerPageView(props: RacerPageViewProps) {
               closedMessage={liveSnapshot.settings.queueClosedMessage}
               onQueueSignup={handleQueueSignup}
               onOpenChallenge={openChallengeModal}
+              pending={queueSignupPending}
             />
             <RacerBottomTabs
               activeTabs={activeTabs}

@@ -78,12 +78,12 @@ export function QueueLeaveConfirmModal({
               </Button>
               <Button
                 variant="accent"
-                disabled={busy}
+                busy={busy}
                 onClick={() => {
                   fireAndForget(onConfirm(), "confirm leave queue");
                 }}
               >
-                {busy ? "Leaving..." : "Leave"}
+                Leave
               </Button>
             </div>
           </m.div>

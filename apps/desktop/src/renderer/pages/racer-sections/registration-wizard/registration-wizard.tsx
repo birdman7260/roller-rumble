@@ -142,7 +142,6 @@ export function RegistrationWizard({
           <DisplayNameStep
             displayName={draft.displayName}
             busy={busy}
-            busyLabel={signedIn ? "Saving..." : "Signing you up..."}
             errorMessage={errorMessage}
             onChange={(displayName) => {
               updateDraft({ displayName });

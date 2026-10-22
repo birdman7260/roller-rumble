@@ -72,25 +72,66 @@ export function Panel({
   );
 }
 
+/** How long a busy control waits before swapping its label for a spinner, so quick replies never flash one. */
+export const BUSY_INDICATOR_DELAY_MS = 500;
+
+/**
+ * Mounted only while its control is busy, so every busy stretch starts the delay afresh. The label
+ * stays in the layout (just hidden) under the spinner, so the control never changes size.
+ */
+export function BusyContent({ children }: { children: ReactNode }) {
+  const [showSpinner, setShowSpinner] = useState(false);
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setShowSpinner(true);
+    }, BUSY_INDICATOR_DELAY_MS);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, []);
+
+  return (
+    <>
+      <span className={cx("busy-content__label", showSpinner && "busy-content__label--hidden")}>
+        {children}
+      </span>
+      {showSpinner ? <span className="busy-content__spinner" aria-hidden="true" /> : null}
+    </>
+  );
+}
+
+/**
+ * `busy` marks a button waiting on the server: it is disabled at once, and a spinner replaces its
+ * label if the wait passes `BUSY_INDICATOR_DELAY_MS`.
+ */
 export function Button({
   variant = "default",
+  busy = false,
   className,
   type = "button",
+  disabled,
+  children,
   ...props
 }: ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: "default" | "accent" | "ghost";
+  busy?: boolean;
 }) {
   return (
     <button
       {...props}
       type={type}
+      disabled={busy || disabled}
+      aria-busy={busy || undefined}
       className={cx(
         "button",
         variant === "accent" && "button--accent",
         variant === "ghost" && "button--ghost",
+        busy && "busy-content",
         className
       )}
-    />
+    >
+      {busy ? <BusyContent>{children}</BusyContent> : children}
+    </button>
   );
 }
 
@@ -484,7 +525,7 @@ export function ConfirmModal({
           <Button autoFocus variant="ghost" disabled={busy} onClick={onCancel}>
             {cancelLabel}
           </Button>
-          <Button variant="accent" disabled={busy} onClick={onConfirm}>
+          <Button variant="accent" busy={busy} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </>

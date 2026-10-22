@@ -8,6 +8,7 @@ import { fireAndForget } from "../../lib/ui-actions";
 export function PhotoBoothQr() {
   const [tokenResponse, setTokenResponse] = useState<PhotoBoothTokenResponse | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [manualRefreshBusy, setManualRefreshBusy] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -71,12 +72,18 @@ export function PhotoBoothQr() {
         </span>
         <Button
           variant="ghost"
+          busy={manualRefreshBusy}
           onClick={() => {
+            setManualRefreshBusy(true);
             fireAndForget(
-              createRacerPhotoBoothToken().then((nextToken) => {
-                setTokenResponse(nextToken);
-                setErrorMessage(null);
-              }),
+              createRacerPhotoBoothToken()
+                .then((nextToken) => {
+                  setTokenResponse(nextToken);
+                  setErrorMessage(null);
+                })
+                .finally(() => {
+                  setManualRefreshBusy(false);
+                }),
               "manual photo booth QR refresh"
             );
           }}

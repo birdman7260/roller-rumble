@@ -189,12 +189,12 @@ export function TournamentTab({
                       bundle.tournament.id === visibleTournament?.tournament.id ? (
                         <Button
                           variant="ghost"
-                          disabled={tournamentOptOutBusy}
+                          busy={tournamentOptOutBusy}
                           onClick={() => {
                             fireAndForget(onTournamentOptOut(), "opt out of tournament");
                           }}
                         >
-                          {tournamentOptOutBusy ? "Opting out..." : "Opt out"}
+                          Opt out
                         </Button>
                       ) : null}
                     </div>

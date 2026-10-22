@@ -8,7 +8,6 @@ import { racerRegistrationSchema } from "@roller-rumble/shared/validation";
 export function DisplayNameStep({
   displayName,
   busy,
-  busyLabel,
   errorMessage,
   onChange,
   onBack,
@@ -16,22 +15,19 @@ export function DisplayNameStep({
 }: {
   displayName: string;
   busy: boolean;
-  /** What Continue says while the racer name is being submitted. */
-  busyLabel: string;
   errorMessage: string | null;
   onChange: (displayName: string) => void;
   onBack: () => void;
   onSubmit: () => void;
 }) {
-  const canSubmit =
-    racerRegistrationSchema.shape.displayName.safeParse(displayName).success && !busy;
+  const canSubmit = racerRegistrationSchema.shape.displayName.safeParse(displayName).success;
 
   return (
     <form
       className="form-grid"
       noValidate
       action={() => {
-        if (canSubmit) {
+        if (canSubmit && !busy) {
           onSubmit();
         }
       }}
@@ -56,8 +52,8 @@ export function DisplayNameStep({
         <Button variant="ghost" disabled={busy} onClick={onBack}>
           Back
         </Button>
-        <Button type="submit" variant="accent" disabled={!canSubmit}>
-          {busy ? busyLabel : "Continue"}
+        <Button type="submit" variant="accent" disabled={!canSubmit} busy={busy}>
+          Continue
         </Button>
       </div>
     </form>

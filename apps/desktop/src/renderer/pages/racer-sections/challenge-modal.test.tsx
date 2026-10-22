@@ -13,6 +13,7 @@ function renderModal(overrides: Partial<Parameters<typeof ChallengeModal>[0]> = 
     open: true,
     racers,
     selectedRacerId: "racer-me",
+    pendingOpponentRacerId: null,
     onCancel: vi.fn(),
     onChallenge: vi.fn(),
     ...overrides
@@ -78,6 +79,16 @@ describe("ChallengeModal", () => {
 
     expect(screen.getByRole("textbox", { name: "Opponent" })).toHaveValue("");
     expect(screen.getByRole("button", { name: "Challenge" })).toBeDisabled();
+  });
+
+  it("holds the picker while the challenge waits on the server", () => {
+    const { onCancel } = renderModal({ pendingOpponentRacerId: "racer-bo" });
+
+    expect(screen.getByRole("button", { name: "Challenge" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Challenge" })).toHaveAttribute("aria-busy", "true");
+    expect(screen.getByRole("button", { name: "Cancel" })).toBeDisabled();
+    fireEvent(screen.getByRole("dialog"), new Event("cancel", { cancelable: true }));
+    expect(onCancel).not.toHaveBeenCalled();
   });
 
   it("renders nothing while closed", () => {

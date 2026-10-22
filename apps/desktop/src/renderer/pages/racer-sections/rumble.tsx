@@ -260,12 +260,12 @@ function TournamentSpotPanel({
         </div>
         <Button
           variant="ghost"
-          disabled={tournamentOptOutBusy}
+          busy={tournamentOptOutBusy}
           onClick={() => {
             fireAndForget(onTournamentOptOut(), "opt out of tournament");
           }}
         >
-          {tournamentOptOutBusy ? "Opting out..." : "Opt out"}
+          Opt out
         </Button>
         {tournamentOptOutMessage ? <p>{tournamentOptOutMessage}</p> : null}
       </div>

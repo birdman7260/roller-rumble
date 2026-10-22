@@ -23,18 +23,28 @@ function DockIcon({ children }: { children: ReactNode }) {
 }
 
 function DockAction({
+  busy = false,
+  disabled,
   icon,
   label,
   onClick,
   variant = "ghost"
 }: {
+  busy?: boolean;
+  disabled: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void;
   variant?: "ghost" | "accent";
 }) {
   return (
-    <Button className="racer-queue-dock__action" variant={variant} onClick={onClick}>
+    <Button
+      className="racer-queue-dock__action"
+      variant={variant}
+      busy={busy}
+      disabled={disabled}
+      onClick={onClick}
+    >
       {icon}
       <span>{label}</span>
     </Button>
@@ -50,6 +60,7 @@ export function QueueDock({
   closedMessage,
   onOpenChallenge,
   onQueueSignup,
+  pending,
   state
 }: {
   state: QueueDockState;
@@ -58,6 +69,8 @@ export function QueueDock({
   closedMessage: string;
   onQueueSignup: (input: RacerQueueSignupInput) => Promise<void>;
   onOpenChallenge: () => void;
+  /** The queue signup still waiting on the server, which holds every action until it answers. */
+  pending: RacerQueueSignupInput | null;
 }) {
   if (state === "hidden") {
     return null;
@@ -78,6 +91,8 @@ export function QueueDock({
       <legend className="visually-hidden">Queue actions</legend>
       <DockAction
         variant="accent"
+        busy={pending?.requestedType === "auto-match"}
+        disabled={pending !== null}
         label="Queue up"
         icon={
           <DockIcon>
@@ -90,6 +105,8 @@ export function QueueDock({
       />
       {allowSolo ? (
         <DockAction
+          busy={pending?.requestedType === "solo"}
+          disabled={pending !== null}
           label="Solo"
           icon={
             <DockIcon>
@@ -103,6 +120,7 @@ export function QueueDock({
         />
       ) : null}
       <DockAction
+        disabled={pending !== null}
         label="Challenge"
         icon={
           <span className="racer-queue-dock__vs" aria-hidden="true">

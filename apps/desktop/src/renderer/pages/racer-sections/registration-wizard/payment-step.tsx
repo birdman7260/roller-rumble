@@ -133,12 +133,12 @@ function OnlinePaymentStep({
         </Button>
         <Button
           variant="accent"
-          disabled={busy}
+          busy={busy}
           onClick={() => {
             fireAndForget(openCheckout(), "open entry fee checkout");
           }}
         >
-          {busy ? "Opening checkout..." : fee ? `Pay ${fee}` : "Pay entry fee"}
+          {fee ? `Pay ${fee}` : "Pay entry fee"}
         </Button>
       </div>
     </div>

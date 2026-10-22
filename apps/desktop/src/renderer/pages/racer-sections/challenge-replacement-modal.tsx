@@ -1,16 +1,20 @@
-import { Button } from "@roller-rumble/shared-ui";
+import { BusyContent, Button } from "@roller-rumble/shared-ui";
 import { AnimatePresence, m } from "framer-motion";
 import type { ChallengeReplacementRequest, RacerQueueSignupInput } from "./shared";
 
 export function ChallengeReplacementModal({
   onDismiss,
   onReplace,
+  pendingQueueEntryId,
   request
 }: {
   onDismiss: () => void;
   onReplace: (input: RacerQueueSignupInput) => void;
+  /** The match being replaced while the server answers; the modal holds until it does. */
+  pendingQueueEntryId: string | null;
   request: ChallengeReplacementRequest | null;
 }) {
+  const busy = pendingQueueEntryId !== null;
   return (
     <AnimatePresence>
       {request ? (
@@ -29,32 +33,49 @@ export function ChallengeReplacementModal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 18, scale: 0.98 }}
           >
-            <button type="button" className="racer-notification-modal__close" onClick={onDismiss}>
+            <button
+              type="button"
+              className="racer-notification-modal__close"
+              disabled={busy}
+              onClick={onDismiss}
+            >
               Close
             </button>
             <span className="racer-notification-modal__eyebrow">Challenge Queue</span>
             <h2 id="racer-challenge-replacement-modal-title">Pick a challenge to replace</h2>
             <p>{request.message}</p>
             <div className="racer-notification-modal__match-list">
-              {request.replaceableMatches.map((match) => (
-                <button
-                  key={match.queueEntryId}
-                  type="button"
-                  className="racer-notification-modal__match-option"
-                  onClick={() => {
-                    onReplace({
-                      opponentRacerId: request.opponentRacerId,
-                      replaceQueueEntryId: match.queueEntryId
-                    });
-                  }}
-                >
-                  <span>Queue #{match.position}</span>
-                  <strong>vs {match.opponentDisplayName}</strong>
-                </button>
-              ))}
+              {request.replaceableMatches.map((match) => {
+                const optionBusy = pendingQueueEntryId === match.queueEntryId;
+                const optionLabel = (
+                  <>
+                    <span>Queue #{match.position}</span>
+                    <strong>vs {match.opponentDisplayName}</strong>
+                  </>
+                );
+                return (
+                  <button
+                    key={match.queueEntryId}
+                    type="button"
+                    className={`racer-notification-modal__match-option${
+                      optionBusy ? " busy-content" : ""
+                    }`}
+                    aria-busy={optionBusy || undefined}
+                    disabled={busy}
+                    onClick={() => {
+                      onReplace({
+                        opponentRacerId: request.opponentRacerId,
+                        replaceQueueEntryId: match.queueEntryId
+                      });
+                    }}
+                  >
+                    {optionBusy ? <BusyContent>{optionLabel}</BusyContent> : optionLabel}
+                  </button>
+                );
+              })}
             </div>
             <div className="racer-notification-modal__actions">
-              <Button variant="ghost" onClick={onDismiss}>
+              <Button variant="ghost" disabled={busy} onClick={onDismiss}>
                 Cancel
               </Button>
             </div>

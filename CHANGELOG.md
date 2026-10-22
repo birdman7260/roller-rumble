@@ -22,6 +22,7 @@ All notable Roller Rumble changes should be recorded here before a release.
 - The race counts and stats on the **Racers** tab and its racer card now always cover this event only, even when **Seed from all-time race data** is on.
 - Racer stats on phones (best finish, top speed, average speed, and race count in the racer list) now cover this event only, like the win-loss record already did, even when **Seed from all-time race data** is on. A racer who hasn't raced yet this event shows no top speed in the list.
 - The projector's results screen shows "—" instead of "0.0 km/h" when a rider has no speed reading.
+- Buttons on racer phones now all behave the same while they wait on the server. The button greys out as soon as it's tapped, so it can't be sent twice, and if the reply takes longer than half a second a spinner replaces its label. This covers **Queue up**, **Solo**, **Challenge** (in the dock, the challenge picker, and the **Racers** tab), leaving races, opting out of a tourney, answering a challenge, signing up, paying, signing out, enabling notifications, and refreshing the photo booth QR. Instead of closing right away, the challenge picker now stays open until the challenge goes through. While one queue request is in flight, the other queue buttons wait for it to finish.
 
 ### Fixed
 

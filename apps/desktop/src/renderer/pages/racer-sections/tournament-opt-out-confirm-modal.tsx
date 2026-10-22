@@ -40,12 +40,12 @@ export function TournamentOptOutConfirmModal({
               </Button>
               <Button
                 variant="accent"
-                disabled={busy}
+                busy={busy}
                 onClick={() => {
                   fireAndForget(onConfirm(), "confirm opt out of tournament");
                 }}
               >
-                {busy ? "Opting out..." : "Yes"}
+                Yes
               </Button>
             </div>
           </m.div>

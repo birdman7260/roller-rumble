@@ -135,6 +135,48 @@ textarea {
   opacity: 0.6;
 }
 
+/* A control waiting on the server (see `BusyContent`). It dims like any disabled control the moment
+   it is pressed; the spinner only appears once the wait outlasts the delay. */
+.busy-content {
+  position: relative;
+}
+
+.busy-content:disabled {
+  cursor: progress;
+}
+
+.busy-content__label {
+  display: contents;
+}
+
+.busy-content__label--hidden {
+  visibility: hidden;
+}
+
+.busy-content__spinner {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 1.15em;
+  height: 1.15em;
+  border: 0.16em solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: busy-content-spin 700ms linear infinite;
+}
+
+@keyframes busy-content-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .busy-content__spinner {
+    animation-duration: 1.6s;
+  }
+}
+
 .button--accent {
   background: var(--theme-warning);
 }

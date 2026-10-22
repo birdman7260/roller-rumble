@@ -9,11 +9,12 @@ import { AnimatePresence, m } from "framer-motion";
 import { resolveBackendAssetUrl } from "../../lib/assets";
 import { formatSpeed } from "../../lib/race-format";
 import { ExpandedRacerStats } from "./stats";
-import type { SectionMotionProps } from "./shared";
+import type { RacerQueueSignupInput, SectionMotionProps } from "./shared";
 
 export function RacersTab({
   liveSnapshot,
   onChallengeRacer,
+  queueSignupPending,
   reduceMotion,
   selectedRacer,
   selectedRacerId,
@@ -27,6 +28,7 @@ export function RacersTab({
 }: SectionMotionProps & {
   liveSnapshot: AppSnapshot;
   onChallengeRacer: (opponentRacerId: string) => void;
+  queueSignupPending: RacerQueueSignupInput | null;
   reduceMotion: boolean;
   selectedRacer?: RacerSummary | null;
   selectedRacerId: string;
@@ -92,6 +94,8 @@ export function RacersTab({
                     <Button
                       className="racer-list-row__challenge"
                       variant="ghost"
+                      busy={queueSignupPending?.opponentRacerId === entry.racer.id}
+                      disabled={queueSignupPending !== null}
                       onClick={() => {
                         onChallengeRacer(entry.racer.id);
                       }}

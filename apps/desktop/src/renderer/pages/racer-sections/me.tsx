@@ -27,6 +27,7 @@ export function MeTab({
   notificationConfigured,
   notificationConfigMessage,
   notificationMessage,
+  notificationsEnableBusy,
   onAvatarUpload,
   onEnableNotifications,
   onMarkNotificationRead,
@@ -50,6 +51,7 @@ export function MeTab({
   notificationConfigured: boolean;
   notificationConfigMessage: string | null | undefined;
   notificationMessage: string | null;
+  notificationsEnableBusy: boolean;
   onAvatarUpload: (file: File) => Promise<void>;
   onEnableNotifications: () => Promise<void>;
   onMarkNotificationRead: (notification: RacerNotification) => Promise<void>;
@@ -121,6 +123,7 @@ export function MeTab({
                     <Button
                       variant="accent"
                       disabled={!notificationConfigured}
+                      busy={notificationsEnableBusy}
                       onClick={() => {
                         fireAndForget(onEnableNotifications(), "enable notifications");
                       }}
@@ -132,6 +135,7 @@ export function MeTab({
                   <div className="button-row">
                     <Button
                       variant="ghost"
+                      busy={notificationsEnableBusy}
                       onClick={() => {
                         fireAndForget(onEnableNotifications(), "enable notifications");
                       }}

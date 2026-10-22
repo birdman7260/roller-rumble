@@ -82,12 +82,12 @@ export function RacerNotificationModal({
                 <>
                   <Button
                     variant="ghost"
-                    disabled={tournamentOptOutBusy}
+                    busy={tournamentOptOutBusy}
                     onClick={() => {
                       fireAndForget(onTournamentOptOut(), "opt out of tournament");
                     }}
                   >
-                    {tournamentOptOutBusy ? "Removing..." : "Remove Me"}
+                    Remove Me
                   </Button>
                   <Button
                     variant="accent"

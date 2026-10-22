@@ -1182,7 +1182,16 @@ p {
   cursor: pointer;
 }
 
-.racer-notification-modal__match-option:hover {
+.racer-notification-modal__match-option:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.racer-notification-modal__match-option.busy-content:disabled {
+  cursor: progress;
+}
+
+.racer-notification-modal__match-option:hover:not(:disabled) {
   border-color: var(--theme-accent);
   background: color-mix(in srgb, var(--theme-accent-soft) 45%, var(--theme-surface-alt));
 }
